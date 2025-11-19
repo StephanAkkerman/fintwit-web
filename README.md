@@ -14,6 +14,17 @@
 
 In this section you can provide a brief introduction to the project. You can also include a brief description of the project and its features.
 
+1. Run the backend using:
+```bash
+uvicorn app.api.main:app --reload
+```
+2. Run the frontend using:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
 ## Table of Contents 🗂
 
 - [Key Features](#key-features)

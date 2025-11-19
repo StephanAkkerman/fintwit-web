@@ -1,34 +1,39 @@
-# app/api/main.py
+# app/api/main.py (updated bits)
 import asyncio
 import json
+import os
 from contextlib import asynccontextmanager, suppress
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from ..infra.db import create_engine, init_db
+from ..infra.repos import TweetRepo
 from ..runtime.broadcast import Broadcaster
-from ..runtime.state import TweetStore
 from ..runtime.streamer import run_stream
 
-STORE = TweetStore(capacity=5000)
+ENGINE = create_engine(os.getenv("DB_URL", "sqlite+aiosqlite:///./data.db"))
+Session = async_sessionmaker(ENGINE, expire_on_commit=False)
+REPO = TweetRepo(Session)
 BROADCAST = Broadcaster()
 
 
-def _check_api_key(expected: str | None, got: str | None):
-    if expected:
-        if not got or got != expected:
-            raise HTTPException(status_code=401, detail="Unauthorized")
-
-
 async def api_key_dep(request: Request):
-    _check_api_key(request.app.state.API_KEY, request.headers.get("X-API-Key"))
+    expected = request.app.state.API_KEY
+    got = request.headers.get("X-API-Key")
+    if expected and got != expected:
+        raise HTTPException(status_code=401, detail="Unauthorized")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # put your API key in env later; empty means "no auth"
-    app.state.API_KEY = ""  # e.g. os.getenv("API_KEY", "")
-    task = asyncio.create_task(run_stream(STORE, BROADCAST))
+    await init_db(ENGINE)
+    app.state.API_KEY = os.getenv("API_KEY", "")
+    # start background stream: persist THEN broadcast
+    task = asyncio.create_task(
+        run_stream(REPO, BROADCAST)
+    )  # ← we’ll update run_stream below
     try:
         yield
     finally:
@@ -37,20 +42,12 @@ async def lifespan(app: FastAPI):
             await task
 
 
-app = FastAPI(title="X Stream Backend", lifespan=lifespan)
-
-
-@app.get("/healthz")
-async def healthz():
-    return {"ok": True}
+app = FastAPI(title="X Stream API", lifespan=lifespan)
 
 
 @app.get("/api/posts")
-async def list_posts(
-    limit: int = Query(50, ge=1, le=200),
-    _=Depends(api_key_dep),
-):
-    return await STORE.latest(limit=limit)
+async def list_posts(limit: int = Query(50, ge=1, le=200), _=Depends(api_key_dep)):
+    return await REPO.latest(limit)
 
 
 @app.get("/api/stream")
