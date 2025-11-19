@@ -1,4 +1,5 @@
 xtimeline
-sqlalchemy
 fastapi
 uvicorn
+sqlalchemy[asyncio]
+aiosqlite
