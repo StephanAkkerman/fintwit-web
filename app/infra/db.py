@@ -26,6 +26,7 @@ class TweetRow(Base):
     assets: Mapped[list] = mapped_column(
         JSON().with_variant(SQLITE_JSON, "sqlite"), default=[]
     )
+    is_chart: Mapped[bool] = mapped_column(default=False)
 
 
 def create_engine(url: str = "sqlite+aiosqlite:///./data.db") -> AsyncEngine:

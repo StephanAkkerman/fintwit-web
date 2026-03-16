@@ -12,6 +12,7 @@ from ..infra.db import create_engine, init_db
 from ..infra.repos import TweetRepo
 from ..runtime.broadcast import Broadcaster
 from ..runtime.streamer import run_stream
+from ..ml.chart import chart_classifier
 
 ENGINE = create_engine(os.getenv("DB_URL", "sqlite+aiosqlite:///./data.db"))
 Session = async_sessionmaker(ENGINE, expire_on_commit=False)
@@ -30,6 +31,7 @@ async def api_key_dep(request: Request):
 async def lifespan(app: FastAPI):
     await init_db(ENGINE)
     app.state.API_KEY = os.getenv("API_KEY", "")
+    chart_classifier.load_model()
     # start background stream: persist THEN broadcast
     task = asyncio.create_task(
         run_stream(REPO, BROADCAST)

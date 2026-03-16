@@ -58,6 +58,7 @@ class TweetRepo:
                 "title": r.title,
                 "media_types": r.media_types,
                 "assets": r.assets,
+                "is_chart": r.is_chart,
             }
             for r in rows
         ]
@@ -85,6 +86,7 @@ class TweetRepo:
                 "title": r.title,
                 "media_types": r.media_types,
                 "assets": r.assets,
+                "is_chart": r.is_chart,
             }
             for r in rows
         ]
