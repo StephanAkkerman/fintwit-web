@@ -22,9 +22,10 @@ class TweetRow(Base):
     media_types: Mapped[list] = mapped_column(
         JSON().with_variant(SQLITE_JSON, "sqlite")
     )
-    created_at: Mapped[DateTime] = mapped_column(
-        DateTime, index=True, nullable=True
-    )  # optional if you have it
+    created_at: Mapped[DateTime] = mapped_column(DateTime, index=True, nullable=True)
+    assets: Mapped[list] = mapped_column(
+        JSON().with_variant(SQLITE_JSON, "sqlite"), default=[]
+    )
 
 
 def create_engine(url: str = "sqlite+aiosqlite:///./data.db") -> AsyncEngine:
