@@ -20,7 +20,7 @@ BROADCAST = Broadcaster()
 
 
 async def api_key_dep(request: Request):
-    expected = request.app.state.API_KEY
+    expected = getattr(request.app.state, "API_KEY", "")
     got = request.headers.get("X-API-Key")
     if expected and got != expected:
         raise HTTPException(status_code=401, detail="Unauthorized")

@@ -1,3 +1,16 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fintwit-web"
+version = "0.1.0"
+description = "Financial Twitter web application"
+requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
 [tool.isort]
 multi_line_output = 3
 include_trailing_comma = true
