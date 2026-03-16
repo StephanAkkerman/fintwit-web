@@ -1,12 +1,26 @@
 import type { Tweet } from '../types'
 
-export default function TweetCard({ t }: { t: Tweet }) {
+export default function TweetCard({
+  t,
+  onUserClick,
+}: {
+  t: Tweet
+  onUserClick?: (screenName: string) => void
+}) {
   return (
     <article className="rounded-2xl shadow p-4 bg-white dark:bg-zinc-900">
       <header className="flex items-center gap-3">
-        <img src={t.user_img} alt="" className="h-10 w-10 rounded-full" />
-        <div className="min-w-0">
-          <div className="font-semibold truncate">{t.user_name}</div>
+        <img
+          src={t.user_img}
+          alt=""
+          className={`h-10 w-10 rounded-full ${onUserClick ? 'cursor-pointer' : ''}`}
+          onClick={() => onUserClick?.(t.user_screen_name)}
+        />
+        <div
+          className={`min-w-0 ${onUserClick ? 'cursor-pointer' : ''}`}
+          onClick={() => onUserClick?.(t.user_screen_name)}
+        >
+          <div className="font-semibold truncate hover:underline">{t.user_name}</div>
           <div className="text-sm text-zinc-500">@{t.user_screen_name}</div>
         </div>
         <a
