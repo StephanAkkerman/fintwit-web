@@ -13,3 +13,17 @@ export type Tweet = {
   title: string;
   media_types: string[];
 };
+
+export type TickerData = {
+  symbol: string;
+  name?: string;
+  price?: number;
+  change?: number;
+  change_percent?: number;
+};
+
+export type MarketMoversResponse = {
+  trending: TickerData[];
+  gainers: TickerData[];
+  losers: TickerData[];
+};

@@ -12,6 +12,8 @@ from ..infra.db import create_engine, init_db
 from ..infra.repos import TweetRepo
 from ..runtime.broadcast import Broadcaster
 from ..runtime.streamer import run_stream
+from ..runtime.market_movers import run_market_movers_loop, market_movers_state
+from ..schemas.yahoo import MarketMoversResponse
 
 ENGINE = create_engine(os.getenv("DB_URL", "sqlite+aiosqlite:///./data.db"))
 Session = async_sessionmaker(ENGINE, expire_on_commit=False)
@@ -34,12 +36,15 @@ async def lifespan(app: FastAPI):
     task = asyncio.create_task(
         run_stream(REPO, BROADCAST)
     )  # ← we’ll update run_stream below
+    mm_task = asyncio.create_task(run_market_movers_loop())
     try:
         yield
     finally:
         task.cancel()
+        mm_task.cancel()
         with suppress(asyncio.CancelledError):
             await task
+            await mm_task
 
 
 app = FastAPI(title="X Stream API", lifespan=lifespan)
@@ -62,3 +67,8 @@ async def stream(_=Depends(api_key_dep)):
             await BROADCAST.unsubscribe(q)
 
     return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+@app.get("/api/market-movers", response_model=MarketMoversResponse)
+async def get_market_movers(_=Depends(api_key_dep)):
+    return await market_movers_state.get()
