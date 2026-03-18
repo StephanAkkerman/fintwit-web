@@ -14,11 +14,13 @@ class TweetRepo:
         self.Session = session_factory
 
     async def upsert_many(self, tweets: Iterable[dict]) -> int:
-        """Upsert multiple tweets using a single SQLite ON CONFLICT statement."""
-        row_keys = {c.name for c in TweetRow.__table__.columns}
-        tweet_list = [
-            {k: v for k, v in tweet.items() if k in row_keys} for tweet in tweets
-        ]
+        """
+        Upsert multiple tweets using a single SQLite ON CONFLICT statement.
+
+        :param tweets: Iterable of dictionaries containing tweet data.
+        :return: The total number of tweets processed (inserted or updated).
+        """
+        tweet_list = list(tweets)
         if not tweet_list:
             return 0
 
@@ -29,7 +31,7 @@ class TweetRepo:
                 update_cols = {
                     c.name: stmt.excluded[c.name]
                     for c in TweetRow.__table__.c
-                    if c.name not in ("id", "created_at")
+                    if c.name != "id"
                 }
                 stmt = stmt.on_conflict_do_update(
                     index_elements=[TweetRow.id],
