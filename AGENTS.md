@@ -77,8 +77,6 @@ The legacy bot polls data continuously.
 * `/sentiment AAPL` -> `GET /api/stocks/{ticker}/sentiment`
 * `/portfolio add` -> `POST /api/portfolio`
 
-
-
 ### 3.5 Machine Learning (`src/models/` -> `app/ml/`)
 
 * **Action:** Port `chart.py` and `sentiment.py`.
@@ -127,3 +125,32 @@ When prompted to build a feature, agents should follow this step-by-step workflo
 5. **API Layer:** Create the FastAPI router endpoint in `app/api/` to serve the data or stream.
 6. **Frontend Hook:** Create a React hook in `frontend/src/hooks/` to consume the new endpoint.
 7. **Frontend UI:** Build the React component using TailwindCSS to display the data beautifully.
+
+## 6. Code Formatting & Style
+This project adheres to strict code formatting and style guidelines to maintain readability and consistency across the codebase.
+
+### Backend Formatting
+* Use `black` with default settings for consistent code formatting.
+* Use `numpy-style docstrings` for all functions and classes. Example:
+
+```python
+def add_numbers(a: int, b: int) -> int:
+    """Add two numbers together.
+
+    Args:
+        a (int): The first number.
+        b (int): The second number.
+        
+    Returns:
+        int: The sum of the two numbers.
+    """
+    return a + b
+```
+
+### Frontend Formatting
+* Use `prettier` for consistent code formatting in JavaScript/TypeScript files.
+* Use `eslint` with the Airbnb style guide for linting and code quality.
+
+## 7. Testing
+* Backend: Use `pytest` and `pytest-asyncio` for testing FastAPI endpoints and background workers. Aim for high test coverage, especially for critical data-fetching logic and API routes.
+* Frontend: Use `Jest` and `React Testing Library` for unit and integration tests of React components and hooks.
