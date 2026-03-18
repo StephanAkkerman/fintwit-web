@@ -3,7 +3,7 @@ fastapi
 uvicorn
 sqlalchemy[asyncio]
 aiosqlite
-git+https://github.com/StephanAkkerman/ticker-classifier.git
+ticker-classifier @ git+https://github.com/StephanAkkerman/ticker-classifier.git
 pytest
 pytest-asyncio
 httpx
