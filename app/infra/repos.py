@@ -29,7 +29,7 @@ class TweetRepo:
                 update_cols = {
                     c.name: stmt.excluded[c.name]
                     for c in TweetRow.__table__.c
-                    if c.name != "id"
+                    if c.name not in ("id", "created_at")
                 }
                 stmt = stmt.on_conflict_do_update(
                     index_elements=[TweetRow.id],
