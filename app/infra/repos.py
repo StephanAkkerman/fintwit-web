@@ -1,4 +1,3 @@
-# app/infra/repos.py
 from typing import Iterable
 
 from sqlalchemy import insert, select, update
@@ -20,14 +19,19 @@ class TweetRepo:
         async with self.Session() as s:
             async with s.begin():
                 for d in tweets:
+                    # Strip any keys that aren't in TweetRow to avoid insert errors
+                    # Note: We must allow 'assets' if it's in TweetRow, which it is.
+                    row_keys = {c.name for c in TweetRow.__table__.columns}
+                    clean_d = {k: v for k, v in d.items() if k in row_keys}
+
                     try:
-                        await s.execute(insert(TweetRow).values(**d))
+                        await s.execute(insert(TweetRow).values(**clean_d))
                         n += 1
                     except IntegrityError:
                         await s.rollback()
                         await s.begin()
                         await s.execute(
-                            update(TweetRow).where(TweetRow.id == d["id"]).values(**d)
+                            update(TweetRow).where(TweetRow.id == clean_d["id"]).values(**clean_d)
                         )
         return n
 
@@ -75,6 +79,7 @@ class TweetRepo:
                 "hashtags": r.hashtags,
                 "title": r.title,
                 "media_types": r.media_types,
+                "assets": r.assets,
             }
             for r in rows
         ]
