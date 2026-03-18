@@ -7,10 +7,17 @@ name = "fintwit-web"
 version = "0.1.0"
 description = "Financial Twitter web application"
 requires-python = ">=3.10"
-dynamic = ["dependencies"]
-
-[tool.setuptools.dynamic]
-dependencies = {file = ["requirements.txt"]}
+dependencies = [
+    "xtimeline",
+    "fastapi",
+    "uvicorn",
+    "sqlalchemy[asyncio]",
+    "aiosqlite",
+    "ticker-classifier @ git+https://github.com/StephanAkkerman/ticker-classifier.git",
+    "pytest",
+    "pytest-asyncio",
+    "httpx",
+]
 
 [tool.setuptools.packages.find]
 include = ["app*"]
