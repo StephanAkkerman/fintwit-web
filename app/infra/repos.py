@@ -1,7 +1,7 @@
 from typing import Iterable
 
-from sqlalchemy import insert, select, update
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import select
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from .db import TweetRow
@@ -14,26 +14,29 @@ class TweetRepo:
         self.Session = session_factory
 
     async def upsert_many(self, tweets: Iterable[dict]) -> int:
-        # now expects dicts (from tweet.to_dict() plus "assets")
-        n = 0
+        """Upsert multiple tweets using a single SQLite ON CONFLICT statement."""
+        row_keys = {c.name for c in TweetRow.__table__.columns}
+        tweet_list = [
+            {k: v for k, v in tweet.items() if k in row_keys} for tweet in tweets
+        ]
+        if not tweet_list:
+            return 0
+
         async with self.Session() as s:
             async with s.begin():
-                for d in tweets:
-                    # Strip any keys that aren't in TweetRow to avoid insert errors
-                    # Note: We must allow 'assets' if it's in TweetRow, which it is.
-                    row_keys = {c.name for c in TweetRow.__table__.columns}
-                    clean_d = {k: v for k, v in d.items() if k in row_keys}
-
-                    try:
-                        await s.execute(insert(TweetRow).values(**clean_d))
-                        n += 1
-                    except IntegrityError:
-                        await s.rollback()
-                        await s.begin()
-                        await s.execute(
-                            update(TweetRow).where(TweetRow.id == clean_d["id"]).values(**clean_d)
-                        )
-        return n
+                stmt = sqlite_insert(TweetRow).values(tweet_list)
+                # We want to update all columns except the primary key (id) on conflict
+                update_cols = {
+                    c.name: stmt.excluded[c.name]
+                    for c in TweetRow.__table__.c
+                    if c.name != "id"
+                }
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=[TweetRow.id],
+                    set_=update_cols,
+                )
+                await s.execute(stmt)
+        return len(tweet_list)
 
     async def latest(self, limit: int = 50):
         stmt = select(TweetRow).order_by(TweetRow.id.desc()).limit(limit)
