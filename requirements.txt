@@ -10,4 +10,3 @@ httpx
 timm
 torch
 Pillow
-requests

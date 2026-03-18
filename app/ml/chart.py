@@ -1,12 +1,12 @@
 import asyncio
 from io import BytesIO
 import logging
-import requests
 from typing import Optional
 
+import httpx
 import timm
 import torch
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 from timm.data import create_transform, resolve_data_config
 
 logger = logging.getLogger(__name__)
@@ -35,13 +35,10 @@ class ChartClassifier:
             raise RuntimeError("ChartClassifier model is not loaded. Call load_model() first.")
 
         try:
-            if isinstance(image_input, str):
-                if image_input.startswith("http://") or image_input.startswith("https://"):
-                    response = requests.get(image_input, timeout=10)
-                    response.raise_for_status()
-                    image = Image.open(BytesIO(response.content)).convert("RGB")
-                else:
-                    image = Image.open(image_input).convert("RGB")
+            if isinstance(image_input, bytes):
+                image = Image.open(BytesIO(image_input)).convert("RGB")
+            elif isinstance(image_input, str):
+                image = Image.open(image_input).convert("RGB")
             elif isinstance(image_input, Image.Image):
                 image = image_input.convert("RGB")
             else:
@@ -56,12 +53,22 @@ class ChartClassifier:
             prob_dict = {label: prob.item() for label, prob in zip(self.labels, probabilities)}
 
             return max(prob_dict, key=prob_dict.get)
-        except Exception as e:
+        except (ValueError, TypeError, OSError, UnidentifiedImageError, RuntimeError) as e:
             logger.error(f"Error classifying image: {e}")
             return None
 
     async def classify_image_async(self, image_input) -> Optional[str]:
-        """Run the synchronous image classification in an executor."""
+        """Run the synchronous image classification in an executor. If image_input is a URL, fetch it async first."""
+        if isinstance(image_input, str) and (image_input.startswith("http://") or image_input.startswith("https://")):
+            try:
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(image_input, timeout=10.0)
+                    response.raise_for_status()
+                    image_input = response.content
+            except (httpx.RequestError, httpx.HTTPStatusError) as e:
+                logger.error(f"Error fetching image: {e}")
+                return None
+
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self.classify_image_sync, image_input)
 
