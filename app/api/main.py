@@ -12,12 +12,14 @@ from ..infra.db import create_engine, init_db
 from ..infra.repos import TweetRepo
 from ..runtime.broadcast import Broadcaster
 from ..runtime.streamer import run_stream
+from ..runtime.enricher import AssetEnricher
 from ..ml.chart import chart_classifier
 
 ENGINE = create_engine(os.getenv("DB_URL", "sqlite+aiosqlite:///./data.db"))
 Session = async_sessionmaker(ENGINE, expire_on_commit=False)
 REPO = TweetRepo(Session)
 BROADCAST = Broadcaster()
+ENRICHER = AssetEnricher()
 
 
 async def api_key_dep(request: Request):
@@ -34,7 +36,7 @@ async def lifespan(app: FastAPI):
     chart_classifier.load_model()
     # start background stream: persist THEN broadcast
     task = asyncio.create_task(
-        run_stream(REPO, BROADCAST)
+        run_stream(REPO, BROADCAST, ENRICHER)
     )  # ← we’ll update run_stream below
     try:
         yield

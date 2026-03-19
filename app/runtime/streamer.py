@@ -5,16 +5,21 @@ import xclient
 
 from ..infra.repos import TweetRepo
 from .broadcast import Broadcaster
+from .enricher import AssetEnricher
 from ..ml.chart import chart_classifier
 
 
-async def run_stream(repo: TweetRepo, bc: Broadcaster) -> None:
+async def run_stream(repo: TweetRepo, bc: Broadcaster, enricher: AssetEnricher) -> None:
     backoff = 1.0
     while True:
         try:
             async with xclient.XTimelineClient("curl.txt") as xc:
                 async for t in xc.stream(interval_s=5.0):
                     t_dict = t.to_dict()
+
+                    if "assets" not in t_dict:
+                        t_dict["assets"] = await enricher.classify(t_dict.get("tickers", []))
+
                     t_dict["is_chart"] = False
 
                     if t_dict.get("media") and t_dict.get("media_types"):
