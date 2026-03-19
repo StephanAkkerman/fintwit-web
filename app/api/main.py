@@ -12,6 +12,7 @@ from ..infra.db import create_engine, init_db
 from ..infra.repos import TweetRepo
 from ..runtime.broadcast import Broadcaster
 from ..runtime.streamer import run_stream
+from . import earnings
 
 ENGINE = create_engine(os.getenv("DB_URL", "sqlite+aiosqlite:///./data.db"))
 Session = async_sessionmaker(ENGINE, expire_on_commit=False)
@@ -43,6 +44,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="X Stream API", lifespan=lifespan)
+
+app.include_router(earnings.router)
 
 
 @app.get("/api/posts")
