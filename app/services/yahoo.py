@@ -7,8 +7,8 @@ headers = {
 
 async def get_stock_info(ticker: str) -> Optional[dict]:
     url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
-    async with aiohttp.ClientSession() as session:
-        try:
+    try:
+        async with aiohttp.ClientSession() as session:
             async with session.get(url, headers=headers) as response:
                 if response.status == 200:
                     data = await response.json()
@@ -35,7 +35,7 @@ async def get_stock_info(ticker: str) -> Optional[dict]:
                         "volume": volume,
                         "website": f"https://finance.yahoo.com/quote/{ticker}"
                     }
-        except Exception:
-            pass
+    except Exception:
+        pass
 
     return None

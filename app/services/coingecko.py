@@ -3,8 +3,8 @@ from typing import Optional
 
 async def get_crypto_info(ticker: str) -> Optional[dict]:
     url = f"https://api.coingecko.com/api/v3/search?query={ticker}"
-    async with aiohttp.ClientSession() as session:
-        try:
+    try:
+        async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
                 if response.status == 200:
                     data = await response.json()
@@ -26,7 +26,7 @@ async def get_crypto_info(ticker: str) -> Optional[dict]:
                                         "volume": info.get("usd_24h_vol", 0.0),
                                         "website": f"https://www.coingecko.com/en/coins/{coin_id}"
                                     }
-        except Exception:
-            pass
+    except Exception:
+        pass
 
     return None
