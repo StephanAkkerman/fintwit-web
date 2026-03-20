@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 
 type FearGreedData = {
   value: number
-  change: string
+  change: number
   status: string
 }
 
