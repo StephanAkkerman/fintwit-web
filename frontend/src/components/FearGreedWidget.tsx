@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 
 type FearGreedData = {
   value: number
-  change: number
+  change: string
   status: string
 }
 
@@ -30,8 +30,8 @@ export default function FearGreedWidget() {
           <div className="text-3xl font-bold">{data.value}</div>
           <div className="flex flex-col text-sm">
             <span className="font-medium text-zinc-700 dark:text-zinc-300">{data.status}</span>
-            <span className={data.change > 0 ? 'text-green-500' : data.change < 0 ? 'text-red-500' : 'text-zinc-500'}>
-              {`${data.change > 0 ? '+' : ''}${data.change.toFixed(2)}% ${data.change > 0 ? '📈' : data.change < 0 ? '📉' : '➖'}`}
+            <span className={data.change.includes('+') ? 'text-green-500' : (data.change.includes('-') ? 'text-red-500' : 'text-zinc-500')}>
+              {data.change}
             </span>
           </div>
         </div>
