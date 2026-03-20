@@ -19,13 +19,15 @@ async def get_feargreed() -> dict | None:
                 today = int(data["data"][0]["value"])
                 yesterday = int(data["data"][1]["value"])
 
-                change = round((today - yesterday) / yesterday * 100, 2)
-                change_str = f"+{change}% 📈" if change > 0 else (f"{change}% 📉" if change < 0 else f"{change}% ➖")
+                change = 0.0
+                if yesterday > 0:
+                    change = round((today - yesterday) / yesterday * 100, 2)
 
                 return {
                     "value": today,
-                    "change": change_str,
-                    "status": data["data"][0]["value_classification"]
+                    "change": change,
+                    "status": data["data"][0]["value_classification"],
+                }
                 }
         except Exception:
             pass
