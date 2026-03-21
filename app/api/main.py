@@ -12,6 +12,7 @@ from ..infra.db import create_engine, init_db
 from ..infra.repos import TweetRepo
 from ..runtime.broadcast import Broadcaster
 from ..runtime.streamer import run_stream
+from ..services.fear_greed import get_fear_greed
 
 ENGINE = create_engine(os.getenv("DB_URL", "sqlite+aiosqlite:///./data.db"))
 Session = async_sessionmaker(ENGINE, expire_on_commit=False)
@@ -62,3 +63,11 @@ async def stream(_=Depends(api_key_dep)):
             await BROADCAST.unsubscribe(q)
 
     return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+@app.get("/api/fear-greed")
+async def fear_greed_endpoint(_=Depends(api_key_dep)):
+    data = await get_fear_greed()
+    if not data:
+        raise HTTPException(status_code=503, detail="Fear and Greed index unavailable")
+    return data
