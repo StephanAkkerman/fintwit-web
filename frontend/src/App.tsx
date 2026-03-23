@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import FearGreedWidget from './components/FearGreedWidget'
+import TrendingCryptoWidget from './components/TrendingCryptoWidget'
 import TweetCard from './components/TweetCard'
 import { useTweets } from './hooks/useTweets'
 import type { Tweet } from './types'
@@ -183,7 +184,10 @@ export default function App() {
               <h1 className="text-2xl font-bold">X Stream</h1>
               <p className="text-sm text-zinc-500">Live tweets · SSE · Vite</p>
             </header>
-            <FearGreedWidget />
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <FearGreedWidget />
+              <TrendingCryptoWidget />
+            </div>
             {filteredTweets.map((t) => (
               <TweetCard key={t.id} t={t} onTickerSelect={onTickerSelect} />
             ))}
