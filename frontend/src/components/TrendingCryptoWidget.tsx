@@ -70,10 +70,10 @@ export default function TrendingCryptoWidget() {
                   )}
                 </td>
                 <td className="px-3 py-2 text-right font-mono">
-                  ${coin.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
+                  ${coin.price?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 }) ?? 'N/A'}
                 </td>
-                <td className={`px-3 py-2 text-right font-mono ${coin.change_24h > 0 ? 'text-green-500' : coin.change_24h < 0 ? 'text-red-500' : 'text-zinc-500'}`}>
-                  {coin.change_24h > 0 ? '+' : ''}{coin.change_24h.toFixed(2)}%
+                <td className={`px-3 py-2 text-right font-mono ${coin.change_24h && coin.change_24h > 0 ? 'text-green-500' : coin.change_24h && coin.change_24h < 0 ? 'text-red-500' : 'text-zinc-500'}`}>
+                  {coin.change_24h && coin.change_24h > 0 ? '+' : ''}{coin.change_24h?.toFixed(2) ?? 'N/A'}%
                 </td>
               </tr>
             ))}
