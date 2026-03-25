@@ -13,6 +13,7 @@ from ..infra.repos import TweetRepo
 from ..runtime.broadcast import Broadcaster
 from ..runtime.streamer import run_stream
 from ..services.fear_greed_service import get_feargreed
+from ..services.earnings_service import get_next_earnings_date
 
 ENGINE = create_engine(os.getenv("DB_URL", "sqlite+aiosqlite:///./data.db"))
 Session = async_sessionmaker(ENGINE, expire_on_commit=False)
@@ -70,4 +71,12 @@ async def fear_greed(_=Depends(api_key_dep)):
     data = await get_feargreed()
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
+
+
+@app.get("/api/earnings/{ticker}")
+async def earnings(ticker: str, _=Depends(api_key_dep)):
+    data = await get_next_earnings_date(ticker)
+    if data is None:
+        raise HTTPException(status_code=404, detail=f"Earnings date for {ticker} not found")
     return data
