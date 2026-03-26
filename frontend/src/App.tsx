@@ -1,5 +1,6 @@
 import TweetCard from './components/TweetCard'
 import FearGreedWidget from './components/FearGreedWidget'
+import EarningsWidget from './components/EarningsWidget'
 import { useTweets } from './hooks/useTweets'
 
 export default function App() {
@@ -11,7 +12,10 @@ export default function App() {
           <h1 className="text-2xl font-bold">X Stream</h1>
           <p className="text-sm text-zinc-500">Live tweets · SSE · Vite</p>
         </header>
-        <FearGreedWidget />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FearGreedWidget />
+          <EarningsWidget />
+        </div>
         {tweets.map((t) => (
           <TweetCard key={t.id} t={t} />
         ))}
