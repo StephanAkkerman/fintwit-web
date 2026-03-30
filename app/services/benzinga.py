@@ -1,7 +1,6 @@
-import asyncio
 import httpx
-from bs4 import BeautifulSoup
-from typing import List, Dict, Optional
+import re
+from typing import List, Dict
 
 async def get_analyst_ratings(stock: str) -> List[Dict[str, str]]:
     url = f"https://www.benzinga.com/quote/{stock}/analyst-ratings"
@@ -25,28 +24,23 @@ async def get_analyst_ratings(stock: str) -> List[Dict[str, str]]:
             if response.status_code != 200:
                 return []
 
-            soup = BeautifulSoup(response.text, "lxml")
-            tables = soup.find_all("table")
-
-            if not tables:
+            html = response.text
+            tbody_match = re.search(r'<tbody[^>]*>(.*?)</tbody>', html, re.IGNORECASE | re.DOTALL)
+            if not tbody_match:
                 return []
 
-            table = tables[0]
-            rows = table.find_all("tr")
+            tbody = tbody_match.group(1)
+            rows = re.findall(r'<tr[^>]*>(.*?)</tr>', tbody, re.IGNORECASE | re.DOTALL)
 
             data = []
-            # Start from 1 to skip header, we only want top 10 as in original
-            for row in rows[1:]:
-                tds = row.find_all("td")
-                if len(tds) >= 7:
-                    date = tds[0].text.strip()
-                    # The old code drops 'Buy Now', 'Analyst Firm', 'Analyst & % Accurate', 'Get Alert'
-                    # and keeps Date, Price Target Change, Previous / Current Rating.
-                    # Looking at our headers:
-                    # ['date', 'Buy Now', 'Upside/Downside', 'Analyst Firm', 'Price Target Change', 'Rating Change', 'Previous / Current Rating', 'Get Alert']
+            for row in rows:
+                cols = re.findall(r'<td[^>]*>(.*?)</td>', row, re.IGNORECASE | re.DOTALL)
+                cols_text = [re.sub(r'<[^>]+>', '', col).strip() for col in cols]
 
-                    price_target = tds[4].text.strip()
-                    rating = tds[6].text.strip()
+                if len(cols_text) >= 7:
+                    date = cols_text[0]
+                    price_target = cols_text[4]
+                    rating = cols_text[6]
 
                     data.append({
                         "date": date,
