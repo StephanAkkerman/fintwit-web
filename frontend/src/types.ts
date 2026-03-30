@@ -1,5 +1,11 @@
 export type MediaItem = { url: string; type: string };
 
+export type AnalystRating = {
+  date: string;
+  price_target: string;
+  rating: string;
+};
+
 export type Tweet = {
   id: number;
   text: string;

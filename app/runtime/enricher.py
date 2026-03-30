@@ -25,7 +25,9 @@ class AssetEnricher:
         async with self._lock:
             misses = [s for s in symbols if s not in self._cache]
             if misses:
-                results = await self._cls.classify_async(misses)
+                results = self._cls.classify_async(misses)
+                if asyncio.iscoroutine(results):
+                    results = await results
                 for r in results:
                     symbol = getattr(r, "symbol", None) or r.get("symbol") or r.get("ticker")
                     kind = getattr(r, "kind", None) or r.get("kind") or r.get("category")

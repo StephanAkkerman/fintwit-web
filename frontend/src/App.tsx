@@ -1,5 +1,6 @@
 import TweetCard from './components/TweetCard'
 import FearGreedWidget from './components/FearGreedWidget'
+import AnalystRatingsWidget from './components/AnalystRatingsWidget'
 import { useTweets } from './hooks/useTweets'
 
 export default function App() {
@@ -12,6 +13,7 @@ export default function App() {
           <p className="text-sm text-zinc-500">Live tweets · SSE · Vite</p>
         </header>
         <FearGreedWidget />
+        <AnalystRatingsWidget />
         {tweets.map((t) => (
           <TweetCard key={t.id} t={t} />
         ))}

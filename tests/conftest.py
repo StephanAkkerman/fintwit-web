@@ -1,6 +1,14 @@
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+import sys
+from unittest.mock import MagicMock
+sys.modules['xclient'] = MagicMock()
+sys.modules['xtimeline'] = MagicMock()
+sys.modules['ticker_classifier'] = MagicMock()
+sys.modules['ticker_classifier.classifier'] = MagicMock()
+sys.modules['app.runtime.streamer'] = MagicMock()
+sys.modules['app.runtime.streamer'].run_stream = MagicMock()
 
 from app.api.main import app
 from app.infra.db import init_db
