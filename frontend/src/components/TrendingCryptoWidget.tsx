@@ -12,6 +12,7 @@ interface TrendingCrypto {
 
 export default function TrendingCryptoWidget() {
   const [trending, setTrending] = useState<TrendingCrypto[]>([])
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
 
   useEffect(() => {
@@ -25,7 +26,14 @@ export default function TrendingCryptoWidget() {
         console.error('Error fetching trending crypto:', err)
         setError(true)
       })
+      .finally(() => setLoading(false))
   }, [])
+
+  if (loading) {
+    return (
+      <div className="p-4 rounded-xl bg-zinc-900 border border-zinc-800 animate-pulse mb-4 h-32" />
+    )
+  }
 
   if (error) {
     return (
@@ -37,7 +45,12 @@ export default function TrendingCryptoWidget() {
 
   if (trending.length === 0) {
     return (
-      <div className="p-4 rounded-xl bg-zinc-900 border border-zinc-800 animate-pulse mb-4 h-32" />
+      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 mb-4">
+        <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
+          <span className="text-xl">🔥</span> Trending Crypto
+        </h2>
+        <p className="text-sm text-zinc-500">No trending crypto data available.</p>
+      </div>
     )
   }
 
