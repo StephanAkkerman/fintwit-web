@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.services.yahoo import get_stock_info
 from app.services.coingecko import get_crypto_info
+from app.services.cmc import get_trending_crypto
 
 
 # ---------------------------------------------------------------------------
@@ -180,4 +181,61 @@ async def test_get_crypto_info_price_http_error_returns_none():
 async def test_get_crypto_info_exception_returns_none():
     with patch("app.services.coingecko.aiohttp.ClientSession", side_effect=Exception("Network error")):
         result = await get_crypto_info("BTC")
+    assert result is None
+
+
+# ---------------------------------------------------------------------------
+# CoinMarketCap – get_trending_crypto
+# ---------------------------------------------------------------------------
+
+CMC_TRENDING_RESPONSE = {
+    "data": {
+        "cryptoTopSearchRanks": [
+            {
+                "symbol": "BTC",
+                "slug": "bitcoin",
+                "priceChange": {
+                    "price": 60000.0,
+                    "priceChange24h": 5.0,
+                    "volume24h": 30000000000.0
+                }
+            }
+        ]
+    }
+}
+
+
+@pytest.mark.asyncio
+async def test_get_trending_crypto_success():
+    with patch("app.services.cmc.aiohttp.ClientSession", _mock_session(_mock_response(200, CMC_TRENDING_RESPONSE))):
+        result = await get_trending_crypto()
+
+    assert result is not None
+    assert len(result) == 1
+    assert result[0]["symbol"] == "BTC"
+    assert result[0]["price"] == 60000.0
+    assert result[0]["change_percent"] == 5.0
+    assert result[0]["volume"] == 30000000000.0
+    assert "bitcoin" in result[0]["website"]
+
+
+@pytest.mark.asyncio
+async def test_get_trending_crypto_invalid_data_returns_none():
+    data = {"wrong_key": "wrong_value"}
+    with patch("app.services.cmc.aiohttp.ClientSession", _mock_session(_mock_response(200, data))):
+        result = await get_trending_crypto()
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_get_trending_crypto_http_error_returns_none():
+    with patch("app.services.cmc.aiohttp.ClientSession", _mock_session(_mock_response(500, {}))):
+        result = await get_trending_crypto()
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_get_trending_crypto_exception_returns_none():
+    with patch("app.services.cmc.aiohttp.ClientSession", side_effect=Exception("Network error")):
+        result = await get_trending_crypto()
     assert result is None

@@ -13,6 +13,7 @@ from ..infra.repos import TweetRepo
 from ..runtime.broadcast import Broadcaster
 from ..runtime.streamer import run_stream
 from ..services.fear_greed_service import get_feargreed
+from ..services.cmc import get_trending_crypto
 
 ENGINE = create_engine(os.getenv("DB_URL", "sqlite+aiosqlite:///./data.db"))
 Session = async_sessionmaker(ENGINE, expire_on_commit=False)
@@ -68,6 +69,14 @@ async def stream(_=Depends(api_key_dep)):
 @app.get("/api/fear-greed")
 async def fear_greed(_=Depends(api_key_dep)):
     data = await get_feargreed()
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
+
+
+@app.get("/api/trending-crypto")
+async def trending_crypto(_=Depends(api_key_dep)):
+    data = await get_trending_crypto()
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data
