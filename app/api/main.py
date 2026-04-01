@@ -4,6 +4,7 @@ import json
 import os
 from contextlib import asynccontextmanager, suppress
 
+import httpx
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -32,6 +33,7 @@ async def api_key_dep(request: Request):
 async def lifespan(app: FastAPI):
     await init_db(ENGINE)
     app.state.API_KEY = os.getenv("API_KEY", "")
+    app.state.http_client = httpx.AsyncClient()
     # start background stream: persist THEN broadcast
     task = asyncio.create_task(
         run_stream(REPO, BROADCAST)
@@ -42,6 +44,7 @@ async def lifespan(app: FastAPI):
         task.cancel()
         with suppress(asyncio.CancelledError):
             await task
+        await app.state.http_client.aclose()
 
 
 app = FastAPI(title="X Stream API", lifespan=lifespan)
@@ -75,8 +78,9 @@ async def fear_greed(_=Depends(api_key_dep)):
 
 
 @app.get("/api/treemap")
-async def treemap(_=Depends(api_key_dep)):
-    data = await get_treemap_data()
+async def treemap(request: Request, _=Depends(api_key_dep)):
+    client: httpx.AsyncClient = request.app.state.http_client
+    data = await get_treemap_data(client)
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data
