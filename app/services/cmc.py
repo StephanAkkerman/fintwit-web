@@ -32,7 +32,7 @@ async def get_trending_coins() -> list[dict] | None:
                         "volume": price_info.get("volume24h")
                     })
                 return results
-        except (httpx.RequestError, httpx.HTTPStatusError, KeyError, IndexError, ValueError, ZeroDivisionError) as e:
+        except (httpx.RequestError, httpx.HTTPStatusError, KeyError, ValueError) as e:
             logger.warning(f"Could not fetch trending coins: {e}")
 
     return None
