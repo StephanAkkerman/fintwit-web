@@ -4,9 +4,9 @@ export interface TrendingCoin {
   symbol: string
   slug: string
   name: string
-  price: number
-  change_percent: number
-  volume: number
+  price: number | null;
+  change_percent: number | null;
+  volume: number | null;
 }
 
 export function useTrendingCrypto() {
