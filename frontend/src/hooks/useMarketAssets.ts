@@ -10,6 +10,7 @@ export function useMarketAssets(apiBase = '', maxItems = 10) {
     ;(async () => {
       try {
         const r = await fetch(`${apiBase}/api/posts`, { credentials: 'include' })
+        if (!r.ok) throw new Error('Network response was not ok')
         const data: Tweet[] = await r.json()
         if (cancelled) return
 
@@ -17,7 +18,10 @@ export function useMarketAssets(apiBase = '', maxItems = 10) {
         // Process oldest to newest so newest overwrites
         ;[...data].reverse().forEach(t => {
           t.assets?.forEach(a => {
-            if (a.financials) newMap.set(a.symbol, a)
+            if (a.financials) {
+              newMap.delete(a.symbol)
+              newMap.set(a.symbol, a)
+            }
           })
         })
         assetsMap.current = newMap
@@ -40,6 +44,7 @@ export function useMarketAssets(apiBase = '', maxItems = 10) {
           let updated = false
           t.assets.forEach(a => {
             if (a.financials) {
+              assetsMap.current.delete(a.symbol)
               assetsMap.current.set(a.symbol, a)
               updated = true
             }
