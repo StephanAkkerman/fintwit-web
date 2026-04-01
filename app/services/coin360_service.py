@@ -16,7 +16,7 @@ async def get_treemap_data() -> dict | None:
     url = "https://coin360.com/site-api/coins?currency=USD&period=24h&ranking=top100"
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.get(url)
+            response = await client.get(url, timeout=10.0)
             response.raise_for_status()
             return response.json()
         except (httpx.RequestError, httpx.HTTPStatusError, ValueError) as e:
