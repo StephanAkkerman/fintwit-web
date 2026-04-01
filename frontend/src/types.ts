@@ -13,6 +13,10 @@ export type Asset = {
   name?: string | null;
   market_cap?: number | null;
   meta?: unknown;
+  kind?: string | null;
+  name?: string | null;
+  market_cap?: number | null;
+  meta?: Record<string, unknown> | unknown;
   financials?: AssetFinancials | null;
 };
 
