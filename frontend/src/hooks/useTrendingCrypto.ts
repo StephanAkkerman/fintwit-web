@@ -4,9 +4,9 @@ export interface TrendingCoin {
   symbol: string
   slug: string
   name: string
-  price: number | null;
-  change_percent: number | null;
-  volume: number | null;
+  price: number
+  change_percent: number
+  volume: number
 }
 
 export function useTrendingCrypto() {
@@ -15,23 +15,24 @@ export function useTrendingCrypto() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    let mounted = true
+    const controller = new AbortController()
+    const signal = controller.signal
+
     const fetchTrending = async () => {
       try {
-        const res = await fetch('/api/trending-crypto')
+        const res = await fetch('/api/trending-crypto', { signal })
         if (!res.ok) {
           throw new Error('Failed to fetch trending crypto')
         }
         const json = await res.json()
-        if (mounted) {
-          setData(json)
-          setLoading(false)
-        }
+        setData(json)
+        setLoading(false)
       } catch (err: any) {
-        if (mounted) {
-          setError(err.message)
-          setLoading(false)
+        if (err.name === 'AbortError') {
+          return
         }
+        setError(err.message)
+        setLoading(false)
       }
     }
 
@@ -41,7 +42,7 @@ export function useTrendingCrypto() {
     const interval = setInterval(fetchTrending, 60000)
 
     return () => {
-      mounted = false
+      controller.abort()
       clearInterval(interval)
     }
   }, [])
