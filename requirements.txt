@@ -1,4 +1,4 @@
-xtimeline==0.1.1
+xtimeline==0.1.2
 fastapi
 uvicorn
 sqlalchemy[asyncio]
