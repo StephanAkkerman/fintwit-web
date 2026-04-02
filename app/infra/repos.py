@@ -7,6 +7,28 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from .db import TweetRow
 
 
+def _row_to_dict(r: TweetRow) -> dict:
+    return {
+        "id": r.id,
+        "text": r.text,
+        "user_name": r.user_name,
+        "user_screen_name": r.user_screen_name,
+        "user_img": r.user_img,
+        "url": r.url,
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+        "media": r.media,
+        "tickers": r.tickers,
+        "hashtags": r.hashtags,
+        "title": r.title,
+        "media_types": r.media_types,
+        "replies": r.replies,
+        "likes": r.likes,
+        "views": r.views,
+        "retweets": r.retweets,
+        "assets": r.assets,
+    }
+
+
 class TweetRepo:
     """Async repo for tweets."""
 
@@ -44,27 +66,7 @@ class TweetRepo:
         stmt = select(TweetRow).order_by(TweetRow.id.desc()).limit(limit)
         async with self.Session() as s:
             rows = (await s.execute(stmt)).scalars().all()
-        return [
-            {
-                "id": r.id,
-                "text": r.text,
-                "user_name": r.user_name,
-                "user_screen_name": r.user_screen_name,
-                "user_img": r.user_img,
-                "url": r.url,
-                "media": r.media,
-                "tickers": r.tickers,
-                "hashtags": r.hashtags,
-                "title": r.title,
-                "media_types": r.media_types,
-                "replies": r.replies,
-                "likes": r.likes,
-                "views": r.views,
-                "retweets": r.retweets,
-                "assets": r.assets,
-            }
-            for r in rows
-        ]
+        return [_row_to_dict(r) for r in rows]
 
     async def since_id(self, since: int, limit: int = 200):
         stmt = (
@@ -75,24 +77,4 @@ class TweetRepo:
         )
         async with self.Session() as s:
             rows = (await s.execute(stmt)).scalars().all()
-        return [
-            {
-                "id": r.id,
-                "text": r.text,
-                "user_name": r.user_name,
-                "user_screen_name": r.user_screen_name,
-                "user_img": r.user_img,
-                "url": r.url,
-                "media": r.media,
-                "tickers": r.tickers,
-                "hashtags": r.hashtags,
-                "title": r.title,
-                "media_types": r.media_types,
-                "replies": r.replies,
-                "likes": r.likes,
-                "views": r.views,
-                "retweets": r.retweets,
-                "assets": r.assets,
-            }
-            for r in rows
-        ]
+        return [_row_to_dict(r) for r in rows]

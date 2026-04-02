@@ -29,6 +29,18 @@ describe('TweetCard', () => {
     expect(screen.getByText('Hello world')).toBeInTheDocument()
   })
 
+  it('renders quote-tweet markdown as blockquote with parsed links', () => {
+    const quoteText =
+      '> [@opensea](https://twitter.com/opensea):\n> Treasure Chests from our final Wave are now unlocked.'
+
+    const { container } = render(<TweetCard t={{ ...baseTweet, text: quoteText }} />)
+
+    expect(container.querySelector('blockquote')).toBeInTheDocument()
+    expect(screen.getByText('Quoted post')).toBeInTheDocument()
+    const quoteUserLink = screen.getByRole('link', { name: '@opensea' })
+    expect(quoteUserLink).toHaveAttribute('href', 'https://twitter.com/opensea')
+  })
+
   it('renders an Open link pointing to the tweet URL', () => {
     render(<TweetCard t={baseTweet} />)
     const link = screen.getByRole('link', { name: /open/i })
