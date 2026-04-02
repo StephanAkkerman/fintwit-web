@@ -13,10 +13,6 @@ export type Asset = {
   name?: string | null;
   market_cap?: number | null;
   meta?: unknown;
-  kind?: string | null;
-  name?: string | null;
-  market_cap?: number | null;
-  meta?: Record<string, unknown> | unknown;
   financials?: AssetFinancials | null;
 };
 
@@ -38,4 +34,18 @@ export type Tweet = {
   views: number;
   retweets: number;
   assets?: Asset[];
+};
+
+export type TreemapCoin = {
+  n: string; // name
+  s: string; // symbol
+  p: number; // price
+  ch: number; // change
+  mc: number; // market cap
+  v: number; // volume
+};
+
+export type TreemapData = {
+  data: TreemapCoin[];
+  // other fields are omitted since they are not needed
 };

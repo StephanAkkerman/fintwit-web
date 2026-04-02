@@ -3,6 +3,7 @@ import FearGreedWidget from './components/FearGreedWidget'
 import MarketOverview from './components/MarketOverview'
 import TrendingCryptoWidget from './components/TrendingCryptoWidget'
 import TweetCard from './components/TweetCard'
+import TreemapWidget from './components/TreemapWidget'
 import { useTweets } from './hooks/useTweets'
 import type { Tweet } from './types'
 
@@ -189,6 +190,7 @@ export default function App() {
               <FearGreedWidget />
               <TrendingCryptoWidget />
             </div>
+            <TreemapWidget />
             <MarketOverview />
             {filteredTweets.map((t) => (
               <TweetCard key={t.id} t={t} onTickerSelect={onTickerSelect} />
