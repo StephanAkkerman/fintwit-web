@@ -57,6 +57,10 @@ class TweetRepo:
                 "hashtags": r.hashtags,
                 "title": r.title,
                 "media_types": r.media_types,
+                "replies": r.replies,
+                "likes": r.likes,
+                "views": r.views,
+                "retweets": r.retweets,
                 "assets": r.assets,
             }
             for r in rows
@@ -84,6 +88,10 @@ class TweetRepo:
                 "hashtags": r.hashtags,
                 "title": r.title,
                 "media_types": r.media_types,
+                "replies": r.replies,
+                "likes": r.likes,
+                "views": r.views,
+                "retweets": r.retweets,
                 "assets": r.assets,
             }
             for r in rows

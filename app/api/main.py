@@ -5,8 +5,11 @@ import os
 from contextlib import asynccontextmanager, suppress
 
 import httpx
+from datetime import datetime, timezone
+
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from ..infra.db import create_engine, init_db
@@ -84,3 +87,33 @@ async def treemap(request: Request, _=Depends(api_key_dep)):
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data
+
+
+class DebugTweet(BaseModel):
+    text: str = "Test tweet"
+    user_name: str = "Debug User"
+    user_screen_name: str = "debuguser"
+    user_img: str = ""
+    tickers: list[str] = []
+    hashtags: list[str] = []
+    media: list[str] = []
+    media_types: list[str] = []
+    title: str = ""
+
+
+@app.post("/api/debug/tweet")
+async def debug_tweet(body: DebugTweet):
+    tweet = {
+        **body.model_dump(),
+        "id": int(datetime.now(timezone.utc).timestamp() * 1000),
+        "url": "",
+        "created_at": datetime.now(timezone.utc),
+        "assets": [],
+        "replies": 0,
+        "likes": 0,
+        "views": 0,
+        "retweets": 0,
+    }
+    await REPO.upsert_many([tweet])
+    await BROADCAST.publish(tweet)
+    return tweet

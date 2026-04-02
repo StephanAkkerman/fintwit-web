@@ -14,6 +14,13 @@
 
 In this section you can provide a brief introduction to the project. You can also include a brief description of the project and its features.
 
+## Quick Start Guide 🚀
+You can run both at the same time by using at the root of the repo:
+```bash
+npm run dev
+```
+
+### Start separately
 1. Run the backend using:
 ```bash
 uvicorn app.api.main:app --reload

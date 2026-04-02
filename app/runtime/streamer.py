@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime, timezone
 
 import xclient
 
@@ -18,6 +19,10 @@ async def run_stream(repo: TweetRepo, bc: Broadcaster) -> None:
 
                     # Convert to dict for easier manipulation
                     t_dict = t.to_dict()
+
+                    # SQLAlchemy DateTime requires a datetime object, not a string
+                    if isinstance(t_dict.get("created_at"), str):
+                        t_dict["created_at"] = datetime.fromisoformat(t_dict["created_at"])
 
                     # Collect all symbols (tickers + hashtags) to classify
                     symbols = []

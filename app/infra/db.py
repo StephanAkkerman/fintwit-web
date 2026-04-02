@@ -24,6 +24,10 @@ class TweetRow(Base):
         JSON().with_variant(SQLITE_JSON, "sqlite")
     )
     created_at: Mapped[DateTime] = mapped_column(DateTime, index=True, nullable=True)
+    replies: Mapped[int] = mapped_column(Integer, nullable=True)
+    likes: Mapped[int] = mapped_column(Integer, nullable=True)
+    views: Mapped[int] = mapped_column(Integer, nullable=True)
+    retweets: Mapped[int] = mapped_column(Integer, nullable=True)
     assets: Mapped[list] = mapped_column(
         JSON().with_variant(SQLITE_JSON, "sqlite"),
         default=list,
