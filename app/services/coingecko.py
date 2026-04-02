@@ -1,5 +1,10 @@
-import aiohttp
+import logging
 from typing import Optional
+
+import aiohttp
+
+logger = logging.getLogger(__name__)
+
 
 async def get_crypto_info(ticker: str) -> Optional[dict]:
     url = f"https://api.coingecko.com/api/v3/search?query={ticker}"
@@ -22,11 +27,22 @@ async def get_crypto_info(ticker: str) -> Optional[dict]:
                                     info = price_data[coin_id]
                                     return {
                                         "price": info.get("usd", 0.0),
-                                        "change_percent": info.get("usd_24h_change", 0.0),
+                                        "change_percent": info.get(
+                                            "usd_24h_change", 0.0
+                                        ),
                                         "volume": info.get("usd_24h_vol", 0.0),
-                                        "website": f"https://www.coingecko.com/en/coins/{coin_id}"
+                                        "website": f"https://www.coingecko.com/en/coins/{coin_id}",
                                     }
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("[coingecko] %s fetch failed: %r", ticker, exc)
 
     return None
+
+
+if __name__ == "__main__":
+    import asyncio
+
+    tickers = ["BTC", "ETH", "INVALID"]
+    for ticker in tickers:
+        info = asyncio.run(get_crypto_info(ticker))
+        print(f"{ticker}: {info}")

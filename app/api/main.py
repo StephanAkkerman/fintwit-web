@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from ..infra.db import create_engine, init_db
 from ..infra.repos import TweetRepo
 from ..runtime.broadcast import Broadcaster
+from ..runtime.enricher import AssetEnricher
 from ..runtime.streamer import run_stream
 from ..services.fear_greed_service import get_feargreed
 from ..services.coin360_service import get_treemap_data
@@ -103,12 +104,17 @@ class DebugTweet(BaseModel):
 
 @app.post("/api/debug/tweet")
 async def debug_tweet(body: DebugTweet):
+    symbols = body.tickers + body.hashtags
+    assets = []
+    if symbols:
+        enricher = AssetEnricher()
+        assets = await enricher.classify(symbols)
     tweet = {
         **body.model_dump(),
         "id": int(datetime.now(timezone.utc).timestamp() * 1000),
         "url": "",
         "created_at": datetime.now(timezone.utc),
-        "assets": [],
+        "assets": assets,
         "replies": 0,
         "likes": 0,
         "views": 0,

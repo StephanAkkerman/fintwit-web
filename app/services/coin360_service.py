@@ -1,7 +1,9 @@
-import httpx
 import logging
 
+import httpx
+
 logger = logging.getLogger(__name__)
+
 
 async def get_treemap_data(client: httpx.AsyncClient) -> dict | None:
     """
@@ -26,3 +28,17 @@ async def get_treemap_data(client: httpx.AsyncClient) -> dict | None:
     except (httpx.RequestError, httpx.HTTPStatusError, ValueError) as e:
         logger.exception(f"Could not fetch Treemap data from Coin360: {e}")
         return None
+
+
+if __name__ == "__main__":
+    import asyncio
+
+    async def main():
+        async with httpx.AsyncClient() as client:
+            data = await get_treemap_data(client)
+            if data:
+                print("Treemap data fetched successfully.")
+            else:
+                print("Failed to fetch Treemap data.")
+
+    asyncio.run(main())
