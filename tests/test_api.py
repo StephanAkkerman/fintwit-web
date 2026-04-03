@@ -1,8 +1,8 @@
-import pytest
 from unittest.mock import AsyncMock, patch
 
-from tests.conftest import SAMPLE_TWEETS
+import pytest
 
+from tests.conftest import SAMPLE_TWEETS
 
 # ---------------------------------------------------------------------------
 # Authentication
@@ -109,3 +109,29 @@ async def test_list_posts_returns_empty_list_when_no_tweets(async_client):
             "/api/posts", headers={"X-API-Key": "test-api-key"}
         )
     assert response.json() == []
+
+
+@pytest.mark.asyncio
+async def test_debug_tweet_extracts_tickers_and_hashtags_from_text(async_client):
+    classifier = AsyncMock(return_value=[])
+
+    with (
+        patch("app.api.main.REPO") as mock_repo,
+        patch("app.api.main.BROADCAST") as mock_broadcast,
+        patch("app.api.main.AssetEnricher") as mock_enricher_cls,
+    ):
+        mock_repo.upsert_many = AsyncMock(return_value=1)
+        mock_broadcast.publish = AsyncMock()
+        mock_enricher = mock_enricher_cls.return_value
+        mock_enricher.classify = classifier
+
+        response = await async_client.post(
+            "/api/debug/tweet",
+            json={"text": "Bullish on $AAPL and #BTC", "tickers": [], "hashtags": []},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["tickers"] == ["AAPL"]
+    assert data["hashtags"] == ["BTC"]
+    classifier.assert_awaited_once_with(["AAPL", "BTC"])

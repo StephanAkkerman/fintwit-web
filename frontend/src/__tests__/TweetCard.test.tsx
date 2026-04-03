@@ -55,8 +55,39 @@ describe('TweetCard', () => {
 
   it('renders hashtags as pill badges', () => {
     render(<TweetCard t={{ ...baseTweet, hashtags: ['crypto', 'stocks'] }} />)
-    expect(screen.getByText('#crypto')).toBeInTheDocument()
-    expect(screen.getByText('#stocks')).toBeInTheDocument()
+    expect(screen.getByText('#CRYPTO')).toBeInTheDocument()
+    expect(screen.getByText('#STOCKS')).toBeInTheDocument()
+  })
+
+  it('falls back to text parsing for ticker and hashtag badges', () => {
+    render(<TweetCard t={{ ...baseTweet, text: 'Watching $aapl and #btc now' }} />)
+    expect(screen.getByText('$AAPL')).toBeInTheDocument()
+    expect(screen.getByText('#BTC')).toBeInTheDocument()
+  })
+
+  it('renders asset financial information when available', () => {
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          assets: [
+            {
+              symbol: 'AAPL',
+              kind: 'EQUITY',
+              name: 'Apple Inc.',
+              financials: {
+                price: 185.12,
+                change_percent: 1.73,
+              },
+            },
+          ],
+        }}
+      />
+    )
+
+    expect(screen.getByText('$AAPL')).toBeInTheDocument()
+    expect(screen.getByText(/^\$185[.,]12$/)).toBeInTheDocument()
+    expect(screen.getByText('+1.73%')).toBeInTheDocument()
   })
 
   it('renders media images when present', () => {

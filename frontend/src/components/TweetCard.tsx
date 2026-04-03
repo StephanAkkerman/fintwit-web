@@ -8,11 +8,36 @@ function fmt(n: number): string {
   return String(n)
 }
 
+function fmtPrice(value: number): string {
+  return `$${value.toLocaleString(undefined, {
+    minimumFractionDigits: value < 1 ? 4 : 2,
+    maximumFractionDigits: value < 1 ? 4 : 2,
+  })}`
+}
+
+function fmtChangePercent(value: number): string {
+  const sign = value > 0 ? '+' : ''
+  return `${sign}${value.toFixed(2)}%`
+}
+
+function parseFinancialSymbols(text: string): { tickers: string[]; hashtags: string[] } {
+  const tickerMatches = [...text.matchAll(/(?<!\w)\$([a-z][a-z0-9]{0,9})\b/gi)]
+  const hashtagMatches = [...text.matchAll(/(?<!\w)#([a-z][a-z0-9_]{0,29})\b/gi)]
+
+  const tickers = [...new Set(tickerMatches.map((m) => m[1].toUpperCase()))]
+  const hashtags = [...new Set(hashtagMatches.map((m) => m[1].toUpperCase()))]
+  return { tickers, hashtags }
+}
+
 export default function TweetCard({ t }: { t: Tweet }) {
   const createdAt = t.created_at ? new Date(t.created_at) : null
   const timeLabel = createdAt
     ? createdAt.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
     : null
+  const parsedSymbols = parseFinancialSymbols(t.text ?? '')
+  const tickerBadges = [...new Set([...(t.tickers ?? []), ...parsedSymbols.tickers].map((v) => v.toUpperCase()))]
+  const hashtagBadges = [...new Set([...(t.hashtags ?? []), ...parsedSymbols.hashtags].map((v) => v.toUpperCase()))]
+  const assets = (t.assets ?? []).filter((asset) => asset?.symbol)
 
   return (
     <article className="rounded-2xl shadow p-4 bg-white dark:bg-zinc-900">
@@ -90,14 +115,62 @@ export default function TweetCard({ t }: { t: Tweet }) {
         </div>
       )}
 
+      {assets.length > 0 && (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {assets.map((asset) => {
+            const financials = asset.financials
+            const hasPrice = typeof financials?.price === 'number'
+            const hasChange = typeof financials?.change_percent === 'number'
+            const change = hasChange ? (financials?.change_percent as number) : 0
+            const changeClass =
+              change > 0
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : change < 0
+                  ? 'text-rose-600 dark:text-rose-400'
+                  : 'text-zinc-500 dark:text-zinc-400'
+
+            return (
+              <div
+                key={asset.symbol}
+                className="rounded-xl border border-zinc-200 bg-zinc-50/70 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800/50"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="font-semibold text-zinc-800 dark:text-zinc-100">
+                    ${asset.symbol}
+                  </div>
+                  {asset.kind && (
+                    <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300">
+                      {asset.kind}
+                    </span>
+                  )}
+                </div>
+
+                {asset.name && (
+                  <div className="truncate text-[11px] text-zinc-500 dark:text-zinc-400">{asset.name}</div>
+                )}
+
+                <div className="mt-1 flex items-center justify-between gap-2 text-sm">
+                  <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                    {hasPrice ? fmtPrice(financials?.price as number) : 'N/A'}
+                  </span>
+                  <span className={`font-semibold ${changeClass}`}>
+                    {hasChange ? fmtChangePercent(change) : 'N/A'}
+                  </span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
       <footer className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-500">
         <div className="flex flex-wrap gap-2">
-          {t.tickers?.map((sym) => (
+          {tickerBadges.map((sym) => (
             <span key={sym} className="px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800">
               ${sym}
             </span>
           ))}
-          {t.hashtags?.map((tag) => (
+          {hashtagBadges.map((tag) => (
             <span key={tag} className="px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800">
               #{tag}
             </span>

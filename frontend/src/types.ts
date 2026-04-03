@@ -1,5 +1,21 @@
 export type MediaItem = { url: string; type: string };
 
+export type AssetFinancials = {
+  price?: number | null;
+  change_percent?: number | null;
+  volume?: number | null;
+  website?: string | null;
+};
+
+export type Asset = {
+  symbol: string;
+  kind?: string | null;
+  name?: string | null;
+  market_cap?: number | null;
+  meta?: unknown;
+  financials?: AssetFinancials | null;
+};
+
 export type Tweet = {
   id: number;
   text: string;
@@ -17,4 +33,5 @@ export type Tweet = {
   likes: number;
   views: number;
   retweets: number;
+  assets?: Asset[];
 };

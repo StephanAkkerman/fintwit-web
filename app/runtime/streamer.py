@@ -1,11 +1,12 @@
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime
 
 import xclient
 
 from ..infra.repos import TweetRepo
 from .broadcast import Broadcaster
 from .enricher import AssetEnricher
+from .symbols import merge_symbols
 
 
 async def run_stream(repo: TweetRepo, bc: Broadcaster) -> None:
@@ -22,14 +23,20 @@ async def run_stream(repo: TweetRepo, bc: Broadcaster) -> None:
 
                     # SQLAlchemy DateTime requires a datetime object, not a string
                     if isinstance(t_dict.get("created_at"), str):
-                        t_dict["created_at"] = datetime.fromisoformat(t_dict["created_at"])
+                        t_dict["created_at"] = datetime.fromisoformat(
+                            t_dict["created_at"]
+                        )
 
-                    # Collect all symbols (tickers + hashtags) to classify
-                    symbols = []
-                    if t_dict.get("tickers"):
-                        symbols.extend(t_dict["tickers"])
-                    if t_dict.get("hashtags"):
-                        symbols.extend(t_dict["hashtags"])
+                    # Ensure financial symbols are still detected when source payloads
+                    # don't explicitly include ticker/hashtag arrays.
+                    tickers, hashtags = merge_symbols(
+                        t_dict.get("text"),
+                        t_dict.get("tickers"),
+                        t_dict.get("hashtags"),
+                    )
+                    t_dict["tickers"] = tickers
+                    t_dict["hashtags"] = hashtags
+                    symbols = [*tickers, *hashtags]
 
                     # Enrich the tweet with financial info if there are symbols
                     if symbols:

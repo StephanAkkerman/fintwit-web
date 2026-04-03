@@ -86,11 +86,12 @@ describe('useTweets', () => {
 
     const [es] = MockEventSource.instances
     act(() => {
-      es.emit(makeTweet(1)) // duplicate
+      es.emit({ ...makeTweet(1), text: 'Updated Tweet 1' }) // duplicate ID update
     })
 
-    // Still only one tweet
+    // Still only one tweet, but with refreshed content
     expect(result.current.tweets).toHaveLength(1)
+    expect(result.current.tweets[0].text).toBe('Updated Tweet 1')
   })
 
   it('caps the list at maxItems', async () => {

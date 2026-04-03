@@ -3,10 +3,9 @@ import asyncio
 import json
 import os
 from contextlib import asynccontextmanager, suppress
-
-import httpx
 from datetime import datetime, timezone
 
+import httpx
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -17,8 +16,9 @@ from ..infra.repos import TweetRepo
 from ..runtime.broadcast import Broadcaster
 from ..runtime.enricher import AssetEnricher
 from ..runtime.streamer import run_stream
-from ..services.fear_greed_service import get_feargreed
+from ..runtime.symbols import merge_symbols
 from ..services.coin360_service import get_treemap_data
+from ..services.fear_greed_service import get_feargreed
 
 ENGINE = create_engine(os.getenv("DB_URL", "sqlite+aiosqlite:///./data.db"))
 Session = async_sessionmaker(ENGINE, expire_on_commit=False)
@@ -104,13 +104,16 @@ class DebugTweet(BaseModel):
 
 @app.post("/api/debug/tweet")
 async def debug_tweet(body: DebugTweet):
-    symbols = body.tickers + body.hashtags
+    tickers, hashtags = merge_symbols(body.text, body.tickers, body.hashtags)
+    symbols = tickers + hashtags
     assets = []
     if symbols:
         enricher = AssetEnricher()
         assets = await enricher.classify(symbols)
     tweet = {
         **body.model_dump(),
+        "tickers": tickers,
+        "hashtags": hashtags,
         "id": int(datetime.now(timezone.utc).timestamp() * 1000),
         "url": "",
         "created_at": datetime.now(timezone.utc),

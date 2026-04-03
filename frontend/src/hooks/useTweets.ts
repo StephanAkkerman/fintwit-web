@@ -34,10 +34,18 @@ export function useTweets(apiBase = '', maxItems = 500) {
     es.onmessage = (ev) => {
       try {
         const t: Tweet = JSON.parse(ev.data)
-        if (!ids.current.has(t.id)) {
-          ids.current.add(t.id)
-          setTweets((prev) => [t, ...prev].slice(0, maxItems))
-        }
+        setTweets((prev) => {
+          const idx = prev.findIndex((item) => item.id === t.id)
+
+          if (idx === -1) {
+            ids.current.add(t.id)
+            return [t, ...prev].slice(0, maxItems)
+          }
+
+          const next = [...prev]
+          next[idx] = { ...next[idx], ...t }
+          return next
+        })
       } catch (e) {
         console.error('error parsing event', e)
       }
