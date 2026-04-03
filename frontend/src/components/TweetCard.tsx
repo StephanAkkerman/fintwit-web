@@ -34,6 +34,20 @@ export default function TweetCard({ t }: { t: Tweet }) {
   const timeLabel = createdAt
     ? createdAt.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
     : null
+  const hasQuoteEmbed = /(^|\n)\s*>\s*/.test(t.text ?? '')
+  const allMedia = t.media ?? []
+  let quotedMediaIndex = -1
+  if (hasQuoteEmbed) {
+    for (let i = allMedia.length - 1; i >= 0; i -= 1) {
+      if (allMedia[i]?.type === 'photo') {
+        quotedMediaIndex = i
+        break
+      }
+    }
+  }
+  const quotedMedia = quotedMediaIndex >= 0 ? allMedia[quotedMediaIndex] : undefined
+  const inlineMedia = allMedia.filter((_, i) => i !== quotedMediaIndex)
+  const showInlineMediaBeforeQuote = hasQuoteEmbed && inlineMedia.length > 0
   const parsedSymbols = parseFinancialSymbols(t.text ?? '')
   const tickerBadges = [...new Set([...(t.tickers ?? []), ...parsedSymbols.tickers].map((v) => v.toUpperCase()))]
   const hashtagBadges = [...new Set([...(t.hashtags ?? []), ...parsedSymbols.hashtags].map((v) => v.toUpperCase()))]
@@ -63,6 +77,16 @@ export default function TweetCard({ t }: { t: Tweet }) {
       </header>
 
       <div className="mt-3 text-sm leading-6 text-zinc-800 dark:text-zinc-200">
+        {showInlineMediaBeforeQuote && (
+          <div className="mb-3 grid grid-cols-2 gap-2">
+            {inlineMedia.map((m, i) => (
+              <a key={i} href={m.url} target="_blank" rel="noreferrer">
+                <img src={m.url} alt={m.type} className="rounded-xl w-full object-cover" />
+              </a>
+            ))}
+          </div>
+        )}
+
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
@@ -89,6 +113,20 @@ export default function TweetCard({ t }: { t: Tweet }) {
                 <div className="px-3 py-2 text-zinc-800 dark:text-zinc-200 [&_p]:mb-1.5 [&_p:last-child]:mb-0 [&_p:first-child_a]:font-semibold">
                   {children}
                 </div>
+                {quotedMedia && (
+                  <a
+                    href={quotedMedia.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block border-t border-zinc-200 dark:border-zinc-700"
+                  >
+                    <img
+                      src={quotedMedia.url}
+                      alt="Quoted media"
+                      className="max-h-[28rem] w-full object-contain bg-zinc-100/70 dark:bg-zinc-800/60"
+                    />
+                  </a>
+                )}
               </blockquote>
             ),
             ul: ({ children }) => <ul className="my-2 list-disc pl-5">{children}</ul>,
@@ -105,9 +143,9 @@ export default function TweetCard({ t }: { t: Tweet }) {
         </ReactMarkdown>
       </div>
 
-      {t.media?.length > 0 && (
+      {!showInlineMediaBeforeQuote && inlineMedia.length > 0 && (
         <div className="mt-3 grid grid-cols-2 gap-2">
-          {t.media.map((m, i) => (
+          {inlineMedia.map((m, i) => (
             <a key={i} href={m.url} target="_blank" rel="noreferrer">
               <img src={m.url} alt={m.type} className="rounded-xl w-full object-cover" />
             </a>

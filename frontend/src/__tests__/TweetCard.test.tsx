@@ -41,6 +41,34 @@ describe('TweetCard', () => {
     expect(quoteUserLink).toHaveAttribute('href', 'https://twitter.com/opensea')
   })
 
+  it('renders quoted image inside the quote embed', () => {
+    const quoteText =
+      '> [@opensea](https://twitter.com/opensea):\n> Treasure Chests from our final Wave are now unlocked.'
+
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          text: quoteText,
+          media: [
+            { url: 'https://example.com/inline.jpg', type: 'photo' },
+            { url: 'https://example.com/quoted.jpg', type: 'photo' },
+          ],
+        }}
+      />
+    )
+
+    const quotedImage = screen.getByAltText('Quoted media') as HTMLImageElement
+    expect(quotedImage.src).toContain('quoted.jpg')
+
+    const inlineImage = screen.getByAltText('photo') as HTMLImageElement
+    expect(inlineImage.src).toContain('inline.jpg')
+
+    const quoteBlock = screen.getByText('Quoted post').closest('blockquote')
+    expect(quoteBlock).toBeInTheDocument()
+    expect(quoteBlock?.compareDocumentPosition(inlineImage) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
+  })
+
   it('renders an Open link pointing to the tweet URL', () => {
     render(<TweetCard t={baseTweet} />)
     const link = screen.getByRole('link', { name: /open/i })
