@@ -21,6 +21,20 @@ function hasTickerLikeText(text: string): boolean {
   return /(^|\s)\$[A-Za-z][A-Za-z0-9]{0,9}\b/.test(text)
 }
 
+function extractTickersFromText(text: string): string[] {
+  return [...text.matchAll(/(^|\s)\$([A-Za-z][A-Za-z0-9]{0,9})\b/g)].map((m) =>
+    m[2].toUpperCase()
+  )
+}
+
+function matchesTicker(tweet: Tweet, ticker: string): boolean {
+  const target = ticker.toUpperCase()
+  const fromTickers = (tweet.tickers ?? []).map((t) => t.toUpperCase())
+  const fromAssets = (tweet.assets ?? []).map((asset) => asset.symbol.toUpperCase())
+  const fromText = extractTickersFromText(tweet.text ?? '')
+  return [...fromTickers, ...fromAssets, ...fromText].includes(target)
+}
+
 function matchesFilter(tweet: Tweet, filter: FilterKey): boolean {
   if (filter === 'all') return true
 
@@ -42,6 +56,7 @@ function matchesFilter(tweet: Tweet, filter: FilterKey): boolean {
 export default function App() {
   const { tweets } = useTweets('') // same-origin API (proxied in dev)
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all')
+  const [tickerFilter, setTickerFilter] = useState<string | null>(null)
 
   const counts = useMemo(
     () => ({
@@ -54,9 +69,19 @@ export default function App() {
   )
 
   const filteredTweets = useMemo(
-    () => tweets.filter((tweet) => matchesFilter(tweet, activeFilter)),
-    [tweets, activeFilter]
+    () =>
+      tweets.filter(
+        (tweet) =>
+          matchesFilter(tweet, activeFilter) &&
+          (!tickerFilter || matchesTicker(tweet, tickerFilter))
+      ),
+    [tweets, activeFilter, tickerFilter]
   )
+
+  const onTickerSelect = (ticker: string) => {
+    setActiveFilter('all')
+    setTickerFilter((current) => (current === ticker ? null : ticker))
+  }
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100">
@@ -86,6 +111,28 @@ export default function App() {
                 )
               })}
             </div>
+
+            <div className="mt-4 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+              <h3 className="px-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+                Ticker
+              </h3>
+              {tickerFilter ? (
+                <div className="mt-2 flex items-center gap-2 px-2">
+                  <span className="rounded-full bg-zinc-900 px-2 py-1 text-xs font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900">
+                    ${tickerFilter}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setTickerFilter(null)}
+                    className="text-xs text-zinc-500 hover:underline"
+                  >
+                    Clear
+                  </button>
+                </div>
+              ) : (
+                <p className="mt-2 px-2 text-xs text-zinc-500">Click a ticker in a tweet to filter.</p>
+              )}
+            </div>
           </aside>
 
           <section className="space-y-3 min-w-0">
@@ -95,7 +142,7 @@ export default function App() {
             </header>
             <FearGreedWidget />
             {filteredTweets.map((t) => (
-              <TweetCard key={t.id} t={t} />
+              <TweetCard key={t.id} t={t} onTickerSelect={onTickerSelect} />
             ))}
             {filteredTweets.length === 0 && (
               <div className="rounded-2xl border border-dashed border-zinc-300 bg-white/70 p-5 text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-400">

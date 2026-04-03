@@ -29,7 +29,13 @@ function parseFinancialSymbols(text: string): { tickers: string[]; hashtags: str
   return { tickers, hashtags }
 }
 
-export default function TweetCard({ t }: { t: Tweet }) {
+export default function TweetCard({
+  t,
+  onTickerSelect,
+}: {
+  t: Tweet
+  onTickerSelect?: (ticker: string) => void
+}) {
   const createdAt = t.created_at ? new Date(t.created_at) : null
   const timeLabel = createdAt
     ? createdAt.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
@@ -173,9 +179,20 @@ export default function TweetCard({ t }: { t: Tweet }) {
                 className="rounded-xl border border-zinc-200 bg-zinc-50/70 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800/50"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <div className="font-semibold text-zinc-800 dark:text-zinc-100">
-                    ${asset.symbol}
-                  </div>
+                  {onTickerSelect ? (
+                    <button
+                      type="button"
+                      onClick={() => onTickerSelect(asset.symbol.toUpperCase())}
+                      aria-label={`Filter by $${asset.symbol.toUpperCase()}`}
+                      className="font-semibold text-zinc-800 underline-offset-2 hover:underline dark:text-zinc-100"
+                    >
+                      ${asset.symbol}
+                    </button>
+                  ) : (
+                    <div className="font-semibold text-zinc-800 dark:text-zinc-100">
+                      ${asset.symbol}
+                    </div>
+                  )}
                   {asset.kind && (
                     <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300">
                       {asset.kind}
@@ -188,9 +205,20 @@ export default function TweetCard({ t }: { t: Tweet }) {
                 )}
 
                 <div className="mt-1 flex items-center justify-between gap-2 text-sm">
-                  <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                    {hasPrice ? fmtPrice(financials?.price as number) : 'N/A'}
-                  </span>
+                  {hasPrice && financials?.website ? (
+                    <a
+                      href={financials.website}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-semibold text-zinc-900 underline-offset-2 hover:underline dark:text-zinc-100"
+                    >
+                      {fmtPrice(financials?.price as number)}
+                    </a>
+                  ) : (
+                    <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                      {hasPrice ? fmtPrice(financials?.price as number) : 'N/A'}
+                    </span>
+                  )}
                   <span className={`font-semibold ${changeClass}`}>
                     {hasChange ? fmtChangePercent(change) : 'N/A'}
                   </span>

@@ -154,4 +154,77 @@ describe('App', () => {
       expect(screen.queryByText('Stock User')).not.toBeInTheDocument()
     })
   })
+
+  it('filters tweets by ticker when a financial ticker is clicked', async () => {
+    const posts: Tweet[] = [
+      {
+        id: 1,
+        text: '$AAPL earnings',
+        user_name: 'Stock User',
+        user_screen_name: 'stock_user',
+        user_img: 'https://example.com/s.jpg',
+        url: 'https://x.com/stock_user/status/1',
+        created_at: '',
+        media: [],
+        tickers: ['AAPL'],
+        hashtags: [],
+        title: '',
+        media_types: [],
+        replies: 0,
+        likes: 0,
+        views: 0,
+        retweets: 0,
+        assets: [{ symbol: 'AAPL', kind: 'EQUITY', financials: { price: 185.12, change_percent: 1.2 } }],
+      },
+      {
+        id: 2,
+        text: '$BTC breakout',
+        user_name: 'Crypto User',
+        user_screen_name: 'crypto_user',
+        user_img: 'https://example.com/c.jpg',
+        url: 'https://x.com/crypto_user/status/2',
+        created_at: '',
+        media: [],
+        tickers: ['BTC'],
+        hashtags: [],
+        title: '',
+        media_types: [],
+        replies: 0,
+        likes: 0,
+        views: 0,
+        retweets: 0,
+        assets: [{ symbol: 'BTC', kind: 'crypto', financials: { price: 68000, change_percent: 2.0 } }],
+      },
+    ]
+
+    fetchMock.mockImplementation((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/api/posts')) {
+        return Promise.resolve({ ok: true, json: async () => posts } as Response)
+      }
+      if (url.includes('/api/fear-greed')) {
+        return Promise.resolve(
+          {
+            ok: true,
+            json: async () => ({ value: 50, change: '+0', status: 'Neutral' }),
+          } as Response
+        )
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
+    })
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Stock User')).toBeInTheDocument()
+      expect(screen.getByText('Crypto User')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Filter by $AAPL' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Stock User')).toBeInTheDocument()
+      expect(screen.queryByText('Crypto User')).not.toBeInTheDocument()
+    })
+  })
 })

@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
 import TweetCard from '../components/TweetCard'
 import type { Tweet } from '../types'
 
@@ -116,6 +116,47 @@ describe('TweetCard', () => {
     expect(screen.getByText('$AAPL')).toBeInTheDocument()
     expect(screen.getByText(/^\$185[.,]12$/)).toBeInTheDocument()
     expect(screen.getByText('+1.73%')).toBeInTheDocument()
+  })
+
+  it('calls ticker filter callback when financial ticker is clicked', () => {
+    const onTickerSelect = vi.fn()
+
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          assets: [{ symbol: 'SOL', kind: 'crypto', financials: { price: 150, change_percent: 2.4 } }],
+        }}
+        onTickerSelect={onTickerSelect}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Filter by $SOL' }))
+    expect(onTickerSelect).toHaveBeenCalledWith('SOL')
+  })
+
+  it('links financial price to the source website when available', () => {
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          assets: [
+            {
+              symbol: 'AAPL',
+              kind: 'EQUITY',
+              financials: {
+                price: 185.12,
+                change_percent: 1.73,
+                website: 'https://finance.yahoo.com/quote/AAPL',
+              },
+            },
+          ],
+        }}
+      />
+    )
+
+    const priceLink = screen.getByRole('link', { name: /^\$185[.,]12$/ })
+    expect(priceLink).toHaveAttribute('href', 'https://finance.yahoo.com/quote/AAPL')
   })
 
   it('renders media images when present', () => {
