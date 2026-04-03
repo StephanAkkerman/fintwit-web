@@ -27,6 +27,12 @@ function extractTickersFromText(text: string): string[] {
   )
 }
 
+function normalizeTickerInput(value: string): string | null {
+  const normalized = value.trim().replace(/^\$/, '').toUpperCase()
+  if (!/^[A-Z][A-Z0-9]{0,9}$/.test(normalized)) return null
+  return normalized
+}
+
 function matchesTicker(tweet: Tweet, ticker: string): boolean {
   const target = ticker.toUpperCase()
   const fromTickers = (tweet.tickers ?? []).map((t) => t.toUpperCase())
@@ -57,6 +63,7 @@ export default function App() {
   const { tweets } = useTweets('') // same-origin API (proxied in dev)
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all')
   const [tickerFilter, setTickerFilter] = useState<string | null>(null)
+  const [tickerInput, setTickerInput] = useState('')
 
   const counts = useMemo(
     () => ({
@@ -80,7 +87,16 @@ export default function App() {
 
   const onTickerSelect = (ticker: string) => {
     setActiveFilter('all')
+    setTickerInput(ticker)
     setTickerFilter((current) => (current === ticker ? null : ticker))
+  }
+
+  const applyTypedTickerFilter = () => {
+    const ticker = normalizeTickerInput(tickerInput)
+    if (!ticker) return
+    setActiveFilter('all')
+    setTickerInput(ticker)
+    setTickerFilter(ticker)
   }
 
   return (
@@ -116,6 +132,30 @@ export default function App() {
               <h3 className="px-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
                 Ticker
               </h3>
+              <form
+                className="mt-2 flex items-center gap-2 px-2"
+                onSubmit={(ev) => {
+                  ev.preventDefault()
+                  applyTypedTickerFilter()
+                }}
+              >
+                <input
+                  id="ticker-filter-input"
+                  type="text"
+                  value={tickerInput}
+                  onChange={(ev) => setTickerInput(ev.target.value)}
+                  placeholder="$SOL"
+                  aria-label="Ticker symbol"
+                  className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none ring-zinc-400 placeholder:text-zinc-400 focus:ring-2 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                />
+                <button
+                  type="submit"
+                  className="rounded-lg bg-zinc-900 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+                >
+                  Apply
+                </button>
+              </form>
+
               {tickerFilter ? (
                 <div className="mt-2 flex items-center gap-2 px-2">
                   <span className="rounded-full bg-zinc-900 px-2 py-1 text-xs font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900">
@@ -123,14 +163,17 @@ export default function App() {
                   </span>
                   <button
                     type="button"
-                    onClick={() => setTickerFilter(null)}
+                    onClick={() => {
+                      setTickerFilter(null)
+                      setTickerInput('')
+                    }}
                     className="text-xs text-zinc-500 hover:underline"
                   >
                     Clear
                   </button>
                 </div>
               ) : (
-                <p className="mt-2 px-2 text-xs text-zinc-500">Click a ticker in a tweet to filter.</p>
+                <p className="mt-2 px-2 text-xs text-zinc-500">Type a ticker or click one in a tweet to filter.</p>
               )}
             </div>
           </aside>
