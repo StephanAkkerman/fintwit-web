@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from .db import TweetRow
+from .db import TweetRow, SPYHeatmapRow
 
 
 def _row_to_dict(r: TweetRow) -> dict:
@@ -78,3 +78,52 @@ class TweetRepo:
         async with self.Session() as s:
             rows = (await s.execute(stmt)).scalars().all()
         return [_row_to_dict(r) for r in rows]
+
+
+def _spy_heatmap_row_to_dict(r: SPYHeatmapRow) -> dict:
+    return {
+        "ticker": r.ticker,
+        "sector": r.sector,
+        "industry": r.industry,
+        "marketcap": r.marketcap,
+        "close": r.close,
+        "prev_close": r.prev_close,
+        "percentage_change": r.percentage_change,
+        "call_volume": r.call_volume,
+        "put_volume": r.put_volume,
+        "call_premium": r.call_premium,
+        "put_premium": r.put_premium,
+    }
+
+
+class SPYHeatmapRepo:
+    """Async repo for SPY Heatmap data."""
+
+    def __init__(self, session_factory: async_sessionmaker):
+        self.Session = session_factory
+
+    async def upsert_many(self, items: Iterable[dict]) -> int:
+        item_list = list(items)
+        if not item_list:
+            return 0
+
+        async with self.Session() as s:
+            async with s.begin():
+                stmt = sqlite_insert(SPYHeatmapRow).values(item_list)
+                update_cols = {
+                    c.name: stmt.excluded[c.name]
+                    for c in SPYHeatmapRow.__table__.c
+                    if c.name != "ticker"
+                }
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=[SPYHeatmapRow.ticker],
+                    set_=update_cols,
+                )
+                await s.execute(stmt)
+        return len(item_list)
+
+    async def latest(self):
+        stmt = select(SPYHeatmapRow).order_by(SPYHeatmapRow.marketcap.desc())
+        async with self.Session() as s:
+            rows = (await s.execute(stmt)).scalars().all()
+        return [_spy_heatmap_row_to_dict(r) for r in rows]

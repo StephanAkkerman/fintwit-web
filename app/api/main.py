@@ -13,16 +13,18 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from ..infra.db import create_engine, init_db
-from ..infra.repos import TweetRepo
+from ..infra.repos import TweetRepo, SPYHeatmapRepo
 from ..runtime.broadcast import Broadcaster
 from ..runtime.enricher import AssetEnricher
 from ..runtime.streamer import run_stream
+from ..runtime.spy_heatmap_worker import run_spy_heatmap_worker
 from ..services.fear_greed_service import get_feargreed
 from ..services.coin360_service import get_treemap_data
 
 ENGINE = create_engine(os.getenv("DB_URL", "sqlite+aiosqlite:///./data.db"))
 Session = async_sessionmaker(ENGINE, expire_on_commit=False)
 REPO = TweetRepo(Session)
+SPY_HEATMAP_REPO = SPYHeatmapRepo(Session)
 BROADCAST = Broadcaster()
 
 
@@ -42,12 +44,16 @@ async def lifespan(app: FastAPI):
     task = asyncio.create_task(
         run_stream(REPO, BROADCAST)
     )  # ← we’ll update run_stream below
+    spy_task = asyncio.create_task(
+        run_spy_heatmap_worker(SPY_HEATMAP_REPO, app.state.http_client)
+    )
     try:
         yield
     finally:
         task.cancel()
+        spy_task.cancel()
         with suppress(asyncio.CancelledError):
-            await task
+            await asyncio.gather(task, spy_task)
         await app.state.http_client.aclose()
 
 
@@ -88,6 +94,12 @@ async def treemap(request: Request, _=Depends(api_key_dep)):
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data
+
+
+@app.get("/api/spy-heatmap")
+async def spy_heatmap(_=Depends(api_key_dep)):
+    data = await SPY_HEATMAP_REPO.latest()
+    return {"data": data}
 
 
 class DebugTweet(BaseModel):

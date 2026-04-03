@@ -8,6 +8,23 @@ from sqlalchemy.orm import Mapped, declarative_base, mapped_column
 Base = declarative_base()
 
 
+from sqlalchemy import Float
+
+class SPYHeatmapRow(Base):
+    __tablename__ = "spy_heatmap"
+    ticker: Mapped[str] = mapped_column(String, primary_key=True)
+    sector: Mapped[str] = mapped_column(String, nullable=True)
+    industry: Mapped[str] = mapped_column(String, nullable=True)
+    marketcap: Mapped[float] = mapped_column(Float, nullable=True)
+    close: Mapped[float] = mapped_column(Float, nullable=True)
+    prev_close: Mapped[float] = mapped_column(Float, nullable=True)
+    percentage_change: Mapped[float] = mapped_column(Float, nullable=True)
+    call_volume: Mapped[int] = mapped_column(Integer, nullable=True)
+    put_volume: Mapped[int] = mapped_column(Integer, nullable=True)
+    call_premium: Mapped[float] = mapped_column(Float, nullable=True)
+    put_premium: Mapped[float] = mapped_column(Float, nullable=True)
+
+
 class TweetRow(Base):
     __tablename__ = "tweets"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)  # tweet id
