@@ -49,3 +49,13 @@ export type TreemapData = {
   data: TreemapCoin[];
   // other fields are omitted since they are not needed
 };
+
+export type StocktwitsKeyword = 'ts' | 'm_day' | 'wl_ct_day';
+
+export type StocktwitsItem = {
+  stock_id?: number | string;
+  symbol: string;
+  name: string;
+  price: string;
+  val: string;
+};

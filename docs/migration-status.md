@@ -11,6 +11,7 @@ Last updated: 2026-04-04
 - Asset enrichment via `ticker-classifier` + Yahoo (equities) + CoinGecko (crypto).
 - SSE broadcasting (`/api/stream`) and engagement update handling for tweet updates.
 - Service-backed endpoints for Fear & Greed, treemap, StockTwits, SPY heatmap, and trending crypto.
+- StockTwits service fallback for anti-bot blocks: curl-first fetch strategy with short-lived per-keyword cache fallback to avoid transient 503s (curl is executed via thread-backed sync subprocess for Windows/uvicorn compatibility).
 
 ## Frontend: Implemented
 
@@ -28,21 +29,17 @@ Last updated: 2026-04-04
 
 - Tweet stream data: `/api/posts` + `/api/stream` -> timeline cards and filters.
 - Fear & Greed widget: `/api/fear-greed` -> `FearGreedWidget`.
-
-## Implemented in Code but Not Yet Mounted in Main Dashboard
-
-- Treemap widget (`TreemapWidget`) and hook (`useTreemap`) for `/api/treemap`.
-- Market overview widget (`MarketOverview`) and hook (`useMarketAssets`) derived from stream assets.
-- Trending crypto widget (`TrendingCryptoWidget`) for `/api/trending-crypto`.
+- Treemap widget: `/api/treemap` -> `TreemapWidget`.
+- Trending crypto widget: `/api/trending-crypto` -> `TrendingCryptoWidget`.
+- StockTwits widget: `/api/stocktwits` -> `StocktwitsWidget`.
+- Market overview stream assets: `/api/posts` + `/api/stream` -> `MarketOverview`.
 
 ## Backend APIs Not Yet Connected in Main UI
 
-- `/api/stocktwits`
 - `/api/spy-heatmap`
 - `/api/debug/tweet` (debug ingestion endpoint)
 
 ## Suggested Next Connections
 
-- Add dashboard route/section for `StockTwits` rankings (`/api/stocktwits`).
 - Add equity heatmap view for `/api/spy-heatmap`.
-- Mount `TreemapWidget`, `TrendingCryptoWidget`, and `MarketOverview` in `App.tsx` or route-based pages.
+- Add route-level segmentation (`/crypto`, `/stocks`) now that core widgets are mounted.

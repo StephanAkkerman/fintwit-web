@@ -28,6 +28,15 @@ beforeEach(() => {
         } as Response
       )
     }
+    if (url.includes('/api/trending-crypto')) {
+      return Promise.resolve({ ok: true, json: async () => [] } as Response)
+    }
+    if (url.includes('/api/treemap')) {
+      return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)
+    }
+    if (url.includes('/api/stocktwits')) {
+      return Promise.resolve({ ok: true, json: async () => [] } as Response)
+    }
     return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
   })
   vi.stubGlobal('fetch', fetchMock)
@@ -45,6 +54,13 @@ describe('App', () => {
     render(<App />)
     await waitFor(() =>
       expect(screen.getByText(/live tweets/i)).toBeInTheDocument()
+    )
+  })
+
+  it('renders the StockTwits widget heading', async () => {
+    render(<App />)
+    await waitFor(() =>
+      expect(screen.getByText(/stocktwits signals/i)).toBeInTheDocument()
     )
   })
 
@@ -121,6 +137,15 @@ describe('App', () => {
             json: async () => ({ value: 50, change: '+0', status: 'Neutral' }),
           } as Response
         )
+      }
+      if (url.includes('/api/trending-crypto')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/treemap')) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)
+      }
+      if (url.includes('/api/stocktwits')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
       }
       return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
     })
@@ -210,6 +235,15 @@ describe('App', () => {
           } as Response
         )
       }
+      if (url.includes('/api/trending-crypto')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/treemap')) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)
+      }
+      if (url.includes('/api/stocktwits')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
       return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
     })
 
@@ -282,6 +316,15 @@ describe('App', () => {
             json: async () => ({ value: 50, change: '+0', status: 'Neutral' }),
           } as Response
         )
+      }
+      if (url.includes('/api/trending-crypto')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/treemap')) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)
+      }
+      if (url.includes('/api/stocktwits')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
       }
       return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
     })

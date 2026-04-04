@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from app.api.main import app
 from tests.conftest import SAMPLE_TWEETS
 
 # ---------------------------------------------------------------------------
@@ -135,3 +136,41 @@ async def test_debug_tweet_extracts_tickers_and_hashtags_from_text(async_client)
     assert data["tickers"] == ["AAPL"]
     assert data["hashtags"] == ["BTC"]
     classifier.assert_awaited_once_with(["AAPL", "BTC"])
+
+
+@pytest.mark.asyncio
+async def test_stocktwits_returns_data(async_client):
+    app.state.http_client = AsyncMock()
+
+    with patch("app.api.main.get_stocktwits_data", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = [
+            {
+                "stock_id": 1,
+                "symbol": "AAPL",
+                "name": "Apple Inc.",
+                "price": "190.0 (+2.1% 📈)",
+                "val": "100",
+            }
+        ]
+
+        response = await async_client.get(
+            "/api/stocktwits?keyword=ts", headers={"X-API-Key": "test-api-key"}
+        )
+
+    assert response.status_code == 200
+    assert response.json()[0]["symbol"] == "AAPL"
+
+
+@pytest.mark.asyncio
+async def test_stocktwits_returns_empty_list_when_service_unavailable(async_client):
+    app.state.http_client = AsyncMock()
+
+    with patch("app.api.main.get_stocktwits_data", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = None
+
+        response = await async_client.get(
+            "/api/stocktwits?keyword=ts", headers={"X-API-Key": "test-api-key"}
+        )
+
+    assert response.status_code == 200
+    assert response.json() == []

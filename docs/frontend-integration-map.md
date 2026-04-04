@@ -18,19 +18,25 @@ Last updated: 2026-04-04
     - click ticker in tweet financial card,
     - type ticker manually and apply.
 
-## Implemented but Currently Unmounted
-
 - `TreemapWidget` + `useTreemap`
   - Fetches: `/api/treemap`
-  - Status: ready, not included in `App.tsx` render tree.
+  - Purpose: top crypto market-cap snapshot tiles.
 
 - `TrendingCryptoWidget`
   - Fetches: `/api/trending-crypto`
-  - Status: ready, not included in `App.tsx` render tree.
+  - Purpose: top searched crypto table with price and 24h change.
 
 - `MarketOverview` + `useMarketAssets` + `AssetBadge`
-  - Fetches: `/api/posts` + `/api/stream` to maintain live top assets list.
-  - Status: ready, not included in `App.tsx` render tree.
+  - Fetches: `/api/posts` + `/api/stream` (derived live assets)
+  - Purpose: top streamed assets with live price/change links.
+
+- `StocktwitsWidget` + `useStocktwits`
+  - Fetches: `/api/stocktwits?keyword=...`
+  - Purpose: StockTwits ranking view (trending / active / watched).
+
+## Not Yet Mounted
+
+- No known unmounted widgets in `frontend/src/components/` for currently exposed market endpoints.
 
 ## Reuse Guidance
 

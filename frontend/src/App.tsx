@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import FearGreedWidget from './components/FearGreedWidget'
 import MarketOverview from './components/MarketOverview'
+import StocktwitsWidget from './components/StocktwitsWidget'
 import TreemapWidget from './components/TreemapWidget'
 import TrendingCryptoWidget from './components/TrendingCryptoWidget'
 import TweetCard from './components/TweetCard'
@@ -190,7 +191,10 @@ export default function App() {
               <FearGreedWidget />
               <TrendingCryptoWidget />
             </div>
-            <TreemapWidget />
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+              <TreemapWidget />
+              <StocktwitsWidget />
+            </div>
             <MarketOverview />
             {filteredTweets.map((t) => (
               <TweetCard key={t.id} t={t} onTickerSelect={onTickerSelect} />

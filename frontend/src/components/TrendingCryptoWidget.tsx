@@ -21,7 +21,7 @@ export default function TrendingCryptoWidget() {
         if (!res.ok) throw new Error('Network response was not ok')
         return res.json()
       })
-      .then((data) => setTrending(data))
+      .then((data) => setTrending(Array.isArray(data) ? data : []))
       .catch((err) => {
         console.error('Error fetching trending crypto:', err)
         setError(true)
