@@ -93,6 +93,30 @@ describe('TweetCard', () => {
     expect(screen.getByText('#BTC')).toBeInTheDocument()
   })
 
+  it('shows chart badge when has_chart flag is true', () => {
+    render(<TweetCard t={{ ...baseTweet, has_chart: true }} />)
+    expect(screen.getByLabelText('Chart tweet')).toBeInTheDocument()
+  })
+
+  it('shows chart badge when tweet has photo media', () => {
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          media: [{ url: 'https://example.com/chart.jpg', type: 'photo' }],
+          media_types: ['photo'],
+        }}
+      />
+    )
+
+    expect(screen.getByLabelText('Chart tweet')).toBeInTheDocument()
+  })
+
+  it('does not show chart badge for text-only tweets', () => {
+    render(<TweetCard t={baseTweet} />)
+    expect(screen.queryByLabelText('Chart tweet')).not.toBeInTheDocument()
+  })
+
   it('renders asset financial information when available', () => {
     render(
       <TweetCard

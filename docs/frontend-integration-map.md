@@ -29,7 +29,7 @@ Route-level sections:
 
 - Tweet timeline (`useTweets` + `TweetCard`)
   - Fetches: `/api/posts` and `/api/stream` (SSE)
-  - Purpose: live timeline with quote embeds, media, financial cards, and engagement updates.
+  - Purpose: live timeline with quote embeds, media, financial cards, chart badge signals, and engagement updates.
 
 - Sidebar filters
   - Category filters: all, crypto, stock, non-financial.

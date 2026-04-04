@@ -8,6 +8,7 @@ import TrendingCryptoWidget from './components/TrendingCryptoWidget'
 import TweetCard from './components/TweetCard'
 import { useTweets } from './hooks/useTweets'
 import type { Tweet } from './types'
+import { hasChartSignal } from './utils/tweetSignals'
 
 type FilterKey = 'all' | 'crypto' | 'stock' | 'non-financial'
 type RouteKey = 'home' | 'crypto' | 'stocks'
@@ -82,19 +83,6 @@ function matchesFilter(tweet: Tweet, filter: FilterKey): boolean {
   if (filter === 'crypto') return hasCrypto
   if (filter === 'stock') return hasStock
   return !hasFinancialSignals
-}
-
-function hasChartSignal(tweet: Tweet): boolean {
-  if (tweet.has_chart === true) return true
-
-  if ((tweet.media_types ?? []).some((m) => m === 'photo')) return true
-
-  return (tweet.media ?? []).some((item) => {
-    if (typeof item === 'string') {
-      return /\.(png|jpe?g|webp|gif)(\?|$)/i.test(item)
-    }
-    return item?.type === 'photo'
-  })
 }
 
 export default function App() {

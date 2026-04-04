@@ -1,6 +1,7 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Tweet } from '../types'
+import { hasChartSignal } from '../utils/tweetSignals'
 
 function fmt(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
@@ -58,6 +59,7 @@ export default function TweetCard({
   const tickerBadges = [...new Set([...(t.tickers ?? []), ...parsedSymbols.tickers].map((v) => v.toUpperCase()))]
   const hashtagBadges = [...new Set([...(t.hashtags ?? []), ...parsedSymbols.hashtags].map((v) => v.toUpperCase()))]
   const assets = (t.assets ?? []).filter((asset) => asset?.symbol)
+  const hasChart = hasChartSignal(t)
 
   return (
     <article className="rounded-2xl shadow p-4 bg-white dark:bg-zinc-900">
@@ -231,6 +233,18 @@ export default function TweetCard({
 
       <footer className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-500">
         <div className="flex flex-wrap gap-2">
+          {hasChart && (
+            <span
+              aria-label="Chart tweet"
+              className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300"
+            >
+              <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 3v18h18" />
+                <path d="M7 14l4-4 3 3 5-6" />
+              </svg>
+              Chart
+            </span>
+          )}
           {tickerBadges.map((sym) => (
             <span key={sym} className="px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800">
               ${sym}

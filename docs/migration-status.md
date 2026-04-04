@@ -32,6 +32,7 @@ Last updated: 2026-04-04
   - Latest,
   - Charts first,
   - Charts only.
+- Tweet cards display a small "Chart" badge when a chart signal is detected (`has_chart` or image media).
 
 ## Connected End-to-End Today
 
