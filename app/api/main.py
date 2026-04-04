@@ -17,9 +17,10 @@ from ..runtime.broadcast import Broadcaster
 from ..runtime.enricher import AssetEnricher
 from ..runtime.streamer import run_stream
 from ..runtime.symbols import merge_symbols
+from ..services.cmc import get_trending_crypto
 from ..services.coin360_service import get_treemap_data
 from ..services.fear_greed_service import get_feargreed
-from ..services.cmc import get_trending_crypto
+from ..services.stocktwits_service import get_stocktwits_data
 
 ENGINE = create_engine(os.getenv("DB_URL", "sqlite+aiosqlite:///./data.db"))
 Session = async_sessionmaker(ENGINE, expire_on_commit=False)
@@ -77,6 +78,19 @@ async def stream(_=Depends(api_key_dep)):
 @app.get("/api/fear-greed")
 async def fear_greed(_=Depends(api_key_dep)):
     data = await get_feargreed()
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
+
+
+@app.get("/api/stocktwits")
+async def stocktwits(
+    request: Request, keyword: str = Query("ts"), _=Depends(api_key_dep)
+):
+    if keyword not in ["ts", "m_day", "wl_ct_day"]:
+        raise HTTPException(status_code=400, detail="Invalid keyword")
+    client: httpx.AsyncClient = request.app.state.http_client
+    data = await get_stocktwits_data(client, keyword)
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data
