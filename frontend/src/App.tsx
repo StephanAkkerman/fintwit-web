@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
 import FearGreedWidget from './components/FearGreedWidget'
 import MarketOverview from './components/MarketOverview'
+import TreemapWidget from './components/TreemapWidget'
 import TrendingCryptoWidget from './components/TrendingCryptoWidget'
 import TweetCard from './components/TweetCard'
-import TreemapWidget from './components/TreemapWidget'
 import { useTweets } from './hooks/useTweets'
 import type { Tweet } from './types'
 
