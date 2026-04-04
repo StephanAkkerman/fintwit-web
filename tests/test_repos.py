@@ -56,8 +56,18 @@ async def test_latest_returns_all_expected_fields(tweet_repo):
     rows = await tweet_repo.latest()
     row = rows[0]
     expected_keys = {
-        "id", "text", "user_name", "user_screen_name", "user_img",
-        "url", "media", "tickers", "hashtags", "title", "media_types", "assets",
+        "id",
+        "text",
+        "user_name",
+        "user_screen_name",
+        "user_img",
+        "url",
+        "media",
+        "tickers",
+        "hashtags",
+        "title",
+        "media_types",
+        "assets",
     }
     assert expected_keys.issubset(row.keys())
 
@@ -81,6 +91,40 @@ async def test_latest_preserves_media_and_tickers(tweet_repo):
 async def test_latest_empty_db_returns_empty_list(tweet_repo):
     rows = await tweet_repo.latest()
     assert rows == []
+
+
+@pytest.mark.asyncio
+async def test_by_id_returns_row_when_present(tweet_repo):
+    await tweet_repo.upsert_many([SAMPLE_TWEETS[0]])
+    row = await tweet_repo.by_id(1001)
+    assert row is not None
+    assert row["id"] == 1001
+
+
+@pytest.mark.asyncio
+async def test_update_fields_updates_engagement_without_replacing_content(tweet_repo):
+    original = {
+        **SAMPLE_TWEETS[0],
+        "replies": 1,
+        "likes": 10,
+        "views": 100,
+        "retweets": 2,
+    }
+    await tweet_repo.upsert_many([original])
+
+    updated = await tweet_repo.update_fields(1001, {"likes": 42, "views": 999})
+
+    assert updated is not None
+    assert updated["likes"] == 42
+    assert updated["views"] == 999
+    assert updated["text"] == original["text"]
+    assert updated["tickers"] == original["tickers"]
+
+
+@pytest.mark.asyncio
+async def test_update_fields_returns_none_for_missing_row(tweet_repo):
+    updated = await tweet_repo.update_fields(999999, {"likes": 1})
+    assert updated is None
 
 
 @pytest.mark.asyncio

@@ -1,6 +1,6 @@
 from typing import Iterable
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -67,6 +67,34 @@ class TweetRepo:
         async with self.Session() as s:
             rows = (await s.execute(stmt)).scalars().all()
         return [_row_to_dict(r) for r in rows]
+
+    async def by_id(self, tweet_id: int):
+        stmt = select(TweetRow).where(TweetRow.id == tweet_id).limit(1)
+        async with self.Session() as s:
+            row = (await s.execute(stmt)).scalars().first()
+        return _row_to_dict(row) if row else None
+
+    async def update_fields(self, tweet_id: int, fields: dict):
+        if not fields:
+            return await self.by_id(tweet_id)
+
+        async with self.Session() as s:
+            async with s.begin():
+                await s.execute(
+                    update(TweetRow).where(TweetRow.id == tweet_id).values(**fields)
+                )
+
+            row = (
+                (
+                    await s.execute(
+                        select(TweetRow).where(TweetRow.id == tweet_id).limit(1)
+                    )
+                )
+                .scalars()
+                .first()
+            )
+
+        return _row_to_dict(row) if row else None
 
     async def since_id(self, since: int, limit: int = 200):
         stmt = (
