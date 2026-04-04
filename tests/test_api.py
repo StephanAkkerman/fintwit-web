@@ -174,3 +174,89 @@ async def test_stocktwits_returns_empty_list_when_service_unavailable(async_clie
 
     assert response.status_code == 200
     assert response.json() == []
+
+
+@pytest.mark.asyncio
+async def test_portfolio_create_position(async_client):
+    with patch("app.api.main.PORTFOLIO_REPO") as mock_repo:
+        mock_repo.create_position = AsyncMock(
+            return_value={
+                "id": 1,
+                "broker": "IBKR",
+                "symbol": "AAPL",
+                "quantity": 10.0,
+                "avg_cost": 150.0,
+                "currency": "USD",
+                "is_active": True,
+            }
+        )
+
+        response = await async_client.post(
+            "/api/portfolio/positions",
+            headers={"X-API-Key": "test-api-key"},
+            json={"symbol": "aapl", "quantity": 10, "avg_cost": 150},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["symbol"] == "AAPL"
+
+
+@pytest.mark.asyncio
+async def test_portfolio_list_positions(async_client):
+    with patch("app.api.main.PORTFOLIO_REPO") as mock_repo:
+        mock_repo.list_positions = AsyncMock(
+            return_value=[{"id": 1, "symbol": "AAPL", "broker": "IBKR"}]
+        )
+
+        response = await async_client.get(
+            "/api/portfolio/positions", headers={"X-API-Key": "test-api-key"}
+        )
+
+    assert response.status_code == 200
+    assert response.json()[0]["symbol"] == "AAPL"
+
+
+@pytest.mark.asyncio
+async def test_portfolio_delete_position_not_found(async_client):
+    with patch("app.api.main.PORTFOLIO_REPO") as mock_repo:
+        mock_repo.delete_position = AsyncMock(return_value=False)
+        response = await async_client.delete(
+            "/api/portfolio/positions/99", headers={"X-API-Key": "test-api-key"}
+        )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Position not found"}
+
+
+@pytest.mark.asyncio
+async def test_portfolio_summary_returns_totals(async_client):
+    with (
+        patch("app.api.main.PORTFOLIO_REPO") as mock_repo,
+        patch("app.api.main.get_stock_info", new_callable=AsyncMock) as mock_quote,
+    ):
+        mock_repo.list_positions = AsyncMock(
+            return_value=[
+                {
+                    "id": 1,
+                    "broker": "IBKR",
+                    "symbol": "AAPL",
+                    "quantity": 10.0,
+                    "avg_cost": 100.0,
+                    "currency": "USD",
+                    "is_active": True,
+                }
+            ]
+        )
+        mock_quote.return_value = {
+            "price": 120.0,
+            "website": "https://finance.yahoo.com/quote/AAPL",
+        }
+
+        response = await async_client.get(
+            "/api/portfolio/summary", headers={"X-API-Key": "test-api-key"}
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["totals"]["positions"] == 1
+    assert data["totals"]["unrealized_pnl"] == 200.0

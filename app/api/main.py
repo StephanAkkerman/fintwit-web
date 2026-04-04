@@ -4,15 +4,16 @@ import json
 import os
 from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timezone
+from typing import Literal
 
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from ..infra.db import create_engine, init_db
-from ..infra.repos import TweetRepo
+from ..infra.repos import PortfolioRepo, TweetRepo
 from ..runtime.broadcast import Broadcaster
 from ..runtime.enricher import AssetEnricher
 from ..runtime.streamer import run_stream
@@ -22,10 +23,12 @@ from ..services.coin360_service import get_treemap_data
 from ..services.fear_greed_service import get_feargreed
 from ..services.stocktwits_service import get_stocktwits_data
 from ..services.unusual_whales import get_spy_heatmap
+from ..services.yahoo import get_stock_info
 
 ENGINE = create_engine(os.getenv("DB_URL", "sqlite+aiosqlite:///./data.db"))
 Session = async_sessionmaker(ENGINE, expire_on_commit=False)
 REPO = TweetRepo(Session)
+PORTFOLIO_REPO = PortfolioRepo(Session)
 BROADCAST = Broadcaster()
 
 
@@ -143,6 +146,40 @@ class DebugTweet(BaseModel):
     title: str = ""
 
 
+class PortfolioPositionCreate(BaseModel):
+    symbol: str = Field(min_length=1, max_length=16)
+    quantity: float = Field(gt=0)
+    avg_cost: float = Field(ge=0)
+    broker: Literal["IBKR"] = "IBKR"
+    currency: str = Field(default="USD", min_length=1, max_length=8)
+    opened_at: datetime | None = None
+    notes: str | None = None
+    is_active: bool = True
+
+
+class PortfolioPositionUpdate(BaseModel):
+    symbol: str | None = Field(default=None, min_length=1, max_length=16)
+    quantity: float | None = Field(default=None, gt=0)
+    avg_cost: float | None = Field(default=None, ge=0)
+    broker: Literal["IBKR"] | None = None
+    currency: str | None = Field(default=None, min_length=1, max_length=8)
+    opened_at: datetime | None = None
+    notes: str | None = None
+    is_active: bool | None = None
+
+
+def _normalize_portfolio_payload(payload: dict) -> dict:
+    normalized = dict(payload)
+
+    if "symbol" in normalized and normalized["symbol"] is not None:
+        normalized["symbol"] = str(normalized["symbol"]).strip().upper()
+
+    if "currency" in normalized and normalized["currency"] is not None:
+        normalized["currency"] = str(normalized["currency"]).strip().upper()
+
+    return normalized
+
+
 @app.post("/api/debug/tweet")
 async def debug_tweet(body: DebugTweet):
     tickers, hashtags = merge_symbols(body.text, body.tickers, body.hashtags)
@@ -167,6 +204,116 @@ async def debug_tweet(body: DebugTweet):
     await REPO.upsert_many([tweet])
     await BROADCAST.publish(tweet)
     return tweet
+
+
+@app.get("/api/portfolio/positions")
+async def list_portfolio_positions(
+    active_only: bool | None = Query(default=None), _=Depends(api_key_dep)
+):
+    return await PORTFOLIO_REPO.list_positions(active_only=active_only)
+
+
+@app.post("/api/portfolio/positions")
+async def create_portfolio_position(
+    body: PortfolioPositionCreate, _=Depends(api_key_dep)
+):
+    payload = _normalize_portfolio_payload(body.model_dump())
+    return await PORTFOLIO_REPO.create_position(payload)
+
+
+@app.patch("/api/portfolio/positions/{position_id}")
+async def update_portfolio_position(
+    position_id: int, body: PortfolioPositionUpdate, _=Depends(api_key_dep)
+):
+    updates = body.model_dump(exclude_unset=True)
+    if not updates:
+        current = await PORTFOLIO_REPO.by_id(position_id)
+        if current is None:
+            raise HTTPException(status_code=404, detail="Position not found")
+        return current
+
+    normalized_updates = _normalize_portfolio_payload(updates)
+    updated = await PORTFOLIO_REPO.update_position(position_id, normalized_updates)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Position not found")
+    return updated
+
+
+@app.delete("/api/portfolio/positions/{position_id}")
+async def delete_portfolio_position(position_id: int, _=Depends(api_key_dep)):
+    deleted = await PORTFOLIO_REPO.delete_position(position_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Position not found")
+    return {"ok": True, "id": position_id}
+
+
+@app.get("/api/portfolio/summary")
+async def portfolio_summary(_=Depends(api_key_dep)):
+    positions = await PORTFOLIO_REPO.list_positions(active_only=True)
+    if not positions:
+        return {
+            "totals": {
+                "positions": 0,
+                "market_value": 0.0,
+                "cost_basis": 0.0,
+                "unrealized_pnl": 0.0,
+                "unrealized_pnl_percent": 0.0,
+            },
+            "positions": [],
+        }
+
+    quote_tasks = [get_stock_info(p["symbol"]) for p in positions]
+    quote_results = await asyncio.gather(*quote_tasks, return_exceptions=True)
+
+    enriched_positions: list[dict] = []
+    total_market_value = 0.0
+    total_cost_basis = 0.0
+
+    for pos, quote in zip(positions, quote_results):
+        quote_data = quote if isinstance(quote, dict) else None
+        market_price = quote_data.get("price") if quote_data else None
+
+        qty = float(pos["quantity"])
+        avg_cost = float(pos["avg_cost"])
+        cost_basis = qty * avg_cost
+        market_value = qty * (
+            float(market_price) if market_price is not None else avg_cost
+        )
+        unrealized_pnl = market_value - cost_basis
+        unrealized_pnl_percent = (
+            (unrealized_pnl / cost_basis * 100) if cost_basis else 0.0
+        )
+
+        total_market_value += market_value
+        total_cost_basis += cost_basis
+
+        enriched_positions.append(
+            {
+                **pos,
+                "market_price": (
+                    float(market_price) if market_price is not None else None
+                ),
+                "market_value": market_value,
+                "cost_basis": cost_basis,
+                "unrealized_pnl": unrealized_pnl,
+                "unrealized_pnl_percent": unrealized_pnl_percent,
+                "website": quote_data.get("website") if quote_data else None,
+            }
+        )
+
+    total_pnl = total_market_value - total_cost_basis
+    total_pnl_pct = (total_pnl / total_cost_basis * 100) if total_cost_basis else 0.0
+
+    return {
+        "totals": {
+            "positions": len(enriched_positions),
+            "market_value": total_market_value,
+            "cost_basis": total_cost_basis,
+            "unrealized_pnl": total_pnl,
+            "unrealized_pnl_percent": total_pnl_pct,
+        },
+        "positions": enriched_positions,
+    }
 
 
 @app.get("/api/trending-crypto")

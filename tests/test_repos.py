@@ -157,3 +157,54 @@ async def test_since_id_no_results_when_since_is_max(tweet_repo):
     await tweet_repo.upsert_many(SAMPLE_TWEETS)
     rows = await tweet_repo.since_id(since=9999)
     assert rows == []
+
+
+@pytest.mark.asyncio
+async def test_portfolio_repo_create_and_list_positions(portfolio_repo):
+    created = await portfolio_repo.create_position(
+        {
+            "broker": "IBKR",
+            "symbol": "AAPL",
+            "quantity": 10,
+            "avg_cost": 150,
+            "currency": "USD",
+            "notes": "Core holding",
+            "is_active": True,
+        }
+    )
+
+    assert created["id"] > 0
+    assert created["symbol"] == "AAPL"
+
+    rows = await portfolio_repo.list_positions()
+    assert len(rows) == 1
+    assert rows[0]["symbol"] == "AAPL"
+
+
+@pytest.mark.asyncio
+async def test_portfolio_repo_update_and_delete_position(portfolio_repo):
+    created = await portfolio_repo.create_position(
+        {
+            "broker": "IBKR",
+            "symbol": "MSFT",
+            "quantity": 5,
+            "avg_cost": 300,
+            "currency": "USD",
+            "is_active": True,
+        }
+    )
+
+    updated = await portfolio_repo.update_position(
+        created["id"], {"quantity": 8, "is_active": False}
+    )
+
+    assert updated is not None
+    assert updated["quantity"] == 8
+    assert updated["is_active"] is False
+
+    active_rows = await portfolio_repo.list_positions(active_only=True)
+    assert active_rows == []
+
+    deleted = await portfolio_repo.delete_position(created["id"])
+    assert deleted is True
+    assert await portfolio_repo.by_id(created["id"]) is None

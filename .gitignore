@@ -3,6 +3,7 @@ curl.txt
 node_modules/
 /state
 package-lock.json
+logs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

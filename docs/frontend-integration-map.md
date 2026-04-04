@@ -23,6 +23,11 @@ Route-level sections:
   - Tweet timeline auto-filtered to stock signals
   - Chart-focused sort controls: Latest / Charts first / Charts only
 
+- `/portfolio`
+  - `PortfolioPanel`
+  - Add/list/toggle/delete IBKR-style stock positions
+  - Summary cards backed by live valuation/PnL
+
 - `/admin`
   - `DebugAdminPanel`
   - Purpose: inject synthetic tweets through `/api/debug/tweet` for ingestion/UX verification.
@@ -60,6 +65,11 @@ Route-level sections:
 - `SpyHeatmapWidget` + `useSpyHeatmap`
   - Fetches: `/api/spy-heatmap?date=...`
   - Purpose: SPY constituent heatmap snapshot with selectable date ranges.
+
+- `PortfolioPanel` + `usePortfolio`
+  - Fetches: `/api/portfolio/positions` and `/api/portfolio/summary`
+  - Mutates: `POST /api/portfolio/positions`, `PATCH /api/portfolio/positions/{position_id}`, `DELETE /api/portfolio/positions/{position_id}`
+  - Purpose: manage IBKR stock positions and monitor live unrealized PnL.
 
 ## Not Yet Mounted
 

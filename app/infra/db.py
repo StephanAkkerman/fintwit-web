@@ -1,5 +1,5 @@
 # app/infra/db.py
-from sqlalchemy import JSON, Boolean, DateTime, Integer, String, inspect
+from sqlalchemy import JSON, Boolean, DateTime, Float, Integer, String, inspect
 from sqlalchemy import text as sql_text
 from sqlalchemy.dialects.sqlite import JSON as SQLITE_JSON
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
@@ -39,6 +39,22 @@ class TweetRow(Base):
         default=None,
         server_default=sql_text("NULL"),
     )
+
+
+class PortfolioPositionRow(Base):
+    __tablename__ = "portfolio_positions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    broker: Mapped[str] = mapped_column(String, index=True, default="IBKR")
+    symbol: Mapped[str] = mapped_column(String, index=True)
+    quantity: Mapped[float] = mapped_column(Float)
+    avg_cost: Mapped[float] = mapped_column(Float)
+    currency: Mapped[str] = mapped_column(String, default="USD")
+    opened_at: Mapped[DateTime] = mapped_column(DateTime, nullable=True)
+    notes: Mapped[str] = mapped_column(String, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[DateTime] = mapped_column(DateTime, nullable=True, index=True)
+    updated_at: Mapped[DateTime] = mapped_column(DateTime, nullable=True, index=True)
 
 
 def create_engine(url: str = "sqlite+aiosqlite:///./data.db") -> AsyncEngine:

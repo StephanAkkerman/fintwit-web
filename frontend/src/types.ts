@@ -78,3 +78,37 @@ export type SpyHeatmapItem = {
   prev_close?: number | string | null;
   marketcap?: number | string | null;
 };
+
+export type PortfolioPosition = {
+  id: number;
+  broker: 'IBKR';
+  symbol: string;
+  quantity: number;
+  avg_cost: number;
+  currency: string;
+  opened_at?: string | null;
+  notes?: string | null;
+  is_active: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type PortfolioSummaryPosition = PortfolioPosition & {
+  market_price?: number | null;
+  market_value: number;
+  cost_basis: number;
+  unrealized_pnl: number;
+  unrealized_pnl_percent: number;
+  website?: string | null;
+};
+
+export type PortfolioSummary = {
+  totals: {
+    positions: number;
+    market_value: number;
+    cost_basis: number;
+    unrealized_pnl: number;
+    unrealized_pnl_percent: number;
+  };
+  positions: PortfolioSummaryPosition[];
+};

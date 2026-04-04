@@ -18,6 +18,11 @@ Last updated: 2026-04-04
 | `/api/trending-crypto` | GET | `coinmarketcap.com/data-api/v3/topsearch/rank` | List of trending coins with price/change/volume/website | Connected via `TrendingCryptoWidget` |
 | `/api/stocktwits` | GET | `api.stocktwits.com/api/2/charts/{keyword}` (curl-first, then httpx; short-lived cache fallback on transient failures) | Formatted StockTwits rank list (`symbol`, `name`, `price`, `val`); returns `[]` during transient upstream unavailability | Connected via `StocktwitsWidget` |
 | `/api/spy-heatmap` | GET | `phx.unusualwhales.com/api/etf/SPY/heatmap` | SPY heatmap JSON by date range | Connected via `SpyHeatmapWidget` |
+| `/api/portfolio/positions` | GET | SQLite via `PortfolioRepo.list_positions` | Portfolio positions list | Connected via `usePortfolio` / `PortfolioPanel` |
+| `/api/portfolio/positions` | POST | SQLite via `PortfolioRepo.create_position` | Created portfolio position | Connected via `usePortfolio` / `PortfolioPanel` |
+| `/api/portfolio/positions/{position_id}` | PATCH | SQLite via `PortfolioRepo.update_position` | Updated portfolio position (active flag and editable fields) | Connected via `usePortfolio` / `PortfolioPanel` |
+| `/api/portfolio/positions/{position_id}` | DELETE | SQLite via `PortfolioRepo.delete_position` | `{ ok: true }` on delete | Connected via `usePortfolio` / `PortfolioPanel` |
+| `/api/portfolio/summary` | GET | SQLite positions + Yahoo Finance (`get_stock_info`) | Live valuation totals and per-position unrealized PnL | Connected via `usePortfolio` / `PortfolioPanel` |
 | `/api/debug/tweet` | POST | Internal debug helper + enrichment | Injected tweet payload persisted + broadcast | Connected via `DebugAdminPanel` (`/admin`) |
 
 ## Enrichment Data Flow (Indirect APIs)
@@ -36,9 +41,10 @@ The enriched values are attached under `tweet.assets[*].financials` and consumed
 - Route-level sections are path-based and mounted in `App.tsx`:
   - `/` home overview,
   - `/crypto` crypto-focused widgets,
-  - `/stocks` stock-focused widgets.
+  - `/stocks` stock-focused widgets,
+  - `/portfolio` portfolio management.
 
-- Primary tweet contract lives in `frontend/src/types.ts` (`Tweet`, `Asset`, `AssetFinancials`).
+- Primary contracts live in `frontend/src/types.ts` (tweets, market widgets, and portfolio types).
 - Timeline and filters rely on:
   - `tickers`, `hashtags`, and symbol extraction from text,
   - `assets[].symbol` and `assets[].kind` for category and ticker filters,

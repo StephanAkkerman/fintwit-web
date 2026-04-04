@@ -12,6 +12,7 @@ Last updated: 2026-04-04
 - SSE broadcasting (`/api/stream`) and engagement update handling for tweet updates.
 - Service-backed endpoints for Fear & Greed, treemap, StockTwits, SPY heatmap, and trending crypto.
 - StockTwits service fallback for anti-bot blocks: curl-first fetch strategy with short-lived per-keyword cache fallback to avoid transient 503s (curl is executed via thread-backed sync subprocess for Windows/uvicorn compatibility).
+- Portfolio backend for IBKR-style stock tracking: positions CRUD endpoints and live summary valuation/PnL using Yahoo quotes.
 
 ## Frontend: Implemented
 
@@ -27,12 +28,14 @@ Last updated: 2026-04-04
 - Route-level segmentation pages implemented:
   - `/` home overview,
   - `/crypto` crypto widgets,
-  - `/stocks` stock widgets.
+  - `/stocks` stock widgets,
+  - `/portfolio` portfolio management.
 - Crypto and stock routes support chart-focused tweet ordering:
   - Latest,
   - Charts first,
   - Charts only.
 - Tweet cards display a small "Chart" badge when a chart signal is detected (`has_chart` or image media).
+- Portfolio route includes add/list/toggle/delete workflows and summary cards (positions, market value, cost basis, unrealized PnL).
 
 ## Connected End-to-End Today
 
@@ -44,6 +47,7 @@ Last updated: 2026-04-04
 - SPY heatmap widget: `/api/spy-heatmap` -> `SpyHeatmapWidget`.
 - Market overview stream assets: `/api/posts` + `/api/stream` -> `MarketOverview`.
 - Debug admin panel: `/api/debug/tweet` -> `DebugAdminPanel` (`/admin`).
+- Portfolio panel: `/api/portfolio/positions` + `/api/portfolio/summary` -> `PortfolioPanel` (`/portfolio`).
 
 ## Backend APIs Not Yet Connected in Main UI
 
@@ -51,4 +55,4 @@ Last updated: 2026-04-04
 
 ## Suggested Next Connections
 
-- Continue legacy feature migration from `fintwit-bot` domains not yet ported (portfolio, forex, options, NFTs, Reddit).
+- Continue legacy feature migration from `fintwit-bot` domains not yet ported (forex, options, NFTs, Reddit).

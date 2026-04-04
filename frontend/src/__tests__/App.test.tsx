@@ -41,6 +41,26 @@ beforeEach(() => {
     if (url.includes('/api/spy-heatmap')) {
       return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)
     }
+    if (url.includes('/api/portfolio/positions')) {
+      return Promise.resolve({ ok: true, json: async () => [] } as Response)
+    }
+    if (url.includes('/api/portfolio/summary')) {
+      return Promise.resolve(
+        {
+          ok: true,
+          json: async () => ({
+            totals: {
+              positions: 0,
+              market_value: 0,
+              cost_basis: 0,
+              unrealized_pnl: 0,
+              unrealized_pnl_percent: 0,
+            },
+            positions: [],
+          }),
+        } as Response
+      )
+    }
     return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
   })
   vi.stubGlobal('fetch', fetchMock)
@@ -125,6 +145,17 @@ describe('App', () => {
       expect(screen.getByText(/debug admin panel/i)).toBeInTheDocument()
     })
     expect(window.location.pathname).toBe('/admin')
+  })
+
+  it('shows portfolio panel when navigating to /portfolio', async () => {
+    render(<App />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open /portfolio' }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/ibkr portfolio/i)).toBeInTheDocument()
+    })
+    expect(window.location.pathname).toBe('/portfolio')
   })
 
   it('filters by crypto, stock, and non-financial categories', async () => {

@@ -1,10 +1,11 @@
+from datetime import datetime, timezone
 from typing import Iterable
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from .db import TweetRow
+from .db import PortfolioPositionRow, TweetRow
 
 
 def _row_to_dict(r: TweetRow) -> dict:
@@ -26,6 +27,22 @@ def _row_to_dict(r: TweetRow) -> dict:
         "views": r.views,
         "retweets": r.retweets,
         "assets": r.assets,
+    }
+
+
+def _portfolio_row_to_dict(r: PortfolioPositionRow) -> dict:
+    return {
+        "id": r.id,
+        "broker": r.broker,
+        "symbol": r.symbol,
+        "quantity": float(r.quantity),
+        "avg_cost": float(r.avg_cost),
+        "currency": r.currency,
+        "opened_at": r.opened_at.isoformat() if r.opened_at else None,
+        "notes": r.notes,
+        "is_active": bool(r.is_active),
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+        "updated_at": r.updated_at.isoformat() if r.updated_at else None,
     }
 
 
@@ -106,3 +123,79 @@ class TweetRepo:
         async with self.Session() as s:
             rows = (await s.execute(stmt)).scalars().all()
         return [_row_to_dict(r) for r in rows]
+
+
+class PortfolioRepo:
+    """Async repo for portfolio positions."""
+
+    def __init__(self, session_factory: async_sessionmaker):
+        self.Session = session_factory
+
+    async def create_position(self, payload: dict) -> dict:
+        now = datetime.now(timezone.utc)
+        row = PortfolioPositionRow(
+            **payload,
+            created_at=now,
+            updated_at=now,
+        )
+        async with self.Session() as s:
+            async with s.begin():
+                s.add(row)
+            await s.refresh(row)
+        return _portfolio_row_to_dict(row)
+
+    async def list_positions(self, active_only: bool | None = None) -> list[dict]:
+        stmt = select(PortfolioPositionRow).order_by(PortfolioPositionRow.id.desc())
+        if active_only is not None:
+            stmt = stmt.where(PortfolioPositionRow.is_active == active_only)
+
+        async with self.Session() as s:
+            rows = (await s.execute(stmt)).scalars().all()
+        return [_portfolio_row_to_dict(r) for r in rows]
+
+    async def by_id(self, position_id: int) -> dict | None:
+        stmt = (
+            select(PortfolioPositionRow)
+            .where(PortfolioPositionRow.id == position_id)
+            .limit(1)
+        )
+        async with self.Session() as s:
+            row = (await s.execute(stmt)).scalars().first()
+        return _portfolio_row_to_dict(row) if row else None
+
+    async def update_position(self, position_id: int, fields: dict) -> dict | None:
+        payload = {**fields, "updated_at": datetime.now(timezone.utc)}
+
+        async with self.Session() as s:
+            async with s.begin():
+                result = await s.execute(
+                    update(PortfolioPositionRow)
+                    .where(PortfolioPositionRow.id == position_id)
+                    .values(**payload)
+                )
+                if result.rowcount == 0:
+                    return None
+
+            row = (
+                (
+                    await s.execute(
+                        select(PortfolioPositionRow)
+                        .where(PortfolioPositionRow.id == position_id)
+                        .limit(1)
+                    )
+                )
+                .scalars()
+                .first()
+            )
+
+        return _portfolio_row_to_dict(row) if row else None
+
+    async def delete_position(self, position_id: int) -> bool:
+        async with self.Session() as s:
+            async with s.begin():
+                result = await s.execute(
+                    delete(PortfolioPositionRow).where(
+                        PortfolioPositionRow.id == position_id
+                    )
+                )
+        return bool(result.rowcount)
