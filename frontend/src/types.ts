@@ -59,3 +59,21 @@ export type StocktwitsItem = {
   price: string;
   val: string;
 };
+
+export type SpyHeatmapDateRange =
+  | 'one_day'
+  | 'after_hours'
+  | 'yesterday'
+  | 'one_week'
+  | 'one_month'
+  | 'ytd'
+  | 'one_year';
+
+export type SpyHeatmapItem = {
+  ticker: string;
+  sector?: string | null;
+  industry?: string | null;
+  close?: number | string | null;
+  prev_close?: number | string | null;
+  marketcap?: number | string | null;
+};

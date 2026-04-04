@@ -4,6 +4,23 @@ Last updated: 2026-04-04
 
 ## Mounted in `App.tsx` Today
 
+Route-level sections:
+
+- `/` (home)
+  - `FearGreedWidget`
+  - `MarketOverview`
+  - Tweet timeline (`useTweets` + `TweetCard`)
+
+- `/crypto`
+  - `TrendingCryptoWidget`
+  - `TreemapWidget`
+  - Tweet timeline auto-filtered to crypto signals
+
+- `/stocks`
+  - `StocktwitsWidget`
+  - `SpyHeatmapWidget`
+  - Tweet timeline auto-filtered to stock signals
+
 - `FearGreedWidget`
   - Fetches: `/api/fear-greed`
   - Purpose: sentiment snapshot card.
@@ -33,6 +50,10 @@ Last updated: 2026-04-04
 - `StocktwitsWidget` + `useStocktwits`
   - Fetches: `/api/stocktwits?keyword=...`
   - Purpose: StockTwits ranking view (trending / active / watched).
+
+- `SpyHeatmapWidget` + `useSpyHeatmap`
+  - Fetches: `/api/spy-heatmap?date=...`
+  - Purpose: SPY constituent heatmap snapshot with selectable date ranges.
 
 ## Not Yet Mounted
 

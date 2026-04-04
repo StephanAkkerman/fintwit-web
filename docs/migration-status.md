@@ -24,6 +24,10 @@ Last updated: 2026-04-04
 - Ticker filtering via:
   - clicking ticker inside financial asset widget,
   - manual typed input in sidebar ticker filter.
+- Route-level segmentation pages implemented:
+  - `/` home overview,
+  - `/crypto` crypto widgets,
+  - `/stocks` stock widgets.
 
 ## Connected End-to-End Today
 
@@ -32,14 +36,13 @@ Last updated: 2026-04-04
 - Treemap widget: `/api/treemap` -> `TreemapWidget`.
 - Trending crypto widget: `/api/trending-crypto` -> `TrendingCryptoWidget`.
 - StockTwits widget: `/api/stocktwits` -> `StocktwitsWidget`.
+- SPY heatmap widget: `/api/spy-heatmap` -> `SpyHeatmapWidget`.
 - Market overview stream assets: `/api/posts` + `/api/stream` -> `MarketOverview`.
 
 ## Backend APIs Not Yet Connected in Main UI
 
-- `/api/spy-heatmap`
 - `/api/debug/tweet` (debug ingestion endpoint)
 
 ## Suggested Next Connections
 
-- Add equity heatmap view for `/api/spy-heatmap`.
-- Add route-level segmentation (`/crypto`, `/stocks`) now that core widgets are mounted.
+- Add a lightweight admin/debug panel for `/api/debug/tweet` injection workflow.

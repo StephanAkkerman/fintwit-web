@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import FearGreedWidget from './components/FearGreedWidget'
 import MarketOverview from './components/MarketOverview'
+import SpyHeatmapWidget from './components/SpyHeatmapWidget'
 import StocktwitsWidget from './components/StocktwitsWidget'
 import TreemapWidget from './components/TreemapWidget'
 import TrendingCryptoWidget from './components/TrendingCryptoWidget'
@@ -9,6 +10,13 @@ import { useTweets } from './hooks/useTweets'
 import type { Tweet } from './types'
 
 type FilterKey = 'all' | 'crypto' | 'stock' | 'non-financial'
+type RouteKey = 'home' | 'crypto' | 'stocks'
+
+const SECTIONS: Array<{ key: RouteKey; label: string; path: string; subtitle: string }> = [
+  { key: 'home', label: 'Home', path: '/', subtitle: 'Cross-market stream' },
+  { key: 'crypto', label: 'Crypto', path: '/crypto', subtitle: 'Coins, trend, heatmap' },
+  { key: 'stocks', label: 'Stocks', path: '/stocks', subtitle: 'Equity sentiment and SPY map' },
+]
 
 const FILTERS: Array<{ key: FilterKey; label: string }> = [
   { key: 'all', label: 'All' },
@@ -16,6 +24,18 @@ const FILTERS: Array<{ key: FilterKey; label: string }> = [
   { key: 'stock', label: 'Stock' },
   { key: 'non-financial', label: 'Non-financial' },
 ]
+
+function routeFromPath(pathname: string): RouteKey {
+  if (pathname.startsWith('/crypto')) return 'crypto'
+  if (pathname.startsWith('/stocks')) return 'stocks'
+  return 'home'
+}
+
+function pathFromRoute(route: RouteKey): string {
+  if (route === 'crypto') return '/crypto'
+  if (route === 'stocks') return '/stocks'
+  return '/'
+}
 
 function isCryptoKind(kind: string | null | undefined): boolean {
   return (kind ?? '').toUpperCase().includes('CRYPTO')
@@ -65,9 +85,34 @@ function matchesFilter(tweet: Tweet, filter: FilterKey): boolean {
 
 export default function App() {
   const { tweets } = useTweets('') // same-origin API (proxied in dev)
+  const [route, setRoute] = useState<RouteKey>(() => routeFromPath(window.location.pathname))
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all')
   const [tickerFilter, setTickerFilter] = useState<string | null>(null)
   const [tickerInput, setTickerInput] = useState('')
+
+  useEffect(() => {
+    const onPopState = () => {
+      setRoute(routeFromPath(window.location.pathname))
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
+
+  const navigateTo = (nextRoute: RouteKey) => {
+    const path = pathFromRoute(nextRoute)
+    if (window.location.pathname !== path) {
+      window.history.pushState({}, '', path)
+    }
+    setRoute(nextRoute)
+  }
+
+  const effectiveFilter: FilterKey =
+    route === 'crypto' ? 'crypto' : route === 'stocks' ? 'stock' : activeFilter
+
+  const activeSection = useMemo(
+    () => SECTIONS.find((section) => section.key === route) ?? SECTIONS[0],
+    [route]
+  )
 
   const counts = useMemo(
     () => ({
@@ -83,10 +128,10 @@ export default function App() {
     () =>
       tweets.filter(
         (tweet) =>
-          matchesFilter(tweet, activeFilter) &&
+          matchesFilter(tweet, effectiveFilter) &&
           (!tickerFilter || matchesTicker(tweet, tickerFilter))
       ),
-    [tweets, activeFilter, tickerFilter]
+    [tweets, effectiveFilter, tickerFilter]
   )
 
   const onTickerSelect = (ticker: string) => {
@@ -108,29 +153,63 @@ export default function App() {
       <main className="mx-auto max-w-6xl p-4">
         <div className="grid gap-4 lg:grid-cols-[15rem_minmax(0,1fr)]">
           <aside className="h-fit rounded-2xl border border-zinc-200 bg-white/80 p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/70 lg:sticky lg:top-4">
-            <h2 className="px-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">Filters</h2>
+            <h2 className="px-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">Sections</h2>
             <div className="mt-2 flex flex-col gap-1">
-              {FILTERS.map((filter) => {
-                const active = filter.key === activeFilter
+              {SECTIONS.map((section) => {
+                const active = section.key === route
                 return (
                   <button
-                    key={filter.key}
+                    key={section.key}
                     type="button"
-                    onClick={() => setActiveFilter(filter.key)}
-                    className={`flex items-center justify-between rounded-xl px-3 py-2 text-sm transition-colors ${
+                    onClick={() => navigateTo(section.key)}
+                    aria-label={`Open ${section.path}`}
+                    className={`rounded-xl px-3 py-2 text-left transition-colors ${
                       active
                         ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
                         : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'
                     }`}
                   >
-                    <span>{filter.label}</span>
-                    <span className={`rounded-full px-2 py-0.5 text-xs ${active ? 'bg-white/20 dark:bg-black/10' : 'bg-zinc-200 dark:bg-zinc-700'}`}>
-                      {counts[filter.key]}
-                    </span>
+                    <div className="text-sm font-semibold">{section.label}</div>
+                    <div className={`text-xs ${active ? 'text-white/80 dark:text-zinc-700' : 'text-zinc-500'}`}>
+                      {section.path}
+                    </div>
                   </button>
                 )
               })}
             </div>
+
+            {route === 'home' ? (
+              <>
+                <h2 className="mt-4 px-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">Filters</h2>
+                <div className="mt-2 flex flex-col gap-1">
+                  {FILTERS.map((filter) => {
+                    const active = filter.key === activeFilter
+                    return (
+                      <button
+                        key={filter.key}
+                        type="button"
+                        onClick={() => setActiveFilter(filter.key)}
+                        aria-label={`Timeline filter ${filter.label}`}
+                        className={`flex items-center justify-between rounded-xl px-3 py-2 text-sm transition-colors ${
+                          active
+                            ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                            : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                        }`}
+                      >
+                        <span>{filter.label}</span>
+                        <span className={`rounded-full px-2 py-0.5 text-xs ${active ? 'bg-white/20 dark:bg-black/10' : 'bg-zinc-200 dark:bg-zinc-700'}`}>
+                          {counts[filter.key]}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
+            ) : (
+              <p className="mt-4 px-2 text-xs text-zinc-500">
+                Timeline is auto-filtered to {route === 'crypto' ? 'crypto' : 'stocks'} signals on this page.
+              </p>
+            )}
 
             <div className="mt-4 border-t border-zinc-200 pt-3 dark:border-zinc-800">
               <h3 className="px-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
@@ -185,17 +264,30 @@ export default function App() {
           <section className="space-y-3 min-w-0">
             <header className="sticky top-0 z-10 bg-inherit/60 backdrop-blur p-2 -mx-2">
               <h1 className="text-2xl font-bold">X Stream</h1>
-              <p className="text-sm text-zinc-500">Live tweets · SSE · Vite</p>
+              <p className="text-sm text-zinc-500">{activeSection.subtitle}</p>
             </header>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <FearGreedWidget />
-              <TrendingCryptoWidget />
-            </div>
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-              <TreemapWidget />
-              <StocktwitsWidget />
-            </div>
-            <MarketOverview />
+
+            {route === 'home' && (
+              <>
+                <FearGreedWidget />
+                <MarketOverview />
+              </>
+            )}
+
+            {route === 'crypto' && (
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                <TrendingCryptoWidget />
+                <TreemapWidget />
+              </div>
+            )}
+
+            {route === 'stocks' && (
+              <>
+                <StocktwitsWidget />
+                <SpyHeatmapWidget />
+              </>
+            )}
+
             {filteredTweets.map((t) => (
               <TweetCard key={t.id} t={t} onTickerSelect={onTickerSelect} />
             ))}

@@ -14,6 +14,7 @@ class MockEventSource {
 let fetchMock: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
+  window.history.pushState({}, '', '/')
   vi.stubGlobal('EventSource', MockEventSource)
   fetchMock = vi.fn((input: string | URL | Request) => {
     const url = String(input)
@@ -37,6 +38,9 @@ beforeEach(() => {
     if (url.includes('/api/stocktwits')) {
       return Promise.resolve({ ok: true, json: async () => [] } as Response)
     }
+    if (url.includes('/api/spy-heatmap')) {
+      return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)
+    }
     return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
   })
   vi.stubGlobal('fetch', fetchMock)
@@ -50,18 +54,35 @@ describe('App', () => {
     )
   })
 
-  it('renders the live tweets subtitle', async () => {
+  it('renders the home subtitle', async () => {
     render(<App />)
     await waitFor(() =>
-      expect(screen.getByText(/live tweets/i)).toBeInTheDocument()
+      expect(screen.getByText(/cross-market stream/i)).toBeInTheDocument()
     )
   })
 
-  it('renders the StockTwits widget heading', async () => {
+  it('shows crypto section widgets when navigating to /crypto', async () => {
     render(<App />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open /crypto' }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: /trending crypto/i })).toBeInTheDocument()
+    )
+    expect(screen.getByText(/top coins by market cap/i)).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/crypto')
+  })
+
+  it('shows stock section widgets when navigating to /stocks', async () => {
+    render(<App />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open /stocks' }))
+
     await waitFor(() =>
       expect(screen.getByText(/stocktwits signals/i)).toBeInTheDocument()
     )
+    expect(screen.getByText(/spy heatmap/i)).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/stocks')
   })
 
   it('filters by crypto, stock, and non-financial categories', async () => {
@@ -147,6 +168,9 @@ describe('App', () => {
       if (url.includes('/api/stocktwits')) {
         return Promise.resolve({ ok: true, json: async () => [] } as Response)
       }
+      if (url.includes('/api/spy-heatmap')) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)
+      }
       return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
     })
 
@@ -158,21 +182,21 @@ describe('App', () => {
       expect(screen.getByText('General User')).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /crypto/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Timeline filter Crypto' }))
     await waitFor(() => {
       expect(screen.getByText('Crypto User')).toBeInTheDocument()
       expect(screen.queryByText('Stock User')).not.toBeInTheDocument()
       expect(screen.queryByText('General User')).not.toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /stock/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Timeline filter Stock' }))
     await waitFor(() => {
       expect(screen.getByText('Stock User')).toBeInTheDocument()
       expect(screen.queryByText('Crypto User')).not.toBeInTheDocument()
       expect(screen.queryByText('General User')).not.toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /non-financial/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Timeline filter Non-financial' }))
     await waitFor(() => {
       expect(screen.getByText('General User')).toBeInTheDocument()
       expect(screen.queryByText('Crypto User')).not.toBeInTheDocument()
@@ -243,6 +267,9 @@ describe('App', () => {
       }
       if (url.includes('/api/stocktwits')) {
         return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/spy-heatmap')) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)
       }
       return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
     })
@@ -325,6 +352,9 @@ describe('App', () => {
       }
       if (url.includes('/api/stocktwits')) {
         return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/spy-heatmap')) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)
       }
       return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
     })
