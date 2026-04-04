@@ -21,6 +21,7 @@ from ..services.cmc import get_trending_crypto
 from ..services.coin360_service import get_treemap_data
 from ..services.fear_greed_service import get_feargreed
 from ..services.stocktwits_service import get_stocktwits_data
+from ..services.unusual_whales import get_spy_heatmap
 
 ENGINE = create_engine(os.getenv("DB_URL", "sqlite+aiosqlite:///./data.db"))
 Session = async_sessionmaker(ENGINE, expire_on_commit=False)
@@ -91,6 +92,19 @@ async def stocktwits(
         raise HTTPException(status_code=400, detail="Invalid keyword")
     client: httpx.AsyncClient = request.app.state.http_client
     data = await get_stocktwits_data(client, keyword)
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
+
+
+@app.get("/api/spy-heatmap")
+async def spy_heatmap(
+    request: Request,
+    date: str = Query("one_day", enum=["one_day", "after_hours", "yesterday", "one_week", "one_month", "ytd", "one_year"]),
+    _=Depends(api_key_dep)
+):
+    client: httpx.AsyncClient = request.app.state.http_client
+    data = await get_spy_heatmap(client, date=date)
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data
