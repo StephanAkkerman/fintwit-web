@@ -6,6 +6,7 @@ from pathlib import Path
 import xclient
 
 from ..infra.repos import TweetRepo
+from ..ml.chart import is_chart
 from .broadcast import Broadcaster
 from .enricher import AssetEnricher
 from .symbols import merge_symbols
@@ -76,6 +77,27 @@ async def run_stream(repo: TweetRepo, bc: Broadcaster) -> None:
                         t_dict["assets"] = assets
                     else:
                         t_dict["assets"] = []
+
+                    # If the tweet has images but no financial text, check whether
+                    # any image is a financial chart so it can be filtered later.
+                    media_urls = [
+                        url
+                        for url, mtype in zip(
+                            t_dict.get("media") or [],
+                            t_dict.get("media_types") or [],
+                        )
+                        if mtype == "photo"
+                    ]
+                    if media_urls and not symbols:
+                        results = await asyncio.gather(
+                            *[is_chart(url) for url in media_urls],
+                            return_exceptions=True,
+                        )
+                        t_dict["has_chart"] = any(
+                            r is True for r in results
+                        )
+                    else:
+                        t_dict["has_chart"] = None
 
                     # 1) persist (idempotent)
                     await repo.upsert_many([t_dict])

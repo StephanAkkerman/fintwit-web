@@ -1,5 +1,5 @@
 # app/infra/db.py
-from sqlalchemy import JSON, DateTime, Integer, String, inspect
+from sqlalchemy import JSON, Boolean, DateTime, Integer, String, inspect
 from sqlalchemy import text as sql_text
 from sqlalchemy.dialects.sqlite import JSON as SQLITE_JSON
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
@@ -32,6 +32,12 @@ class TweetRow(Base):
         JSON().with_variant(SQLITE_JSON, "sqlite"),
         default=list,
         server_default=sql_text("'[]'"),
+    )
+    has_chart: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=True,
+        default=None,
+        server_default=sql_text("NULL"),
     )
 
 
