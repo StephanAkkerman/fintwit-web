@@ -19,6 +19,7 @@ from ..runtime.streamer import run_stream
 from ..runtime.symbols import merge_symbols
 from ..services.coin360_service import get_treemap_data
 from ..services.fear_greed_service import get_feargreed
+from ..services.cmc import get_trending_crypto
 
 ENGINE = create_engine(os.getenv("DB_URL", "sqlite+aiosqlite:///./data.db"))
 Session = async_sessionmaker(ENGINE, expire_on_commit=False)
@@ -126,3 +127,11 @@ async def debug_tweet(body: DebugTweet):
     await REPO.upsert_many([tweet])
     await BROADCAST.publish(tweet)
     return tweet
+
+
+@app.get("/api/trending-crypto")
+async def trending_crypto(_=Depends(api_key_dep)):
+    data = await get_trending_crypto()
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
