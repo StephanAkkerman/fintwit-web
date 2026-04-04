@@ -98,9 +98,13 @@ async def stocktwits(
 
 
 @app.get("/api/spy-heatmap")
-async def spy_heatmap(request: Request, _=Depends(api_key_dep)):
+async def spy_heatmap(
+    request: Request,
+    date: str = Query("one_day", enum=["one_day", "after_hours", "yesterday", "one_week", "one_month", "ytd", "one_year"]),
+    _=Depends(api_key_dep)
+):
     client: httpx.AsyncClient = request.app.state.http_client
-    data = await get_spy_heatmap(client)
+    data = await get_spy_heatmap(client, date=date)
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data
