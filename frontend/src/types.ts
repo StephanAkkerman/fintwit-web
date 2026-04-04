@@ -35,3 +35,16 @@ export type Tweet = {
   retweets: number;
   assets?: Asset[];
 };
+
+export type TreemapCoin = {
+  n: string;
+  s: string;
+  ch: number;
+  p: number;
+  mc: number;
+  mcr: number;
+};
+
+export type TreemapResponse = {
+  data: TreemapCoin[];
+};

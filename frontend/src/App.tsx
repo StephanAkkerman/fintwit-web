@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import FearGreedWidget from './components/FearGreedWidget'
+import TreemapWidget from './components/TreemapWidget'
 import TweetCard from './components/TweetCard'
 import { useTweets } from './hooks/useTweets'
 import type { Tweet } from './types'
@@ -184,6 +185,7 @@ export default function App() {
               <p className="text-sm text-zinc-500">Live tweets · SSE · Vite</p>
             </header>
             <FearGreedWidget />
+            <TreemapWidget />
             {filteredTweets.map((t) => (
               <TweetCard key={t.id} t={t} onTickerSelect={onTickerSelect} />
             ))}
