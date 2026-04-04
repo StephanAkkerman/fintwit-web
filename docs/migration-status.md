@@ -28,6 +28,10 @@ Last updated: 2026-04-04
   - `/` home overview,
   - `/crypto` crypto widgets,
   - `/stocks` stock widgets.
+- Crypto and stock routes support chart-focused tweet ordering:
+  - Latest,
+  - Charts first,
+  - Charts only.
 
 ## Connected End-to-End Today
 

@@ -375,4 +375,99 @@ describe('App', () => {
       expect(screen.getByRole('button', { name: 'Filter by $SOL' })).toBeInTheDocument()
     })
   })
+
+  it('sorts and filters chart tweets in crypto route', async () => {
+    const posts: Tweet[] = [
+      {
+        id: 1,
+        text: '$BTC text-only signal',
+        user_name: 'NoChart Crypto',
+        user_screen_name: 'nochart_crypto',
+        user_img: 'https://example.com/nc.jpg',
+        url: 'https://x.com/nochart/status/1',
+        created_at: '',
+        media: [],
+        tickers: ['BTC'],
+        hashtags: [],
+        title: '',
+        media_types: [],
+        replies: 0,
+        likes: 0,
+        views: 0,
+        retweets: 0,
+        assets: [{ symbol: 'BTC', kind: 'crypto' }],
+      },
+      {
+        id: 2,
+        text: '$ETH with chart image',
+        user_name: 'Chart Crypto',
+        user_screen_name: 'chart_crypto',
+        user_img: 'https://example.com/c.jpg',
+        url: 'https://x.com/chart/status/2',
+        created_at: '',
+        media: [{ url: 'https://example.com/chart.png', type: 'photo' }],
+        tickers: ['ETH'],
+        hashtags: [],
+        title: '',
+        media_types: ['photo'],
+        replies: 0,
+        likes: 0,
+        views: 0,
+        retweets: 0,
+        assets: [{ symbol: 'ETH', kind: 'crypto' }],
+      },
+    ]
+
+    fetchMock.mockImplementation((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/api/posts')) {
+        return Promise.resolve({ ok: true, json: async () => posts } as Response)
+      }
+      if (url.includes('/api/fear-greed')) {
+        return Promise.resolve(
+          {
+            ok: true,
+            json: async () => ({ value: 50, change: '+0', status: 'Neutral' }),
+          } as Response
+        )
+      }
+      if (url.includes('/api/trending-crypto')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/treemap')) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)
+      }
+      if (url.includes('/api/stocktwits')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/spy-heatmap')) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
+    })
+
+    render(<App />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open /crypto' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('NoChart Crypto')).toBeInTheDocument()
+      expect(screen.getByText('Chart Crypto')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Chart sort Charts first' }))
+
+    await waitFor(() => {
+      const chartNode = screen.getByText('Chart Crypto')
+      const plainNode = screen.getByText('NoChart Crypto')
+      expect(Boolean(chartNode.compareDocumentPosition(plainNode) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Chart sort Charts only' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Chart Crypto')).toBeInTheDocument()
+      expect(screen.queryByText('NoChart Crypto')).not.toBeInTheDocument()
+    })
+  })
 })

@@ -11,6 +11,7 @@ import type { Tweet } from './types'
 
 type FilterKey = 'all' | 'crypto' | 'stock' | 'non-financial'
 type RouteKey = 'home' | 'crypto' | 'stocks'
+type ChartSortMode = 'latest' | 'charts-first' | 'charts-only'
 
 const SECTIONS: Array<{ key: RouteKey; label: string; path: string; subtitle: string }> = [
   { key: 'home', label: 'Home', path: '/', subtitle: 'Cross-market stream' },
@@ -83,12 +84,26 @@ function matchesFilter(tweet: Tweet, filter: FilterKey): boolean {
   return !hasFinancialSignals
 }
 
+function hasChartSignal(tweet: Tweet): boolean {
+  if (tweet.has_chart === true) return true
+
+  if ((tweet.media_types ?? []).some((m) => m === 'photo')) return true
+
+  return (tweet.media ?? []).some((item) => {
+    if (typeof item === 'string') {
+      return /\.(png|jpe?g|webp|gif)(\?|$)/i.test(item)
+    }
+    return item?.type === 'photo'
+  })
+}
+
 export default function App() {
   const { tweets } = useTweets('') // same-origin API (proxied in dev)
   const [route, setRoute] = useState<RouteKey>(() => routeFromPath(window.location.pathname))
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all')
   const [tickerFilter, setTickerFilter] = useState<string | null>(null)
   const [tickerInput, setTickerInput] = useState('')
+  const [chartSortMode, setChartSortMode] = useState<ChartSortMode>('latest')
 
   useEffect(() => {
     const onPopState = () => {
@@ -124,15 +139,27 @@ export default function App() {
     [tweets]
   )
 
-  const filteredTweets = useMemo(
-    () =>
-      tweets.filter(
-        (tweet) =>
-          matchesFilter(tweet, effectiveFilter) &&
-          (!tickerFilter || matchesTicker(tweet, tickerFilter))
-      ),
-    [tweets, effectiveFilter, tickerFilter]
-  )
+  const displayedTweets = useMemo(() => {
+    const scoped = tweets.filter(
+      (tweet) =>
+        matchesFilter(tweet, effectiveFilter) &&
+        (!tickerFilter || matchesTicker(tweet, tickerFilter))
+    )
+
+    if (route !== 'crypto' && route !== 'stocks') {
+      return scoped
+    }
+
+    if (chartSortMode === 'charts-only') {
+      return scoped.filter(hasChartSignal)
+    }
+
+    if (chartSortMode === 'charts-first') {
+      return [...scoped].sort((a, b) => Number(hasChartSignal(b)) - Number(hasChartSignal(a)))
+    }
+
+    return scoped
+  }, [tweets, effectiveFilter, tickerFilter, route, chartSortMode])
 
   const onTickerSelect = (ticker: string) => {
     setActiveFilter('all')
@@ -206,9 +233,52 @@ export default function App() {
                 </div>
               </>
             ) : (
-              <p className="mt-4 px-2 text-xs text-zinc-500">
-                Timeline is auto-filtered to {route === 'crypto' ? 'crypto' : 'stocks'} signals on this page.
-              </p>
+              <>
+                <p className="mt-4 px-2 text-xs text-zinc-500">
+                  Timeline is auto-filtered to {route === 'crypto' ? 'crypto' : 'stocks'} signals on this page.
+                </p>
+                <div className="mt-3 px-2">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Chart sort</h3>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      aria-label="Chart sort Latest"
+                      onClick={() => setChartSortMode('latest')}
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                        chartSortMode === 'latest'
+                          ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                          : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                      }`}
+                    >
+                      Latest
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Chart sort Charts first"
+                      onClick={() => setChartSortMode('charts-first')}
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                        chartSortMode === 'charts-first'
+                          ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                          : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                      }`}
+                    >
+                      Charts first
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Chart sort Charts only"
+                      onClick={() => setChartSortMode('charts-only')}
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                        chartSortMode === 'charts-only'
+                          ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                          : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                      }`}
+                    >
+                      Charts only
+                    </button>
+                  </div>
+                </div>
+              </>
             )}
 
             <div className="mt-4 border-t border-zinc-200 pt-3 dark:border-zinc-800">
@@ -288,10 +358,10 @@ export default function App() {
               </>
             )}
 
-            {filteredTweets.map((t) => (
+            {displayedTweets.map((t) => (
               <TweetCard key={t.id} t={t} onTickerSelect={onTickerSelect} />
             ))}
-            {filteredTweets.length === 0 && (
+            {displayedTweets.length === 0 && (
               <div className="rounded-2xl border border-dashed border-zinc-300 bg-white/70 p-5 text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-400">
                 No tweets in this filter yet.
               </div>

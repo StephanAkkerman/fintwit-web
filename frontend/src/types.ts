@@ -33,6 +33,7 @@ export type Tweet = {
   likes: number;
   views: number;
   retweets: number;
+  has_chart?: boolean | null;
   assets?: Asset[];
 };
 

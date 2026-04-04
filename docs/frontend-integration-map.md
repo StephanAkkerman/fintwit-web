@@ -15,11 +15,13 @@ Route-level sections:
   - `TrendingCryptoWidget`
   - `TreemapWidget`
   - Tweet timeline auto-filtered to crypto signals
+  - Chart-focused sort controls: Latest / Charts first / Charts only
 
 - `/stocks`
   - `StocktwitsWidget`
   - `SpyHeatmapWidget`
   - Tweet timeline auto-filtered to stock signals
+  - Chart-focused sort controls: Latest / Charts first / Charts only
 
 - `FearGreedWidget`
   - Fetches: `/api/fear-greed`
