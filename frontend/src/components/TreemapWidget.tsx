@@ -31,7 +31,7 @@ export default function TreemapWidget() {
             // Format price based on magnitude
             const priceStr = coin.p < 1
               ? `$${coin.p.toPrecision(3)}`
-              : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(coin.p);
+              : USD_FORMATTER.format(coin.p);
 
             return (
               <div
