@@ -20,13 +20,14 @@ async def get_spy_heatmap(client: httpx.AsyncClient, date: str = "one_day") -> d
         The JSON response from Unusual Whales containing the heatmap data,
         or None if an error occurred.
     """
-    url = f"https://phx.unusualwhales.com/api/etf/SPY/heatmap?date_range={date}"
+    url = "https://phx.unusualwhales.com/api/etf/SPY/heatmap"
+    params = {"date_range": date}
     headers = {
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.54 Safari/537.36"
     }
 
     try:
-        response = await client.get(url, headers=headers)
+        response = await client.get(url, headers=headers, params=params)
         response.raise_for_status()
         return response.json()
     except (httpx.RequestError, httpx.HTTPStatusError, ValueError) as e:
