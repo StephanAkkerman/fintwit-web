@@ -63,8 +63,10 @@ async def get_stocktwits_data(client: httpx.AsyncClient, keyword: str) -> list[d
         # Format % change
         if change > 0:
             change_str = f" (+{round(change, 2)}% 📈)"
-        else:
+        elif change < 0:
             change_str = f" ({round(change, 2)}% 📉)"
+        else:
+            change_str = f" ({round(change, 2)}% ➖)"
 
         # Format price
         formatted_price = f"{round(price, 3)}{change_str}"
