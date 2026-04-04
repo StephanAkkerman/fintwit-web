@@ -7,29 +7,24 @@ export function useTreemap() {
   const [error, setError] = useState(false)
 
   useEffect(() => {
-    let isMounted = true
+    const controller = new AbortController()
 
-    fetch('/api/treemap')
+    fetch('/api/treemap', { signal: controller.signal })
       .then((res) => {
         if (!res.ok) throw new Error('Failed to fetch treemap data')
         return res.json()
       })
       .then((d) => {
-        if (isMounted) {
-          setData(d)
-          setLoading(false)
-        }
+        setData(d)
+        setLoading(false)
       })
-      .catch(() => {
-        if (isMounted) {
-          setError(true)
-          setLoading(false)
-        }
+      .catch((err) => {
+        if (err.name === 'AbortError') return
+        setError(true)
+        setLoading(false)
       })
 
-    return () => {
-      isMounted = false
-    }
+    return () => controller.abort()
   }, [])
 
   return { data, loading, error }

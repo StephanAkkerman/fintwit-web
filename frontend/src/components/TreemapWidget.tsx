@@ -1,4 +1,10 @@
+import { useMemo } from 'react'
 import { useTreemap } from '../hooks/useTreemap'
+
+const USD_FORMATTER = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+});
 
 export default function TreemapWidget() {
   const { data, loading, error } = useTreemap()
@@ -6,9 +12,11 @@ export default function TreemapWidget() {
   if (error) return null
 
   // Sort by market cap and take top 10
-  const topCoins = data?.data
-    ? [...data.data].sort((a, b) => b.mc - a.mc).slice(0, 10)
-    : []
+  const topCoins = useMemo(() => {
+    return data?.data
+      ? [...data.data].sort((a, b) => b.mc - a.mc).slice(0, 10)
+      : []
+  }, [data])
 
   return (
     <div className="bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 flex flex-col space-y-3 mb-4">
