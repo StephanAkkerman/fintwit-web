@@ -1,6 +1,7 @@
 curl.txt
 *.db
 node_modules/
+/state
 package-lock.json
 
 # Byte-compiled / optimized / DLL files

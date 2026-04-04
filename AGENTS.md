@@ -2,6 +2,10 @@
 1. **Source Repository:** Your primary task is to migrate code from the legacy repository `StephanAkkerman/fintwit-bot`. Always fetch the legacy logic from there when asked to build a new feature here.
 2. **Target Repository:** You are currently operating in `StephanAkkerman/fintwit-web`. All generated code and Pull Requests must be applied here.
 3. **Architecture:** Strictly follow the FastAPI and React paradigm mapped out below. Do not use Discord.py or Pandas DataFrames for routing or data passing.
+4. **Documentation Is Required:** Any change that adds, removes, or alters backend APIs, frontend feature wiring, or migration status must update:
+	- `docs/migration-status.md`
+	- `docs/api-frontend-coverage.md`
+	- `docs/frontend-integration-map.md` (when frontend behavior/connection changes)
 
 # Architectural & Migration Guide
 ## 1. Project Overview
@@ -127,3 +131,4 @@ When prompted to build a feature, agents should follow this step-by-step workflo
 5. **API Layer:** Create the FastAPI router endpoint in `app/api/` to serve the data or stream.
 6. **Frontend Hook:** Create a React hook in `frontend/src/hooks/` to consume the new endpoint.
 7. **Frontend UI:** Build the React component using TailwindCSS to display the data beautifully.
+8. **Documentation Update:** Update migration/API/frontend docs in `docs/` to reflect the new implementation and current connection status.

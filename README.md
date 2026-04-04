@@ -35,6 +35,7 @@ npm run dev
 ## Table of Contents 🗂
 
 - [Key Features](#key-features)
+- [Documentation](#documentation)
 - [Installation](#installation)
 - [Usage](#usage)
 - [Citation](#citation)
@@ -44,6 +45,13 @@ npm run dev
 ## Key Features 🔑
 
 This section is optional. If your project has a lot of features, consider adding a list of key features here.
+
+## Documentation
+
+- [Documentation Index](docs/README.md)
+- [Migration Status](docs/migration-status.md)
+- [API and Frontend Coverage Matrix](docs/api-frontend-coverage.md)
+- [Frontend Integration Map](docs/frontend-integration-map.md)
 
 ## Installation ⚙️
 <!-- Adjust the link of the second command to your own repo -->

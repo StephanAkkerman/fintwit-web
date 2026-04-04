@@ -67,7 +67,9 @@ def _add_missing_columns(sync_conn) -> None:
 
             default_sql = ""
             if col.server_default is not None:
-                default_sql = f" DEFAULT {col.server_default.get_str(dialect=sync_conn.dialect)}"
+                arg = col.server_default.arg
+                raw = arg.text if hasattr(arg, "text") else str(arg)
+                default_sql = f" DEFAULT {raw}"
 
             sync_conn.exec_driver_sql(
                 f'ALTER TABLE "{table_name}" ADD COLUMN "{col.name}" {col_type}{default_sql}{nullable_sql}'
