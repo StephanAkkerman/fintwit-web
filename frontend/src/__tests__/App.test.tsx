@@ -85,6 +85,48 @@ describe('App', () => {
     expect(window.location.pathname).toBe('/stocks')
   })
 
+  it('shows debug admin panel when navigating to /admin', async () => {
+    fetchMock.mockImplementation((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/api/posts')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/fear-greed')) {
+        return Promise.resolve(
+          {
+            ok: true,
+            json: async () => ({ value: 50, change: '+0', status: 'Neutral' }),
+          } as Response
+        )
+      }
+      if (url.includes('/api/trending-crypto')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/treemap')) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)
+      }
+      if (url.includes('/api/stocktwits')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/spy-heatmap')) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)
+      }
+      if (url.includes('/api/debug/tweet')) {
+        return Promise.resolve({ ok: true, json: async () => ({ id: 123, text: 'Debug tweet' }) } as Response)
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
+    })
+
+    render(<App />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open /admin' }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/debug admin panel/i)).toBeInTheDocument()
+    })
+    expect(window.location.pathname).toBe('/admin')
+  })
+
   it('filters by crypto, stock, and non-financial categories', async () => {
     const posts: Tweet[] = [
       {

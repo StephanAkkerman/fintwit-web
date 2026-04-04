@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import DebugAdminPanel from './components/DebugAdminPanel'
 import FearGreedWidget from './components/FearGreedWidget'
 import MarketOverview from './components/MarketOverview'
 import SpyHeatmapWidget from './components/SpyHeatmapWidget'
@@ -11,13 +12,14 @@ import type { Tweet } from './types'
 import { hasChartSignal } from './utils/tweetSignals'
 
 type FilterKey = 'all' | 'crypto' | 'stock' | 'non-financial'
-type RouteKey = 'home' | 'crypto' | 'stocks'
+type RouteKey = 'home' | 'crypto' | 'stocks' | 'admin'
 type ChartSortMode = 'latest' | 'charts-first' | 'charts-only'
 
 const SECTIONS: Array<{ key: RouteKey; label: string; path: string; subtitle: string }> = [
   { key: 'home', label: 'Home', path: '/', subtitle: 'Cross-market stream' },
   { key: 'crypto', label: 'Crypto', path: '/crypto', subtitle: 'Coins, trend, heatmap' },
   { key: 'stocks', label: 'Stocks', path: '/stocks', subtitle: 'Equity sentiment and SPY map' },
+  { key: 'admin', label: 'Admin', path: '/admin', subtitle: 'Debug tweet injection and verification' },
 ]
 
 const FILTERS: Array<{ key: FilterKey; label: string }> = [
@@ -30,12 +32,14 @@ const FILTERS: Array<{ key: FilterKey; label: string }> = [
 function routeFromPath(pathname: string): RouteKey {
   if (pathname.startsWith('/crypto')) return 'crypto'
   if (pathname.startsWith('/stocks')) return 'stocks'
+  if (pathname.startsWith('/admin')) return 'admin'
   return 'home'
 }
 
 function pathFromRoute(route: RouteKey): string {
   if (route === 'crypto') return '/crypto'
   if (route === 'stocks') return '/stocks'
+  if (route === 'admin') return '/admin'
   return '/'
 }
 
@@ -220,7 +224,7 @@ export default function App() {
                   })}
                 </div>
               </>
-            ) : (
+            ) : route === 'crypto' || route === 'stocks' ? (
               <>
                 <p className="mt-4 px-2 text-xs text-zinc-500">
                   Timeline is auto-filtered to {route === 'crypto' ? 'crypto' : 'stocks'} signals on this page.
@@ -267,6 +271,10 @@ export default function App() {
                   </div>
                 </div>
               </>
+            ) : (
+              <p className="mt-4 px-2 text-xs text-zinc-500">
+                Use this route to inject a debug tweet via `/api/debug/tweet` and verify timeline behavior.
+              </p>
             )}
 
             <div className="mt-4 border-t border-zinc-200 pt-3 dark:border-zinc-800">
@@ -345,6 +353,8 @@ export default function App() {
                 <SpyHeatmapWidget />
               </>
             )}
+
+            {route === 'admin' && <DebugAdminPanel />}
 
             {displayedTweets.map((t) => (
               <TweetCard key={t.id} t={t} onTickerSelect={onTickerSelect} />

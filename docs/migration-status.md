@@ -43,11 +43,12 @@ Last updated: 2026-04-04
 - StockTwits widget: `/api/stocktwits` -> `StocktwitsWidget`.
 - SPY heatmap widget: `/api/spy-heatmap` -> `SpyHeatmapWidget`.
 - Market overview stream assets: `/api/posts` + `/api/stream` -> `MarketOverview`.
+- Debug admin panel: `/api/debug/tweet` -> `DebugAdminPanel` (`/admin`).
 
 ## Backend APIs Not Yet Connected in Main UI
 
-- `/api/debug/tweet` (debug ingestion endpoint)
+- No known unconnected backend API endpoints from the current `app/api/main.py` surface.
 
 ## Suggested Next Connections
 
-- Add a lightweight admin/debug panel for `/api/debug/tweet` injection workflow.
+- Continue legacy feature migration from `fintwit-bot` domains not yet ported (portfolio, forex, options, NFTs, Reddit).

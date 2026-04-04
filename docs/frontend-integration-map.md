@@ -23,6 +23,10 @@ Route-level sections:
   - Tweet timeline auto-filtered to stock signals
   - Chart-focused sort controls: Latest / Charts first / Charts only
 
+- `/admin`
+  - `DebugAdminPanel`
+  - Purpose: inject synthetic tweets through `/api/debug/tweet` for ingestion/UX verification.
+
 - `FearGreedWidget`
   - Fetches: `/api/fear-greed`
   - Purpose: sentiment snapshot card.
