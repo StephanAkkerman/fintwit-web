@@ -41,6 +41,19 @@ class TweetRow(Base):
     )
 
 
+class MarketPerformanceRow(Base):
+    __tablename__ = "market_performance"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String, index=True, unique=True)
+    ma_5: Mapped[float] = mapped_column(Float, nullable=True)
+    ma_20: Mapped[float] = mapped_column(Float, nullable=True)
+    ma_50: Mapped[float] = mapped_column(Float, nullable=True)
+    ma_100: Mapped[float] = mapped_column(Float, nullable=True)
+    ma_150: Mapped[float] = mapped_column(Float, nullable=True)
+    ma_200: Mapped[float] = mapped_column(Float, nullable=True)
+    updated_at: Mapped[DateTime] = mapped_column(DateTime, nullable=True)
+
+
 class PortfolioPositionRow(Base):
     __tablename__ = "portfolio_positions"
 

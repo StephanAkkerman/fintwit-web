@@ -5,7 +5,21 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from .db import PortfolioPositionRow, TweetRow
+from .db import MarketPerformanceRow, PortfolioPositionRow, TweetRow
+
+
+def _market_performance_row_to_dict(r: MarketPerformanceRow) -> dict:
+    return {
+        "id": r.id,
+        "name": r.name,
+        "ma_5": r.ma_5,
+        "ma_20": r.ma_20,
+        "ma_50": r.ma_50,
+        "ma_100": r.ma_100,
+        "ma_150": r.ma_150,
+        "ma_200": r.ma_200,
+        "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+    }
 
 
 def _row_to_dict(r: TweetRow) -> dict:
@@ -199,3 +213,36 @@ class PortfolioRepo:
                     )
                 )
         return bool(result.rowcount)
+
+
+class MarketPerformanceRepo:
+    """Async repo for market performance data."""
+
+    def __init__(self, session_factory: async_sessionmaker):
+        self.Session = session_factory
+
+    async def upsert_many(self, items: Iterable[dict]) -> int:
+        item_list = list(items)
+        if not item_list:
+            return 0
+
+        async with self.Session() as s:
+            async with s.begin():
+                stmt = sqlite_insert(MarketPerformanceRow).values(item_list)
+                update_cols = {
+                    c.name: stmt.excluded[c.name]
+                    for c in MarketPerformanceRow.__table__.c
+                    if c.name not in ("id", "name")
+                }
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=[MarketPerformanceRow.name],
+                    set_=update_cols,
+                )
+                await s.execute(stmt)
+        return len(item_list)
+
+    async def get_all(self):
+        stmt = select(MarketPerformanceRow).order_by(MarketPerformanceRow.id.asc())
+        async with self.Session() as s:
+            rows = (await s.execute(stmt)).scalars().all()
+        return [_market_performance_row_to_dict(r) for r in rows]

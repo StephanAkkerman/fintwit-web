@@ -13,10 +13,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from ..infra.db import create_engine, init_db
-from ..infra.repos import PortfolioRepo, TweetRepo
+from ..infra.repos import MarketPerformanceRepo, PortfolioRepo, TweetRepo
 from ..runtime.broadcast import Broadcaster
 from ..runtime.enricher import AssetEnricher
 from ..runtime.streamer import run_stream
+from ..runtime.barchart_loop import start_market_performance_loop
 from ..runtime.symbols import merge_symbols
 from ..services.cmc import get_trending_crypto
 from ..services.coin360_service import get_treemap_data
@@ -29,6 +30,7 @@ ENGINE = create_engine(os.getenv("DB_URL", "sqlite+aiosqlite:///./data.db"))
 Session = async_sessionmaker(ENGINE, expire_on_commit=False)
 REPO = TweetRepo(Session)
 PORTFOLIO_REPO = PortfolioRepo(Session)
+MARKET_PERFORMANCE_REPO = MarketPerformanceRepo(Session)
 BROADCAST = Broadcaster()
 
 
@@ -48,12 +50,17 @@ async def lifespan(app: FastAPI):
     task = asyncio.create_task(
         run_stream(REPO, BROADCAST)
     )  # ← we’ll update run_stream below
+    barchart_task = asyncio.create_task(
+        start_market_performance_loop(app.state.http_client, MARKET_PERFORMANCE_REPO)
+    )
     try:
         yield
     finally:
         task.cancel()
+        barchart_task.cancel()
         with suppress(asyncio.CancelledError):
             await task
+            await barchart_task
         await app.state.http_client.aclose()
 
 
@@ -85,6 +92,11 @@ async def fear_greed(_=Depends(api_key_dep)):
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data
+
+
+@app.get("/api/market-performance")
+async def market_performance(_=Depends(api_key_dep)):
+    return await MARKET_PERFORMANCE_REPO.get_all()
 
 
 @app.get("/api/stocktwits")
