@@ -13,11 +13,12 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from ..infra.db import create_engine, init_db
-from ..infra.repos import PortfolioRepo, TweetRepo
+from ..infra.repos import PortfolioRepo, TweetRepo, FundingRateRepo
 from ..runtime.broadcast import Broadcaster
 from ..runtime.enricher import AssetEnricher
 from ..runtime.streamer import run_stream
 from ..runtime.symbols import merge_symbols
+from ..runtime.funding_loop import run_funding_loop
 from ..services.cmc import get_trending_crypto
 from ..services.coin360_service import get_treemap_data
 from ..services.fear_greed_service import get_feargreed
@@ -29,6 +30,7 @@ ENGINE = create_engine(os.getenv("DB_URL", "sqlite+aiosqlite:///./data.db"))
 Session = async_sessionmaker(ENGINE, expire_on_commit=False)
 REPO = TweetRepo(Session)
 PORTFOLIO_REPO = PortfolioRepo(Session)
+FUNDING_RATE_REPO = FundingRateRepo(Session)
 BROADCAST = Broadcaster()
 
 
@@ -48,12 +50,17 @@ async def lifespan(app: FastAPI):
     task = asyncio.create_task(
         run_stream(REPO, BROADCAST)
     )  # ← we’ll update run_stream below
+    funding_task = asyncio.create_task(
+        run_funding_loop(FUNDING_RATE_REPO, app.state.http_client)
+    )
     try:
         yield
     finally:
         task.cancel()
+        funding_task.cancel()
         with suppress(asyncio.CancelledError):
             await task
+            await funding_task
         await app.state.http_client.aclose()
 
 
@@ -85,6 +92,11 @@ async def fear_greed(_=Depends(api_key_dep)):
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data
+
+@app.get("/api/funding-rates")
+async def get_funding_rates(_=Depends(api_key_dep)):
+    rates = await FUNDING_RATE_REPO.get_lowest_rates()
+    return rates
 
 
 @app.get("/api/stocktwits")

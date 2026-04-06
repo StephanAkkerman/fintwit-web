@@ -5,7 +5,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from .db import PortfolioPositionRow, TweetRow
+from .db import PortfolioPositionRow, TweetRow, FundingRateRow
 
 
 def _row_to_dict(r: TweetRow) -> dict:
@@ -199,3 +199,42 @@ class PortfolioRepo:
                     )
                 )
         return bool(result.rowcount)
+
+
+class FundingRateRepo:
+    """Async repo for Binance funding rates."""
+
+    def __init__(self, session_factory: async_sessionmaker):
+        self.Session = session_factory
+
+    async def upsert_rates(self, rates: list[dict]) -> None:
+        if not rates:
+            return
+
+        async with self.Session() as s:
+            async with s.begin():
+                stmt = sqlite_insert(FundingRateRow).values(rates)
+
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["symbol"],
+                    set_={
+                        "rate": stmt.excluded.rate,
+                        "next_funding_time": stmt.excluded.next_funding_time,
+                        "updated_at": stmt.excluded.updated_at
+                    }
+                )
+                await s.execute(stmt)
+
+    async def get_lowest_rates(self, limit: int = 15) -> list[dict]:
+        stmt = select(FundingRateRow).order_by(FundingRateRow.rate.asc()).limit(limit)
+        async with self.Session() as s:
+            rows = (await s.execute(stmt)).scalars().all()
+            return [
+                {
+                    "symbol": r.symbol,
+                    "lastFundingRate": f"{r.rate:.4f}%",
+                    "nextFundingTime": r.next_funding_time.isoformat() if r.next_funding_time else None,
+                    "updated_at": r.updated_at.isoformat() if r.updated_at else None
+                }
+                for r in rows
+            ]

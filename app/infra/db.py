@@ -41,6 +41,15 @@ class TweetRow(Base):
     )
 
 
+class FundingRateRow(Base):
+    __tablename__ = "funding_rates"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(String, index=True, unique=True)
+    rate: Mapped[float] = mapped_column(Float)
+    next_funding_time: Mapped[DateTime] = mapped_column(DateTime, nullable=True)
+    updated_at: Mapped[DateTime] = mapped_column(DateTime, nullable=True)
+
+
 class PortfolioPositionRow(Base):
     __tablename__ = "portfolio_positions"
 
