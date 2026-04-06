@@ -9,7 +9,7 @@ Last updated: 2026-04-06
 - Tweet ingestion and persistence from X timeline (`xclient`) with idempotent upsert.
 - Symbol extraction fallback from tweet text (`$TICKER`, `#HASHTAG`) and symbol merge logic.
 - Asset enrichment via `ticker-classifier` + Yahoo (equities) + CoinGecko (crypto).
-- FinTwitBERT sentiment classification for streamed tweets (legacy-compatible preprocessing, label + emoji + score persisted on tweets).
+- FinTwitBERT sentiment classification for streamed tweets with separate main-post and quoted-post outputs (main: `sentiment_*`, quoted: `quoted_sentiment_*`).
 - Operational backfill command for historical tweet sentiment (`python -m app.runtime.backfill_sentiment`).
 - SSE broadcasting (`/api/stream`) and engagement update handling for tweet updates.
 - Service-backed endpoints for Fear & Greed, treemap, StockTwits, SPY heatmap, and trending crypto.
@@ -37,7 +37,7 @@ Last updated: 2026-04-06
   - Charts first,
   - Charts only.
 - Tweet cards display a small "Chart" badge when a chart signal is detected (`has_chart` or image media).
-- Tweet cards display sentiment badge metadata from backend classification (`sentiment_label`, `sentiment_emoji`, `sentiment_score`).
+- Tweet cards display separate sentiment badges for the main post and quoted post using backend metadata.
 - Portfolio route includes add/list/toggle/delete workflows and summary cards (positions, market value, cost basis, unrealized PnL).
 
 ## Connected End-to-End Today

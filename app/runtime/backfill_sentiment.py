@@ -18,6 +18,10 @@ class SentimentModelLike(Protocol):
 
     async def classify(self, text: str) -> dict[str, str | float] | None: ...
 
+    async def classify_parts(
+        self, text: str
+    ) -> dict[str, dict[str, str | float] | None]: ...
+
 
 @dataclass
 class BackfillStats:
@@ -70,21 +74,42 @@ async def backfill_tweet_sentiment(
                 continue
 
             try:
-                sentiment = await sentiment_model.classify(str(text))
+                if hasattr(sentiment_model, "classify_parts"):
+                    sentiment_parts = await sentiment_model.classify_parts(str(text))
+                    main_sentiment = sentiment_parts.get("main")
+                    quoted_sentiment = sentiment_parts.get("quoted")
+                else:
+                    main_sentiment = await sentiment_model.classify(str(text))
+                    quoted_sentiment = None
             except Exception:
                 stats.failed += 1
                 continue
 
-            if not sentiment:
+            if not main_sentiment and not quoted_sentiment:
                 continue
 
             stats.classified += 1
             updates.append(
                 {
                     "tweet_id": int(tweet_id),
-                    "sentiment_label": sentiment.get("label"),
-                    "sentiment_emoji": sentiment.get("emoji"),
-                    "sentiment_score": sentiment.get("score"),
+                    "sentiment_label": (
+                        main_sentiment.get("label") if main_sentiment else None
+                    ),
+                    "sentiment_emoji": (
+                        main_sentiment.get("emoji") if main_sentiment else None
+                    ),
+                    "sentiment_score": (
+                        main_sentiment.get("score") if main_sentiment else None
+                    ),
+                    "quoted_sentiment_label": (
+                        quoted_sentiment.get("label") if quoted_sentiment else None
+                    ),
+                    "quoted_sentiment_emoji": (
+                        quoted_sentiment.get("emoji") if quoted_sentiment else None
+                    ),
+                    "quoted_sentiment_score": (
+                        quoted_sentiment.get("score") if quoted_sentiment else None
+                    ),
                 }
             )
 
@@ -99,6 +124,15 @@ async def backfill_tweet_sentiment(
                                 sentiment_label=payload["sentiment_label"],
                                 sentiment_emoji=payload["sentiment_emoji"],
                                 sentiment_score=payload["sentiment_score"],
+                                quoted_sentiment_label=payload[
+                                    "quoted_sentiment_label"
+                                ],
+                                quoted_sentiment_emoji=payload[
+                                    "quoted_sentiment_emoji"
+                                ],
+                                quoted_sentiment_score=payload[
+                                    "quoted_sentiment_score"
+                                ],
                             )
                         )
             stats.updated += len(updates)

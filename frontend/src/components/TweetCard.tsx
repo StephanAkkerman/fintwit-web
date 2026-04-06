@@ -62,10 +62,18 @@ export default function TweetCard({
   const hasChart = hasChartSignal(t)
   const sentimentLabel = t.sentiment_label?.toUpperCase() ?? null
   const sentimentEmoji = t.sentiment_emoji ?? null
+  const quotedSentimentLabel = t.quoted_sentiment_label?.toUpperCase() ?? null
+  const quotedSentimentEmoji = t.quoted_sentiment_emoji ?? null
   const sentimentClass =
     sentimentLabel === 'BULLISH'
       ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
       : sentimentLabel === 'BEARISH'
+        ? 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300'
+        : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200'
+  const quotedSentimentClass =
+    quotedSentimentLabel === 'BULLISH'
+      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
+      : quotedSentimentLabel === 'BEARISH'
         ? 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300'
         : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200'
 
@@ -125,6 +133,20 @@ export default function TweetCard({
                     <path d="M17 17h2a4 4 0 0 0 4-4V7h-4v4h4" />
                   </svg>
                   <span>Quoted post</span>
+                  {(quotedSentimentLabel || quotedSentimentEmoji) && (
+                    <span
+                      aria-label="Quoted tweet sentiment"
+                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${quotedSentimentClass}`}
+                      title={
+                        typeof t.quoted_sentiment_score === 'number'
+                          ? `Quoted sentiment confidence: ${(t.quoted_sentiment_score * 100).toFixed(1)}%`
+                          : undefined
+                      }
+                    >
+                      <span>{quotedSentimentEmoji ?? '🦆'}</span>
+                      <span>{quotedSentimentLabel ?? 'SENTIMENT'}</span>
+                    </span>
+                  )}
                 </div>
                 <div className="px-3 py-2 text-zinc-800 dark:text-zinc-200 [&_p]:mb-1.5 [&_p:last-child]:mb-0 [&_p:first-child_a]:font-semibold">
                   {children}

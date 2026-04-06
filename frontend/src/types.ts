@@ -36,6 +36,9 @@ export type Tweet = {
   sentiment_label?: 'BULLISH' | 'BEARISH' | 'NEUTRAL' | string | null;
   sentiment_emoji?: string | null;
   sentiment_score?: number | null;
+  quoted_sentiment_label?: 'BULLISH' | 'BEARISH' | 'NEUTRAL' | string | null;
+  quoted_sentiment_emoji?: string | null;
+  quoted_sentiment_score?: number | null;
   has_chart?: boolean | null;
   assets?: Asset[];
 };

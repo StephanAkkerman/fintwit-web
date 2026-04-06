@@ -11,6 +11,7 @@ import logging
 import re
 
 logger = logging.getLogger(__name__)
+QUOTE_LINE_PATTERN = re.compile(r"^\s*>\s?(.*)$")
 
 LABEL_TO_EMOJI = {
     "NEUTRAL": "🦆",
@@ -32,9 +33,36 @@ def preprocess_text(tweet: str) -> str:
     return text
 
 
-def _strip_quote_text(tweet: str) -> str:
-    """Remove quote-tweet block so we classify the author's message."""
-    return tweet.split("\n\n> [@")[0]
+def split_main_and_quoted_text(tweet: str) -> tuple[str | None, str | None]:
+    """Split tweet text into author text and markdown-quoted text.
+
+    Returns a `(main_text, quoted_text)` tuple where each value can be `None` if
+    no content exists for that segment.
+    """
+
+    lines = tweet.splitlines()
+    main_lines: list[str] = []
+    quoted_lines: list[str] = []
+    in_quote = False
+
+    for line in lines:
+        match = QUOTE_LINE_PATTERN.match(line)
+        if match is not None:
+            in_quote = True
+            quoted_lines.append(match.group(1))
+            continue
+
+        if in_quote:
+            # Keep trailing context that follows a quote line as part of the
+            # quoted block to avoid mixing it back into the author's message.
+            quoted_lines.append(line)
+            continue
+
+        main_lines.append(line)
+
+    main_text = "\n".join(main_lines).strip() or None
+    quoted_text = "\n".join(quoted_lines).strip() or None
+    return main_text, quoted_text
 
 
 class FinTwitSentiment:
@@ -117,10 +145,28 @@ class FinTwitSentiment:
             "score": score,
         }
 
-    async def classify(self, text: str) -> dict[str, str | float] | None:
+    async def classify_parts(
+        self, text: str
+    ) -> dict[str, dict[str, str | float] | None]:
+        """Classify author text and quoted text separately."""
         if not text or not text.strip():
-            return None
+            return {"main": None, "quoted": None}
 
         await self._ensure_pipeline()
-        clean_text = _strip_quote_text(text)
-        return await asyncio.to_thread(self._classify_sync, clean_text)
+        main_text, quoted_text = split_main_and_quoted_text(text)
+
+        main = (
+            await asyncio.to_thread(self._classify_sync, main_text)
+            if main_text
+            else None
+        )
+        quoted = (
+            await asyncio.to_thread(self._classify_sync, quoted_text)
+            if quoted_text
+            else None
+        )
+        return {"main": main, "quoted": quoted}
+
+    async def classify(self, text: str) -> dict[str, str | float] | None:
+        parts = await self.classify_parts(text)
+        return parts["main"]

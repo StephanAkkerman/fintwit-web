@@ -54,6 +54,9 @@ async def test_upsert_many_persists_sentiment_fields(tweet_repo):
         "sentiment_label": "BULLISH",
         "sentiment_emoji": "🐂",
         "sentiment_score": 0.975,
+        "quoted_sentiment_label": "BEARISH",
+        "quoted_sentiment_emoji": "🐻",
+        "quoted_sentiment_score": 0.812,
     }
 
     await tweet_repo.upsert_many([payload])
@@ -63,6 +66,9 @@ async def test_upsert_many_persists_sentiment_fields(tweet_repo):
     assert row["sentiment_label"] == "BULLISH"
     assert row["sentiment_emoji"] == "🐂"
     assert row["sentiment_score"] == pytest.approx(0.975)
+    assert row["quoted_sentiment_label"] == "BEARISH"
+    assert row["quoted_sentiment_emoji"] == "🐻"
+    assert row["quoted_sentiment_score"] == pytest.approx(0.812)
 
 
 @pytest.mark.asyncio

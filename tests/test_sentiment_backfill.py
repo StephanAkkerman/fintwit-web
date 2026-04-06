@@ -12,7 +12,22 @@ class _FakeSentimentModel:
     async def classify(self, text: str) -> dict[str, str | float] | None:
         if "bull" in text.lower():
             return {"label": "BULLISH", "emoji": "bull", "score": 0.9}
+        if "bear" in text.lower():
+            return {"label": "BEARISH", "emoji": "bear", "score": 0.9}
         return {"label": "NEUTRAL", "emoji": "duck", "score": 0.6}
+
+    async def classify_parts(
+        self, text: str
+    ) -> dict[str, dict[str, str | float] | None]:
+        if "\n\n>" not in text:
+            return {"main": await self.classify(text), "quoted": None}
+
+        main_text, quote_block = text.split("\n\n>", 1)
+        quote_text = quote_block.replace(">", "").strip()
+        return {
+            "main": await self.classify(main_text),
+            "quoted": await self.classify(quote_text),
+        }
 
 
 async def _seed_tweets(tweet_repo) -> None:
@@ -62,6 +77,26 @@ async def _get_label(session_factory, tweet_id: int) -> str | None:
             (
                 await session.execute(
                     select(TweetRow.sentiment_label).where(TweetRow.id == tweet_id)
+                )
+            )
+            .scalars()
+            .first()
+        )
+    return row
+
+
+async def _get_quote_label(session_factory, tweet_id: int) -> str | None:
+    from sqlalchemy import select
+
+    from app.infra.db import TweetRow
+
+    async with session_factory() as session:
+        row = (
+            (
+                await session.execute(
+                    select(TweetRow.quoted_sentiment_label).where(
+                        TweetRow.id == tweet_id
+                    )
                 )
             )
             .scalars()
@@ -121,3 +156,23 @@ async def test_backfill_include_existing_recomputes_labels(db_engine, tweet_repo
     assert stats.scanned == len(SAMPLE_TWEETS)
     assert stats.updated == len(SAMPLE_TWEETS)
     assert await _get_label(session_factory, SAMPLE_TWEETS[0]["id"]) == "BULLISH"
+
+
+@pytest.mark.asyncio
+async def test_backfill_writes_quoted_sentiment_separately(db_engine, tweet_repo):
+    session_factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    quote_tweet = {
+        **SAMPLE_TWEETS[0],
+        "id": 999999,
+        "text": "Bull update\n\n> Bearish old post",
+    }
+    await tweet_repo.upsert_many([quote_tweet])
+
+    stats = await backfill_tweet_sentiment(
+        session_factory=session_factory,
+        sentiment_model=_FakeSentimentModel(),
+    )
+
+    assert stats.updated == 1
+    assert await _get_label(session_factory, quote_tweet["id"]) == "BULLISH"
+    assert await _get_quote_label(session_factory, quote_tweet["id"]) == "BEARISH"

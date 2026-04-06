@@ -200,11 +200,14 @@ async def debug_tweet(body: DebugTweet, request: Request):
         enricher = AssetEnricher()
         assets = await enricher.classify(symbols)
 
-    sentiment = None
+    main_sentiment = None
+    quoted_sentiment = None
     sentiment_model = getattr(request.app.state, "sentiment_model", None)
     if sentiment_model is not None and body.text.strip():
         try:
-            sentiment = await sentiment_model.classify(body.text)
+            sentiment_parts = await sentiment_model.classify_parts(body.text)
+            main_sentiment = sentiment_parts.get("main")
+            quoted_sentiment = sentiment_parts.get("quoted")
         except Exception as exc:
             logger.warning("[debug-tweet] sentiment classification failed: %r", exc)
 
@@ -220,9 +223,18 @@ async def debug_tweet(body: DebugTweet, request: Request):
         "likes": 0,
         "views": 0,
         "retweets": 0,
-        "sentiment_label": sentiment["label"] if sentiment else None,
-        "sentiment_emoji": sentiment["emoji"] if sentiment else None,
-        "sentiment_score": sentiment["score"] if sentiment else None,
+        "sentiment_label": main_sentiment["label"] if main_sentiment else None,
+        "sentiment_emoji": main_sentiment["emoji"] if main_sentiment else None,
+        "sentiment_score": main_sentiment["score"] if main_sentiment else None,
+        "quoted_sentiment_label": (
+            quoted_sentiment["label"] if quoted_sentiment else None
+        ),
+        "quoted_sentiment_emoji": (
+            quoted_sentiment["emoji"] if quoted_sentiment else None
+        ),
+        "quoted_sentiment_score": (
+            quoted_sentiment["score"] if quoted_sentiment else None
+        ),
     }
     await REPO.upsert_many([tweet])
     await BROADCAST.publish(tweet)

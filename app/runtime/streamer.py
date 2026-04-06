@@ -104,25 +104,37 @@ async def run_stream(
                     else:
                         t_dict["has_chart"] = None
 
-                    sentiment = None
+                    main_sentiment = None
+                    quoted_sentiment = None
                     if sentiment_model is not None:
                         try:
-                            sentiment = await sentiment_model.classify(
+                            sentiment_parts = await sentiment_model.classify_parts(
                                 t_dict.get("text") or ""
                             )
+                            main_sentiment = sentiment_parts.get("main")
+                            quoted_sentiment = sentiment_parts.get("quoted")
                         except Exception as exc:
                             logger.warning(
                                 "[stream] sentiment classification failed: %r", exc
                             )
 
                     t_dict["sentiment_label"] = (
-                        sentiment["label"] if sentiment else None
+                        main_sentiment["label"] if main_sentiment else None
                     )
                     t_dict["sentiment_emoji"] = (
-                        sentiment["emoji"] if sentiment else None
+                        main_sentiment["emoji"] if main_sentiment else None
                     )
                     t_dict["sentiment_score"] = (
-                        sentiment["score"] if sentiment else None
+                        main_sentiment["score"] if main_sentiment else None
+                    )
+                    t_dict["quoted_sentiment_label"] = (
+                        quoted_sentiment["label"] if quoted_sentiment else None
+                    )
+                    t_dict["quoted_sentiment_emoji"] = (
+                        quoted_sentiment["emoji"] if quoted_sentiment else None
+                    )
+                    t_dict["quoted_sentiment_score"] = (
+                        quoted_sentiment["score"] if quoted_sentiment else None
                     )
 
                     # 1) persist (idempotent)

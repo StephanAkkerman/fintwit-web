@@ -128,6 +128,27 @@ describe('TweetCard', () => {
     expect(screen.getByText(/bullish/i)).toBeInTheDocument()
   })
 
+  it('renders separate quoted sentiment badge in quote header', () => {
+    const quoteText =
+      'Bullish update\n\n> [@user](https://twitter.com/user):\n> Bearish prior thesis'
+
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          text: quoteText,
+          sentiment_label: 'BULLISH',
+          sentiment_emoji: '🐂',
+          quoted_sentiment_label: 'BEARISH',
+          quoted_sentiment_emoji: '🐻',
+        }}
+      />
+    )
+
+    expect(screen.getByLabelText('Tweet sentiment')).toBeInTheDocument()
+    expect(screen.getByLabelText('Quoted tweet sentiment')).toBeInTheDocument()
+  })
+
   it('does not show chart badge for text-only tweets', () => {
     render(<TweetCard t={baseTweet} />)
     expect(screen.queryByLabelText('Chart tweet')).not.toBeInTheDocument()

@@ -34,7 +34,7 @@ npm run dev
 
 ### Backfill Sentiment For Existing Tweets
 Sentiment is computed for newly ingested tweets in the stream worker. To classify
-older tweets already stored in the database, run:
+older tweets already stored in the database (main post and quoted post sentiment), run:
 
 ```bash
 python -m app.runtime.backfill_sentiment
