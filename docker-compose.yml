@@ -1,0 +1,37 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fintwit-backend
+    restart: unless-stopped
+    environment:
+      DB_URL: sqlite+aiosqlite:///./state/data.db
+      API_KEY: ${API_KEY:-}
+    volumes:
+      - ./state:/app/state
+      - ./logs:/app/logs
+      - ./.env:/app/.env:ro
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: fintwit-frontend
+    depends_on:
+      - backend
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:80"
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: fintwit-cloudflared
+    command: tunnel run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - frontend
+    restart: unless-stopped
+    profiles:
+      - tunnel

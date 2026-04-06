@@ -1,0 +1,8 @@
+cloudflare_api_token = "paste-your-cloudflare-api-token"
+cloudflare_account_id = "paste-your-account-id"
+zone_name             = "akkerman.ai"
+subdomain             = "fintwit"
+tunnel_name           = "fintwit-pi"
+# If cloudflared runs outside docker compose on the Pi host, use http://localhost:3000
+# If cloudflared runs inside docker compose (profile tunnel), keep http://frontend:80
+tunnel_origin_url = "http://frontend:80"

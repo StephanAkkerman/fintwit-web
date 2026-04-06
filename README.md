@@ -20,6 +20,84 @@ You can run both at the same time by using at the root of the repo:
 npm run dev
 ```
 
+## Deploy On Raspberry Pi + Cloudflare Tunnel
+
+### 1) Prepare your Raspberry Pi
+
+Install Docker and the Compose plugin:
+
+```bash
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+newgrp docker
+docker --version
+docker compose version
+```
+
+### 2) Clone and configure
+
+```bash
+git clone https://github.com/StephanAkkerman/fintwit-web.git
+cd fintwit-web
+```
+
+Use your `.env` file at repo root.
+
+Important: keep env formatting as `KEY=value` (no spaces around `=`) for max compatibility.
+
+### 3) Build and run locally on Pi
+
+```bash
+docker compose up -d --build
+```
+
+This stack runs:
+
+- Frontend (Nginx + React build) on `127.0.0.1:3000`
+- Backend (FastAPI) on `127.0.0.1:8000`
+
+The frontend container proxies `/api/*` and `/api/stream` to the backend container.
+
+### 4) Cloudflare DNS delegation
+
+Make sure your domain is delegated to Cloudflare nameservers from your registrar.
+This nameserver switch is a registrar-level step and is not managed by Terraform in this repo.
+
+### 5) Provision tunnel + DNS with Terraform
+
+From `infra/`:
+
+```bash
+cp terraform.tfvars.example terraform.tfvars
+# edit terraform.tfvars with your Cloudflare token/account values
+
+terraform init
+terraform plan
+terraform apply
+```
+
+Then fetch the tunnel token:
+
+```bash
+terraform output -raw tunnel_token
+```
+
+### 6) Start cloudflared (as Compose profile)
+
+From repo root:
+
+```bash
+export CLOUDFLARE_TUNNEL_TOKEN="<terraform tunnel_token output>"
+docker compose --profile tunnel up -d
+```
+
+Public hostname defaults to `fintwit.akkerman.ai` (configurable in `infra/terraform.tfvars`).
+
+### 7) Verify
+
+- `https://fintwit.akkerman.ai` serves the frontend
+- API calls and stream work through frontend proxy paths (`/api/*`, `/api/stream`)
+
 ### Start separately
 1. Run the backend using:
 ```bash
@@ -95,6 +173,7 @@ This section is optional. If your project has a lot of features, consider adding
 - [Migration Status](docs/migration-status.md)
 - [API and Frontend Coverage Matrix](docs/api-frontend-coverage.md)
 - [Frontend Integration Map](docs/frontend-integration-map.md)
+- [Cloudflare Terraform Notes](infra/README.md)
 
 ## Installation ⚙️
 <!-- Adjust the link of the second command to your own repo -->

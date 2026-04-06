@@ -5,6 +5,7 @@ node_modules/
 package-lock.json
 logs/
 models/
+data.db-journal
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -161,6 +162,11 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
 
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
