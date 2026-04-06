@@ -29,6 +29,9 @@ beforeEach(() => {
         } as Response
       )
     }
+    if (url.includes('/api/reddit/wsb')) {
+      return Promise.resolve({ ok: true, json: async () => [] } as Response)
+    }
     if (url.includes('/api/trending-crypto')) {
       return Promise.resolve({ ok: true, json: async () => [] } as Response)
     }
@@ -79,6 +82,7 @@ describe('App', () => {
     await waitFor(() =>
       expect(screen.getByText(/cross-market stream/i)).toBeInTheDocument()
     )
+    expect(screen.getByText(/wallstreetbets radar/i)).toBeInTheDocument()
   })
 
   it('shows crypto section widgets when navigating to /crypto', async () => {
@@ -118,6 +122,9 @@ describe('App', () => {
             json: async () => ({ value: 50, change: '+0', status: 'Neutral' }),
           } as Response
         )
+      }
+      if (url.includes('/api/reddit/wsb')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
       }
       if (url.includes('/api/trending-crypto')) {
         return Promise.resolve({ ok: true, json: async () => [] } as Response)
@@ -232,6 +239,9 @@ describe('App', () => {
           } as Response
         )
       }
+      if (url.includes('/api/reddit/wsb')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
       if (url.includes('/api/trending-crypto')) {
         return Promise.resolve({ ok: true, json: async () => [] } as Response)
       }
@@ -331,6 +341,9 @@ describe('App', () => {
             json: async () => ({ value: 50, change: '+0', status: 'Neutral' }),
           } as Response
         )
+      }
+      if (url.includes('/api/reddit/wsb')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
       }
       if (url.includes('/api/trending-crypto')) {
         return Promise.resolve({ ok: true, json: async () => [] } as Response)

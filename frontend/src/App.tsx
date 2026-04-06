@@ -3,6 +3,7 @@ import DebugAdminPanel from './components/DebugAdminPanel'
 import FearGreedWidget from './components/FearGreedWidget'
 import MarketOverview from './components/MarketOverview'
 import PortfolioPanel from './components/PortfolioPanel'
+import RedditWsbWidget from './components/RedditWsbWidget'
 import SpyHeatmapWidget from './components/SpyHeatmapWidget'
 import StocktwitsWidget from './components/StocktwitsWidget'
 import TreemapWidget from './components/TreemapWidget'
@@ -348,6 +349,7 @@ export default function App() {
             {route === 'home' && (
               <>
                 <FearGreedWidget />
+                <RedditWsbWidget />
                 <MarketOverview />
               </>
             )}

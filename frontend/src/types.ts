@@ -118,3 +118,16 @@ export type PortfolioSummary = {
   };
   positions: PortfolioSummaryPosition[];
 };
+
+export type RedditPost = {
+  id: string;
+  subreddit: string;
+  title: string;
+  description: string;
+  author: string;
+  score: number;
+  num_comments: number;
+  created_utc: number;
+  url: string;
+  image_urls: string[];
+};

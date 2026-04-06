@@ -18,6 +18,7 @@ Last updated: 2026-04-06
 | `/api/trending-crypto` | GET | `coinmarketcap.com/data-api/v3/topsearch/rank` | List of trending coins with price/change/volume/website | Connected via `TrendingCryptoWidget` |
 | `/api/stocktwits` | GET | `api.stocktwits.com/api/2/charts/{keyword}` (curl-first, then httpx; short-lived cache fallback on transient failures) | Formatted StockTwits rank list (`symbol`, `name`, `price`, `val`); returns `[]` during transient upstream unavailability | Connected via `StocktwitsWidget` |
 | `/api/spy-heatmap` | GET | `phx.unusualwhales.com/api/etf/SPY/heatmap` | SPY heatmap JSON by date range | Connected via `SpyHeatmapWidget` |
+| `/api/reddit/wsb` | GET | `asyncpraw` (credentials via env) with fallback to `reddit.com/r/{subreddit}/hot.json` via `httpx` | Recent non-stickied Reddit hot posts with title/body/media normalization | Connected via `RedditWsbWidget` |
 | `/api/portfolio/positions` | GET | SQLite via `PortfolioRepo.list_positions` | Portfolio positions list | Connected via `usePortfolio` / `PortfolioPanel` |
 | `/api/portfolio/positions` | POST | SQLite via `PortfolioRepo.create_position` | Created portfolio position | Connected via `usePortfolio` / `PortfolioPanel` |
 | `/api/portfolio/positions/{position_id}` | PATCH | SQLite via `PortfolioRepo.update_position` | Updated portfolio position (active flag and editable fields) | Connected via `usePortfolio` / `PortfolioPanel` |

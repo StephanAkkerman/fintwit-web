@@ -177,6 +177,44 @@ async def test_stocktwits_returns_empty_list_when_service_unavailable(async_clie
 
 
 @pytest.mark.asyncio
+async def test_reddit_wsb_returns_data(async_client):
+    app.state.http_client = AsyncMock()
+
+    with patch("app.api.main.get_reddit_hot_posts", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = [
+            {
+                "id": "abc123",
+                "subreddit": "wallstreetbets",
+                "title": "WSB post",
+                "description": "Text",
+                "author": "user1",
+                "score": 10,
+                "num_comments": 2,
+                "created_utc": 1700000000,
+                "url": "https://www.reddit.com/r/wallstreetbets/comments/abc123",
+                "image_urls": [],
+            }
+        ]
+
+        response = await async_client.get(
+            "/api/reddit/wsb", headers={"X-API-Key": "test-api-key"}
+        )
+
+    assert response.status_code == 200
+    assert response.json()[0]["id"] == "abc123"
+
+
+@pytest.mark.asyncio
+async def test_reddit_wsb_invalid_subreddit_returns_400(async_client):
+    response = await async_client.get(
+        "/api/reddit/wsb?subreddit=bad/sub",
+        headers={"X-API-Key": "test-api-key"},
+    )
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Invalid subreddit"}
+
+
+@pytest.mark.asyncio
 async def test_portfolio_create_position(async_client):
     with patch("app.api.main.PORTFOLIO_REPO") as mock_repo:
         mock_repo.create_position = AsyncMock(

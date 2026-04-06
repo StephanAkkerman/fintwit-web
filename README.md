@@ -53,6 +53,28 @@ python -m app.runtime.backfill_sentiment --limit 200 --batch-size 50
 python -m app.runtime.backfill_sentiment --include-existing
 ```
 
+### Optional: Reddit API Credentials
+The `/api/reddit/wsb` service uses an `asyncpraw` client first (legacy-style)
+to avoid Reddit anti-bot blocks, with HTTP fallback when credentials are missing.
+
+Set one of these credential sets in your environment for more reliable Reddit access:
+
+```bash
+# Modern names
+REDDIT_CLIENT_ID=...
+REDDIT_CLIENT_SECRET=...
+REDDIT_USER_AGENT=fintwit-web
+
+# Legacy fintwit-bot compatible names
+REDDIT_PERSONAL_USE=...
+REDDIT_SECRET=...
+REDDIT_APP_NAME=fintwit-web
+
+# Optional (only if your Reddit app config needs user auth)
+REDDIT_USERNAME=...
+REDDIT_PASSWORD=...
+```
+
 ## Table of Contents 🗂
 
 - [Key Features](#key-features)

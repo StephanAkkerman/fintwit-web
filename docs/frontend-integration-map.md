@@ -8,6 +8,7 @@ Route-level sections:
 
 - `/` (home)
   - `FearGreedWidget`
+  - `RedditWsbWidget`
   - `MarketOverview`
   - Tweet timeline (`useTweets` + `TweetCard`)
 
@@ -57,6 +58,10 @@ Route-level sections:
 - `MarketOverview` + `useMarketAssets` + `AssetBadge`
   - Fetches: `/api/posts` + `/api/stream` (derived live assets)
   - Purpose: top streamed assets with live price/change links.
+
+- `RedditWsbWidget` + `useRedditWsb`
+  - Fetches: `/api/reddit/wsb?limit=...`
+  - Purpose: latest WallStreetBets Reddit hot-post radar for headline and engagement context.
 
 - `StocktwitsWidget` + `useStocktwits`
   - Fetches: `/api/stocktwits?keyword=...`

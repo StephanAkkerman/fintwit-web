@@ -13,6 +13,8 @@ Last updated: 2026-04-06
 - Operational backfill command for historical tweet sentiment (`python -m app.runtime.backfill_sentiment`).
 - SSE broadcasting (`/api/stream`) and engagement update handling for tweet updates.
 - Service-backed endpoints for Fear & Greed, treemap, StockTwits, SPY heatmap, and trending crypto.
+- Service-backed endpoints for Fear & Greed, treemap, StockTwits, SPY heatmap, trending crypto, and WallStreetBets Reddit hot posts.
+- Reddit WallStreetBets ingestion uses asyncpraw-first (legacy-style credentials) with HTTP JSON fallback when credentials are missing.
 - StockTwits service fallback for anti-bot blocks: curl-first fetch strategy with short-lived per-keyword cache fallback to avoid transient 503s (curl is executed via thread-backed sync subprocess for Windows/uvicorn compatibility).
 - Portfolio backend for IBKR-style stock tracking: positions CRUD endpoints and live summary valuation/PnL using Yahoo quotes.
 
@@ -39,6 +41,7 @@ Last updated: 2026-04-06
 - Tweet cards display a small "Chart" badge when a chart signal is detected (`has_chart` or image media).
 - Tweet cards display separate sentiment badges for the main post and quoted post using backend metadata.
 - Portfolio route includes add/list/toggle/delete workflows and summary cards (positions, market value, cost basis, unrealized PnL).
+- Home route includes a WallStreetBets radar widget with latest Reddit post momentum signals.
 
 ## Connected End-to-End Today
 
@@ -51,6 +54,7 @@ Last updated: 2026-04-06
 - Market overview stream assets: `/api/posts` + `/api/stream` -> `MarketOverview`.
 - Debug admin panel: `/api/debug/tweet` -> `DebugAdminPanel` (`/admin`).
 - Portfolio panel: `/api/portfolio/positions` + `/api/portfolio/summary` -> `PortfolioPanel` (`/portfolio`).
+- WallStreetBets panel: `/api/reddit/wsb` -> `RedditWsbWidget` (`/`).
 
 ## Backend APIs Not Yet Connected in Main UI
 
@@ -58,4 +62,4 @@ Last updated: 2026-04-06
 
 ## Suggested Next Connections
 
-- Continue legacy feature migration from `fintwit-bot` domains not yet ported (forex, options, NFTs, Reddit).
+- Continue legacy feature migration from `fintwit-bot` domains not yet ported (forex, options, NFTs).

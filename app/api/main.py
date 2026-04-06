@@ -5,6 +5,7 @@ import logging
 import os
 from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Literal
 
 import httpx
@@ -23,9 +24,15 @@ from ..runtime.symbols import merge_symbols
 from ..services.cmc import get_trending_crypto
 from ..services.coin360_service import get_treemap_data
 from ..services.fear_greed_service import get_feargreed
+from ..services.reddit_service import get_reddit_hot_posts, is_valid_subreddit_name
 from ..services.stocktwits_service import get_stocktwits_data
 from ..services.unusual_whales import get_spy_heatmap
 from ..services.yahoo import get_stock_info
+
+with suppress(Exception):
+    from dotenv import load_dotenv
+
+    load_dotenv(dotenv_path=Path(__file__).resolve().parents[2] / ".env", override=True)
 
 ENGINE = create_engine(os.getenv("DB_URL", "sqlite+aiosqlite:///./data.db"))
 Session = async_sessionmaker(ENGINE, expire_on_commit=False)
@@ -140,6 +147,23 @@ async def spy_heatmap(
 async def treemap(request: Request, _=Depends(api_key_dep)):
     client: httpx.AsyncClient = request.app.state.http_client
     data = await get_treemap_data(client)
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
+
+
+@app.get("/api/reddit/wsb")
+async def reddit_wsb(
+    request: Request,
+    limit: int = Query(10, ge=1, le=50),
+    subreddit: str = Query("wallstreetbets"),
+    _=Depends(api_key_dep),
+):
+    if not is_valid_subreddit_name(subreddit):
+        raise HTTPException(status_code=400, detail="Invalid subreddit")
+
+    client: httpx.AsyncClient = request.app.state.http_client
+    data = await get_reddit_hot_posts(client, subreddit_name=subreddit, limit=limit)
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data

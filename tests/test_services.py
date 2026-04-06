@@ -1,9 +1,11 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.services.yahoo import get_stock_info
-from app.services.coingecko import get_crypto_info
+import httpx
+import pytest
 
+from app.services.coingecko import get_crypto_info
+from app.services.reddit_service import get_reddit_hot_posts, is_valid_subreddit_name
+from app.services.yahoo import get_stock_info
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -61,7 +63,10 @@ YAHOO_RESPONSE = {
 
 @pytest.mark.asyncio
 async def test_get_stock_info_success():
-    with patch("app.services.yahoo.aiohttp.ClientSession", _mock_session(_mock_response(200, YAHOO_RESPONSE))):
+    with patch(
+        "app.services.yahoo.aiohttp.ClientSession",
+        _mock_session(_mock_response(200, YAHOO_RESPONSE)),
+    ):
         result = await get_stock_info("AAPL")
 
     assert result is not None
@@ -76,10 +81,15 @@ async def test_get_stock_info_success():
 async def test_get_stock_info_zero_change_when_no_previous_close():
     data = {
         "chart": {
-            "result": [{"meta": {"regularMarketPrice": 185.0, "regularMarketVolume": 1}}]
+            "result": [
+                {"meta": {"regularMarketPrice": 185.0, "regularMarketVolume": 1}}
+            ]
         }
     }
-    with patch("app.services.yahoo.aiohttp.ClientSession", _mock_session(_mock_response(200, data))):
+    with patch(
+        "app.services.yahoo.aiohttp.ClientSession",
+        _mock_session(_mock_response(200, data)),
+    ):
         result = await get_stock_info("AAPL")
 
     # previousClose defaults to price itself, so change_percent == 0
@@ -90,7 +100,10 @@ async def test_get_stock_info_zero_change_when_no_previous_close():
 @pytest.mark.asyncio
 async def test_get_stock_info_missing_price_returns_none():
     data = {"chart": {"result": [{"meta": {"regularMarketPrice": None}}]}}
-    with patch("app.services.yahoo.aiohttp.ClientSession", _mock_session(_mock_response(200, data))):
+    with patch(
+        "app.services.yahoo.aiohttp.ClientSession",
+        _mock_session(_mock_response(200, data)),
+    ):
         result = await get_stock_info("AAPL")
     assert result is None
 
@@ -98,21 +111,30 @@ async def test_get_stock_info_missing_price_returns_none():
 @pytest.mark.asyncio
 async def test_get_stock_info_empty_result_returns_none():
     data = {"chart": {"result": None}}
-    with patch("app.services.yahoo.aiohttp.ClientSession", _mock_session(_mock_response(200, data))):
+    with patch(
+        "app.services.yahoo.aiohttp.ClientSession",
+        _mock_session(_mock_response(200, data)),
+    ):
         result = await get_stock_info("INVALID")
     assert result is None
 
 
 @pytest.mark.asyncio
 async def test_get_stock_info_http_error_returns_none():
-    with patch("app.services.yahoo.aiohttp.ClientSession", _mock_session(_mock_response(404, {}))):
+    with patch(
+        "app.services.yahoo.aiohttp.ClientSession",
+        _mock_session(_mock_response(404, {})),
+    ):
         result = await get_stock_info("AAPL")
     assert result is None
 
 
 @pytest.mark.asyncio
 async def test_get_stock_info_exception_returns_none():
-    with patch("app.services.yahoo.aiohttp.ClientSession", side_effect=Exception("Network error")):
+    with patch(
+        "app.services.yahoo.aiohttp.ClientSession",
+        side_effect=Exception("Network error"),
+    ):
         result = await get_stock_info("AAPL")
     assert result is None
 
@@ -153,14 +175,20 @@ async def test_get_crypto_info_success():
 @pytest.mark.asyncio
 async def test_get_crypto_info_no_coins_returns_none():
     data = {"coins": []}
-    with patch("app.services.coingecko.aiohttp.ClientSession", _mock_session(_mock_response(200, data))):
+    with patch(
+        "app.services.coingecko.aiohttp.ClientSession",
+        _mock_session(_mock_response(200, data)),
+    ):
         result = await get_crypto_info("UNKNOWN")
     assert result is None
 
 
 @pytest.mark.asyncio
 async def test_get_crypto_info_search_http_error_returns_none():
-    with patch("app.services.coingecko.aiohttp.ClientSession", _mock_session(_mock_response(429, {}))):
+    with patch(
+        "app.services.coingecko.aiohttp.ClientSession",
+        _mock_session(_mock_response(429, {})),
+    ):
         result = await get_crypto_info("BTC")
     assert result is None
 
@@ -178,6 +206,189 @@ async def test_get_crypto_info_price_http_error_returns_none():
 
 @pytest.mark.asyncio
 async def test_get_crypto_info_exception_returns_none():
-    with patch("app.services.coingecko.aiohttp.ClientSession", side_effect=Exception("Network error")):
+    with patch(
+        "app.services.coingecko.aiohttp.ClientSession",
+        side_effect=Exception("Network error"),
+    ):
         result = await get_crypto_info("BTC")
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Reddit – get_reddit_hot_posts
+# ---------------------------------------------------------------------------
+
+
+def _httpx_response(status_code: int, payload: dict) -> httpx.Response:
+    return httpx.Response(status_code=status_code, json=payload)
+
+
+@pytest.mark.asyncio
+async def test_get_reddit_hot_posts_success():
+    payload = {
+        "data": {
+            "children": [
+                {
+                    "data": {
+                        "id": "abc123",
+                        "subreddit": "wallstreetbets",
+                        "title": "WSB post",
+                        "selftext": "Check this [https://example.com](https://example.com)",
+                        "author": "user1",
+                        "score": 100,
+                        "num_comments": 12,
+                        "created_utc": 1700000000,
+                        "permalink": "/r/wallstreetbets/comments/abc123/wsb_post/",
+                        "is_self": True,
+                        "stickied": False,
+                    }
+                }
+            ]
+        }
+    }
+    client = AsyncMock()
+    client.get = AsyncMock(return_value=_httpx_response(200, payload))
+
+    with patch(
+        "app.services.reddit_service._fetch_with_asyncpraw",
+        new=AsyncMock(return_value=None),
+    ):
+        posts = await get_reddit_hot_posts(client, limit=1)
+
+    assert posts is not None
+    assert len(posts) == 1
+    assert posts[0]["id"] == "abc123"
+    assert posts[0]["subreddit"] == "wallstreetbets"
+    assert posts[0]["description"] == "Check this https://example.com"
+
+
+@pytest.mark.asyncio
+async def test_get_reddit_hot_posts_filters_stickied():
+    payload = {
+        "data": {
+            "children": [
+                {
+                    "data": {
+                        "id": "sticky",
+                        "title": "Sticky",
+                        "is_self": True,
+                        "stickied": True,
+                    }
+                },
+                {
+                    "data": {
+                        "id": "normal",
+                        "title": "Normal",
+                        "is_self": True,
+                        "stickied": False,
+                    }
+                },
+            ]
+        }
+    }
+    client = AsyncMock()
+    client.get = AsyncMock(return_value=_httpx_response(200, payload))
+
+    with patch(
+        "app.services.reddit_service._fetch_with_asyncpraw",
+        new=AsyncMock(return_value=None),
+    ):
+        posts = await get_reddit_hot_posts(client)
+
+    assert posts is not None
+    assert len(posts) == 1
+    assert posts[0]["id"] == "normal"
+
+
+@pytest.mark.asyncio
+async def test_get_reddit_hot_posts_http_error_returns_none():
+    client = AsyncMock()
+    client.get = AsyncMock(return_value=_httpx_response(503, {}))
+
+    with patch(
+        "app.services.reddit_service._fetch_with_asyncpraw",
+        new=AsyncMock(return_value=None),
+    ):
+        posts = await get_reddit_hot_posts(client)
+
+    assert posts is None
+
+
+@pytest.mark.asyncio
+async def test_get_reddit_hot_posts_invalid_subreddit_returns_none():
+    client = AsyncMock()
+    posts = await get_reddit_hot_posts(client, subreddit_name="bad/sub")
+    assert posts is None
+
+
+@pytest.mark.asyncio
+async def test_get_reddit_hot_posts_prefers_asyncpraw_result():
+    client = AsyncMock()
+    client.get = AsyncMock()
+
+    praw_posts = [
+        {
+            "id": "praw1",
+            "subreddit": "wallstreetbets",
+            "title": "From asyncpraw",
+            "description": "Text",
+            "author": "user",
+            "score": 1,
+            "num_comments": 0,
+            "created_utc": 1700000000,
+            "url": "https://reddit.com",
+            "image_urls": [],
+        }
+    ]
+
+    with patch(
+        "app.services.reddit_service._fetch_with_asyncpraw",
+        new=AsyncMock(return_value=praw_posts),
+    ):
+        posts = await get_reddit_hot_posts(client)
+
+    assert posts == praw_posts
+    client.get.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_get_reddit_hot_posts_falls_back_to_httpx_when_asyncpraw_none():
+    payload = {
+        "data": {
+            "children": [
+                {
+                    "data": {
+                        "id": "fallback1",
+                        "subreddit": "wallstreetbets",
+                        "title": "From httpx",
+                        "selftext": "Body",
+                        "author": "user",
+                        "score": 2,
+                        "num_comments": 1,
+                        "created_utc": 1700000001,
+                        "permalink": "/r/wallstreetbets/comments/fallback1/",
+                        "is_self": True,
+                        "stickied": False,
+                    }
+                }
+            ]
+        }
+    }
+    client = AsyncMock()
+    client.get = AsyncMock(return_value=_httpx_response(200, payload))
+
+    with patch(
+        "app.services.reddit_service._fetch_with_asyncpraw",
+        new=AsyncMock(return_value=None),
+    ):
+        posts = await get_reddit_hot_posts(client)
+
+    assert posts is not None
+    assert posts[0]["id"] == "fallback1"
+
+
+def test_is_valid_subreddit_name():
+    assert is_valid_subreddit_name("wallstreetbets")
+    assert is_valid_subreddit_name("CryptoCurrency")
+    assert not is_valid_subreddit_name("bad/sub")
+    assert not is_valid_subreddit_name("ab")
