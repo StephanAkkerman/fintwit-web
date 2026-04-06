@@ -1,6 +1,7 @@
 # app/api/main.py (updated bits)
 import asyncio
 import json
+import logging
 import os
 from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timezone
@@ -14,6 +15,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from ..infra.db import create_engine, init_db
 from ..infra.repos import PortfolioRepo, TweetRepo
+from ..ml.sentiment import FinTwitSentiment
 from ..runtime.broadcast import Broadcaster
 from ..runtime.enricher import AssetEnricher
 from ..runtime.streamer import run_stream
@@ -30,6 +32,7 @@ Session = async_sessionmaker(ENGINE, expire_on_commit=False)
 REPO = TweetRepo(Session)
 PORTFOLIO_REPO = PortfolioRepo(Session)
 BROADCAST = Broadcaster()
+logger = logging.getLogger(__name__)
 
 
 async def api_key_dep(request: Request):
@@ -44,10 +47,18 @@ async def lifespan(app: FastAPI):
     await init_db(ENGINE)
     app.state.API_KEY = os.getenv("API_KEY", "")
     app.state.http_client = httpx.AsyncClient()
+
+    sentiment_model: FinTwitSentiment | None = FinTwitSentiment()
+    try:
+        await sentiment_model.warmup()
+    except Exception as exc:
+        logger.warning("[startup] sentiment model warmup failed: %r", exc)
+        sentiment_model = None
+
+    app.state.sentiment_model = sentiment_model
+
     # start background stream: persist THEN broadcast
-    task = asyncio.create_task(
-        run_stream(REPO, BROADCAST)
-    )  # ← we’ll update run_stream below
+    task = asyncio.create_task(run_stream(REPO, BROADCAST, sentiment_model))
     try:
         yield
     finally:
@@ -181,13 +192,22 @@ def _normalize_portfolio_payload(payload: dict) -> dict:
 
 
 @app.post("/api/debug/tweet")
-async def debug_tweet(body: DebugTweet):
+async def debug_tweet(body: DebugTweet, request: Request):
     tickers, hashtags = merge_symbols(body.text, body.tickers, body.hashtags)
     symbols = tickers + hashtags
     assets = []
     if symbols:
         enricher = AssetEnricher()
         assets = await enricher.classify(symbols)
+
+    sentiment = None
+    sentiment_model = getattr(request.app.state, "sentiment_model", None)
+    if sentiment_model is not None and body.text.strip():
+        try:
+            sentiment = await sentiment_model.classify(body.text)
+        except Exception as exc:
+            logger.warning("[debug-tweet] sentiment classification failed: %r", exc)
+
     tweet = {
         **body.model_dump(),
         "tickers": tickers,
@@ -200,6 +220,9 @@ async def debug_tweet(body: DebugTweet):
         "likes": 0,
         "views": 0,
         "retweets": 0,
+        "sentiment_label": sentiment["label"] if sentiment else None,
+        "sentiment_emoji": sentiment["emoji"] if sentiment else None,
+        "sentiment_score": sentiment["score"] if sentiment else None,
     }
     await REPO.upsert_many([tweet])
     await BROADCAST.publish(tweet)

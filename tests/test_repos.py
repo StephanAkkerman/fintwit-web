@@ -36,6 +36,36 @@ async def test_upsert_many_updates_assets_on_conflict(tweet_repo):
 
 
 @pytest.mark.asyncio
+async def test_upsert_many_ignores_unknown_payload_keys(tweet_repo):
+    payload = {**SAMPLE_TWEETS[0], "is_update": False}
+
+    count = await tweet_repo.upsert_many([payload])
+
+    assert count == 1
+    row = await tweet_repo.by_id(SAMPLE_TWEETS[0]["id"])
+    assert row is not None
+    assert row["text"] == SAMPLE_TWEETS[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_upsert_many_persists_sentiment_fields(tweet_repo):
+    payload = {
+        **SAMPLE_TWEETS[0],
+        "sentiment_label": "BULLISH",
+        "sentiment_emoji": "🐂",
+        "sentiment_score": 0.975,
+    }
+
+    await tweet_repo.upsert_many([payload])
+    row = await tweet_repo.by_id(SAMPLE_TWEETS[0]["id"])
+
+    assert row is not None
+    assert row["sentiment_label"] == "BULLISH"
+    assert row["sentiment_emoji"] == "🐂"
+    assert row["sentiment_score"] == pytest.approx(0.975)
+
+
+@pytest.mark.asyncio
 async def test_latest_returns_results_ordered_desc_by_id(tweet_repo):
     await tweet_repo.upsert_many(SAMPLE_TWEETS)
     rows = await tweet_repo.latest()

@@ -1,6 +1,6 @@
 # Migration Status
 
-Last updated: 2026-04-04
+Last updated: 2026-04-05
 
 ## Backend: Implemented
 
@@ -9,6 +9,7 @@ Last updated: 2026-04-04
 - Tweet ingestion and persistence from X timeline (`xclient`) with idempotent upsert.
 - Symbol extraction fallback from tweet text (`$TICKER`, `#HASHTAG`) and symbol merge logic.
 - Asset enrichment via `ticker-classifier` + Yahoo (equities) + CoinGecko (crypto).
+- FinTwitBERT sentiment classification for streamed tweets (legacy-compatible preprocessing, label + emoji + score persisted on tweets).
 - SSE broadcasting (`/api/stream`) and engagement update handling for tweet updates.
 - Service-backed endpoints for Fear & Greed, treemap, StockTwits, SPY heatmap, and trending crypto.
 - StockTwits service fallback for anti-bot blocks: curl-first fetch strategy with short-lived per-keyword cache fallback to avoid transient 503s (curl is executed via thread-backed sync subprocess for Windows/uvicorn compatibility).
@@ -35,11 +36,12 @@ Last updated: 2026-04-04
   - Charts first,
   - Charts only.
 - Tweet cards display a small "Chart" badge when a chart signal is detected (`has_chart` or image media).
+- Tweet cards display sentiment badge metadata from backend classification (`sentiment_label`, `sentiment_emoji`, `sentiment_score`).
 - Portfolio route includes add/list/toggle/delete workflows and summary cards (positions, market value, cost basis, unrealized PnL).
 
 ## Connected End-to-End Today
 
-- Tweet stream data: `/api/posts` + `/api/stream` -> timeline cards and filters.
+- Tweet stream data: `/api/posts` + `/api/stream` -> timeline cards, filters, and sentiment badges.
 - Fear & Greed widget: `/api/fear-greed` -> `FearGreedWidget`.
 - Treemap widget: `/api/treemap` -> `TreemapWidget`.
 - Trending crypto widget: `/api/trending-crypto` -> `TrendingCryptoWidget`.

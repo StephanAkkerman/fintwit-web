@@ -60,6 +60,14 @@ export default function TweetCard({
   const hashtagBadges = [...new Set([...(t.hashtags ?? []), ...parsedSymbols.hashtags].map((v) => v.toUpperCase()))]
   const assets = (t.assets ?? []).filter((asset) => asset?.symbol)
   const hasChart = hasChartSignal(t)
+  const sentimentLabel = t.sentiment_label?.toUpperCase() ?? null
+  const sentimentEmoji = t.sentiment_emoji ?? null
+  const sentimentClass =
+    sentimentLabel === 'BULLISH'
+      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
+      : sentimentLabel === 'BEARISH'
+        ? 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300'
+        : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200'
 
   return (
     <article className="rounded-2xl shadow p-4 bg-white dark:bg-zinc-900">
@@ -243,6 +251,20 @@ export default function TweetCard({
                 <path d="M7 14l4-4 3 3 5-6" />
               </svg>
               Chart
+            </span>
+          )}
+          {(sentimentLabel || sentimentEmoji) && (
+            <span
+              aria-label="Tweet sentiment"
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${sentimentClass}`}
+              title={
+                typeof t.sentiment_score === 'number'
+                  ? `Sentiment confidence: ${(t.sentiment_score * 100).toFixed(1)}%`
+                  : undefined
+              }
+            >
+              <span>{sentimentEmoji ?? '🦆'}</span>
+              <span>{sentimentLabel ?? 'SENTIMENT'}</span>
             </span>
           )}
           {tickerBadges.map((sym) => (

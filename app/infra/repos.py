@@ -7,6 +7,12 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from .db import PortfolioPositionRow, TweetRow
 
+_TWEET_COLUMNS = {c.name for c in TweetRow.__table__.c}
+
+
+def _sanitize_tweet_payload(payload: dict) -> dict:
+    return {k: v for k, v in payload.items() if k in _TWEET_COLUMNS}
+
 
 def _row_to_dict(r: TweetRow) -> dict:
     return {
@@ -26,6 +32,9 @@ def _row_to_dict(r: TweetRow) -> dict:
         "likes": r.likes,
         "views": r.views,
         "retweets": r.retweets,
+        "sentiment_label": r.sentiment_label,
+        "sentiment_emoji": r.sentiment_emoji,
+        "sentiment_score": r.sentiment_score,
         "assets": r.assets,
     }
 
@@ -59,7 +68,7 @@ class TweetRepo:
         :param tweets: Iterable of dictionaries containing tweet data.
         :return: The total number of tweets processed (inserted or updated).
         """
-        tweet_list = list(tweets)
+        tweet_list = [_sanitize_tweet_payload(t) for t in tweets]
         if not tweet_list:
             return 0
 

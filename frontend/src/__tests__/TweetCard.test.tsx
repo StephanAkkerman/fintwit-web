@@ -112,6 +112,22 @@ describe('TweetCard', () => {
     expect(screen.getByLabelText('Chart tweet')).toBeInTheDocument()
   })
 
+  it('renders sentiment badge when sentiment fields are available', () => {
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          sentiment_label: 'BULLISH',
+          sentiment_emoji: '🐂',
+          sentiment_score: 0.97,
+        }}
+      />
+    )
+
+    expect(screen.getByLabelText('Tweet sentiment')).toBeInTheDocument()
+    expect(screen.getByText(/bullish/i)).toBeInTheDocument()
+  })
+
   it('does not show chart badge for text-only tweets', () => {
     render(<TweetCard t={baseTweet} />)
     expect(screen.queryByLabelText('Chart tweet')).not.toBeInTheDocument()

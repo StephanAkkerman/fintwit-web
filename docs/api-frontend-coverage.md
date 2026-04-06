@@ -1,6 +1,6 @@
 # API and Frontend Coverage Matrix
 
-Last updated: 2026-04-04
+Last updated: 2026-04-05
 
 ## Authentication
 
@@ -11,8 +11,8 @@ Last updated: 2026-04-04
 
 | Endpoint | Method | Data Source | Returns | Frontend Status |
 | --- | --- | --- | --- | --- |
-| `/api/posts` | GET | SQLite via `TweetRepo.latest` | Latest tweets including `assets`, engagement, media, symbols | Connected via `useTweets` |
-| `/api/stream` | GET (SSE) | In-memory broadcaster from stream worker | Real-time tweet/new engagement updates | Connected via `useTweets` |
+| `/api/posts` | GET | SQLite via `TweetRepo.latest` | Latest tweets including `assets`, engagement, media, symbols, and sentiment (`sentiment_label`, `sentiment_emoji`, `sentiment_score`) | Connected via `useTweets` |
+| `/api/stream` | GET (SSE) | In-memory broadcaster from stream worker | Real-time tweet/new engagement updates (including sentiment metadata on new tweets) | Connected via `useTweets` |
 | `/api/fear-greed` | GET | `alternative.me/fng` | `{ value, change, status }` | Connected via `FearGreedWidget` |
 | `/api/treemap` | GET | `coin360.com/site-api/coins` | Coin360 top-100 treemap payload | Connected via `TreemapWidget` |
 | `/api/trending-crypto` | GET | `coinmarketcap.com/data-api/v3/topsearch/rank` | List of trending coins with price/change/volume/website | Connected via `TrendingCryptoWidget` |
@@ -33,6 +33,8 @@ These services are not exposed as standalone endpoints, but are used in asset en
   - returns `price`, `change_percent`, `volume`, `website`.
 - CoinGecko (`api.coingecko.com`) for crypto:
   - returns `price`, `change_percent`, `volume`, `website`.
+- FinTwitBERT sentiment (`StephanAkkerman/FinTwitBERT-sentiment`) for tweet text:
+  - returns `sentiment_label`, `sentiment_emoji`, `sentiment_score`.
 
 The enriched values are attached under `tweet.assets[*].financials` and consumed in `TweetCard`.
 
@@ -48,4 +50,5 @@ The enriched values are attached under `tweet.assets[*].financials` and consumed
 - Timeline and filters rely on:
   - `tickers`, `hashtags`, and symbol extraction from text,
   - `assets[].symbol` and `assets[].kind` for category and ticker filters,
-  - `assets[].financials.website` for price links.
+  - `assets[].financials.website` for price links,
+  - `sentiment_label` / `sentiment_emoji` / `sentiment_score` for sentiment badge rendering.

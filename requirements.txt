@@ -3,6 +3,7 @@ timm==1.0.26
 torch
 Pillow
 requests
+transformers>=4.48,<5
 fastapi==0.135.3
 uvicorn==0.43.0
 sqlalchemy[asyncio]==2.0.49

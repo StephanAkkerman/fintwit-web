@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 from datetime import datetime
 from pathlib import Path
@@ -7,11 +8,13 @@ import xclient
 
 from ..infra.repos import TweetRepo
 from ..ml.chart import is_chart
+from ..ml.sentiment import FinTwitSentiment
 from .broadcast import Broadcaster
 from .enricher import AssetEnricher
 from .symbols import merge_symbols
 
 ENGAGEMENT_FIELDS = ("replies", "likes", "views", "retweets")
+logger = logging.getLogger(__name__)
 
 
 def _extract_engagement_fields(tweet_payload: dict) -> dict:
@@ -23,7 +26,11 @@ def _extract_engagement_fields(tweet_payload: dict) -> dict:
     return updates
 
 
-async def run_stream(repo: TweetRepo, bc: Broadcaster) -> None:
+async def run_stream(
+    repo: TweetRepo,
+    bc: Broadcaster,
+    sentiment_model: FinTwitSentiment | None = None,
+) -> None:
     backoff = 1.0
     enricher = AssetEnricher()
     last_id_path = os.getenv("XTIMELINE_LAST_ID_PATH", "state/last_id.txt")
@@ -93,11 +100,30 @@ async def run_stream(repo: TweetRepo, bc: Broadcaster) -> None:
                             *[is_chart(url) for url in media_urls],
                             return_exceptions=True,
                         )
-                        t_dict["has_chart"] = any(
-                            r is True for r in results
-                        )
+                        t_dict["has_chart"] = any(r is True for r in results)
                     else:
                         t_dict["has_chart"] = None
+
+                    sentiment = None
+                    if sentiment_model is not None:
+                        try:
+                            sentiment = await sentiment_model.classify(
+                                t_dict.get("text") or ""
+                            )
+                        except Exception as exc:
+                            logger.warning(
+                                "[stream] sentiment classification failed: %r", exc
+                            )
+
+                    t_dict["sentiment_label"] = (
+                        sentiment["label"] if sentiment else None
+                    )
+                    t_dict["sentiment_emoji"] = (
+                        sentiment["emoji"] if sentiment else None
+                    )
+                    t_dict["sentiment_score"] = (
+                        sentiment["score"] if sentiment else None
+                    )
 
                     # 1) persist (idempotent)
                     await repo.upsert_many([t_dict])

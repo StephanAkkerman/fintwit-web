@@ -1,6 +1,6 @@
 # Frontend Integration Map
 
-Last updated: 2026-04-04
+Last updated: 2026-04-05
 
 ## Mounted in `App.tsx` Today
 
@@ -38,7 +38,7 @@ Route-level sections:
 
 - Tweet timeline (`useTweets` + `TweetCard`)
   - Fetches: `/api/posts` and `/api/stream` (SSE)
-  - Purpose: live timeline with quote embeds, media, financial cards, chart badge signals, and engagement updates.
+  - Purpose: live timeline with quote embeds, media, financial cards, chart badge signals, sentiment badges, and engagement updates.
 
 - Sidebar filters
   - Category filters: all, crypto, stock, non-financial.
