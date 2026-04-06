@@ -1,6 +1,6 @@
 # API and Frontend Coverage Matrix
 
-Last updated: 2026-04-05
+Last updated: 2026-04-06
 
 ## Authentication
 
@@ -35,6 +35,7 @@ These services are not exposed as standalone endpoints, but are used in asset en
   - returns `price`, `change_percent`, `volume`, `website`.
 - FinTwitBERT sentiment (`StephanAkkerman/FinTwitBERT-sentiment`) for tweet text:
   - returns `sentiment_label`, `sentiment_emoji`, `sentiment_score`.
+  - historical tweets can be backfilled via `python -m app.runtime.backfill_sentiment`.
 
 The enriched values are attached under `tweet.assets[*].financials` and consumed in `TweetCard`.
 

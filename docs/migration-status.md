@@ -1,6 +1,6 @@
 # Migration Status
 
-Last updated: 2026-04-05
+Last updated: 2026-04-06
 
 ## Backend: Implemented
 
@@ -10,6 +10,7 @@ Last updated: 2026-04-05
 - Symbol extraction fallback from tweet text (`$TICKER`, `#HASHTAG`) and symbol merge logic.
 - Asset enrichment via `ticker-classifier` + Yahoo (equities) + CoinGecko (crypto).
 - FinTwitBERT sentiment classification for streamed tweets (legacy-compatible preprocessing, label + emoji + score persisted on tweets).
+- Operational backfill command for historical tweet sentiment (`python -m app.runtime.backfill_sentiment`).
 - SSE broadcasting (`/api/stream`) and engagement update handling for tweet updates.
 - Service-backed endpoints for Fear & Greed, treemap, StockTwits, SPY heatmap, and trending crypto.
 - StockTwits service fallback for anti-bot blocks: curl-first fetch strategy with short-lived per-keyword cache fallback to avoid transient 503s (curl is executed via thread-backed sync subprocess for Windows/uvicorn compatibility).

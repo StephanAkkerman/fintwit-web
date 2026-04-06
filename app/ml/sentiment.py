@@ -68,7 +68,7 @@ class FinTwitSentiment:
         tokenizer = AutoTokenizer.from_pretrained(
             self._model_name,
             cache_dir=self._cache_dir,
-            add_special_tokens=True,
+            use_fast=False,
         )
 
         return pipeline("text-classification", model=model, tokenizer=tokenizer)
@@ -104,7 +104,10 @@ class FinTwitSentiment:
         return "NEUTRAL"
 
     def _classify_sync(self, text: str) -> dict[str, str | float]:
-        result = self._pipeline(preprocess_text(text), truncation=True)[0]
+        # BERT supports up to 512 tokens; setting max_length avoids runtime warnings.
+        result = self._pipeline(preprocess_text(text), truncation=True, max_length=512)[
+            0
+        ]
         label = self._normalize_label(str(result.get("label", "NEUTRAL")))
         score = float(result.get("score", 0.0))
         emoji = LABEL_TO_EMOJI.get(label, "🦆")
