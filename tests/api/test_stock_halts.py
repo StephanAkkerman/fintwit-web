@@ -1,9 +1,8 @@
 import pytest
 from unittest.mock import patch, AsyncMock
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport
 import datetime
 from app.api.main import app
-import app.services.nasdaq_service as nasdaq_service
 
 import pytest_asyncio
 
