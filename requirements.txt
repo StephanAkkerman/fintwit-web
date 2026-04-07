@@ -14,3 +14,5 @@ pytest-asyncio==1.3.0
 httpx==0.28.1
 asyncpraw>=7.8,<8
 dotenv==0.9.9
+lxml
+python-dateutil
