@@ -51,6 +51,8 @@ Important: keep env formatting as `KEY=value` (no spaces around `=`) for max com
 docker compose up -d --build
 ```
 
+The backend Docker image installs CPU-only PyTorch wheels (`download.pytorch.org/whl/cpu`) to avoid pulling large CUDA runtime packages on Linux hosts.
+
 This stack runs:
 
 - Frontend (Nginx + React build) on `127.0.0.1:3000`
