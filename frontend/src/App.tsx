@@ -95,7 +95,7 @@ function matchesFilter(tweet: Tweet, filter: FilterKey): boolean {
 }
 
 export default function App() {
-  const { tweets } = useTweets('') // same-origin API (proxied in dev)
+  const { tweets, hasMore, isLoadingOlder, loadOlder } = useTweets('') // same-origin API (proxied in dev)
   const [route, setRoute] = useState<RouteKey>(() => routeFromPath(window.location.pathname))
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all')
   const [tickerFilter, setTickerFilter] = useState<string | null>(null)
@@ -375,6 +375,18 @@ export default function App() {
             {displayedTweets.map((t) => (
               <TweetCard key={t.id} t={t} onTickerSelect={onTickerSelect} />
             ))}
+            {hasMore && (
+              <div className="flex justify-center py-2">
+                <button
+                  type="button"
+                  onClick={() => void loadOlder()}
+                  disabled={isLoadingOlder}
+                  className="rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                >
+                  {isLoadingOlder ? 'Loading older tweets...' : 'Load older tweets'}
+                </button>
+              </div>
+            )}
             {displayedTweets.length === 0 && (
               <div className="rounded-2xl border border-dashed border-zinc-300 bg-white/70 p-5 text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-400">
                 No tweets in this filter yet.

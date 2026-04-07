@@ -9,6 +9,7 @@ Last updated: 2026-04-06
 - Tweet ingestion and persistence from X timeline (`xclient`) with idempotent upsert.
 - Symbol extraction fallback from tweet text (`$TICKER`, `#HASHTAG`) and symbol merge logic.
 - Asset enrichment via `ticker-classifier` + Yahoo (equities) + CoinGecko (crypto).
+- Crypto enrichment hardening: CoinGecko caching and Yahoo `-USD` fallback when CoinGecko returns rate-limit/transient failures.
 - FinTwitBERT sentiment classification for streamed tweets with separate main-post and quoted-post outputs (main: `sentiment_*`, quoted: `quoted_sentiment_*`).
 - Operational backfill command for historical tweet sentiment (`python -m app.runtime.backfill_sentiment`).
 - SSE broadcasting (`/api/stream`) and engagement update handling for tweet updates.
@@ -22,6 +23,7 @@ Last updated: 2026-04-06
 ## Frontend: Implemented
 
 - Live tweet timeline using initial REST load + SSE updates.
+- Timeline pagination: initial REST load now requests 200 tweets, with manual load-older pagination wired via `before_id`.
 - Quote tweet markdown rendering with quote embed styling.
 - Quote image handling inside embed (with main image placement before quote embed).
 - Financial asset blocks in tweet cards (symbol, kind, name, price, daily %).

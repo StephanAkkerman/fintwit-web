@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
+import app.services.coingecko as coingecko_service
 from app.services.coingecko import get_crypto_info
 from app.services.reddit_service import get_reddit_hot_posts, is_valid_subreddit_name
 from app.services.yahoo import get_stock_info
@@ -10,6 +11,13 @@ from app.services.yahoo import get_stock_info
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _reset_coingecko_cache():
+    coingecko_service._reset_cache_for_tests()
+    yield
+    coingecko_service._reset_cache_for_tests()
 
 
 def _mock_response(status: int, json_data: dict) -> MagicMock:
@@ -175,43 +183,98 @@ async def test_get_crypto_info_success():
 @pytest.mark.asyncio
 async def test_get_crypto_info_no_coins_returns_none():
     data = {"coins": []}
-    with patch(
-        "app.services.coingecko.aiohttp.ClientSession",
-        _mock_session(_mock_response(200, data)),
+    with (
+        patch(
+            "app.services.coingecko.aiohttp.ClientSession",
+            _mock_session(_mock_response(200, data)),
+        ),
+        patch(
+            "app.services.coingecko.get_stock_info", new=AsyncMock(return_value=None)
+        ),
     ):
         result = await get_crypto_info("UNKNOWN")
+
     assert result is None
 
 
 @pytest.mark.asyncio
-async def test_get_crypto_info_search_http_error_returns_none():
-    with patch(
-        "app.services.coingecko.aiohttp.ClientSession",
-        _mock_session(_mock_response(429, {})),
+async def test_get_crypto_info_search_http_error_uses_yahoo_fallback():
+    yahoo_fallback = {
+        "price": 45000.0,
+        "change_percent": 1.0,
+        "volume": 10_000_000.0,
+        "website": "https://finance.yahoo.com/quote/BTC-USD",
+    }
+    with (
+        patch(
+            "app.services.coingecko.aiohttp.ClientSession",
+            _mock_session(_mock_response(429, {})),
+        ),
+        patch(
+            "app.services.coingecko.get_stock_info",
+            new=AsyncMock(return_value=yahoo_fallback),
+        ),
     ):
         result = await get_crypto_info("BTC")
-    assert result is None
+
+    assert result == yahoo_fallback
 
 
 @pytest.mark.asyncio
-async def test_get_crypto_info_price_http_error_returns_none():
+async def test_get_crypto_info_price_http_error_uses_yahoo_fallback():
+    yahoo_fallback = {
+        "price": 45000.0,
+        "change_percent": 1.0,
+        "volume": 10_000_000.0,
+        "website": "https://finance.yahoo.com/quote/BTC-USD",
+    }
     mock_cs = _mock_session(
         _mock_response(200, COINGECKO_SEARCH_RESPONSE),
         _mock_response(429, {}),
     )
-    with patch("app.services.coingecko.aiohttp.ClientSession", mock_cs):
+    with (
+        patch("app.services.coingecko.aiohttp.ClientSession", mock_cs),
+        patch(
+            "app.services.coingecko.get_stock_info",
+            new=AsyncMock(return_value=yahoo_fallback),
+        ),
+    ):
         result = await get_crypto_info("BTC")
-    assert result is None
+
+    assert result == yahoo_fallback
 
 
 @pytest.mark.asyncio
 async def test_get_crypto_info_exception_returns_none():
-    with patch(
-        "app.services.coingecko.aiohttp.ClientSession",
-        side_effect=Exception("Network error"),
+    with (
+        patch(
+            "app.services.coingecko.aiohttp.ClientSession",
+            side_effect=Exception("Network error"),
+        ),
+        patch(
+            "app.services.coingecko.get_stock_info", new=AsyncMock(return_value=None)
+        ),
     ):
         result = await get_crypto_info("BTC")
+
     assert result is None
+
+
+@pytest.mark.asyncio
+async def test_get_crypto_info_uses_cache_on_second_call():
+    mock_cs = _mock_session(
+        _mock_response(200, COINGECKO_SEARCH_RESPONSE),
+        _mock_response(200, COINGECKO_PRICE_RESPONSE),
+    )
+
+    with patch("app.services.coingecko.aiohttp.ClientSession", mock_cs):
+        first = await get_crypto_info("BTC")
+        second = await get_crypto_info("BTC")
+
+    assert first == second
+    # First call performs 2 requests (search + price), second call is cache hit.
+    session_obj = mock_cs.return_value.__aenter__.return_value
+    assert session_obj.get.call_count == 2
 
 
 # ---------------------------------------------------------------------------

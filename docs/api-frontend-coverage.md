@@ -11,7 +11,7 @@ Last updated: 2026-04-06
 
 | Endpoint | Method | Data Source | Returns | Frontend Status |
 | --- | --- | --- | --- | --- |
-| `/api/posts` | GET | SQLite via `TweetRepo.latest` | Latest tweets including `assets`, engagement, media, symbols, and sentiment metadata for both main and quoted text (`sentiment_*`, `quoted_sentiment_*`) | Connected via `useTweets` |
+| `/api/posts` | GET | SQLite via `TweetRepo.latest` | Latest tweets including `assets`, engagement, media, symbols, and sentiment metadata for both main and quoted text (`sentiment_*`, `quoted_sentiment_*`). Supports pagination with `limit` (default 200, max 200) and `before_id` for older pages. | Connected via `useTweets` |
 | `/api/stream` | GET (SSE) | In-memory broadcaster from stream worker | Real-time tweet/new engagement updates (including main + quoted sentiment metadata on new tweets) | Connected via `useTweets` |
 | `/api/fear-greed` | GET | `alternative.me/fng` | `{ value, change, status }` | Connected via `FearGreedWidget` |
 | `/api/treemap` | GET | `coin360.com/site-api/coins` | Coin360 top-100 treemap payload | Connected via `TreemapWidget` |
@@ -34,6 +34,7 @@ These services are not exposed as standalone endpoints, but are used in asset en
   - returns `price`, `change_percent`, `volume`, `website`.
 - CoinGecko (`api.coingecko.com`) for crypto:
   - returns `price`, `change_percent`, `volume`, `website`.
+  - uses short-lived cache and Yahoo `-USD` fallback when CoinGecko is rate-limited (`429`) or temporarily unavailable.
 - FinTwitBERT sentiment (`StephanAkkerman/FinTwitBERT-sentiment`) for tweet text:
   - returns separate main-post and quoted-post sentiment fields (`sentiment_*`, `quoted_sentiment_*`).
   - historical tweets can be backfilled via `python -m app.runtime.backfill_sentiment`.

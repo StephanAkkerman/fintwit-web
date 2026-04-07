@@ -91,8 +91,11 @@ class TweetRepo:
                 await s.execute(stmt)
         return len(tweet_list)
 
-    async def latest(self, limit: int = 50):
-        stmt = select(TweetRow).order_by(TweetRow.id.desc()).limit(limit)
+    async def latest(self, limit: int = 50, before_id: int | None = None):
+        stmt = select(TweetRow)
+        if before_id is not None:
+            stmt = stmt.where(TweetRow.id < before_id)
+        stmt = stmt.order_by(TweetRow.id.desc()).limit(limit)
         async with self.Session() as s:
             rows = (await s.execute(stmt)).scalars().all()
         return [_row_to_dict(r) for r in rows]

@@ -79,8 +79,12 @@ app = FastAPI(title="X Stream API", lifespan=lifespan)
 
 
 @app.get("/api/posts")
-async def list_posts(limit: int = Query(50, ge=1, le=200), _=Depends(api_key_dep)):
-    return await REPO.latest(limit)
+async def list_posts(
+    limit: int = Query(200, ge=1, le=200),
+    before_id: int | None = Query(default=None, ge=1),
+    _=Depends(api_key_dep),
+):
+    return await REPO.latest(limit, before_id=before_id)
 
 
 @app.get("/api/stream")

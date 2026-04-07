@@ -57,7 +57,7 @@ async def test_list_posts_default_limit(async_client):
     with patch("app.api.main.REPO") as mock_repo:
         mock_repo.latest = AsyncMock(return_value=[])
         await async_client.get("/api/posts", headers={"X-API-Key": "test-api-key"})
-    mock_repo.latest.assert_called_once_with(50)
+    mock_repo.latest.assert_called_once_with(200, before_id=None)
 
 
 @pytest.mark.asyncio
@@ -67,7 +67,18 @@ async def test_list_posts_custom_limit(async_client):
         await async_client.get(
             "/api/posts?limit=10", headers={"X-API-Key": "test-api-key"}
         )
-    mock_repo.latest.assert_called_once_with(10)
+    mock_repo.latest.assert_called_once_with(10, before_id=None)
+
+
+@pytest.mark.asyncio
+async def test_list_posts_before_id_pagination(async_client):
+    with patch("app.api.main.REPO") as mock_repo:
+        mock_repo.latest = AsyncMock(return_value=[])
+        await async_client.get(
+            "/api/posts?limit=25&before_id=123",
+            headers={"X-API-Key": "test-api-key"},
+        )
+    mock_repo.latest.assert_called_once_with(25, before_id=123)
 
 
 @pytest.mark.asyncio
