@@ -98,18 +98,19 @@ describe('TweetCard', () => {
     expect(screen.getByLabelText('Chart tweet')).toBeInTheDocument()
   })
 
-  it('shows chart badge when tweet has photo media', () => {
+  it('does not show chart badge for photo media when has_chart is false', () => {
     render(
       <TweetCard
         t={{
           ...baseTweet,
+          has_chart: false,
           media: [{ url: 'https://example.com/chart.jpg', type: 'photo' }],
           media_types: ['photo'],
         }}
       />
     )
 
-    expect(screen.getByLabelText('Chart tweet')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Chart tweet')).not.toBeInTheDocument()
   })
 
   it('renders sentiment badge when sentiment fields are available', () => {

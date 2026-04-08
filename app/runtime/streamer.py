@@ -26,6 +26,27 @@ def _extract_engagement_fields(tweet_payload: dict) -> dict:
     return updates
 
 
+def _extract_photo_urls(tweet_payload: dict) -> list[str]:
+    media = tweet_payload.get("media") or []
+    media_types = tweet_payload.get("media_types") or []
+
+    urls: list[str] = []
+    for idx, item in enumerate(media):
+        item_type = media_types[idx] if idx < len(media_types) else None
+
+        url: str | None = None
+        if isinstance(item, dict):
+            url = item.get("url")
+            item_type = item_type or item.get("type")
+        elif isinstance(item, str):
+            url = item
+
+        if item_type == "photo" and isinstance(url, str) and url:
+            urls.append(url)
+
+    return urls
+
+
 async def run_stream(
     repo: TweetRepo,
     bc: Broadcaster,
@@ -85,24 +106,17 @@ async def run_stream(
                     else:
                         t_dict["assets"] = []
 
-                    # If the tweet has images but no financial text, check whether
-                    # any image is a financial chart so it can be filtered later.
-                    media_urls = [
-                        url
-                        for url, mtype in zip(
-                            t_dict.get("media") or [],
-                            t_dict.get("media_types") or [],
-                        )
-                        if mtype == "photo"
-                    ]
-                    if media_urls and not symbols:
+                    # Run chart detection on all photo tweets so chart filters
+                    # don't fallback to treating every image as a chart.
+                    media_urls = _extract_photo_urls(t_dict)
+                    if media_urls:
                         results = await asyncio.gather(
                             *[is_chart(url) for url in media_urls],
                             return_exceptions=True,
                         )
                         t_dict["has_chart"] = any(r is True for r in results)
                     else:
-                        t_dict["has_chart"] = None
+                        t_dict["has_chart"] = False
 
                     main_sentiment = None
                     quoted_sentiment = None

@@ -41,7 +41,7 @@ Last updated: 2026-04-06
   - Latest,
   - Charts first,
   - Charts only.
-- Tweet cards display a small "Chart" badge when a chart signal is detected (`has_chart` or image media).
+- Tweet cards display a small "Chart" badge only when backend chart classification marks `has_chart=true`.
 - Tweet cards display separate sentiment badges for the main post and quoted post using backend metadata.
 - Portfolio route includes add/list/toggle/delete workflows and summary cards (positions, market value, cost basis, unrealized PnL).
 - Home route includes a WallStreetBets radar widget with latest Reddit post momentum signals.

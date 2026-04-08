@@ -481,6 +481,7 @@ describe('App', () => {
         likes: 0,
         views: 0,
         retweets: 0,
+        has_chart: false,
         assets: [{ symbol: 'BTC', kind: 'crypto' }],
       },
       {
@@ -500,6 +501,7 @@ describe('App', () => {
         likes: 0,
         views: 0,
         retweets: 0,
+        has_chart: true,
         assets: [{ symbol: 'ETH', kind: 'crypto' }],
       },
     ]

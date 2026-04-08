@@ -167,3 +167,61 @@ async def test_run_stream_update_tweet_updates_metrics_and_broadcasts(
     mock_merge_symbols.assert_not_called()
     mock_enricher.classify.assert_not_awaited()
     bc.publish.assert_awaited_once_with(updated_row)
+
+
+@pytest.mark.asyncio
+async def test_run_stream_classifies_chart_for_symbol_tweet_with_photo(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("XTIMELINE_LAST_ID_PATH", str(tmp_path / "last_id.txt"))
+
+    tweet = DummyTweet(
+        {
+            "id": 789,
+            "text": "$ETH chart update",
+            "tickers": [],
+            "hashtags": [],
+            "created_at": "2026-04-04T12:00:00+00:00",
+            "media": ["https://example.com/chart.jpg"],
+            "media_types": ["photo"],
+            "likes": 1,
+            "replies": 0,
+            "views": 10,
+            "retweets": 0,
+        },
+        is_update=False,
+    )
+    client_cls = make_client_class(tweet)
+
+    repo = MagicMock()
+    repo.upsert_many = AsyncMock(return_value=1)
+    repo.update_fields = AsyncMock(return_value=None)
+
+    published_event = asyncio.Event()
+
+    async def _publish(_item):
+        published_event.set()
+
+    bc = MagicMock()
+    bc.publish = AsyncMock(side_effect=_publish)
+
+    with (
+        patch("app.runtime.streamer.xclient.XTimelineClient", client_cls),
+        patch("app.runtime.streamer.merge_symbols", return_value=(["ETH"], [])),
+        patch("app.runtime.streamer.AssetEnricher") as mock_enricher_cls,
+        patch(
+            "app.runtime.streamer.is_chart", new=AsyncMock(return_value=True)
+        ) as mock_is_chart,
+    ):
+        mock_enricher = mock_enricher_cls.return_value
+        mock_enricher.classify = AsyncMock(return_value=[{"symbol": "ETH"}])
+
+        task = asyncio.create_task(streamer.run_stream(repo, bc))
+        await asyncio.wait_for(published_event.wait(), timeout=1.0)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    persisted = repo.upsert_many.await_args.args[0][0]
+    assert persisted["has_chart"] is True
+    mock_is_chart.assert_awaited_once_with("https://example.com/chart.jpg")

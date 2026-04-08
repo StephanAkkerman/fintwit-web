@@ -60,6 +60,13 @@ This stack runs:
 
 The frontend container proxies `/api/*` and `/api/stream` to the backend container.
 
+##### 3.1) Start all at once with Cloudflare tunnel
+If you have your Cloudflare tunnel configured (see next section), you can start the tunnel and app together with:
+
+```bash
+docker compose --profile tunnel up -d --build
+```
+
 ### 4) Cloudflare DNS delegation
 
 Make sure your domain is delegated to Cloudflare nameservers from your registrar.
