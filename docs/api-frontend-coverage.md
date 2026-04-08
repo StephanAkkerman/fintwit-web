@@ -57,3 +57,4 @@ The enriched values are attached under `tweet.assets[*].financials` and consumed
   - `sentiment_*` for main-post sentiment rendering,
   - `quoted_sentiment_*` for quote-post sentiment rendering.
   - media URLs are rendered as in-page image previews (lightbox) in `TweetCard` rather than opening directly in a new tab on image click.
+  - `created_at` is serialized with explicit UTC offset and rendered in the viewer's local timezone in `TweetCard`.

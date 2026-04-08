@@ -31,6 +31,20 @@ function parseFinancialSymbols(text: string): { tickers: string[]; hashtags: str
   return { tickers, hashtags }
 }
 
+function parseTweetDate(createdAt: string | null | undefined): Date | null {
+  if (!createdAt) return null
+
+  const hasOffset = /([zZ]|[+-]\d{2}:\d{2})$/.test(createdAt)
+  const normalized = hasOffset ? createdAt : `${createdAt}Z`
+  const parsed = new Date(normalized)
+
+  if (Number.isNaN(parsed.getTime())) {
+    return null
+  }
+
+  return parsed
+}
+
 export default function TweetCard({
   t,
   onTickerSelect,
@@ -59,7 +73,7 @@ export default function TweetCard({
     }
   }, [lightboxImage])
 
-  const createdAt = t.created_at ? new Date(t.created_at) : null
+  const createdAt = parseTweetDate(t.created_at)
   const timeLabel = createdAt
     ? createdAt.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
     : null

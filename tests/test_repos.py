@@ -1,4 +1,5 @@
 import pytest
+from datetime import datetime
 
 from tests.conftest import SAMPLE_TWEETS
 
@@ -121,6 +122,21 @@ async def test_latest_preserves_media_and_tickers(tweet_repo):
     rows = await tweet_repo.latest()
     assert rows[0]["media"] == SAMPLE_TWEETS[1]["media"]
     assert rows[0]["tickers"] == SAMPLE_TWEETS[1]["tickers"]
+
+
+@pytest.mark.asyncio
+async def test_latest_serializes_naive_created_at_as_utc(tweet_repo):
+    payload = {
+        **SAMPLE_TWEETS[0],
+        "id": 424242,
+        "created_at": datetime(2026, 4, 8, 20, 50, 0),
+    }
+
+    await tweet_repo.upsert_many([payload])
+    row = await tweet_repo.by_id(424242)
+
+    assert row is not None
+    assert row["created_at"] == "2026-04-08T20:50:00+00:00"
 
 
 @pytest.mark.asyncio
