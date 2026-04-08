@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Tweet } from '../types'
@@ -37,6 +38,27 @@ export default function TweetCard({
   t: Tweet
   onTickerSelect?: (ticker: string) => void
 }) {
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; alt: string } | null>(null)
+
+  useEffect(() => {
+    if (!lightboxImage) return
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    const onKeyDown = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') {
+        setLightboxImage(null)
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [lightboxImage])
+
   const createdAt = t.created_at ? new Date(t.created_at) : null
   const timeLabel = createdAt
     ? createdAt.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
@@ -104,9 +126,15 @@ export default function TweetCard({
         {showInlineMediaBeforeQuote && (
           <div className="mb-3 grid grid-cols-2 gap-2">
             {inlineMedia.map((m, i) => (
-              <a key={i} href={m.url} target="_blank" rel="noreferrer">
+              <button
+                key={i}
+                type="button"
+                onClick={() => setLightboxImage({ url: m.url, alt: m.type || 'Tweet media' })}
+                aria-label="Open image preview"
+                className="overflow-hidden rounded-xl"
+              >
                 <img src={m.url} alt={m.type} className="rounded-xl w-full object-cover" />
-              </a>
+              </button>
             ))}
           </div>
         )}
@@ -152,18 +180,18 @@ export default function TweetCard({
                   {children}
                 </div>
                 {quotedMedia && (
-                  <a
-                    href={quotedMedia.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block border-t border-zinc-200 dark:border-zinc-700"
+                  <button
+                    type="button"
+                    onClick={() => setLightboxImage({ url: quotedMedia.url, alt: 'Quoted media' })}
+                    aria-label="Open quoted image preview"
+                    className="block w-full border-t border-zinc-200 dark:border-zinc-700"
                   >
                     <img
                       src={quotedMedia.url}
                       alt="Quoted media"
                       className="max-h-[28rem] w-full object-contain bg-zinc-100/70 dark:bg-zinc-800/60"
                     />
-                  </a>
+                  </button>
                 )}
               </blockquote>
             ),
@@ -184,9 +212,15 @@ export default function TweetCard({
       {!showInlineMediaBeforeQuote && inlineMedia.length > 0 && (
         <div className="mt-3 grid grid-cols-2 gap-2">
           {inlineMedia.map((m, i) => (
-            <a key={i} href={m.url} target="_blank" rel="noreferrer">
+            <button
+              key={i}
+              type="button"
+              onClick={() => setLightboxImage({ url: m.url, alt: m.type || 'Tweet media' })}
+              aria-label="Open image preview"
+              className="overflow-hidden rounded-xl"
+            >
               <img src={m.url} alt={m.type} className="rounded-xl w-full object-cover" />
-            </a>
+            </button>
           ))}
         </div>
       )}
@@ -328,6 +362,35 @@ export default function TweetCard({
           )}
         </div>
       </footer>
+
+      {lightboxImage && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Image preview"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setLightboxImage(null)}
+        >
+          <div
+            className="relative w-full max-w-5xl"
+            onClick={(ev) => ev.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setLightboxImage(null)}
+              aria-label="Close image preview"
+              className="absolute right-2 top-2 rounded-full bg-black/70 px-3 py-1 text-sm font-semibold text-white hover:bg-black"
+            >
+              Close
+            </button>
+            <img
+              src={lightboxImage.url}
+              alt={lightboxImage.alt}
+              className="max-h-[85vh] w-full rounded-2xl object-contain"
+            />
+          </div>
+        </div>
+      )}
     </article>
   )
 }

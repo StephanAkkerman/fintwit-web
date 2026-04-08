@@ -238,6 +238,41 @@ describe('TweetCard', () => {
     expect(mediaImgs).toHaveLength(2)
   })
 
+  it('opens image preview dialog when inline media is clicked', () => {
+    const tweetWithMedia: Tweet = {
+      ...baseTweet,
+      media: [{ url: 'https://example.com/img1.jpg', type: 'photo' }],
+    }
+
+    render(<TweetCard t={tweetWithMedia} />)
+
+    fireEvent.click(screen.getByAltText('photo'))
+    const dialog = screen.getByRole('dialog', { name: 'Image preview' })
+    expect(dialog).toBeInTheDocument()
+    const previewImage = dialog.querySelector('img') as HTMLImageElement
+    expect(previewImage?.src).toContain('img1.jpg')
+  })
+
+  it('opens image preview dialog when quoted media is clicked', () => {
+    const quoteText = '> [@opensea](https://twitter.com/opensea):\n> Quoted image.'
+
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          text: quoteText,
+          media: [
+            { url: 'https://example.com/inline.jpg', type: 'photo' },
+            { url: 'https://example.com/quoted.jpg', type: 'photo' },
+          ],
+        }}
+      />
+    )
+
+    fireEvent.click(screen.getByAltText('Quoted media'))
+    expect(screen.getByRole('dialog', { name: 'Image preview' })).toBeInTheDocument()
+  })
+
   it('does not render media section when media array is empty', () => {
     const { container } = render(<TweetCard t={baseTweet} />)
     // Only avatar image should be present

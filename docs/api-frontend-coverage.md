@@ -56,3 +56,4 @@ The enriched values are attached under `tweet.assets[*].financials` and consumed
   - `assets[].financials.website` for price links,
   - `sentiment_*` for main-post sentiment rendering,
   - `quoted_sentiment_*` for quote-post sentiment rendering.
+  - media URLs are rendered as in-page image previews (lightbox) in `TweetCard` rather than opening directly in a new tab on image click.

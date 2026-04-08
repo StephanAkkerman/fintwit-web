@@ -39,7 +39,7 @@ Route-level sections:
 
 - Tweet timeline (`useTweets` + `TweetCard`)
   - Fetches: `/api/posts?limit=200` on initial mount, `/api/posts?limit=200&before_id=...` for manual older-page loading, and `/api/stream` (SSE)
-  - Purpose: live timeline with quote embeds, media, financial cards, chart badge signals, separate main/quoted sentiment badges, and engagement updates.
+  - Purpose: live timeline with quote embeds, media, in-page image lightbox previews, financial cards, chart badge signals, separate main/quoted sentiment badges, and engagement updates.
 
 - Sidebar filters
   - Category filters: all, crypto, stock, non-financial.

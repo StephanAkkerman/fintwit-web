@@ -14,6 +14,16 @@ def _sanitize_tweet_payload(payload: dict) -> dict:
     return {k: v for k, v in payload.items() if k in _TWEET_COLUMNS}
 
 
+def _iso_utc(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc).isoformat()
+
+    return value.astimezone(timezone.utc).isoformat()
+
+
 def _row_to_dict(r: TweetRow) -> dict:
     return {
         "id": r.id,
@@ -22,7 +32,7 @@ def _row_to_dict(r: TweetRow) -> dict:
         "user_screen_name": r.user_screen_name,
         "user_img": r.user_img,
         "url": r.url,
-        "created_at": r.created_at.isoformat() if r.created_at else None,
+        "created_at": _iso_utc(r.created_at),
         "media": r.media,
         "tickers": r.tickers,
         "hashtags": r.hashtags,
@@ -50,11 +60,11 @@ def _portfolio_row_to_dict(r: PortfolioPositionRow) -> dict:
         "quantity": float(r.quantity),
         "avg_cost": float(r.avg_cost),
         "currency": r.currency,
-        "opened_at": r.opened_at.isoformat() if r.opened_at else None,
+        "opened_at": _iso_utc(r.opened_at),
         "notes": r.notes,
         "is_active": bool(r.is_active),
-        "created_at": r.created_at.isoformat() if r.created_at else None,
-        "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+        "created_at": _iso_utc(r.created_at),
+        "updated_at": _iso_utc(r.updated_at),
     }
 
 

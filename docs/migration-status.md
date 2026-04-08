@@ -26,6 +26,7 @@ Last updated: 2026-04-06
 - Timeline pagination: initial REST load now requests 200 tweets, with manual load-older pagination wired via `before_id`.
 - Quote tweet markdown rendering with quote embed styling.
 - Quote image handling inside embed (with main image placement before quote embed).
+- Tweet images now open in an in-page lightbox preview (no full-page navigation away from timeline).
 - Financial asset blocks in tweet cards (symbol, kind, name, price, daily %).
 - Price links to source financial website when available.
 - Sidebar filters: all, crypto, stock, non-financial.
