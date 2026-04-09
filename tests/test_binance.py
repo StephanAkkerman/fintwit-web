@@ -1,14 +1,10 @@
 import pytest
 import pytest_asyncio
-import httpx
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, AsyncMock
 
-from app.api.main import app
-from app.infra.db import create_engine, init_db, BinanceTickerRow
+from app.infra.db import create_engine, init_db
 from app.infra.repos import BinanceTickerRepo
 from sqlalchemy.ext.asyncio import async_sessionmaker
-from sqlalchemy import select
 
 
 @pytest_asyncio.fixture
