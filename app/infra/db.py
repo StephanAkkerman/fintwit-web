@@ -36,6 +36,12 @@ class TweetRow(Base):
     )
     quoted_sentiment_emoji: Mapped[str] = mapped_column(String, nullable=True)
     quoted_sentiment_score: Mapped[float] = mapped_column(Float, nullable=True)
+    quoted_tweet: Mapped[dict] = mapped_column(
+        JSON().with_variant(SQLITE_JSON, "sqlite"),
+        nullable=True,
+        default=None,
+        server_default=sql_text("NULL"),
+    )
     assets: Mapped[list] = mapped_column(
         JSON().with_variant(SQLITE_JSON, "sqlite"),
         default=list,

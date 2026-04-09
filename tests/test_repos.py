@@ -74,6 +74,40 @@ async def test_upsert_many_persists_sentiment_fields(tweet_repo):
 
 
 @pytest.mark.asyncio
+async def test_upsert_many_persists_quoted_tweet_payload(tweet_repo):
+    payload = {
+        **SAMPLE_TWEETS[0],
+        "quoted_tweet": {
+            "id": 555,
+            "text": "Quoted tweet body",
+            "user_name": "Quoted User",
+            "user_screen_name": "quoteduser",
+            "user_img": "https://example.com/quoted-avatar.jpg",
+            "url": "https://x.com/quoteduser/status/555",
+            "created_at": "2026-04-09T07:00:00Z",
+            "media": [{"url": "https://example.com/quoted.jpg", "type": "photo"}],
+            "tickers": ["TSLA"],
+            "hashtags": ["EV"],
+            "title": "Quoted title",
+            "media_types": ["photo"],
+            "likes": 4,
+            "retweets": 1,
+            "replies": 2,
+            "views": 99,
+        },
+    }
+
+    await tweet_repo.upsert_many([payload])
+    row = await tweet_repo.by_id(SAMPLE_TWEETS[0]["id"])
+
+    assert row is not None
+    assert row["quoted_tweet"] is not None
+    assert row["quoted_tweet"]["id"] == 555
+    assert row["quoted_tweet"]["user_name"] == "Quoted User"
+    assert row["quoted_tweet"]["media"][0]["url"] == "https://example.com/quoted.jpg"
+
+
+@pytest.mark.asyncio
 async def test_latest_returns_results_ordered_desc_by_id(tweet_repo):
     await tweet_repo.upsert_many(SAMPLE_TWEETS)
     rows = await tweet_repo.latest()

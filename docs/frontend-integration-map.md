@@ -1,6 +1,6 @@
 # Frontend Integration Map
 
-Last updated: 2026-04-06
+Last updated: 2026-04-09
 
 ## Mounted in `App.tsx` Today
 
@@ -39,7 +39,8 @@ Route-level sections:
 
 - Tweet timeline (`useTweets` + `TweetCard`)
   - Fetches: `/api/posts?limit=200` on initial mount, `/api/posts?limit=200&before_id=...` for manual older-page loading, and `/api/stream` (SSE)
-  - Purpose: live timeline with quote embeds, media, in-page image lightbox previews, financial cards, chart badge signals, separate main/quoted sentiment badges, and engagement updates.
+  - Purpose: live timeline with native-style quote headers (quoted avatar + author + timestamp), quote embeds, media, in-page image lightbox previews, financial cards, chart badge signals, separate main/quoted sentiment badges, and engagement updates.
+  - Quote integration: consumes `quoted_tweet` payload from backend for quote author metadata and quote media placement (falls back to markdown inference when absent).
 
 - Sidebar filters
   - Category filters: all, crypto, stock, non-financial.

@@ -1,6 +1,6 @@
 # API and Frontend Coverage Matrix
 
-Last updated: 2026-04-06
+Last updated: 2026-04-09
 
 ## Authentication
 
@@ -11,8 +11,8 @@ Last updated: 2026-04-06
 
 | Endpoint | Method | Data Source | Returns | Frontend Status |
 | --- | --- | --- | --- | --- |
-| `/api/posts` | GET | SQLite via `TweetRepo.latest` | Latest tweets including `assets`, engagement, media, symbols, and sentiment metadata for both main and quoted text (`sentiment_*`, `quoted_sentiment_*`). Supports pagination with `limit` (default 200, max 200) and `before_id` for older pages. | Connected via `useTweets` |
-| `/api/stream` | GET (SSE) | In-memory broadcaster from stream worker | Real-time tweet/new engagement updates (including main + quoted sentiment metadata on new tweets) | Connected via `useTweets` |
+| `/api/posts` | GET | SQLite via `TweetRepo.latest` | Latest tweets including `assets`, engagement, media, symbols, full nested quoted tweet payload (`quoted_tweet`), and sentiment metadata for both main and quoted text (`sentiment_*`, `quoted_sentiment_*`). Supports pagination with `limit` (default 200, max 200) and `before_id` for older pages. | Connected via `useTweets` |
+| `/api/stream` | GET (SSE) | In-memory broadcaster from stream worker | Real-time tweet/new engagement updates (including full `quoted_tweet` payload plus main + quoted sentiment metadata on new tweets) | Connected via `useTweets` |
 | `/api/fear-greed` | GET | `alternative.me/fng` | `{ value, change, status }` | Connected via `FearGreedWidget` |
 | `/api/treemap` | GET | `coin360.com/site-api/coins` | Coin360 top-100 treemap payload | Connected via `TreemapWidget` |
 | `/api/trending-crypto` | GET | `coinmarketcap.com/data-api/v3/topsearch/rank` | List of trending coins with price/change/volume/website | Connected via `TrendingCryptoWidget` |
@@ -58,3 +58,6 @@ The enriched values are attached under `tweet.assets[*].financials` and consumed
   - `quoted_sentiment_*` for quote-post sentiment rendering.
   - media URLs are rendered as in-page image previews (lightbox) in `TweetCard` rather than opening directly in a new tab on image click.
   - `created_at` is serialized with explicit UTC offset and rendered in the viewer's local timezone in `TweetCard`.
+  - quote embeds in `TweetCard` display quoted author identity and quoted timestamp in the embed header (using API-provided quote fields when available, with markdown/URL inference fallback).
+  - quote embeds in `TweetCard` also render the quoted user's avatar in the header (from `quoted_tweet.user_img` or `quoted_user_img` fallback).
+  - when present, quote embeds prefer `quoted_tweet` metadata/media from backend over markdown parsing heuristics.

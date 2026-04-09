@@ -16,6 +16,26 @@ export type Asset = {
   financials?: AssetFinancials | null;
 };
 
+export type QuotedTweet = {
+  id: number | string;
+  text: string;
+  user_name: string;
+  user_screen_name: string;
+  user_img: string;
+  url: string;
+  media: MediaItem[];
+  tickers: string[];
+  hashtags: string[];
+  title: string;
+  media_types: string[];
+  created_at: string;
+  likes: number;
+  retweets: number;
+  replies: number;
+  views: number;
+  is_subscriber_only?: boolean;
+};
+
 export type Tweet = {
   id: number;
   text: string;
@@ -36,6 +56,12 @@ export type Tweet = {
   sentiment_label?: 'BULLISH' | 'BEARISH' | 'NEUTRAL' | string | null;
   sentiment_emoji?: string | null;
   sentiment_score?: number | null;
+  quoted_user_name?: string | null;
+  quoted_user_screen_name?: string | null;
+  quoted_user_img?: string | null;
+  quoted_url?: string | null;
+  quoted_created_at?: string | null;
+  quoted_tweet?: QuotedTweet | null;
   quoted_sentiment_label?: 'BULLISH' | 'BEARISH' | 'NEUTRAL' | string | null;
   quoted_sentiment_emoji?: string | null;
   quoted_sentiment_score?: number | null;

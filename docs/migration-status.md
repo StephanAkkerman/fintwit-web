@@ -1,6 +1,6 @@
 # Migration Status
 
-Last updated: 2026-04-06
+Last updated: 2026-04-09
 
 ## Backend: Implemented
 
@@ -11,6 +11,7 @@ Last updated: 2026-04-06
 - Asset enrichment via `ticker-classifier` + Yahoo (equities) + CoinGecko (crypto).
 - Crypto enrichment hardening: CoinGecko caching and Yahoo `-USD` fallback when CoinGecko returns rate-limit/transient failures.
 - FinTwitBERT sentiment classification for streamed tweets with separate main-post and quoted-post outputs (main: `sentiment_*`, quoted: `quoted_sentiment_*`).
+- Full nested quoted tweet payload passthrough (`quoted_tweet`) from xtimeline is now persisted and served via `/api/posts`/`/api/stream`.
 - Operational backfill command for historical tweet sentiment (`python -m app.runtime.backfill_sentiment`).
 - SSE broadcasting (`/api/stream`) and engagement update handling for tweet updates.
 - Service-backed endpoints for Fear & Greed, treemap, StockTwits, SPY heatmap, and trending crypto.
@@ -25,6 +26,9 @@ Last updated: 2026-04-06
 - Live tweet timeline using initial REST load + SSE updates.
 - Timeline pagination: initial REST load now requests 200 tweets, with manual load-older pagination wired via `before_id`.
 - Quote tweet markdown rendering with quote embed styling.
+- Quote tweet header now mirrors native X styling by showing quoted author identity (instead of a generic label) and quoted timestamp when available.
+- Quote tweet header now includes the quoted user's avatar next to their name when image metadata is available.
+- Quote embeds now consume backend `quoted_tweet` metadata/media directly (author, handle, timestamp, image), with markdown heuristics only as fallback.
 - Quote image handling inside embed (with main image placement before quote embed).
 - Tweet images now open in an in-page lightbox preview (no full-page navigation away from timeline).
 - Tweet timestamps are shown in the viewer's local timezone (UTC source timestamps normalized server-side with offset).
