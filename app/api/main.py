@@ -15,8 +15,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from ..infra.db import create_engine, init_db
-from ..infra.repos import PortfolioRepo, TweetRepo
+from ..infra.repos import PortfolioRepo, TweetRepo, BinanceTickerRepo
 from ..ml.sentiment import FinTwitSentiment
+from ..services.binance_service import get_all_usdt_tickers
 from ..runtime.broadcast import Broadcaster
 from ..runtime.enricher import AssetEnricher
 from ..runtime.streamer import run_stream
@@ -38,8 +39,26 @@ ENGINE = create_engine(os.getenv("DB_URL", "sqlite+aiosqlite:///./data.db"))
 Session = async_sessionmaker(ENGINE, expire_on_commit=False)
 REPO = TweetRepo(Session)
 PORTFOLIO_REPO = PortfolioRepo(Session)
+BINANCE_TICKER_REPO = BinanceTickerRepo(Session)
 BROADCAST = Broadcaster()
 logger = logging.getLogger(__name__)
+
+
+async def sync_binance_tickers_loop(app_state: FastAPI, repo: BinanceTickerRepo):
+    """Periodically fetches and upserts all active Binance USDT tickers."""
+    backoff = 60.0
+    while True:
+        try:
+            client: httpx.AsyncClient = app_state.http_client
+            tickers = await get_all_usdt_tickers(client)
+            if tickers:
+                await repo.upsert_many(tickers)
+            await asyncio.sleep(300)  # Sync every 5 minutes
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error("sync_binance_tickers_loop error: %r", e)
+            await asyncio.sleep(backoff)
 
 
 async def api_key_dep(request: Request):
@@ -66,12 +85,15 @@ async def lifespan(app: FastAPI):
 
     # start background stream: persist THEN broadcast
     task = asyncio.create_task(run_stream(REPO, BROADCAST, sentiment_model))
+    binance_task = asyncio.create_task(sync_binance_tickers_loop(app.state, BINANCE_TICKER_REPO))
     try:
         yield
     finally:
         task.cancel()
+        binance_task.cancel()
         with suppress(asyncio.CancelledError):
             await task
+            await binance_task
         await app.state.http_client.aclose()
 
 
@@ -107,6 +129,12 @@ async def fear_greed(_=Depends(api_key_dep)):
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data
+
+
+@app.get("/api/binance/gainers-losers")
+async def binance_gainers_losers(limit: int = Query(10, ge=1, le=50), _=Depends(api_key_dep)):
+    gainers, losers = await BINANCE_TICKER_REPO.get_gainers_losers(limit=limit)
+    return {"gainers": gainers, "losers": losers}
 
 
 @app.get("/api/stocktwits")

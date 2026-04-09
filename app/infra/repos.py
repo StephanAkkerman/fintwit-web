@@ -5,7 +5,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from .db import PortfolioPositionRow, TweetRow
+from .db import PortfolioPositionRow, TweetRow, BinanceTickerRow
 
 _TWEET_COLUMNS = {c.name for c in TweetRow.__table__.c}
 
@@ -224,3 +224,58 @@ class PortfolioRepo:
                     )
                 )
         return bool(result.rowcount)
+
+
+def _binance_ticker_row_to_dict(r: BinanceTickerRow) -> dict:
+    return {
+        "symbol": r.symbol,
+        "price_change_percent": r.price_change_percent,
+        "last_price": r.last_price,
+        "volume": r.volume,
+        "updated_at": _iso_utc(r.updated_at),
+    }
+
+
+class BinanceTickerRepo:
+    def __init__(self, session_factory: async_sessionmaker):
+        self.Session = session_factory
+
+    async def upsert_many(self, items: list[dict]) -> None:
+        if not items:
+            return
+
+        async with self.Session() as s:
+            async with s.begin():
+                stmt = sqlite_insert(BinanceTickerRow).values(items)
+                update_dict = {
+                    "price_change_percent": stmt.excluded.price_change_percent,
+                    "last_price": stmt.excluded.last_price,
+                    "volume": stmt.excluded.volume,
+                    "updated_at": stmt.excluded.updated_at,
+                }
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["symbol"], set_=update_dict
+                )
+                await s.execute(stmt)
+
+    async def get_gainers_losers(self, limit: int = 10) -> tuple[list[dict], list[dict]]:
+        async with self.Session() as s:
+            # Top Gainers
+            stmt_gainers = (
+                select(BinanceTickerRow)
+                .order_by(BinanceTickerRow.price_change_percent.desc())
+                .limit(limit)
+            )
+            gainers_result = await s.execute(stmt_gainers)
+            gainers = [_binance_ticker_row_to_dict(row) for row in gainers_result.scalars()]
+
+            # Top Losers
+            stmt_losers = (
+                select(BinanceTickerRow)
+                .order_by(BinanceTickerRow.price_change_percent.asc())
+                .limit(limit)
+            )
+            losers_result = await s.execute(stmt_losers)
+            losers = [_binance_ticker_row_to_dict(row) for row in losers_result.scalars()]
+
+            return gainers, losers

@@ -65,6 +65,15 @@ class PortfolioPositionRow(Base):
     updated_at: Mapped[DateTime] = mapped_column(DateTime, nullable=True, index=True)
 
 
+class BinanceTickerRow(Base):
+    __tablename__ = "binance_tickers"
+    symbol: Mapped[str] = mapped_column(String, primary_key=True)
+    price_change_percent: Mapped[float] = mapped_column(Float)
+    last_price: Mapped[float] = mapped_column(Float)
+    volume: Mapped[float] = mapped_column(Float)
+    updated_at: Mapped[DateTime] = mapped_column(DateTime, nullable=True, index=True)
+
+
 def create_engine(url: str = "sqlite+aiosqlite:///./data.db") -> AsyncEngine:
     return create_async_engine(url, future=True)
 
