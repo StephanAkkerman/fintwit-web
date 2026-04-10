@@ -5,7 +5,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from .db import PortfolioPositionRow, TweetRow
+from .db import IbkrPositionRow, IbkrTradeRow, PortfolioPositionRow, TweetRow
 
 _TWEET_COLUMNS = {c.name for c in TweetRow.__table__.c}
 
@@ -225,3 +225,89 @@ class PortfolioRepo:
                     )
                 )
         return bool(result.rowcount)
+
+
+def _ibkr_position_to_dict(r: IbkrPositionRow) -> dict:
+    return {
+        "id": r.id,
+        "account": r.account,
+        "symbol": r.symbol,
+        "sec_type": r.sec_type,
+        "exchange": r.exchange,
+        "currency": r.currency,
+        "quantity": float(r.quantity),
+        "avg_cost": float(r.avg_cost),
+        "synced_at": _iso_utc(r.synced_at),
+    }
+
+
+def _ibkr_trade_to_dict(r: IbkrTradeRow) -> dict:
+    return {
+        "id": r.id,
+        "exec_id": r.exec_id,
+        "account": r.account,
+        "symbol": r.symbol,
+        "sec_type": r.sec_type,
+        "currency": r.currency,
+        "side": r.side,
+        "quantity": float(r.quantity),
+        "price": float(r.price),
+        "commission": float(r.commission) if r.commission is not None else None,
+        "executed_at": _iso_utc(r.executed_at),
+        "created_at": _iso_utc(r.created_at),
+    }
+
+
+class IbkrRepo:
+    """Async repo for IBKR positions and trade executions."""
+
+    def __init__(self, session_factory: async_sessionmaker):
+        self.Session = session_factory
+
+    async def sync_positions(self, account: str, positions: list[dict]) -> None:
+        """Replace all positions for an account with the current snapshot."""
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        async with self.Session() as s:
+            async with s.begin():
+                await s.execute(
+                    delete(IbkrPositionRow).where(IbkrPositionRow.account == account)
+                )
+                for p in positions:
+                    s.add(IbkrPositionRow(**p, synced_at=now))
+
+    async def list_positions(self) -> list[dict]:
+        stmt = select(IbkrPositionRow).order_by(IbkrPositionRow.symbol.asc())
+        async with self.Session() as s:
+            rows = (await s.execute(stmt)).scalars().all()
+        return [_ibkr_position_to_dict(r) for r in rows]
+
+    async def upsert_trades(self, trades: list[dict]) -> int:
+        """Insert new trade executions; skip duplicates by exec_id."""
+        if not trades:
+            return 0
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        async with self.Session() as s:
+            async with s.begin():
+                for t in trades:
+                    executed_at = t.get("executed_at")
+                    if isinstance(executed_at, datetime):
+                        executed_at = executed_at.astimezone(timezone.utc).replace(tzinfo=None)
+                    payload = {**t, "executed_at": executed_at, "created_at": now}
+                    stmt = (
+                        sqlite_insert(IbkrTradeRow)
+                        .values(payload)
+                        .on_conflict_do_nothing(index_elements=["exec_id"])
+                    )
+                    await s.execute(stmt)
+        return len(trades)
+
+    async def list_trades(
+        self, limit: int = 50, before_id: int | None = None
+    ) -> list[dict]:
+        stmt = select(IbkrTradeRow)
+        if before_id is not None:
+            stmt = stmt.where(IbkrTradeRow.id < before_id)
+        stmt = stmt.order_by(IbkrTradeRow.id.desc()).limit(limit)
+        async with self.Session() as s:
+            rows = (await s.execute(stmt)).scalars().all()
+        return [_ibkr_trade_to_dict(r) for r in rows]

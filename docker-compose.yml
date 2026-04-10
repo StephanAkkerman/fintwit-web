@@ -1,13 +1,35 @@
 services:
+  ibgateway:
+    # https://github.com/gnzsnz/ib-gateway-docker — supports ARM64 (Raspberry Pi)
+    # Replace with ghcr.io/gnzsnz/ib-gateway:stable for a pinned release
+    image: ghcr.io/gnzsnz/ib-gateway:latest
+    container_name: fintwit-ibgateway
+    restart: unless-stopped
+    environment:
+      TWS_USERID: ${TWS_USERID}
+      TWS_PASSWORD: ${TWS_PASSWORD}
+      TRADING_MODE: live
+      READ_ONLY_API: "yes"
+      VNC_SERVER_PASSWORD: ${VNC_SERVER_PASSWORD:-changeme}
+    ports:
+      - "127.0.0.1:4001:4001"  # TWS API (live)
+      - "127.0.0.1:5900:5900"  # VNC (optional inspection)
+
   backend:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: fintwit-backend
     restart: unless-stopped
+    depends_on:
+      - ibgateway
     environment:
       DB_URL: sqlite+aiosqlite:///./state/data.db
       API_KEY: ${API_KEY:-}
+      IBKR_ENABLED: "true"
+      IBKR_HOST: ibgateway
+      IBKR_PORT: "4001"
+      IBKR_SYNC_INTERVAL: "60"
     volumes:
       - ./state:/app/state
       - ./logs:/app/logs

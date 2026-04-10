@@ -179,3 +179,56 @@ export type StockMarketHoursItem = {
   timezone: string | null;
   exchange_name: string | null;
 };
+
+export type IbkrPosition = {
+  id: number;
+  account: string;
+  symbol: string;
+  sec_type: string;
+  exchange: string;
+  currency: string;
+  quantity: number;
+  avg_cost: number;
+  synced_at: string;
+  // enriched by backend
+  market_price?: number | null;
+  market_value: number;
+  cost_basis: number;
+  unrealized_pnl: number;
+  unrealized_pnl_percent: number;
+};
+
+export type IbkrTrade = {
+  id: number;
+  exec_id: string;
+  account: string;
+  symbol: string;
+  sec_type: string;
+  currency: string;
+  side: 'BOT' | 'SLD' | string;
+  quantity: number;
+  price: number;
+  commission?: number | null;
+  executed_at?: string | null;
+  created_at: string;
+};
+
+export type IbkrAccountValue = {
+  value: number;
+  currency: string;
+};
+
+export type IbkrAccountSummary = {
+  NetLiquidation?: IbkrAccountValue;
+  TotalCashValue?: IbkrAccountValue;
+  UnrealizedPnL?: IbkrAccountValue;
+  RealizedPnL?: IbkrAccountValue;
+  GrossPositionValue?: IbkrAccountValue;
+};
+
+export type IbkrStatus = {
+  configured: boolean;
+  connected: boolean;
+  last_sync: string | null;
+  last_error: string | null;
+};

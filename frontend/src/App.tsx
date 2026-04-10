@@ -3,7 +3,7 @@ import DebugAdminPanel from './components/DebugAdminPanel'
 import FearGreedWidget from './components/FearGreedWidget'
 import MarketOverview from './components/MarketOverview'
 import NftTrendingWidget from './components/NftTrendingWidget'
-import PortfolioPanel from './components/PortfolioPanel'
+import IbkrPanel from './components/IbkrPanel'
 import RedditWsbWidget from './components/RedditWsbWidget'
 import SpyHeatmapWidget from './components/SpyHeatmapWidget'
 import StockMarketHoursBanner from './components/StockMarketHoursBanner'
@@ -11,6 +11,7 @@ import StocktwitsWidget from './components/StocktwitsWidget'
 import TreemapWidget from './components/TreemapWidget'
 import TrendingCryptoWidget from './components/TrendingCryptoWidget'
 import TweetCard from './components/TweetCard'
+import { useIbkr } from './hooks/useIbkr'
 import { useTweets } from './hooks/useTweets'
 import type { Tweet } from './types'
 import { hasChartSignal } from './utils/tweetSignals'
@@ -101,6 +102,7 @@ function matchesFilter(tweet: Tweet, filter: FilterKey): boolean {
 
 export default function App() {
   const { tweets, hasMore, isLoadingOlder, loadOlder } = useTweets('') // same-origin API (proxied in dev)
+  const { status: ibkrStatus, positions: ibkrPositions, trades: ibkrTrades, account: ibkrAccount, loading: ibkrLoading, error: ibkrError, reload: reloadIbkr } = useIbkr()
   const [route, setRoute] = useState<RouteKey>(() => routeFromPath(window.location.pathname))
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all')
   const [tickerFilter, setTickerFilter] = useState<string | null>(null)
@@ -145,12 +147,28 @@ export default function App() {
     [tweets]
   )
 
+  const portfolioSymbols = useMemo(
+    () => new Set(ibkrPositions.map((p) => p.symbol.toUpperCase())),
+    [ibkrPositions]
+  )
+
   const displayedTweets = useMemo(() => {
-    const scoped = tweets.filter(
+    let scoped = tweets.filter(
       (tweet) =>
         matchesFilter(tweet, effectiveFilter) &&
         (!tickerFilter || matchesTicker(tweet, tickerFilter))
     )
+
+    if (route === 'portfolio' && portfolioSymbols.size > 0) {
+      scoped = scoped.filter((tweet) => {
+        const symbols = [
+          ...(tweet.tickers ?? []).map((t) => t.toUpperCase()),
+          ...(tweet.assets ?? []).map((a) => a.symbol.toUpperCase()),
+          ...extractTickersFromText(tweet.text ?? ''),
+        ]
+        return symbols.some((s) => portfolioSymbols.has(s))
+      })
+    }
 
     if (route !== 'crypto' && route !== 'stocks') {
       return scoped
@@ -165,7 +183,7 @@ export default function App() {
     }
 
     return scoped
-  }, [tweets, effectiveFilter, tickerFilter, route, chartSortMode])
+  }, [tweets, effectiveFilter, tickerFilter, route, chartSortMode, portfolioSymbols])
 
   const onTickerSelect = (ticker: string) => {
     setActiveFilter('all')
@@ -287,7 +305,9 @@ export default function App() {
               </>
             ) : route === 'portfolio' ? (
               <p className="mt-4 px-2 text-xs text-zinc-500">
-                Portfolio route is focused on IBKR stocks and auto-filters timeline to stock signals.
+                {portfolioSymbols.size > 0
+                  ? `Showing tweets for your ${portfolioSymbols.size} position${portfolioSymbols.size === 1 ? '' : 's'}: ${[...portfolioSymbols].join(', ')}`
+                  : 'Timeline will filter to your IBKR positions once connected.'}
               </p>
             ) : route === 'nfts' ? (
               <p className="mt-4 px-2 text-xs text-zinc-500">
@@ -380,7 +400,17 @@ export default function App() {
 
             {route === 'nfts' && <NftTrendingWidget />}
 
-            {route === 'portfolio' && <PortfolioPanel />}
+            {route === 'portfolio' && (
+              <IbkrPanel
+                status={ibkrStatus}
+                positions={ibkrPositions}
+                trades={ibkrTrades}
+                account={ibkrAccount}
+                loading={ibkrLoading}
+                error={ibkrError}
+                reload={reloadIbkr}
+              />
+            )}
 
             {route === 'admin' && <DebugAdminPanel />}
 
