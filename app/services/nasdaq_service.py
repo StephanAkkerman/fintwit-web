@@ -25,7 +25,7 @@ async def get_halt_data(client: httpx.AsyncClient) -> list[dict] | None:
     """
     html = await fetch_halt_data(client)
     if not html or "result" not in html:
-        return []
+        return None
 
     try:
         # Parse the HTML table using lxml
@@ -74,10 +74,8 @@ async def get_halt_data(client: httpx.AsyncClient) -> list[dict] | None:
             try:
                 dt_str = f"{halt_date} {halt_time}"
                 dt = datetime.datetime.strptime(dt_str, "%m/%d/%Y %H:%M:%S")
-                # Convert to local timezone
-                dt_utc_or_eastern = dt.replace(tzinfo=tz.gettz("US/Eastern"))
-                dt_local = dt_utc_or_eastern.astimezone(tz.tzlocal())
-                time_str = dt_local.strftime("%H:%M:%S")
+                dt_eastern = dt.replace(tzinfo=tz.gettz("US/Eastern"))
+                time_str = dt_eastern.strftime("%H:%M:%S")
             except ValueError:
                 time_str = "?"
 
@@ -93,9 +91,8 @@ async def get_halt_data(client: httpx.AsyncClient) -> list[dict] | None:
                     try:
                          res_dt_str = f"{res_date} {res_time}"
                          res_dt = datetime.datetime.strptime(res_dt_str, "%m/%d/%Y %H:%M:%S")
-                         res_dt_utc_or_eastern = res_dt.replace(tzinfo=tz.gettz("US/Eastern"))
-                         res_dt_local = res_dt_utc_or_eastern.astimezone(tz.tzlocal())
-                         halt_dict["Resumption Time"] = res_dt_local.strftime("%H:%M:%S")
+                         res_dt_eastern = res_dt.replace(tzinfo=tz.gettz("US/Eastern"))
+                         halt_dict["Resumption Time"] = res_dt_eastern.strftime("%H:%M:%S")
                     except ValueError:
                          halt_dict["Resumption Time"] = "?"
                 else:
@@ -106,7 +103,7 @@ async def get_halt_data(client: httpx.AsyncClient) -> list[dict] | None:
         return halts
     except Exception as e:
         logger.exception(f"Error parsing Nasdaq halt data: {e}")
-        return []
+        return None
 
 async def fetch_halt_data(client: httpx.AsyncClient) -> dict | None:
     headers = {

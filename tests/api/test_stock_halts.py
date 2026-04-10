@@ -73,8 +73,8 @@ async def test_get_stock_halts_error(async_client):
         response = await async_client.get(
             "/api/stock-halts", headers={"X-API-Key": "dev-secret-key"}
         )
-        assert response.status_code == 200
-        assert response.json() == []
+        assert response.status_code == 503
+        assert response.json() == {"detail": "Service Unavailable"}
 
 @pytest.mark.asyncio
 async def test_get_stock_halts_unauthorized(async_client):

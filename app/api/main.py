@@ -109,6 +109,8 @@ async def fear_greed(_=Depends(api_key_dep)):
 async def stock_halts(request: Request, _=Depends(api_key_dep)):
     client: httpx.AsyncClient = request.app.state.http_client
     data = await get_halt_data(client)
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
     return data
 
 
