@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 _SEARCH_URL = "https://api.coingecko.com/api/v3/search"
 _PRICE_URL = "https://api.coingecko.com/api/v3/simple/price"
+_CATEGORIES_URL = "https://api.coingecko.com/api/v3/coins/categories"
 
 _HEADERS = {
     "User-Agent": "fintwit-web/0.1 (+https://github.com/StephanAkkerman/fintwit-web)",
@@ -117,6 +118,36 @@ async def _fallback_to_yahoo(ticker: str) -> Optional[dict]:
 def _reset_cache_for_tests() -> None:
     _cache.clear()
     _coin_id_cache.clear()
+
+
+async def get_top_categories(limit: int = 15) -> Optional[list[dict]]:
+    try:
+        async with _request_semaphore:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(_CATEGORIES_URL, headers=_HEADERS) as response:
+                    if response.status == 429:
+                        logger.warning("[coingecko] categories rate-limited")
+                        return None
+                    if response.status != 200:
+                        logger.debug("[coingecko] categories status=%s", response.status)
+                        return None
+
+                    data = await response.json()
+
+                    categories = []
+                    for item in data[:limit]:
+                        categories.append({
+                            "name": item.get("name"),
+                            "link": f"https://www.coingecko.com/en/categories/{item.get('id')}" if item.get("id") else "https://www.coingecko.com/",
+                            "24h_change": item.get("market_cap_change_24h"),
+                            "market_cap": item.get("market_cap"),
+                            "volume": item.get("volume_24h"),
+                        })
+
+                    return categories
+    except Exception as exc:
+        logger.exception("[coingecko] categories fetch failed: %r", exc)
+        return None
 
 
 async def get_crypto_info(ticker: str) -> Optional[dict]:

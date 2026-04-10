@@ -28,6 +28,7 @@ from ..services.reddit_service import get_reddit_hot_posts, is_valid_subreddit_n
 from ..services.stocktwits_service import get_stocktwits_data
 from ..services.unusual_whales import get_spy_heatmap
 from ..services.yahoo import get_stock_info
+from ..services.coingecko import get_top_categories
 
 with suppress(Exception):
     from dotenv import load_dotenv
@@ -104,6 +105,14 @@ async def stream(_=Depends(api_key_dep)):
 @app.get("/api/fear-greed")
 async def fear_greed(_=Depends(api_key_dep)):
     data = await get_feargreed()
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
+
+
+@app.get("/api/crypto/categories")
+async def crypto_categories(limit: int = Query(15, ge=1, le=50), _=Depends(api_key_dep)):
+    data = await get_top_categories(limit=limit)
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data

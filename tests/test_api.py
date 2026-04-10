@@ -309,3 +309,29 @@ async def test_portfolio_summary_returns_totals(async_client):
     data = response.json()
     assert data["totals"]["positions"] == 1
     assert data["totals"]["unrealized_pnl"] == 200.0
+
+@pytest.mark.asyncio
+async def test_crypto_categories(async_client, monkeypatch):
+    import app.api.main as app_main
+    app_main.app.state.API_KEY = "test_key"
+
+    async def mock_get_top_categories(limit: int):
+        return [
+            {"name": "Smart Contract Platform", "link": "https://www.coingecko.com/en/categories/smart-contract-platform", "24h_change": 1.0, "market_cap": 2000000.0, "volume": 700000.0}
+        ]
+
+    monkeypatch.setattr("app.api.main.get_top_categories", mock_get_top_categories)
+
+    response = await async_client.get("/api/crypto/categories", headers={"x-api-key": "test_key"})
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["name"] == "Smart Contract Platform"
+
+@pytest.mark.asyncio
+async def test_crypto_categories_unauthorized(async_client):
+    import app.api.main as app_main
+    app_main.app.state.API_KEY = "test_key"
+
+    response = await async_client.get("/api/crypto/categories")
+    assert response.status_code == 401
