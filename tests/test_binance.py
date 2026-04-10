@@ -1,11 +1,8 @@
 import pytest
 from httpx import AsyncClient, ASGITransport
-from app.api.main import app
 
 @pytest.fixture
 def mock_binance_response(monkeypatch):
-    import app.services.binance_service
-
     async def mock_get(*args, **kwargs):
         class MockResponse:
             def json(self):
@@ -55,7 +52,6 @@ def mock_binance_response(monkeypatch):
 @pytest.mark.asyncio
 async def test_binance_gainers_losers(mock_binance_response, monkeypatch):
     from app.api.main import app as main_app
-    import app.services.binance_service
 
     main_app.state.API_KEY = "test-key"
 
