@@ -1,6 +1,6 @@
 # Frontend Integration Map
 
-Last updated: 2026-04-09
+Last updated: 2026-04-10
 
 ## Mounted in `App.tsx` Today
 
@@ -19,10 +19,15 @@ Route-level sections:
   - Chart-focused sort controls: Latest / Charts first / Charts only
 
 - `/stocks`
+  - `StockMarketHoursBanner`
   - `StocktwitsWidget`
   - `SpyHeatmapWidget`
   - Tweet timeline auto-filtered to stock signals
   - Chart-focused sort controls: Latest / Charts first / Charts only
+
+- `/nfts`
+  - `NftTrendingWidget`
+  - CoinGecko trending NFT collections with floor-price pulse
 
 - `/portfolio`
   - `PortfolioPanel`
@@ -56,6 +61,10 @@ Route-level sections:
   - Fetches: `/api/trending-crypto`
   - Purpose: top searched crypto table with price and 24h change.
 
+- `NftTrendingWidget` + `useTrendingNfts`
+  - Fetches: `/api/nfts/trending?limit=...`
+  - Purpose: NFT collection momentum table with floor price and 24h floor change.
+
 - `MarketOverview` + `useMarketAssets` + `AssetBadge`
   - Fetches: `/api/posts` + `/api/stream` (derived live assets)
   - Purpose: top streamed assets with live price/change links.
@@ -67,6 +76,10 @@ Route-level sections:
 - `StocktwitsWidget` + `useStocktwits`
   - Fetches: `/api/stocktwits?keyword=...`
   - Purpose: StockTwits ranking view (trending / active / watched).
+
+- `StockMarketHoursBanner` + `useStockMarketHours`
+  - Fetches: `/api/stocks/market-hours`
+  - Purpose: Display current major exchange session states, including pre-market and after-hours.
 
 - `SpyHeatmapWidget` + `useSpyHeatmap`
   - Fetches: `/api/spy-heatmap?date=...`

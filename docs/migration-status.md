@@ -1,6 +1,6 @@
 # Migration Status
 
-Last updated: 2026-04-09
+Last updated: 2026-04-10
 
 ## Backend: Implemented
 
@@ -15,6 +15,9 @@ Last updated: 2026-04-09
 - Operational backfill command for historical tweet sentiment (`python -m app.runtime.backfill_sentiment`).
 - SSE broadcasting (`/api/stream`) and engagement update handling for tweet updates.
 - Service-backed endpoints for Fear & Greed, treemap, StockTwits, SPY heatmap, and trending crypto.
+- NFT migration slice: CoinGecko trending NFTs endpoint (`/api/nfts/trending`) now available.
+- Stock migration slice: market session endpoint (`/api/stocks/market-hours`) now available with pre-market/after-hours state mapping for major exchanges.
+- Stock market-hours service hardening: short-lived cache plus stale-cache fallback now keeps the endpoint available during transient Yahoo rate limits (`429`).
 - Service-backed endpoints for Fear & Greed, treemap, StockTwits, SPY heatmap, trending crypto, and WallStreetBets Reddit hot posts.
 - Reddit WallStreetBets ingestion uses asyncpraw-first (legacy-style credentials) with HTTP JSON fallback when credentials are missing.
 - StockTwits service fallback for anti-bot blocks: curl-first fetch strategy with short-lived per-keyword cache fallback to avoid transient 503s (curl is executed via thread-backed sync subprocess for Windows/uvicorn compatibility).
@@ -42,6 +45,7 @@ Last updated: 2026-04-09
   - `/` home overview,
   - `/crypto` crypto widgets,
   - `/stocks` stock widgets,
+  - `/nfts` NFT momentum widget,
   - `/portfolio` portfolio management.
 - Crypto and stock routes support chart-focused tweet ordering:
   - Latest,
@@ -51,6 +55,8 @@ Last updated: 2026-04-09
 - Tweet cards display separate sentiment badges for the main post and quoted post using backend metadata.
 - Portfolio route includes add/list/toggle/delete workflows and summary cards (positions, market value, cost basis, unrealized PnL).
 - Home route includes a WallStreetBets radar widget with latest Reddit post momentum signals.
+- NFTs route includes a CoinGecko-based trending collections widget with floor price and 24h floor change.
+- Stocks route now includes a market-hours banner showing major exchange session state (open/pre-market/after-hours/closed).
 
 ## Connected End-to-End Today
 
@@ -64,6 +70,8 @@ Last updated: 2026-04-09
 - Debug admin panel: `/api/debug/tweet` -> `DebugAdminPanel` (`/admin`).
 - Portfolio panel: `/api/portfolio/positions` + `/api/portfolio/summary` -> `PortfolioPanel` (`/portfolio`).
 - WallStreetBets panel: `/api/reddit/wsb` -> `RedditWsbWidget` (`/`).
+- NFTs panel: `/api/nfts/trending` -> `NftTrendingWidget` (`/nfts`).
+- Stock market-hours banner: `/api/stocks/market-hours` -> `StockMarketHoursBanner` (`/stocks`).
 
 ## Backend APIs Not Yet Connected in Main UI
 

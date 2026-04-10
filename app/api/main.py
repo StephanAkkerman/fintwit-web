@@ -24,6 +24,8 @@ from ..runtime.symbols import merge_symbols
 from ..services.cmc import get_trending_crypto
 from ..services.coin360_service import get_treemap_data
 from ..services.fear_greed_service import get_feargreed
+from ..services.market_hours_service import get_stock_market_hours
+from ..services.nft_service import get_trending_nfts
 from ..services.reddit_service import get_reddit_hot_posts, is_valid_subreddit_name
 from ..services.stocktwits_service import get_stocktwits_data
 from ..services.unusual_whales import get_spy_heatmap
@@ -120,6 +122,15 @@ async def stocktwits(
     if data is None:
         # StockTwits can intermittently block requests; return empty payload to avoid UI hard-fail.
         return []
+    return data
+
+
+@app.get("/api/stocks/market-hours")
+async def stock_market_hours(request: Request, _=Depends(api_key_dep)):
+    client: httpx.AsyncClient = request.app.state.http_client
+    data = await get_stock_market_hours(client)
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
     return data
 
 
@@ -382,6 +393,19 @@ async def portfolio_summary(_=Depends(api_key_dep)):
 @app.get("/api/trending-crypto")
 async def trending_crypto(_=Depends(api_key_dep)):
     data = await get_trending_crypto()
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
+
+
+@app.get("/api/nfts/trending")
+async def trending_nfts(
+    request: Request,
+    limit: int = Query(10, ge=1, le=30),
+    _=Depends(api_key_dep),
+):
+    client: httpx.AsyncClient = request.app.state.http_client
+    data = await get_trending_nfts(client, limit=limit)
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data

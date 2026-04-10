@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import DebugAdminPanel from './components/DebugAdminPanel'
 import FearGreedWidget from './components/FearGreedWidget'
 import MarketOverview from './components/MarketOverview'
+import NftTrendingWidget from './components/NftTrendingWidget'
 import PortfolioPanel from './components/PortfolioPanel'
 import RedditWsbWidget from './components/RedditWsbWidget'
 import SpyHeatmapWidget from './components/SpyHeatmapWidget'
+import StockMarketHoursBanner from './components/StockMarketHoursBanner'
 import StocktwitsWidget from './components/StocktwitsWidget'
 import TreemapWidget from './components/TreemapWidget'
 import TrendingCryptoWidget from './components/TrendingCryptoWidget'
@@ -14,13 +16,14 @@ import type { Tweet } from './types'
 import { hasChartSignal } from './utils/tweetSignals'
 
 type FilterKey = 'all' | 'crypto' | 'stock' | 'non-financial'
-type RouteKey = 'home' | 'crypto' | 'stocks' | 'portfolio' | 'admin'
+type RouteKey = 'home' | 'crypto' | 'stocks' | 'nfts' | 'portfolio' | 'admin'
 type ChartSortMode = 'latest' | 'charts-first' | 'charts-only'
 
 const SECTIONS: Array<{ key: RouteKey; label: string; path: string; subtitle: string }> = [
   { key: 'home', label: 'Home', path: '/', subtitle: 'Cross-market stream' },
   { key: 'crypto', label: 'Crypto', path: '/crypto', subtitle: 'Coins, trend, heatmap' },
   { key: 'stocks', label: 'Stocks', path: '/stocks', subtitle: 'Equity sentiment and SPY map' },
+  { key: 'nfts', label: 'NFTs', path: '/nfts', subtitle: 'Collection momentum and floor-price pulse' },
   { key: 'portfolio', label: 'Portfolio', path: '/portfolio', subtitle: 'IBKR stock positions and PnL' },
   { key: 'admin', label: 'Admin', path: '/admin', subtitle: 'Debug tweet injection and verification' },
 ]
@@ -35,6 +38,7 @@ const FILTERS: Array<{ key: FilterKey; label: string }> = [
 function routeFromPath(pathname: string): RouteKey {
   if (pathname.startsWith('/crypto')) return 'crypto'
   if (pathname.startsWith('/stocks')) return 'stocks'
+  if (pathname.startsWith('/nfts')) return 'nfts'
   if (pathname.startsWith('/portfolio')) return 'portfolio'
   if (pathname.startsWith('/admin')) return 'admin'
   return 'home'
@@ -43,6 +47,7 @@ function routeFromPath(pathname: string): RouteKey {
 function pathFromRoute(route: RouteKey): string {
   if (route === 'crypto') return '/crypto'
   if (route === 'stocks') return '/stocks'
+  if (route === 'nfts') return '/nfts'
   if (route === 'portfolio') return '/portfolio'
   if (route === 'admin') return '/admin'
   return '/'
@@ -284,6 +289,10 @@ export default function App() {
               <p className="mt-4 px-2 text-xs text-zinc-500">
                 Portfolio route is focused on IBKR stocks and auto-filters timeline to stock signals.
               </p>
+            ) : route === 'nfts' ? (
+              <p className="mt-4 px-2 text-xs text-zinc-500">
+                NFTs route highlights trending collections and floor-price momentum from CoinGecko.
+              </p>
             ) : (
               <p className="mt-4 px-2 text-xs text-zinc-500">
                 Use this route to inject a debug tweet via `/api/debug/tweet` and verify timeline behavior.
@@ -363,10 +372,13 @@ export default function App() {
 
             {route === 'stocks' && (
               <>
+                <StockMarketHoursBanner />
                 <StocktwitsWidget />
                 <SpyHeatmapWidget />
               </>
             )}
+
+            {route === 'nfts' && <NftTrendingWidget />}
 
             {route === 'portfolio' && <PortfolioPanel />}
 
