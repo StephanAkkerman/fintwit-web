@@ -31,12 +31,12 @@ async def get_funding_rates(client: httpx.AsyncClient) -> Tuple[List[Dict[str, A
     usdt_pairs = []
     for item in data:
         symbol = item.get("symbol", "")
-        if "USDT" in symbol:
+        if symbol.endswith("USDT"):
             try:
                 rate = float(item.get("lastFundingRate", 0))
                 next_funding_time_ms = int(item.get("nextFundingTime", 0))
                 usdt_pairs.append({
-                    "symbol": symbol.replace("USDT", ""),
+                    "symbol": symbol.removesuffix("USDT"),
                     "lastFundingRate": rate,
                     "nextFundingTime": next_funding_time_ms
                 })
@@ -49,8 +49,8 @@ async def get_funding_rates(client: httpx.AsyncClient) -> Tuple[List[Dict[str, A
 
     # Get time to next funding, unix is in milliseconds
     try:
-        next_funding_time = datetime.datetime.fromtimestamp(usdt_pairs[0]["nextFundingTime"] // 1000)
-        time_to_next_funding = next_funding_time - datetime.datetime.now()
+        next_funding_time = datetime.datetime.fromtimestamp(usdt_pairs[0]["nextFundingTime"] // 1000, tz=datetime.timezone.utc)
+        time_to_next_funding = next_funding_time - datetime.datetime.now(datetime.timezone.utc)
     except (IndexError, KeyError, ValueError) as e:
         logger.warning(f"Could not calculate next funding time: {e}")
         time_to_next_funding = datetime.timedelta()

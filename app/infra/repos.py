@@ -233,8 +233,8 @@ class FundingRateRepo:
                 {
                     "symbol": r.symbol,
                     "lastFundingRate": f"{r.rate:.4f}%",
-                    "nextFundingTime": r.next_funding_time.isoformat() if r.next_funding_time else None,
-                    "updated_at": r.updated_at.isoformat() if r.updated_at else None
+                    "nextFundingTime": r.next_funding_time.replace(tzinfo=timezone.utc).isoformat() if r.next_funding_time else None,
+                    "updated_at": r.updated_at.replace(tzinfo=timezone.utc).isoformat() if r.updated_at else None
                 }
                 for r in rows
             ]
