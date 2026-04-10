@@ -111,8 +111,9 @@ async def fear_greed(_=Depends(api_key_dep)):
 
 
 @app.get("/api/crypto/categories")
-async def crypto_categories(limit: int = Query(15, ge=1, le=50), _=Depends(api_key_dep)):
-    data = await get_top_categories(limit=limit)
+async def crypto_categories(request: Request, limit: int = Query(15, ge=1, le=50), _=Depends(api_key_dep)):
+    client: httpx.AsyncClient = request.app.state.http_client
+    data = await get_top_categories(client=client, limit=limit)
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data

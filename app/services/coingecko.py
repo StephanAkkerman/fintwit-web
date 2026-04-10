@@ -4,6 +4,7 @@ import time
 from typing import Optional
 
 import aiohttp
+import httpx
 
 from .yahoo import get_stock_info
 
@@ -120,31 +121,28 @@ def _reset_cache_for_tests() -> None:
     _coin_id_cache.clear()
 
 
-async def get_top_categories(limit: int = 15) -> Optional[list[dict]]:
+async def get_top_categories(client: httpx.AsyncClient, limit: int = 15) -> Optional[list[dict]]:
     try:
         async with _request_semaphore:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(_CATEGORIES_URL, headers=_HEADERS) as response:
-                    if response.status == 429:
-                        logger.warning("[coingecko] categories rate-limited")
-                        return None
-                    if response.status != 200:
-                        logger.debug("[coingecko] categories status=%s", response.status)
-                        return None
+            response = await client.get(_CATEGORIES_URL, headers=_HEADERS)
+            if response.status_code == 429:
+                logger.warning("[coingecko] categories rate-limited")
+                return None
+            if response.status_code != 200:
+                logger.debug("[coingecko] categories status=%s", response.status_code)
+                return None
 
-                    data = await response.json()
-
-                    categories = []
-                    for item in data[:limit]:
-                        categories.append({
-                            "name": item.get("name"),
-                            "link": f"https://www.coingecko.com/en/categories/{item.get('id')}" if item.get("id") else "https://www.coingecko.com/",
-                            "24h_change": item.get("market_cap_change_24h"),
-                            "market_cap": item.get("market_cap"),
-                            "volume": item.get("volume_24h"),
-                        })
-
-                    return categories
+            data = response.json()
+            return [
+                {
+                    "name": item.get("name"),
+                    "link": f"https://www.coingecko.com/en/categories/{item.get('id')}" if item.get("id") else "https://www.coingecko.com/",
+                    "24h_change": item.get("market_cap_change_24h"),
+                    "market_cap": item.get("market_cap"),
+                    "volume": item.get("volume_24h"),
+                }
+                for item in data[:limit]
+            ]
     except Exception as exc:
         logger.exception("[coingecko] categories fetch failed: %r", exc)
         return None

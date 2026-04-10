@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
+import httpx
 
 from app.api.main import app
 from tests.conftest import SAMPLE_TWEETS
@@ -314,16 +315,20 @@ async def test_portfolio_summary_returns_totals(async_client):
 async def test_crypto_categories(async_client, monkeypatch):
     import app.api.main as app_main
     app_main.app.state.API_KEY = "test_key"
+    app_main.app.state.http_client = httpx.AsyncClient()
 
-    async def mock_get_top_categories(limit: int):
+    async def mock_get_top_categories(client, limit: int):
         return [
             {"name": "Smart Contract Platform", "link": "https://www.coingecko.com/en/categories/smart-contract-platform", "24h_change": 1.0, "market_cap": 2000000.0, "volume": 700000.0}
         ]
 
     monkeypatch.setattr("app.api.main.get_top_categories", mock_get_top_categories)
 
-    response = await async_client.get("/api/crypto/categories", headers={"x-api-key": "test_key"})
-    assert response.status_code == 200
+    try:
+        response = await async_client.get("/api/crypto/categories", headers={"X-API-Key": "test_key"})
+        assert response.status_code == 200
+    finally:
+        await app_main.app.state.http_client.aclose()
     data = response.json()
     assert len(data) == 1
     assert data[0]["name"] == "Smart Contract Platform"
