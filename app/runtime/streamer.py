@@ -120,7 +120,7 @@ async def run_stream(
 
                     main_sentiment = None
                     quoted_sentiment = None
-                    if sentiment_model is not None:
+                    if sentiment_model is not None and symbols:
                         try:
                             sentiment_parts = await sentiment_model.classify_parts(
                                 t_dict.get("text") or ""

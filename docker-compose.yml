@@ -13,7 +13,7 @@ services:
       VNC_SERVER_PASSWORD: ${VNC_SERVER_PASSWORD:-changeme}
     ports:
       - "127.0.0.1:4001:4001"  # TWS API (live)
-      - "127.0.0.1:5900:5900"  # VNC (optional inspection)
+      - "127.0.0.1:5901:5900"  # VNC (optional inspection)
 
   backend:
     build:
