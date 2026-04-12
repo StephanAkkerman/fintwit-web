@@ -53,7 +53,7 @@ async def get_halt_data(client: httpx.AsyncClient) -> list[dict] | None:
 
         has_resumption = "Resumption Date" in col_indices and "Resumption Trade Time" in col_indices
 
-        today_str = datetime.datetime.now().strftime("%m/%d/%Y")
+        today_str = datetime.datetime.now(tz.gettz("US/Eastern")).strftime("%m/%d/%Y")
         halts = []
 
         for row in rows[1:]:
