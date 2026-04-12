@@ -28,6 +28,7 @@ from ..services.coin360_service import get_treemap_data
 from ..services.fear_greed_service import get_feargreed
 from ..services.market_hours_service import get_stock_market_hours
 from ..services.nft_service import get_trending_nfts
+from ..services.benzinga_service import get_analyst_ratings
 from ..services.reddit_service import get_reddit_hot_posts, is_valid_subreddit_name
 from ..services.stocktwits_service import get_stocktwits_data
 from ..services.unusual_whales import get_spy_heatmap
@@ -150,6 +151,15 @@ async def stocktwits(
     if data is None:
         # StockTwits can intermittently block requests; return empty payload to avoid UI hard-fail.
         return []
+    return data
+
+
+@app.get("/api/benzinga/ratings/{symbol}")
+async def api_get_benzinga_ratings(
+    request: Request, symbol: str, _=Depends(api_key_dep)
+):
+    client: httpx.AsyncClient = request.app.state.http_client
+    data = await get_analyst_ratings(client, symbol.upper())
     return data
 
 
