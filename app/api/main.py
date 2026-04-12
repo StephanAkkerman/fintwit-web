@@ -27,7 +27,7 @@ from ..services.fear_greed_service import get_feargreed
 from ..services.reddit_service import get_reddit_hot_posts, is_valid_subreddit_name
 from ..services.stocktwits_service import get_stocktwits_data
 from ..services.unusual_whales import get_spy_heatmap
-from app.services.nasdaq_service import get_halt_data
+from ..services.nasdaq_service import get_halt_data
 from ..services.yahoo import get_stock_info
 
 with suppress(Exception):
