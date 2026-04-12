@@ -15,4 +15,4 @@ httpx==0.28.1
 asyncpraw>=7.8,<8
 dotenv==0.9.9
 ib_insync>=0.9,<1
-lxml==5.2.1
+lxml>=5.0.0
