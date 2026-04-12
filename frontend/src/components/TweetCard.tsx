@@ -473,6 +473,14 @@ export default function TweetCard({
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           {assets.map((asset) => {
             const financials = asset.financials
+            const profile = asset.company_profile
+            const profileSummary = [profile?.exchange, profile?.country, profile?.currency]
+              .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+              .join(' | ')
+            const capCategory =
+              typeof profile?.market_cap_category === 'string' && profile.market_cap_category.trim().length > 0
+                ? profile.market_cap_category
+                : null
             const hasPrice = typeof financials?.price === 'number'
             const hasChange = typeof financials?.change_percent === 'number'
             const change = hasChange ? (financials?.change_percent as number) : 0
@@ -512,6 +520,19 @@ export default function TweetCard({
 
                 {asset.name && (
                   <div className="truncate text-[11px] text-zinc-500 dark:text-zinc-400">{asset.name}</div>
+                )}
+                {(asset.sector || asset.industry) && (
+                  <div className="truncate text-[11px] text-zinc-500 dark:text-zinc-400">
+                    {asset.sector ?? 'Unknown sector'}
+                    {asset.industry ? ` | ${asset.industry}` : ''}
+                  </div>
+                )}
+                {(profileSummary || capCategory) && (
+                  <div className="truncate text-[11px] text-zinc-500 dark:text-zinc-400">
+                    {profileSummary}
+                    {profileSummary && capCategory ? ' | ' : ''}
+                    {capCategory ?? ''}
+                  </div>
                 )}
 
                 <div className="mt-1 flex items-center justify-between gap-2 text-sm">

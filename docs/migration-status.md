@@ -10,6 +10,8 @@ Last updated: 2026-04-12
 - Symbol extraction fallback from tweet text (`$TICKER`, `#HASHTAG`) and symbol merge logic.
 - Asset enrichment via `ticker-classifier` + Yahoo (equities) + CoinGecko (crypto).
 - Asset enrichment hardening: uses classifier `yahoo_lookup` with centralized shortcut mappings in `ticker-classifier` (e.g. `DXY` -> `DX-Y.NYB`) so ETF/index/forex-style symbols are more reliably priced/classified.
+- Equity asset enrichment now includes optional `sector` and `industry` metadata (for example `AAPL`/`NVDA` tagged as technology) sourced from classifier metadata.
+- Equity/ETF asset enrichment now includes optional `company_profile` metadata (`industry_group`, `country`, `exchange`, `currency`, `website`, `market_cap_category`) from classifier metadata.
 - Crypto enrichment hardening: CoinGecko caching and Yahoo `-USD` fallback when CoinGecko returns rate-limit/transient failures.
 - FinTwitBERT sentiment classification for streamed tweets with separate main-post and quoted-post outputs (main: `sentiment_*`, quoted: `quoted_sentiment_*`).
 - Full nested quoted tweet payload passthrough (`quoted_tweet`) from xtimeline is now persisted and served via `/api/posts`/`/api/stream`.
@@ -38,6 +40,7 @@ Last updated: 2026-04-12
 - Tweet images now open in an in-page lightbox preview (no full-page navigation away from timeline).
 - Tweet timestamps are shown in the viewer's local timezone (UTC source timestamps normalized server-side with offset).
 - Financial asset blocks in tweet cards (symbol, kind, name, price, daily %).
+- Tweet asset cards now show compact company profile context for equities/ETFs (exchange, country, currency, and market-cap category) when available.
 - Price links to source financial website when available.
 - Sidebar filters: all, crypto, stock, non-financial.
 - Ticker filtering via:

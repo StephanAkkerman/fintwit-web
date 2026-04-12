@@ -58,6 +58,16 @@ class AssetEnricher:
                     meta = getattr(r, "meta", None) or r.get("meta")
                     name = getattr(r, "name", None) or r.get("name")
                     market_cap = getattr(r, "market_cap", None) or r.get("market_cap")
+                    sector = getattr(r, "sector", None) or r.get("sector")
+                    industry = getattr(r, "industry", None) or r.get("industry")
+                    company_profile = getattr(r, "company_profile", None)
+                    if not isinstance(company_profile, dict):
+                        try:
+                            company_profile = r.get("company_profile")
+                        except Exception:
+                            company_profile = None
+                    if not isinstance(company_profile, dict):
+                        company_profile = None
 
                     yahoo_lookup_value = getattr(r, "yahoo_lookup", None)
                     if not isinstance(yahoo_lookup_value, str):
@@ -78,6 +88,9 @@ class AssetEnricher:
                         "kind": kind,
                         "name": name,
                         "market_cap": market_cap,
+                        "sector": sector,
+                        "industry": industry,
+                        "company_profile": company_profile,
                         "meta": meta,
                         "yahoo_lookup": yahoo_lookup,
                     }

@@ -10,7 +10,14 @@ from app.runtime.enricher import AssetEnricher
 
 
 def _mock_classifier_result(
-    symbol, kind, name="Test Asset", market_cap=1_000_000, meta=None
+    symbol,
+    kind,
+    name="Test Asset",
+    market_cap=1_000_000,
+    meta=None,
+    sector=None,
+    industry=None,
+    company_profile=None,
 ):
     """Return a mock object that looks like a TickerClassifier result row."""
     r = MagicMock()
@@ -19,6 +26,9 @@ def _mock_classifier_result(
     r.name = name
     r.market_cap = market_cap
     r.meta = meta or {}
+    r.sector = sector
+    r.industry = industry
+    r.company_profile = company_profile
     return r
 
 
@@ -254,7 +264,21 @@ async def test_classify_deduplicates_symbols():
 async def test_classify_preserves_static_fields():
     enricher = AssetEnricher()
     mock_result = _mock_classifier_result(
-        "AAPL", "EQUITY", "Apple Inc.", 3_000_000_000_000, {"exchange": "NASDAQ"}
+        "AAPL",
+        "EQUITY",
+        "Apple Inc.",
+        3_000_000_000_000,
+        {"exchange": "NASDAQ"},
+        sector="Information Technology",
+        industry="Electronic Equipment, Instruments & Components",
+        company_profile={
+            "industry_group": "Technology Hardware & Equipment",
+            "country": "United States",
+            "exchange": "NASDAQ Global Select",
+            "currency": "USD",
+            "website": "http://www.apple.com",
+            "market_cap_category": "Mega Cap",
+        },
     )
     with (
         patch.object(enricher._cls, "classify_async", return_value=[mock_result]),
@@ -263,6 +287,16 @@ async def test_classify_preserves_static_fields():
         result = await enricher.classify(["AAPL"])
     assert result[0]["name"] == "Apple Inc."
     assert result[0]["market_cap"] == 3_000_000_000_000
+    assert result[0]["sector"] == "Information Technology"
+    assert result[0]["industry"] == "Electronic Equipment, Instruments & Components"
+    assert result[0]["company_profile"] == {
+        "industry_group": "Technology Hardware & Equipment",
+        "country": "United States",
+        "exchange": "NASDAQ Global Select",
+        "currency": "USD",
+        "website": "http://www.apple.com",
+        "market_cap_category": "Mega Cap",
+    }
     assert result[0]["meta"] == {"exchange": "NASDAQ"}
 
 

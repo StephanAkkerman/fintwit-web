@@ -44,6 +44,8 @@ These services are not exposed as standalone endpoints, but are used in asset en
   - historical tweets can be backfilled via `python -m app.runtime.backfill_sentiment`.
 
 The enriched values are attached under `tweet.assets[*].financials` and consumed in `TweetCard`.
+Static classification metadata under `tweet.assets[*]` may also include `sector` and `industry` for equities.
+For equities/ETFs, `tweet.assets[*].company_profile` may include curated financedatabase fields: `industry_group`, `country`, `exchange`, `currency`, `website`, and `market_cap_category`.
 
 ## Frontend Contract Notes
 

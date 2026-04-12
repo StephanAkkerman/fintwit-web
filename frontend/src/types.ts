@@ -7,11 +7,23 @@ export type AssetFinancials = {
   website?: string | null;
 };
 
+export type AssetCompanyProfile = {
+  industry_group?: string | null;
+  country?: string | null;
+  exchange?: string | null;
+  currency?: string | null;
+  website?: string | null;
+  market_cap_category?: string | null;
+};
+
 export type Asset = {
   symbol: string;
   kind?: string | null;
   name?: string | null;
   market_cap?: number | null;
+  sector?: string | null;
+  industry?: string | null;
+  company_profile?: AssetCompanyProfile | null;
   meta?: unknown;
   financials?: AssetFinancials | null;
 };

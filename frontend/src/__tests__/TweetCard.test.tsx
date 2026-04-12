@@ -283,6 +283,13 @@ describe('TweetCard', () => {
               symbol: 'AAPL',
               kind: 'EQUITY',
               name: 'Apple Inc.',
+              sector: 'Information Technology',
+              company_profile: {
+                exchange: 'NASDAQ Global Select',
+                country: 'United States',
+                currency: 'USD',
+                market_cap_category: 'Mega Cap',
+              },
               financials: {
                 price: 185.12,
                 change_percent: 1.73,
@@ -296,6 +303,8 @@ describe('TweetCard', () => {
     expect(screen.getByText('$AAPL')).toBeInTheDocument()
     expect(screen.getByText(/^\$185[.,]12$/)).toBeInTheDocument()
     expect(screen.getByText('+1.73%')).toBeInTheDocument()
+    expect(screen.getByText('Information Technology')).toBeInTheDocument()
+    expect(screen.getByText('NASDAQ Global Select | United States | USD | Mega Cap')).toBeInTheDocument()
   })
 
   it('calls ticker filter callback when financial ticker is clicked', () => {
