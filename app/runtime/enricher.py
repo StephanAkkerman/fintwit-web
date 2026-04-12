@@ -11,6 +11,43 @@ from ..services.yahoo import get_stock_info
 logger = logging.getLogger(__name__)
 
 _YAHOO_PRICED_KINDS = {"EQUITY", "ETF", "INDEX", "FUTURE", "FOREX", "COMMODITY"}
+_FOREX_CODES = {
+    "USD",
+    "EUR",
+    "JPY",
+    "GBP",
+    "AUD",
+    "CAD",
+    "CHF",
+    "NZD",
+    "CNY",
+    "HKD",
+    "SGD",
+    "SEK",
+    "NOK",
+    "DKK",
+    "TRY",
+    "RUB",
+    "PLN",
+    "CZK",
+    "HUF",
+    "ZAR",
+    "MXN",
+    "BRL",
+    "INR",
+    "KRW",
+}
+_LOCAL_SYMBOL_OVERRIDES = {
+    "ETH": {
+        "category": "CRYPTO",
+        "name": "Ethereum",
+    },
+    "USOIL": {
+        "category": "COMMODITY",
+        "name": "Crude Oil",
+        "yahoo_lookup": "CL=F",
+    },
+}
 
 
 def _normalize_kind(kind: object) -> str:
@@ -23,6 +60,55 @@ def _is_crypto_kind(kind: object) -> bool:
 
 def _should_use_yahoo(kind: object) -> bool:
     return _normalize_kind(kind) in _YAHOO_PRICED_KINDS
+
+
+def _local_classification_override(symbol: str) -> dict | None:
+    normalized = str(symbol or "").strip().upper()
+    if not normalized:
+        return None
+
+    shortcut = _LOCAL_SYMBOL_OVERRIDES.get(normalized)
+    if shortcut:
+        return {
+            "ticker": normalized,
+            "category": shortcut["category"],
+            "name": shortcut["name"],
+            "yahoo_lookup": shortcut.get("yahoo_lookup"),
+            "source": "local-shortcut",
+        }
+
+    if len(normalized) == 6 and normalized.isalpha():
+        base, quote = normalized[:3], normalized[3:]
+        if base in _FOREX_CODES and quote in _FOREX_CODES and base != quote:
+            return {
+                "ticker": normalized,
+                "category": "FOREX",
+                "name": f"{base}/{quote}",
+                "yahoo_lookup": f"{normalized}=X",
+                "source": "local-shortcut",
+            }
+
+    return None
+
+
+def _build_local_cache_entry(symbol: str, override: dict) -> dict:
+    yahoo_lookup_value = override.get("yahoo_lookup")
+    if isinstance(yahoo_lookup_value, str) and yahoo_lookup_value.strip():
+        yahoo_lookup: str | None = yahoo_lookup_value.upper()
+    else:
+        yahoo_lookup = None
+
+    return {
+        "symbol": symbol,
+        "kind": override["category"],
+        "name": override["name"],
+        "market_cap": None,
+        "sector": None,
+        "industry": None,
+        "company_profile": None,
+        "meta": None,
+        "yahoo_lookup": yahoo_lookup,
+    }
 
 
 class AssetEnricher:
@@ -41,9 +127,29 @@ class AssetEnricher:
             return []
 
         async with self._lock:
+            # Force local overrides first so ambiguous symbols always classify
+            # predictably, even when an older cache entry exists.
+            for sym in symbols:
+                local_override = _local_classification_override(sym)
+                if local_override is None:
+                    continue
+                self._cache[sym] = _build_local_cache_entry(sym, local_override)
+
             misses = [s for s in symbols if s not in self._cache]
             if misses:
-                results = await self._cls.classify_async(misses)
+                classifier_misses = []
+                for sym in misses:
+                    local_override = _local_classification_override(sym)
+                    if local_override is None:
+                        classifier_misses.append(sym)
+                        continue
+
+                    self._cache[sym] = _build_local_cache_entry(sym, local_override)
+
+                results = []
+                if classifier_misses:
+                    results = await self._cls.classify_async(classifier_misses)
+
                 for r in results:
                     symbol = (
                         getattr(r, "symbol", None) or r.get("symbol") or r.get("ticker")

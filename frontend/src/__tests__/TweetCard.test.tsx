@@ -302,11 +302,15 @@ describe('TweetCard', () => {
     )
 
     expect(screen.getByText('$AAPL')).toBeInTheDocument()
+    expect(screen.getByText('Apple Inc.')).toBeInTheDocument()
+    expect(screen.getByText('Stock')).toBeInTheDocument()
     expect(screen.getByText(/^\$185[.,]12$/)).toBeInTheDocument()
     expect(screen.getByText('+1.73%')).toBeInTheDocument()
-    expect(screen.getByText('Information Technology')).toBeInTheDocument()
-    expect(screen.getByText('NASDAQ Global Select | United States | USD | Mega Cap')).toBeInTheDocument()
-    expect(screen.getByText('Source: COINGECKO')).toBeInTheDocument()
+    expect(screen.queryByText('Information Technology')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('NASDAQ Global Select | United States | USD | Mega Cap')
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText('Source: COINGECKO')).not.toBeInTheDocument()
   })
 
   it('calls ticker filter callback when financial ticker is clicked', () => {

@@ -47,6 +47,7 @@ These services are not exposed as standalone endpoints, but are used in asset en
 The enriched values are attached under `tweet.assets[*].financials` and consumed in `TweetCard`.
 `tweet.assets[*].financials.source` indicates which provider served the quote (for example `yahoo`, `coingecko`, `tradingview`).
 Static classification metadata under `tweet.assets[*]` may also include `sector` and `industry` for equities.
+Ambiguous symbols are disambiguated in enrichment with local overrides before cache/classifier fallback (for example `ETH` is forced to crypto, and `EURUSD`/`USOIL` map to Yahoo-compatible lookups).
 For equities/ETFs, `tweet.assets[*].company_profile` may include curated financedatabase fields: `industry_group`, `country`, `exchange`, `currency`, `website`, and `market_cap_category`.
 
 ## Frontend Contract Notes
@@ -64,6 +65,7 @@ For equities/ETFs, `tweet.assets[*].company_profile` may include curated finance
   - `tickers`, `hashtags`, and symbol extraction from text,
   - `assets[].symbol` and `assets[].kind` for category and ticker filters,
   - `assets[].financials.website` for price links,
+  - `assets[].symbol`, `assets[].name`, `assets[].kind`, `assets[].financials.price`, and `assets[].financials.change_percent` for compact financial card rendering in `TweetCard`,
   - `sentiment_*` for main-post sentiment rendering,
   - `quoted_sentiment_*` for quote-post sentiment rendering.
   - media URLs are rendered as in-page image previews (lightbox) in `TweetCard` rather than opening directly in a new tab on image click.

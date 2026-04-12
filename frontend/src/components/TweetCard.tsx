@@ -22,6 +22,26 @@ function fmtChangePercent(value: number): string {
   return `${sign}${value.toFixed(2)}%`
 }
 
+function formatAssetKind(kind: string | null | undefined): string | null {
+  if (!kind) return null
+
+  const normalized = kind.trim().toUpperCase()
+  if (!normalized) return null
+
+  const labels: Record<string, string> = {
+    EQUITY: 'Stock',
+    ETF: 'ETF',
+    CRYPTO: 'Crypto',
+    INDEX: 'Index',
+    FUTURE: 'Future',
+    FOREX: 'Forex',
+    COMMODITY: 'Commodity',
+    UNKNOWN: 'Unknown',
+  }
+
+  return labels[normalized] ?? normalized
+}
+
 function parseFinancialSymbols(text: string): { tickers: string[]; hashtags: string[] } {
   const tickerMatches = [...text.matchAll(/(?<!\w)\$([a-z][a-z0-9]{0,9})\b/gi)]
   const hashtagMatches = [...text.matchAll(/(?<!\w)#([a-z][a-z0-9_]{0,29})\b/gi)]
@@ -473,20 +493,12 @@ export default function TweetCard({
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           {assets.map((asset) => {
             const financials = asset.financials
-            const profile = asset.company_profile
-            const profileSummary = [profile?.exchange, profile?.country, profile?.currency]
-              .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
-              .join(' | ')
-            const capCategory =
-              typeof profile?.market_cap_category === 'string' && profile.market_cap_category.trim().length > 0
-                ? profile.market_cap_category
-                : null
+            const ticker = `$${asset.symbol}`
+            const fullName =
+              typeof asset.name === 'string' && asset.name.trim().length > 0 ? asset.name : ticker
+            const typeLabel = formatAssetKind(asset.kind)
             const hasPrice = typeof financials?.price === 'number'
             const hasChange = typeof financials?.change_percent === 'number'
-            const sourceLabel =
-              typeof financials?.source === 'string' && financials.source.trim().length > 0
-                ? financials.source.toUpperCase()
-                : null
             const change = hasChange ? (financials?.change_percent as number) : 0
             const changeClass =
               change > 0
@@ -506,63 +518,43 @@ export default function TweetCard({
                       type="button"
                       onClick={() => onTickerSelect(asset.symbol.toUpperCase())}
                       aria-label={`Filter by $${asset.symbol.toUpperCase()}`}
-                      className="font-semibold text-zinc-800 underline-offset-2 hover:underline dark:text-zinc-100"
+                      className="truncate text-left font-semibold text-zinc-800 underline-offset-2 hover:underline dark:text-zinc-100"
                     >
-                      ${asset.symbol}
+                      {ticker}
                     </button>
                   ) : (
-                    <div className="font-semibold text-zinc-800 dark:text-zinc-100">
-                      ${asset.symbol}
+                    <div className="truncate font-semibold text-zinc-800 dark:text-zinc-100">
+                      {ticker}
                     </div>
                   )}
-                  {asset.kind && (
+                  {typeLabel && (
                     <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300">
-                      {asset.kind}
+                      {typeLabel}
                     </span>
                   )}
                 </div>
 
-                {asset.name && (
-                  <div className="truncate text-[11px] text-zinc-500 dark:text-zinc-400">{asset.name}</div>
-                )}
-                {(asset.sector || asset.industry) && (
-                  <div className="truncate text-[11px] text-zinc-500 dark:text-zinc-400">
-                    {asset.sector ?? 'Unknown sector'}
-                    {asset.industry ? ` | ${asset.industry}` : ''}
-                  </div>
-                )}
-                {(profileSummary || capCategory) && (
-                  <div className="truncate text-[11px] text-zinc-500 dark:text-zinc-400">
-                    {profileSummary}
-                    {profileSummary && capCategory ? ' | ' : ''}
-                    {capCategory ?? ''}
-                  </div>
-                )}
+                <div className="truncate text-[11px] text-zinc-500 dark:text-zinc-400">{fullName}</div>
 
                 <div className="mt-1 flex items-center justify-between gap-2 text-sm">
-                  {hasPrice && financials?.website ? (
-                    <a
-                      href={financials.website}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="font-semibold text-zinc-900 underline-offset-2 hover:underline dark:text-zinc-100"
-                    >
-                      {fmtPrice(financials?.price as number)}
-                    </a>
-                  ) : (
-                    <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                      {hasPrice ? fmtPrice(financials?.price as number) : 'N/A'}
-                    </span>
-                  )}
+                    {hasPrice && financials?.website ? (
+                      <a
+                        href={financials.website}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-semibold text-zinc-900 underline-offset-2 hover:underline dark:text-zinc-100"
+                      >
+                        {fmtPrice(financials?.price as number)}
+                      </a>
+                    ) : (
+                      <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                        {hasPrice ? fmtPrice(financials?.price as number) : 'N/A'}
+                      </span>
+                    )}
                   <span className={`font-semibold ${changeClass}`}>
                     {hasChange ? fmtChangePercent(change) : 'N/A'}
                   </span>
                 </div>
-                {sourceLabel && (
-                  <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                    Source: {sourceLabel}
-                  </div>
-                )}
               </div>
             )
           })}

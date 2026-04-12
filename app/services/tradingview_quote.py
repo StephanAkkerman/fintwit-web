@@ -149,3 +149,13 @@ async def get_tradingview_quote(
         "website": f"https://www.tradingview.com/symbols/{tv_symbol.replace(':', '-')}/",
         "source": "tradingview",
     }
+
+
+if __name__ == "__main__":
+    import json
+
+    async def main() -> None:
+        quote = await get_tradingview_quote("AAPL", "stock")
+        print(json.dumps(quote, indent=2))
+
+    asyncio.run(main())

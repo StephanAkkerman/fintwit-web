@@ -10,6 +10,7 @@ Last updated: 2026-04-12
 - Symbol extraction fallback from tweet text (`$TICKER`, `#HASHTAG`) and symbol merge logic.
 - Asset enrichment via `ticker-classifier` + Yahoo (equities) + CoinGecko (crypto).
 - Asset enrichment hardening: uses classifier `yahoo_lookup` with centralized shortcut mappings in `ticker-classifier` (e.g. `DXY` -> `DX-Y.NYB`) so ETF/index/forex-style symbols are more reliably priced/classified.
+- Asset enrichment local symbol overrides: ambiguous symbols now use deterministic mappings before pricing/classification (`ETH` forced to `CRYPTO`; `EURUSD` -> `EURUSD=X`; `USOIL` -> `CL=F`).
 - Quote fallback hardening: when Yahoo/CoinGecko are rate-limited or unavailable, enrichment now attempts TradingView quote fallback before returning no price data.
 - Quote source marker: enriched financial payload now includes `source` so frontend can display the provider used (`yahoo`, `coingecko`, `tradingview`).
 - Equity asset enrichment now includes optional `sector` and `industry` metadata (for example `AAPL`/`NVDA` tagged as technology) sourced from classifier metadata.
@@ -41,8 +42,7 @@ Last updated: 2026-04-12
 - Quote image handling inside embed (with main image placement before quote embed).
 - Tweet images now open in an in-page lightbox preview (no full-page navigation away from timeline).
 - Tweet timestamps are shown in the viewer's local timezone (UTC source timestamps normalized server-side with offset).
-- Financial asset blocks in tweet cards (symbol, kind, name, price, daily %).
-- Tweet asset cards now show compact company profile context for equities/ETFs (exchange, country, currency, and market-cap category) when available.
+- Financial asset blocks in tweet cards are intentionally compact and now show ticker, full name, type, price, and daily % change.
 - Price links to source financial website when available.
 - Sidebar filters: all, crypto, stock, non-financial.
 - Ticker filtering via:

@@ -168,6 +168,100 @@ async def test_classify_dxy_uses_classifier_yahoo_lookup():
 
 
 @pytest.mark.asyncio
+async def test_classify_eurusd_pair_uses_local_forex_override():
+    enricher = AssetEnricher()
+    with (
+        patch.object(enricher._cls, "classify_async", return_value=[]) as mock_cls,
+        patch(
+            "app.runtime.enricher.get_stock_info", return_value=STOCK_FINANCIALS
+        ) as mock_stock,
+    ):
+        result = await enricher.classify(["EURUSD"])
+
+    mock_cls.assert_not_called()
+    mock_stock.assert_called_once_with("EURUSD=X")
+    assert result[0]["symbol"] == "EURUSD"
+    assert result[0]["kind"] == "FOREX"
+    assert result[0]["name"] == "EUR/USD"
+    assert result[0]["financials"] == STOCK_FINANCIALS
+
+
+@pytest.mark.asyncio
+async def test_classify_usoil_uses_local_commodity_override():
+    enricher = AssetEnricher()
+    with (
+        patch.object(enricher._cls, "classify_async", return_value=[]) as mock_cls,
+        patch(
+            "app.runtime.enricher.get_stock_info", return_value=STOCK_FINANCIALS
+        ) as mock_stock,
+    ):
+        result = await enricher.classify(["USOIL"])
+
+    mock_cls.assert_not_called()
+    mock_stock.assert_called_once_with("CL=F")
+    assert result[0]["symbol"] == "USOIL"
+    assert result[0]["kind"] == "COMMODITY"
+    assert result[0]["name"] == "Crude Oil"
+    assert result[0]["financials"] == STOCK_FINANCIALS
+
+
+@pytest.mark.asyncio
+async def test_classify_eth_uses_local_crypto_override():
+    enricher = AssetEnricher()
+    with (
+        patch.object(enricher._cls, "classify_async", return_value=[]) as mock_cls,
+        patch(
+            "app.runtime.enricher.get_crypto_info", return_value=CRYPTO_FINANCIALS
+        ) as mock_crypto,
+        patch(
+            "app.runtime.enricher.get_stock_info", return_value=STOCK_FINANCIALS
+        ) as mock_stock,
+    ):
+        result = await enricher.classify(["ETH"])
+
+    mock_cls.assert_not_called()
+    mock_crypto.assert_called_once_with("ETH")
+    mock_stock.assert_not_called()
+    assert result[0]["symbol"] == "ETH"
+    assert result[0]["kind"] == "CRYPTO"
+    assert result[0]["name"] == "Ethereum"
+    assert result[0]["financials"] == CRYPTO_FINANCIALS
+
+
+@pytest.mark.asyncio
+async def test_classify_eth_local_override_replaces_stale_cached_etf():
+    enricher = AssetEnricher()
+    enricher._cache["ETH"] = {
+        "symbol": "ETH",
+        "kind": "ETF",
+        "name": "VanEck Ethereum ETF",
+        "market_cap": None,
+        "sector": None,
+        "industry": None,
+        "company_profile": None,
+        "meta": None,
+        "yahoo_lookup": "ETH",
+    }
+
+    with (
+        patch.object(enricher._cls, "classify_async", return_value=[]) as mock_cls,
+        patch(
+            "app.runtime.enricher.get_crypto_info", return_value=CRYPTO_FINANCIALS
+        ) as mock_crypto,
+        patch(
+            "app.runtime.enricher.get_stock_info", return_value=STOCK_FINANCIALS
+        ) as mock_stock,
+    ):
+        result = await enricher.classify(["ETH"])
+
+    mock_cls.assert_not_called()
+    mock_crypto.assert_called_once_with("ETH")
+    mock_stock.assert_not_called()
+    assert result[0]["kind"] == "CRYPTO"
+    assert result[0]["name"] == "Ethereum"
+
+
+@pytest.mark.asyncio
 async def test_classify_lowercase_crypto_kind_also_fetches_crypto_info():
     """Enricher handles both "CRYPTO" and "crypto" as the same kind."""
     enricher = AssetEnricher()
