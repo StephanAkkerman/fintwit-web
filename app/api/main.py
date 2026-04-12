@@ -33,6 +33,7 @@ from ..services.stocktwits_service import get_stocktwits_data
 from ..services.unusual_whales import get_spy_heatmap
 from ..services.nasdaq_service import get_halt_data
 from ..services.yahoo import get_stock_info
+from ..services.binance_service import get_gainers_losers
 
 with suppress(Exception):
     from dotenv import load_dotenv
@@ -143,6 +144,15 @@ async def fear_greed(_=Depends(api_key_dep)):
 async def stock_halts(request: Request, _=Depends(api_key_dep)):
     client: httpx.AsyncClient = request.app.state.http_client
     data = await get_halt_data(client)
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
+
+
+@app.get("/api/binance/gainers-losers")
+async def binance_gainers_losers(request: Request, _=Depends(api_key_dep)):
+    client: httpx.AsyncClient = request.app.state.http_client
+    data = await get_gainers_losers(client)
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data
