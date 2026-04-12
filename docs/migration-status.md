@@ -40,6 +40,7 @@ Last updated: 2026-04-12
 - Quote tweet header now mirrors native X styling by showing quoted author identity (instead of a generic label) and quoted timestamp when available.
 - Quote tweet header now includes the quoted user's avatar next to their name when image metadata is available.
 - Quote embeds now consume backend `quoted_tweet` metadata/media directly (author, handle, timestamp, image), with markdown heuristics only as fallback.
+- Subscriber-only posts now render a native-style icon in tweet headers (including reposted originals and quoted tweet headers when marked exclusive).
 - Quote image handling inside embed (with main image placement before quote embed).
 - Tweet body rendering now preserves original line breaks and intentional blank lines.
 - Tweet images now open in an in-page lightbox preview (no full-page navigation away from timeline).

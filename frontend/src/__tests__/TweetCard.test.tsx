@@ -29,6 +29,19 @@ describe('TweetCard', () => {
     expect(screen.getByText('@testuser')).toBeInTheDocument()
   })
 
+  it('renders a subscribers-only icon for exclusive tweets', () => {
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          is_subscriber_only: true,
+        }}
+      />
+    )
+
+    expect(screen.getByLabelText('Subscribers-only post')).toBeInTheDocument()
+  })
+
   it('renders tweet text', () => {
     render(<TweetCard t={baseTweet} />)
     expect(screen.getByText('Hello world')).toBeInTheDocument()
@@ -250,6 +263,40 @@ describe('TweetCard', () => {
     expect(container.querySelector('blockquote')).not.toBeInTheDocument()
   })
 
+  it('renders subscribers-only icon from reposted original tweet metadata', () => {
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          user_name: 'Repost Account',
+          user_screen_name: 'repostacct',
+          title: 'Repost Account retweeted Original Analyst',
+          quoted_tweet: {
+            id: '9002',
+            text: 'Original subscribers-only post',
+            user_name: 'Original Analyst',
+            user_screen_name: 'originalanalyst',
+            user_img: 'https://example.com/original.jpg',
+            url: 'https://x.com/originalanalyst/status/9002',
+            media: [],
+            tickers: [],
+            hashtags: [],
+            title: 'Original Analyst tweeted',
+            media_types: [],
+            created_at: '2026-04-01T12:00:00Z',
+            likes: 0,
+            retweets: 0,
+            replies: 0,
+            views: 0,
+            is_subscriber_only: true,
+          },
+        }}
+      />
+    )
+
+    expect(screen.getByLabelText('Subscribers-only post')).toBeInTheDocument()
+  })
+
   it('renders an Open link pointing to the tweet URL', () => {
     render(<TweetCard t={baseTweet} />)
     const link = screen.getByRole('link', { name: /open/i })
@@ -329,6 +376,40 @@ describe('TweetCard', () => {
 
     expect(screen.getByLabelText('Tweet sentiment')).toBeInTheDocument()
     expect(screen.getByLabelText('Quoted tweet sentiment')).toBeInTheDocument()
+  })
+
+  it('renders subscribers-only icon for quoted tweet embeds', () => {
+    const quoteText = '> [@writer](https://x.com/writer/status/800):\n> Subscribers-only update'
+
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          text: quoteText,
+          quoted_tweet: {
+            id: '800',
+            text: 'Subscribers-only update',
+            user_name: 'Writer',
+            user_screen_name: 'writer',
+            user_img: 'https://example.com/writer.jpg',
+            url: 'https://x.com/writer/status/800',
+            media: [],
+            tickers: [],
+            hashtags: [],
+            title: 'Writer tweeted',
+            media_types: [],
+            created_at: '2026-04-10T10:00:00Z',
+            likes: 0,
+            retweets: 0,
+            replies: 0,
+            views: 0,
+            is_subscriber_only: true,
+          },
+        }}
+      />
+    )
+
+    expect(screen.getByLabelText('Quoted subscribers-only post')).toBeInTheDocument()
   })
 
   it('does not show chart badge for text-only tweets', () => {

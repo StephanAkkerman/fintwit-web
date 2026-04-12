@@ -57,6 +57,7 @@ export type Tweet = {
   user_img: string;
   url: string;
   created_at: string;
+  is_subscriber_only?: boolean;
   media: MediaItem[];
   tickers: string[];
   hashtags: string[];

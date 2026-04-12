@@ -74,6 +74,20 @@ async def test_upsert_many_persists_sentiment_fields(tweet_repo):
 
 
 @pytest.mark.asyncio
+async def test_upsert_many_persists_subscriber_only_flag(tweet_repo):
+    payload = {
+        **SAMPLE_TWEETS[0],
+        "is_subscriber_only": True,
+    }
+
+    await tweet_repo.upsert_many([payload])
+    row = await tweet_repo.by_id(SAMPLE_TWEETS[0]["id"])
+
+    assert row is not None
+    assert row["is_subscriber_only"] is True
+
+
+@pytest.mark.asyncio
 async def test_upsert_many_persists_quoted_tweet_payload(tweet_repo):
     payload = {
         **SAMPLE_TWEETS[0],
@@ -140,6 +154,7 @@ async def test_latest_returns_all_expected_fields(tweet_repo):
         "title",
         "media_types",
         "assets",
+        "is_subscriber_only",
     }
     assert expected_keys.issubset(row.keys())
 

@@ -42,6 +42,7 @@ def _row_to_dict(r: TweetRow) -> dict:
         "likes": r.likes,
         "views": r.views,
         "retweets": r.retweets,
+        "is_subscriber_only": r.is_subscriber_only,
         "sentiment_label": r.sentiment_label,
         "sentiment_emoji": r.sentiment_emoji,
         "sentiment_score": r.sentiment_score,
@@ -291,7 +292,9 @@ class IbkrRepo:
                 for t in trades:
                     executed_at = t.get("executed_at")
                     if isinstance(executed_at, datetime):
-                        executed_at = executed_at.astimezone(timezone.utc).replace(tzinfo=None)
+                        executed_at = executed_at.astimezone(timezone.utc).replace(
+                            tzinfo=None
+                        )
                     payload = {**t, "executed_at": executed_at, "created_at": now}
                     stmt = (
                         sqlite_insert(IbkrTradeRow)

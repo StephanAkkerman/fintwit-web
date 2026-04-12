@@ -96,6 +96,20 @@ type QuoteMeta = {
   userImg: string | null
 }
 
+function SubscriberOnlyBadge({ ariaLabel }: { ariaLabel: string }) {
+  return (
+    <span
+      aria-label={ariaLabel}
+      title="Subscribers only"
+      className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-violet-600 text-white ring-1 ring-violet-400 dark:bg-violet-500 dark:ring-violet-300"
+    >
+      <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M12 2.5l2.78 5.63 6.22.9-4.5 4.38 1.06 6.2L12 16.66 6.44 19.6l1.06-6.2L3 9.03l6.22-.9L12 2.5z" />
+      </svg>
+    </span>
+  )
+}
+
 const X_SNOWFLAKE_EPOCH = 1_288_834_974_657n
 
 function decodeXStatusTimestamp(statusId: string): Date | null {
@@ -311,6 +325,8 @@ export default function TweetCard({
     quotedHandle && quotedHandle.toLowerCase() !== (quoteMeta?.displayName ?? '').toLowerCase()
   )
   const showQuotedMetaLine = Boolean(showQuotedHandle || quotedTimeLabel)
+  const isSubscriberOnly = Boolean(headerTweet.is_subscriber_only)
+  const isQuotedSubscriberOnly = Boolean(t.quoted_tweet?.is_subscriber_only)
   const sentimentClass =
     sentimentLabel === 'BULLISH'
       ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
@@ -329,7 +345,10 @@ export default function TweetCard({
       <header className="flex items-center gap-3">
         <img src={headerTweet.user_img} alt="" className="h-10 w-10 rounded-full" />
         <div className="min-w-0">
-          <div className="font-semibold truncate">{headerTweet.user_name}</div>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <div className="font-semibold truncate">{headerTweet.user_name}</div>
+            {isSubscriberOnly && <SubscriberOnlyBadge ariaLabel="Subscribers-only post" />}
+          </div>
           <div className="text-sm text-zinc-500">@{headerTweet.user_screen_name}</div>
           {isRepost && (
             <div className="text-xs text-zinc-500">Reposted by {t.user_name}</div>
@@ -408,21 +427,26 @@ export default function TweetCard({
                       />
                     )}
                     <div className="min-w-0">
-                      {quoteMeta?.url ? (
-                        <a
-                          href={quoteMeta.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          aria-label="Quoted tweet author"
-                          className="truncate text-sm font-semibold text-zinc-900 hover:underline dark:text-zinc-100"
-                        >
-                          {quoteMeta.displayName ?? 'Quoted post'}
-                        </a>
-                      ) : (
-                        <div className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                          {quoteMeta?.displayName ?? 'Quoted post'}
-                        </div>
-                      )}
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        {quoteMeta?.url ? (
+                          <a
+                            href={quoteMeta.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            aria-label="Quoted tweet author"
+                            className="truncate text-sm font-semibold text-zinc-900 hover:underline dark:text-zinc-100"
+                          >
+                            {quoteMeta.displayName ?? 'Quoted post'}
+                          </a>
+                        ) : (
+                          <div className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                            {quoteMeta?.displayName ?? 'Quoted post'}
+                          </div>
+                        )}
+                        {isQuotedSubscriberOnly && (
+                          <SubscriberOnlyBadge ariaLabel="Quoted subscribers-only post" />
+                        )}
+                      </div>
                       {showQuotedMetaLine && (
                         <div className="mt-0.5 flex items-center gap-1 text-[11px] text-zinc-500 dark:text-zinc-400">
                           {showQuotedHandle && <span>{quotedHandle}</span>}

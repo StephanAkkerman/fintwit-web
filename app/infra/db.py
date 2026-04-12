@@ -28,6 +28,12 @@ class TweetRow(Base):
     likes: Mapped[int] = mapped_column(Integer, nullable=True)
     views: Mapped[int] = mapped_column(Integer, nullable=True)
     retweets: Mapped[int] = mapped_column(Integer, nullable=True)
+    is_subscriber_only: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=True,
+        default=None,
+        server_default=sql_text("NULL"),
+    )
     sentiment_label: Mapped[str] = mapped_column(String, nullable=True, index=True)
     sentiment_emoji: Mapped[str] = mapped_column(String, nullable=True)
     sentiment_score: Mapped[float] = mapped_column(Float, nullable=True)
