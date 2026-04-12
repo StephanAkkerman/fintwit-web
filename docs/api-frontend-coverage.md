@@ -35,6 +35,7 @@ These services are not exposed as standalone endpoints, but are used in asset en
 
 - Yahoo Finance (`query1.finance.yahoo.com`) for equities:
   - returns `price`, `change_percent`, `volume`, `website`.
+  - now uses short-lived cache/throttling and classifier `yahoo_lookup` symbols to reduce transient rate-limit misses for ETF/index/forex-like symbols (e.g., `SPY`, `DXY`).
 - CoinGecko (`api.coingecko.com`) for crypto:
   - returns `price`, `change_percent`, `volume`, `website`.
   - uses short-lived cache and Yahoo `-USD` fallback when CoinGecko is rate-limited (`429`) or temporarily unavailable.

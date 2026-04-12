@@ -1,4 +1,6 @@
+import asyncio
 import logging
+import time
 from typing import Optional
 
 import aiohttp
@@ -9,41 +11,144 @@ headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36 Edg/110.0.1587.57"
 }
 
+_CACHE_TTL_SECONDS = 60
+_STALE_CACHE_TTL_SECONDS = 900
+_REQUEST_SEMAPHORE = asyncio.Semaphore(8)
+
+_cache: dict[str, tuple[float, Optional[dict]]] = {}
+_cache_lock = asyncio.Lock()
+
+_SYMBOL_LOOKUP_OVERRIDES = {
+    "DXY": "DX-Y.NYB",
+    "VIX": "^VIX",
+    "SPX": "^GSPC",
+}
+
+
+def _normalize_symbol(symbol: str) -> str:
+    return (symbol or "").strip().upper()
+
+
+def _clone_payload(payload: Optional[dict]) -> Optional[dict]:
+    if payload is None:
+        return None
+    return dict(payload)
+
+
+def _lookup_candidates(symbol: str) -> list[str]:
+    normalized = _normalize_symbol(symbol)
+    if not normalized:
+        return []
+
+    override = _SYMBOL_LOOKUP_OVERRIDES.get(normalized)
+    if override and override != normalized:
+        return [override, normalized]
+    return [normalized]
+
+
+async def _get_cached(symbol: str, *, allow_stale: bool) -> tuple[bool, Optional[dict]]:
+    async with _cache_lock:
+        item = _cache.get(symbol)
+        if item is None:
+            return False, None
+
+        ts, payload = item
+        age = time.time() - ts
+
+        if age <= _CACHE_TTL_SECONDS:
+            return True, _clone_payload(payload)
+
+        if allow_stale and age <= _STALE_CACHE_TTL_SECONDS:
+            return True, _clone_payload(payload)
+
+        if age > _STALE_CACHE_TTL_SECONDS:
+            _cache.pop(symbol, None)
+
+        return False, None
+
+
+async def _set_cached(symbol: str, payload: Optional[dict]) -> None:
+    async with _cache_lock:
+        _cache[symbol] = (time.time(), _clone_payload(payload))
+
+
+def _reset_cache_for_tests() -> None:
+    _cache.clear()
+
+
+async def _fetch_yahoo_chart(lookup_symbol: str) -> Optional[dict]:
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{lookup_symbol}"
+    timeout = aiohttp.ClientTimeout(total=8)
+
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        async with session.get(url, headers=headers) as response:
+            if response.status != 200:
+                if response.status == 429:
+                    logger.info("[yahoo] rate-limited for %s", lookup_symbol)
+                return None
+
+            data = await response.json()
+
+    result = data.get("chart", {}).get("result")
+    if not result:
+        return None
+
+    meta = result[0].get("meta", {})
+    price = meta.get("regularMarketPrice")
+    prev_close = meta.get("previousClose", price)
+
+    if price is None:
+        return None
+
+    change = 0.0
+    if prev_close and prev_close != 0:
+        change = ((price - prev_close) / prev_close) * 100
+
+    volume = meta.get("regularMarketVolume", 0) * price if price else 0
+
+    return {
+        "price": price,
+        "change_percent": change,
+        "volume": volume,
+        "website": f"https://finance.yahoo.com/quote/{lookup_symbol}",
+    }
+
 
 async def get_stock_info(ticker: str) -> Optional[dict]:
-    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    result = data.get("chart", {}).get("result")
-                    if not result:
-                        return None
-                    meta = result[0].get("meta", {})
+    symbol = _normalize_symbol(ticker)
+    if not symbol:
+        return None
 
-                    price = meta.get("regularMarketPrice")
-                    prev_close = meta.get("previousClose", price)
+    found, cached = await _get_cached(symbol, allow_stale=False)
+    if found:
+        return cached
 
-                    if price is None:
-                        return None
+    async with _REQUEST_SEMAPHORE:
+        # Re-check cache while waiting in the queue.
+        found, cached = await _get_cached(symbol, allow_stale=False)
+        if found:
+            return cached
 
-                    change = 0.0
-                    if prev_close and prev_close != 0:
-                        change = ((price - prev_close) / prev_close) * 100
+        try:
+            for lookup_symbol in _lookup_candidates(symbol):
+                payload = await _fetch_yahoo_chart(lookup_symbol)
+                if payload is None:
+                    continue
 
-                    volume = meta.get("regularMarketVolume", 0) * price if price else 0
+                await _set_cached(symbol, payload)
+                if lookup_symbol != symbol:
+                    await _set_cached(lookup_symbol, payload)
+                return payload
+        except Exception as exc:
+            logger.debug("[yahoo] %s fetch failed: %r", symbol, exc)
 
-                    return {
-                        "price": price,
-                        "change_percent": change,
-                        "volume": volume,
-                        "website": f"https://finance.yahoo.com/quote/{ticker}",
-                    }
-    except Exception as exc:
-        logger.debug("[yahoo] %s fetch failed: %r", ticker, exc)
+        found, stale = await _get_cached(symbol, allow_stale=True)
+        if found:
+            logger.info("[yahoo] serving stale cache for %s", symbol)
+            return stale
 
-    return None
+        await _set_cached(symbol, None)
+        return None
 
 
 if __name__ == "__main__":

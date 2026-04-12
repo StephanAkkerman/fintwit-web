@@ -5,6 +5,7 @@ import pytest
 
 import app.services.coingecko as coingecko_service
 import app.services.market_hours_service as market_hours_service
+import app.services.yahoo as yahoo_service
 from app.services.coingecko import get_crypto_info
 from app.services.events_service import get_economic_events
 from app.services.market_hours_service import get_stock_market_hours
@@ -22,14 +23,19 @@ def _reset_coingecko_cache():
     reset_market_hours_cache = getattr(
         market_hours_service, "_reset_cache_for_tests", None
     )
+    reset_yahoo_cache = getattr(yahoo_service, "_reset_cache_for_tests", None)
 
     coingecko_service._reset_cache_for_tests()
     if callable(reset_market_hours_cache):
         reset_market_hours_cache()
+    if callable(reset_yahoo_cache):
+        reset_yahoo_cache()
     yield
     coingecko_service._reset_cache_for_tests()
     if callable(reset_market_hours_cache):
         reset_market_hours_cache()
+    if callable(reset_yahoo_cache):
+        reset_yahoo_cache()
 
 
 def _mock_response(status: int, json_data: dict) -> MagicMock:
@@ -197,6 +203,32 @@ async def test_get_stock_info_http_error_returns_none():
     ):
         result = await get_stock_info("AAPL")
     assert result is None
+
+
+@pytest.mark.asyncio
+async def test_get_stock_info_uses_lookup_override_for_dxy():
+    data = {
+        "chart": {
+            "result": [
+                {
+                    "meta": {
+                        "regularMarketPrice": 104.1,
+                        "previousClose": 103.0,
+                        "regularMarketVolume": 1,
+                    }
+                }
+            ]
+        }
+    }
+
+    with patch(
+        "app.services.yahoo.aiohttp.ClientSession",
+        _mock_session(_mock_response(200, data)),
+    ):
+        result = await get_stock_info("DXY")
+
+    assert result is not None
+    assert "DX-Y.NYB" in result["website"]
 
 
 @pytest.mark.asyncio

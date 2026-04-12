@@ -1,15 +1,17 @@
-import pytest
 from unittest.mock import MagicMock, patch
 
-from app.runtime.enricher import AssetEnricher
+import pytest
 
+from app.runtime.enricher import AssetEnricher
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 
-def _mock_classifier_result(symbol, kind, name="Test Asset", market_cap=1_000_000, meta=None):
+def _mock_classifier_result(
+    symbol, kind, name="Test Asset", market_cap=1_000_000, meta=None
+):
     """Return a mock object that looks like a TickerClassifier result row."""
     r = MagicMock()
     r.symbol = symbol
@@ -51,8 +53,10 @@ async def test_classify_empty_input_returns_empty_list():
 async def test_classify_whitespace_symbols_are_filtered():
     enricher = AssetEnricher()
     mock_result = _mock_classifier_result("AAPL", "EQUITY")
-    with patch.object(enricher._cls, "classify_async", return_value=[mock_result]), \
-         patch("app.runtime.enricher.get_stock_info", return_value=None):
+    with (
+        patch.object(enricher._cls, "classify_async", return_value=[mock_result]),
+        patch("app.runtime.enricher.get_stock_info", return_value=None),
+    ):
         result = await enricher.classify(["AAPL", ""])
     assert len(result) == 1
 
@@ -60,9 +64,15 @@ async def test_classify_whitespace_symbols_are_filtered():
 @pytest.mark.asyncio
 async def test_classify_equity_fetches_stock_info():
     enricher = AssetEnricher()
-    mock_result = _mock_classifier_result("AAPL", "EQUITY", "Apple Inc.", 3_000_000_000_000)
-    with patch.object(enricher._cls, "classify_async", return_value=[mock_result]), \
-         patch("app.runtime.enricher.get_stock_info", return_value=STOCK_FINANCIALS) as mock_stock:
+    mock_result = _mock_classifier_result(
+        "AAPL", "EQUITY", "Apple Inc.", 3_000_000_000_000
+    )
+    with (
+        patch.object(enricher._cls, "classify_async", return_value=[mock_result]),
+        patch(
+            "app.runtime.enricher.get_stock_info", return_value=STOCK_FINANCIALS
+        ) as mock_stock,
+    ):
         result = await enricher.classify(["AAPL"])
     mock_stock.assert_called_once_with("AAPL")
     assert result[0]["financials"] == STOCK_FINANCIALS
@@ -72,11 +82,74 @@ async def test_classify_equity_fetches_stock_info():
 async def test_classify_crypto_fetches_crypto_info():
     enricher = AssetEnricher()
     mock_result = _mock_classifier_result("BTC", "CRYPTO", "Bitcoin", 900_000_000_000)
-    with patch.object(enricher._cls, "classify_async", return_value=[mock_result]), \
-         patch("app.runtime.enricher.get_crypto_info", return_value=CRYPTO_FINANCIALS) as mock_crypto:
+    with (
+        patch.object(enricher._cls, "classify_async", return_value=[mock_result]),
+        patch(
+            "app.runtime.enricher.get_crypto_info", return_value=CRYPTO_FINANCIALS
+        ) as mock_crypto,
+    ):
         result = await enricher.classify(["BTC"])
     mock_crypto.assert_called_once_with("BTC")
     assert result[0]["financials"] == CRYPTO_FINANCIALS
+
+
+@pytest.mark.asyncio
+async def test_classify_etf_uses_yahoo_lookup_for_stock_info():
+    enricher = AssetEnricher()
+    classifier_row = {
+        "ticker": "SPY",
+        "category": "ETF",
+        "name": "SPDR S&P 500 ETF",
+        "yahoo_lookup": "SPY",
+    }
+    with (
+        patch.object(enricher._cls, "classify_async", return_value=[classifier_row]),
+        patch(
+            "app.runtime.enricher.get_stock_info", return_value=STOCK_FINANCIALS
+        ) as mock_stock,
+    ):
+        result = await enricher.classify(["SPY"])
+
+    mock_stock.assert_called_once_with("SPY")
+    assert result[0]["financials"] == STOCK_FINANCIALS
+
+
+@pytest.mark.asyncio
+async def test_classify_forex_uses_yahoo_lookup_for_stock_info():
+    enricher = AssetEnricher()
+    classifier_row = {
+        "ticker": "EUR",
+        "category": "forex",
+        "name": "EUR Currency",
+        "yahoo_lookup": "EURUSD=X",
+    }
+    with (
+        patch.object(enricher._cls, "classify_async", return_value=[classifier_row]),
+        patch(
+            "app.runtime.enricher.get_stock_info", return_value=STOCK_FINANCIALS
+        ) as mock_stock,
+    ):
+        result = await enricher.classify(["EUR"])
+
+    mock_stock.assert_called_once_with("EURUSD=X")
+    assert result[0]["financials"] == STOCK_FINANCIALS
+
+
+@pytest.mark.asyncio
+async def test_classify_unknown_dxy_uses_local_override():
+    enricher = AssetEnricher()
+    classifier_row = {"ticker": "DXY", "category": "Unknown"}
+    with (
+        patch.object(enricher._cls, "classify_async", return_value=[classifier_row]),
+        patch(
+            "app.runtime.enricher.get_stock_info", return_value=STOCK_FINANCIALS
+        ) as mock_stock,
+    ):
+        result = await enricher.classify(["DXY"])
+
+    mock_stock.assert_called_once_with("DX-Y.NYB")
+    assert result[0]["financials"] == STOCK_FINANCIALS
+    assert str(result[0]["kind"]).upper() == "INDEX"
 
 
 @pytest.mark.asyncio
@@ -84,8 +157,12 @@ async def test_classify_lowercase_crypto_kind_also_fetches_crypto_info():
     """Enricher handles both "CRYPTO" and "crypto" as the same kind."""
     enricher = AssetEnricher()
     mock_result = _mock_classifier_result("ETH", "crypto", "Ethereum")
-    with patch.object(enricher._cls, "classify_async", return_value=[mock_result]), \
-         patch("app.runtime.enricher.get_crypto_info", return_value=CRYPTO_FINANCIALS) as mock_crypto:
+    with (
+        patch.object(enricher._cls, "classify_async", return_value=[mock_result]),
+        patch(
+            "app.runtime.enricher.get_crypto_info", return_value=CRYPTO_FINANCIALS
+        ) as mock_crypto,
+    ):
         result = await enricher.classify(["ETH"])
     mock_crypto.assert_called_once_with("ETH")
     assert result[0]["financials"] == CRYPTO_FINANCIALS
@@ -104,8 +181,10 @@ async def test_classify_unknown_kind_returns_none_financials():
 async def test_classify_stock_service_returns_none():
     enricher = AssetEnricher()
     mock_result = _mock_classifier_result("AAPL", "EQUITY")
-    with patch.object(enricher._cls, "classify_async", return_value=[mock_result]), \
-         patch("app.runtime.enricher.get_stock_info", return_value=None):
+    with (
+        patch.object(enricher._cls, "classify_async", return_value=[mock_result]),
+        patch("app.runtime.enricher.get_stock_info", return_value=None),
+    ):
         result = await enricher.classify(["AAPL"])
     assert result[0]["financials"] is None
 
@@ -114,8 +193,10 @@ async def test_classify_stock_service_returns_none():
 async def test_classify_crypto_service_returns_none():
     enricher = AssetEnricher()
     mock_result = _mock_classifier_result("BTC", "CRYPTO")
-    with patch.object(enricher._cls, "classify_async", return_value=[mock_result]), \
-         patch("app.runtime.enricher.get_crypto_info", return_value=None):
+    with (
+        patch.object(enricher._cls, "classify_async", return_value=[mock_result]),
+        patch("app.runtime.enricher.get_crypto_info", return_value=None),
+    ):
         result = await enricher.classify(["BTC"])
     assert result[0]["financials"] is None
 
@@ -124,8 +205,12 @@ async def test_classify_crypto_service_returns_none():
 async def test_classify_normalizes_symbols_to_uppercase():
     enricher = AssetEnricher()
     mock_result = _mock_classifier_result("AAPL", "EQUITY")
-    with patch.object(enricher._cls, "classify_async", return_value=[mock_result]) as mock_cls, \
-         patch("app.runtime.enricher.get_stock_info", return_value=None):
+    with (
+        patch.object(
+            enricher._cls, "classify_async", return_value=[mock_result]
+        ) as mock_cls,
+        patch("app.runtime.enricher.get_stock_info", return_value=None),
+    ):
         result = await enricher.classify(["aapl"])
     # Classifier should have been called with uppercase symbol
     mock_cls.assert_called_once_with(["AAPL"])
@@ -136,8 +221,12 @@ async def test_classify_normalizes_symbols_to_uppercase():
 async def test_classify_uses_cache_on_second_call():
     enricher = AssetEnricher()
     mock_result = _mock_classifier_result("AAPL", "EQUITY")
-    with patch.object(enricher._cls, "classify_async", return_value=[mock_result]) as mock_cls, \
-         patch("app.runtime.enricher.get_stock_info", return_value=STOCK_FINANCIALS):
+    with (
+        patch.object(
+            enricher._cls, "classify_async", return_value=[mock_result]
+        ) as mock_cls,
+        patch("app.runtime.enricher.get_stock_info", return_value=STOCK_FINANCIALS),
+    ):
         await enricher.classify(["AAPL"])
         await enricher.classify(["AAPL"])
     # classify_async must only be called once; second call uses cache
@@ -148,8 +237,10 @@ async def test_classify_uses_cache_on_second_call():
 async def test_classify_deduplicates_symbols():
     enricher = AssetEnricher()
     mock_result = _mock_classifier_result("AAPL", "EQUITY")
-    with patch.object(enricher._cls, "classify_async", return_value=[mock_result]), \
-         patch("app.runtime.enricher.get_stock_info", return_value=None):
+    with (
+        patch.object(enricher._cls, "classify_async", return_value=[mock_result]),
+        patch("app.runtime.enricher.get_stock_info", return_value=None),
+    ):
         result = await enricher.classify(["AAPL", "AAPL", "aapl"])
     assert len(result) == 1
 
@@ -157,9 +248,13 @@ async def test_classify_deduplicates_symbols():
 @pytest.mark.asyncio
 async def test_classify_preserves_static_fields():
     enricher = AssetEnricher()
-    mock_result = _mock_classifier_result("AAPL", "EQUITY", "Apple Inc.", 3_000_000_000_000, {"exchange": "NASDAQ"})
-    with patch.object(enricher._cls, "classify_async", return_value=[mock_result]), \
-         patch("app.runtime.enricher.get_stock_info", return_value=STOCK_FINANCIALS):
+    mock_result = _mock_classifier_result(
+        "AAPL", "EQUITY", "Apple Inc.", 3_000_000_000_000, {"exchange": "NASDAQ"}
+    )
+    with (
+        patch.object(enricher._cls, "classify_async", return_value=[mock_result]),
+        patch("app.runtime.enricher.get_stock_info", return_value=STOCK_FINANCIALS),
+    ):
         result = await enricher.classify(["AAPL"])
     assert result[0]["name"] == "Apple Inc."
     assert result[0]["market_cap"] == 3_000_000_000_000
@@ -171,9 +266,13 @@ async def test_classify_multiple_mixed_symbols():
     enricher = AssetEnricher()
     mock_aapl = _mock_classifier_result("AAPL", "EQUITY", "Apple Inc.")
     mock_btc = _mock_classifier_result("BTC", "CRYPTO", "Bitcoin")
-    with patch.object(enricher._cls, "classify_async", return_value=[mock_aapl, mock_btc]), \
-         patch("app.runtime.enricher.get_stock_info", return_value=STOCK_FINANCIALS), \
-         patch("app.runtime.enricher.get_crypto_info", return_value=CRYPTO_FINANCIALS):
+    with (
+        patch.object(
+            enricher._cls, "classify_async", return_value=[mock_aapl, mock_btc]
+        ),
+        patch("app.runtime.enricher.get_stock_info", return_value=STOCK_FINANCIALS),
+        patch("app.runtime.enricher.get_crypto_info", return_value=CRYPTO_FINANCIALS),
+    ):
         result = await enricher.classify(["AAPL", "BTC"])
     assert len(result) == 2
     symbols = {r["symbol"] for r in result}
@@ -188,8 +287,10 @@ async def test_classify_does_not_mutate_cache_between_calls():
     """Each call should return a fresh copy, not a shared mutable dict."""
     enricher = AssetEnricher()
     mock_result = _mock_classifier_result("AAPL", "EQUITY", "Apple Inc.")
-    with patch.object(enricher._cls, "classify_async", return_value=[mock_result]), \
-         patch("app.runtime.enricher.get_stock_info", return_value=STOCK_FINANCIALS):
+    with (
+        patch.object(enricher._cls, "classify_async", return_value=[mock_result]),
+        patch("app.runtime.enricher.get_stock_info", return_value=STOCK_FINANCIALS),
+    ):
         result1 = await enricher.classify(["AAPL"])
         result2 = await enricher.classify(["AAPL"])
     # Mutating the first result should not affect the second

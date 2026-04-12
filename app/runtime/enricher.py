@@ -4,10 +4,31 @@ from collections import OrderedDict
 from typing import Dict, List
 
 from ticker_classifier.classifier import TickerClassifier
-from ..services.yahoo import get_stock_info
+
 from ..services.coingecko import get_crypto_info
+from ..services.yahoo import get_stock_info
 
 logger = logging.getLogger(__name__)
+
+_YAHOO_PRICED_KINDS = {"EQUITY", "ETF", "INDEX", "FUTURE", "FOREX", "COMMODITY"}
+
+# Fallback lookups for common symbols that are often posted in shorthand form.
+_SYMBOL_LOOKUP_OVERRIDES = {
+    "DXY": {"lookup": "DX-Y.NYB", "kind": "INDEX", "name": "US Dollar Index"},
+    "VIX": {"lookup": "^VIX", "kind": "INDEX", "name": "CBOE Volatility Index"},
+}
+
+
+def _normalize_kind(kind: object) -> str:
+    return str(kind or "").strip().upper()
+
+
+def _is_crypto_kind(kind: object) -> bool:
+    return _normalize_kind(kind) == "CRYPTO"
+
+
+def _should_use_yahoo(kind: object) -> bool:
+    return _normalize_kind(kind) in _YAHOO_PRICED_KINDS
 
 
 class AssetEnricher:
@@ -30,11 +51,40 @@ class AssetEnricher:
             if misses:
                 results = await self._cls.classify_async(misses)
                 for r in results:
-                    symbol = getattr(r, "symbol", None) or r.get("symbol") or r.get("ticker")
-                    kind = getattr(r, "kind", None) or r.get("kind") or r.get("category")
+                    symbol = (
+                        getattr(r, "symbol", None) or r.get("symbol") or r.get("ticker")
+                    )
+                    symbol = (symbol or "").upper()
+                    if not symbol:
+                        continue
+
+                    kind = (
+                        getattr(r, "kind", None) or r.get("kind") or r.get("category")
+                    )
                     meta = getattr(r, "meta", None) or r.get("meta")
                     name = getattr(r, "name", None) or r.get("name")
                     market_cap = getattr(r, "market_cap", None) or r.get("market_cap")
+
+                    yahoo_lookup_value = getattr(r, "yahoo_lookup", None)
+                    if not isinstance(yahoo_lookup_value, str):
+                        try:
+                            yahoo_lookup_value = r.get("yahoo_lookup")
+                        except Exception:
+                            yahoo_lookup_value = None
+
+                    yahoo_lookup = None
+                    if (
+                        isinstance(yahoo_lookup_value, str)
+                        and yahoo_lookup_value.strip()
+                    ):
+                        yahoo_lookup = yahoo_lookup_value.upper()
+
+                    override = _SYMBOL_LOOKUP_OVERRIDES.get(symbol)
+                    if _normalize_kind(kind) == "UNKNOWN" and override:
+                        kind = override["kind"]
+                        yahoo_lookup = override["lookup"]
+                        if not name:
+                            name = override["name"]
 
                     self._cache[symbol] = {
                         "symbol": symbol,
@@ -42,25 +92,50 @@ class AssetEnricher:
                         "name": name,
                         "market_cap": market_cap,
                         "meta": meta,
+                        "yahoo_lookup": yahoo_lookup,
+                    }
+
+                for symbol in misses:
+                    if symbol in self._cache:
+                        continue
+
+                    override = _SYMBOL_LOOKUP_OVERRIDES.get(symbol)
+                    if not override:
+                        continue
+
+                    self._cache[symbol] = {
+                        "symbol": symbol,
+                        "kind": override["kind"],
+                        "name": override["name"],
+                        "market_cap": None,
+                        "meta": {"source": "override"},
+                        "yahoo_lookup": override["lookup"],
                     }
 
         # preserve input order, unique by first occurrence
         uniq = list(OrderedDict.fromkeys(symbols))
         classified = [self._cache[s].copy() for s in uniq if s in self._cache]
-        logger.debug("[enricher] classified: %s", [(e["symbol"], e["kind"]) for e in classified])
+        logger.debug(
+            "[enricher] classified: %s", [(e["symbol"], e["kind"]) for e in classified]
+        )
 
         # Fetch volatile financial data concurrently for all classified symbols
         tasks = []
         for entry in classified:
             kind = entry["kind"]
             symbol = entry["symbol"]
+            lookup_symbol = (entry.get("yahoo_lookup") or symbol or "").upper()
 
-            if kind == "EQUITY":
-                tasks.append(get_stock_info(symbol))
-            elif kind == "CRYPTO" or kind == "crypto":
+            if _is_crypto_kind(kind):
                 tasks.append(get_crypto_info(symbol))
+            elif _should_use_yahoo(kind):
+                tasks.append(get_stock_info(lookup_symbol))
             else:
-                logger.debug("[enricher] %s has unhandled kind %r — skipping financials", symbol, kind)
+                logger.debug(
+                    "[enricher] %s has unhandled kind %r — skipping financials",
+                    symbol,
+                    kind,
+                )
                 tasks.append(self._dummy_info())
 
         financials = await asyncio.gather(*tasks, return_exceptions=True)
@@ -72,7 +147,12 @@ class AssetEnricher:
                 entry["financials"] = None
             else:
                 entry["financials"] = fin
-                logger.debug("[enricher] %s (%s) financials: %s", entry["symbol"], entry["kind"], fin)
+                logger.debug(
+                    "[enricher] %s (%s) financials: %s",
+                    entry["symbol"],
+                    entry["kind"],
+                    fin,
+                )
 
         return classified
 
