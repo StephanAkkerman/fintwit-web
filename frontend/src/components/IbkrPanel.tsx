@@ -115,7 +115,7 @@ function AccountSummary({ account }: { account: IbkrAccountSummary }) {
 }
 
 function PositionsTable({ positions }: { positions: IbkrPosition[] }) {
-  if (positions.length === 0) {
+  if (!Array.isArray(positions) || positions.length === 0) {
     return <p className="text-sm text-zinc-500">No open positions.</p>
   }
 
@@ -179,7 +179,7 @@ function PositionsTable({ positions }: { positions: IbkrPosition[] }) {
 }
 
 function TradesTable({ trades }: { trades: IbkrTrade[] }) {
-  if (trades.length === 0) {
+  if (!Array.isArray(trades) || trades.length === 0) {
     return <p className="text-sm text-zinc-500">No executions today.</p>
   }
 

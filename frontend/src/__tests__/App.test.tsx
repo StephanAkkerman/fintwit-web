@@ -178,7 +178,7 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open /portfolio' }))
 
     await waitFor(() => {
-      expect(screen.getByText(/ibkr portfolio/i)).toBeInTheDocument()
+      expect(screen.getByText(/ibkr live positions/i)).toBeInTheDocument()
     })
     expect(window.location.pathname).toBe('/portfolio')
   })

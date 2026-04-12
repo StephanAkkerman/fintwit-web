@@ -148,7 +148,7 @@ export default function App() {
   )
 
   const portfolioSymbols = useMemo(
-    () => new Set(ibkrPositions.map((p) => p.symbol.toUpperCase())),
+    () => new Set((Array.isArray(ibkrPositions) ? ibkrPositions : []).map((p) => p.symbol.toUpperCase())),
     [ibkrPositions]
   )
 
