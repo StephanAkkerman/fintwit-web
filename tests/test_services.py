@@ -5,11 +5,13 @@ import pytest
 
 import app.services.coingecko as coingecko_service
 import app.services.market_hours_service as market_hours_service
+import app.services.options_service as options_service
 import app.services.yahoo as yahoo_service
 from app.services.coingecko import get_crypto_info
 from app.services.events_service import get_economic_events
 from app.services.market_hours_service import get_stock_market_hours
 from app.services.nft_service import get_trending_nfts
+from app.services.options_service import get_options_overview
 from app.services.reddit_service import get_reddit_hot_posts, is_valid_subreddit_name
 from app.services.yahoo import get_stock_info
 
@@ -23,17 +25,22 @@ def _reset_coingecko_cache():
     reset_market_hours_cache = getattr(
         market_hours_service, "_reset_cache_for_tests", None
     )
+    reset_options_cache = getattr(options_service, "_reset_cache_for_tests", None)
     reset_yahoo_cache = getattr(yahoo_service, "_reset_cache_for_tests", None)
 
     coingecko_service._reset_cache_for_tests()
     if callable(reset_market_hours_cache):
         reset_market_hours_cache()
+    if callable(reset_options_cache):
+        reset_options_cache()
     if callable(reset_yahoo_cache):
         reset_yahoo_cache()
     yield
     coingecko_service._reset_cache_for_tests()
     if callable(reset_market_hours_cache):
         reset_market_hours_cache()
+    if callable(reset_options_cache):
+        reset_options_cache()
     if callable(reset_yahoo_cache):
         reset_yahoo_cache()
 
@@ -427,6 +434,83 @@ async def test_get_crypto_info_uses_cache_on_second_call():
     # First call performs 2 requests (search + price), second call is cache hit.
     session_obj = mock_cs.return_value.__aenter__.return_value
     assert session_obj.get.call_count == 2
+
+
+# ---------------------------------------------------------------------------
+# Options – get_options_overview
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_options_overview_aggregates_calls_and_puts():
+    payload = {
+        "data": {
+            "tableDataCalls": {
+                "tableData": {
+                    "asOf": "Apr 12, 2026",
+                    "rows": [
+                        {
+                            "expiryDate": "Apr 17, 2026",
+                            "strike": 200,
+                            "last": "1.2",
+                            "pctChange": "+12.3",
+                            "volume": 1500,
+                            "openINT": "3200",
+                            "url": "/market-activity/stocks/aapl/option-chain/call-put-options/sample-call",
+                        }
+                    ],
+                }
+            },
+            "tableDataPuts": {
+                "tableData": {
+                    "asOf": "Apr 12, 2026",
+                    "rows": [
+                        {
+                            "expiryDate": "Apr 17, 2026",
+                            "strike": 180,
+                            "last": "0.9",
+                            "pctChange": "-3.2",
+                            "volume": 900,
+                            "openINT": "2500",
+                            "url": "/market-activity/stocks/aapl/option-chain/call-put-options/sample-put",
+                        }
+                    ],
+                }
+            },
+        }
+    }
+
+    response = MagicMock()
+    response.status_code = 200
+    response.json.return_value = payload
+
+    client = AsyncMock()
+    client.get = AsyncMock(return_value=response)
+
+    result = await get_options_overview(client, symbols=["AAPL"])
+
+    assert result is not None
+    assert result["totals"]["call_volume"] == 1500
+    assert result["totals"]["put_volume"] == 900
+    assert result["totals"]["put_call_ratio"] == pytest.approx(0.6)
+    assert len(result["most_active_contracts"]) == 2
+    assert result["most_active_contracts"][0]["contract_type"] == "CALL"
+
+
+@pytest.mark.asyncio
+async def test_get_options_overview_returns_none_when_all_symbols_fail():
+    response = MagicMock()
+    response.status_code = 200
+    response.json.return_value = {
+        "data": None,
+        "status": {"rCode": 400},
+    }
+
+    client = AsyncMock()
+    client.get = AsyncMock(return_value=response)
+
+    result = await get_options_overview(client, symbols=["INVALID"])
+    assert result is None
 
 
 # ---------------------------------------------------------------------------

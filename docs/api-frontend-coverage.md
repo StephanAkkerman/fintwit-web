@@ -16,9 +16,12 @@ Last updated: 2026-04-12
 | `/api/fear-greed` | GET | `alternative.me/fng` | `{ value, change, status }` | Connected via `FearGreedWidget` |
 | `/api/treemap` | GET | `coin360.com/site-api/coins` | Coin360 top-100 treemap payload | Connected via `TreemapWidget` |
 | `/api/trending-crypto` | GET | `coinmarketcap.com/data-api/v3/topsearch/rank` | List of trending coins with price/change/volume/website | Connected via `TrendingCryptoWidget` |
+| `/api/binance/gainers-losers` | GET | `api.binance.com/api/v3/ticker/24hr` | Top USDT-pair gainers and losers with price, 24h change, volume, and Binance market URL | Connected via `BinanceGainersLosersWidget` |
 | `/api/events/economic` | GET | `www.investing.com/economic-calendar/Service/getCalendarFilteredData` (high-impact, this-week view for US + Euro zone) | Economic calendar rows with date/time/zone/currency/event and actual/forecast/previous values plus impact metadata (`impact_score`, `impact_emoji`) | Connected via `EconomicEventsWidget` |
 | `/api/nfts/trending` | GET | `api.coingecko.com/api/v3/search/trending` (`nfts` section) | Trending NFT collections with floor price, floor currency, floor 24h change, thumbnail, and website | Connected via `NftTrendingWidget` |
 | `/api/stocks/market-hours` | GET | `query1.finance.yahoo.com/v7/finance/quote` market-state fields for representative exchange symbols (short-lived cache + stale-cache fallback on transient failures/rate limits) | Major exchange session status (`Open`, `Pre-market`, `After-hours`, `Closed`) with timezone and exchange metadata | Connected via `StockMarketHoursBanner` |
+| `/api/stock-halts` | GET | `www.nasdaqtrader.com/RPCHandler.axd` (`BL_TradeHalt.GetTradeHalts`) | Current-day Nasdaq halt rows with halt time, issue symbol, and optional resumption time | Connected via `StockHaltsWidget` |
+| `/api/options/overview` | GET | `api.nasdaq.com/api/quote/{symbol}/option-chain/most-active?assetclass=...` (aggregated across default major symbols, optional `symbols` query override) | Calls/puts totals, market put-call ratio, bullish-vs-bearish symbol ranking, and most-active contracts | Connected via `OptionsOverviewWidget` |
 | `/api/stocktwits` | GET | `api.stocktwits.com/api/2/charts/{keyword}` (curl-first, then httpx; short-lived cache fallback on transient failures) | Formatted StockTwits rank list (`symbol`, `name`, `price`, `val`); returns `[]` during transient upstream unavailability | Connected via `StocktwitsWidget` |
 | `/api/spy-heatmap` | GET | `phx.unusualwhales.com/api/etf/SPY/heatmap` | SPY heatmap JSON by date range | Connected via `SpyHeatmapWidget` |
 | `/api/reddit/wsb` | GET | `asyncpraw` (credentials via env) with fallback to `reddit.com/r/{subreddit}/hot.json` via `httpx` | Recent non-stickied Reddit hot posts with title/body/media normalization | Connected via `RedditWsbWidget` |
@@ -57,6 +60,7 @@ For equities/ETFs, `tweet.assets[*].company_profile` may include curated finance
   - `/crypto` crypto-focused widgets,
   - `/stocks` stock-focused widgets,
   - `/forex` macro/forex-focused widgets,
+  - `/options` options market-activity widgets,
   - `/nfts` NFT-focused widgets,
   - `/portfolio` portfolio management.
 
@@ -76,3 +80,15 @@ For equities/ETFs, `tweet.assets[*].company_profile` may include curated finance
   - quote embeds in `TweetCard` display quoted author identity and quoted timestamp in the embed header (using API-provided quote fields when available, with markdown/URL inference fallback).
   - quote embeds in `TweetCard` also render the quoted user's avatar in the header (from `quoted_tweet.user_img` or `quoted_user_img` fallback).
   - when present, quote embeds prefer `quoted_tweet` metadata/media from backend over markdown parsing heuristics.
+
+- Crypto route widgets rely on:
+  - `/api/trending-crypto` for top searched coin context,
+  - `/api/binance/gainers-losers` for short-horizon momentum lists (top gainers/losers).
+
+- Stocks route widgets rely on:
+  - `/api/stocks/market-hours` for exchange session state,
+  - `/api/stock-halts` for same-day halt/resumption activity,
+  - `/api/stocktwits` and `/api/spy-heatmap` for social and market breadth context.
+
+- Options route widgets rely on:
+  - `/api/options/overview` for aggregated calls/puts totals, put-call ratio, and most-active option contracts.

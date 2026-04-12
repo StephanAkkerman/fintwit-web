@@ -35,6 +35,9 @@ beforeEach(() => {
     if (url.includes('/api/trending-crypto')) {
       return Promise.resolve({ ok: true, json: async () => [] } as Response)
     }
+    if (url.includes('/api/binance/gainers-losers')) {
+      return Promise.resolve({ ok: true, json: async () => ({ gainers: [], losers: [] }) } as Response)
+    }
     if (url.includes('/api/nfts/trending')) {
       return Promise.resolve({ ok: true, json: async () => [] } as Response)
     }
@@ -47,8 +50,26 @@ beforeEach(() => {
     if (url.includes('/api/stocks/market-hours')) {
       return Promise.resolve({ ok: true, json: async () => [] } as Response)
     }
+    if (url.includes('/api/stock-halts')) {
+      return Promise.resolve({ ok: true, json: async () => [] } as Response)
+    }
     if (url.includes('/api/events/economic')) {
       return Promise.resolve({ ok: true, json: async () => [] } as Response)
+    }
+    if (url.includes('/api/options/overview')) {
+      return Promise.resolve(
+        {
+          ok: true,
+          json: async () => ({
+            symbols: [],
+            totals: { call_volume: 0, put_volume: 0, total_volume: 0, put_call_ratio: null },
+            bullish: [],
+            bearish: [],
+            most_active_contracts: [],
+            source: 'nasdaq',
+          }),
+        } as Response
+      )
     }
     if (url.includes('/api/spy-heatmap')) {
       return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)
@@ -119,6 +140,7 @@ describe('App', () => {
     await waitFor(() =>
       expect(screen.getByRole('heading', { name: /trending crypto/i })).toBeInTheDocument()
     )
+    expect(screen.getByRole('heading', { name: /binance movers/i })).toBeInTheDocument()
     expect(screen.getByText(/top coins by market cap/i)).toBeInTheDocument()
     expect(window.location.pathname).toBe('/crypto')
   })
@@ -131,6 +153,7 @@ describe('App', () => {
     await waitFor(() =>
       expect(screen.getByText(/stocktwits signals/i)).toBeInTheDocument()
     )
+    expect(screen.getByRole('heading', { name: /nasdaq trading halts/i })).toBeInTheDocument()
     expect(screen.getByText(/major exchange sessions/i)).toBeInTheDocument()
     expect(screen.getByText(/spy heatmap/i)).toBeInTheDocument()
     expect(window.location.pathname).toBe('/stocks')
@@ -145,6 +168,17 @@ describe('App', () => {
       expect(screen.getByRole('heading', { name: /economic events/i })).toBeInTheDocument()
     )
     expect(window.location.pathname).toBe('/forex')
+  })
+
+  it('shows options section widget when navigating to /options', async () => {
+    render(<App />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open /options' }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: /options overview/i })).toBeInTheDocument()
+    )
+    expect(window.location.pathname).toBe('/options')
   })
 
   it('shows nft section widget when navigating to /nfts', async () => {

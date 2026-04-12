@@ -13,6 +13,7 @@ Route-level sections:
   - Tweet timeline (`useTweets` + `TweetCard`)
 
 - `/crypto`
+  - `BinanceGainersLosersWidget`
   - `TrendingCryptoWidget`
   - `TreemapWidget`
   - Tweet timeline auto-filtered to crypto signals
@@ -20,6 +21,7 @@ Route-level sections:
 
 - `/stocks`
   - `StockMarketHoursBanner`
+  - `StockHaltsWidget`
   - `StocktwitsWidget`
   - `SpyHeatmapWidget`
   - Tweet timeline auto-filtered to stock signals
@@ -30,6 +32,11 @@ Route-level sections:
   - Investing high-impact macro calendar table
   - Tweet timeline auto-filtered to macro/forex signals
   - Chart-focused sort controls: Latest / Charts first / Charts only
+
+- `/options`
+  - `OptionsOverviewWidget`
+  - Nasdaq-based options activity summary (calls/puts totals, put-call ratio, most-active contracts)
+  - Tweet timeline auto-filtered to stock-linked symbols
 
 - `/nfts`
   - `NftTrendingWidget`
@@ -67,6 +74,10 @@ Route-level sections:
   - Fetches: `/api/trending-crypto`
   - Purpose: top searched crypto table with price and 24h change.
 
+- `BinanceGainersLosersWidget` + `useBinanceGainersLosers`
+  - Fetches: `/api/binance/gainers-losers`
+  - Purpose: short-horizon crypto momentum panel with top gainers and losers from Binance USDT pairs.
+
 - `NftTrendingWidget` + `useTrendingNfts`
   - Fetches: `/api/nfts/trending?limit=...`
   - Purpose: NFT collection momentum table with floor price and 24h floor change.
@@ -86,6 +97,14 @@ Route-level sections:
 - `StockMarketHoursBanner` + `useStockMarketHours`
   - Fetches: `/api/stocks/market-hours`
   - Purpose: Display current major exchange session states, including pre-market and after-hours.
+
+- `StockHaltsWidget` + `useStockHalts`
+  - Fetches: `/api/stock-halts`
+  - Purpose: Display same-day Nasdaq halt rows with halt time and resumption time context.
+
+- `OptionsOverviewWidget` + `useOptionsOverview`
+  - Fetches: `/api/options/overview` (optional `symbols` query override)
+  - Purpose: Display aggregated options activity (calls, puts, put-call ratio, bullish/bearish skew, most-active contracts).
 
 - `EconomicEventsWidget` + `useEconomicEvents`
   - Fetches: `/api/events/economic?limit=...`

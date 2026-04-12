@@ -31,6 +31,7 @@ from ..services.ibkr import IbkrGateway
 from ..services.market_hours_service import get_stock_market_hours
 from ..services.nasdaq_service import get_halt_data
 from ..services.nft_service import get_trending_nfts
+from ..services.options_service import get_options_overview
 from ..services.reddit_service import get_reddit_hot_posts, is_valid_subreddit_name
 from ..services.stocktwits_service import get_stocktwits_data
 from ..services.unusual_whales import get_spy_heatmap
@@ -184,6 +185,25 @@ async def stocktwits(
     if data is None:
         # StockTwits can intermittently block requests; return empty payload to avoid UI hard-fail.
         return []
+    return data
+
+
+@app.get("/api/options/overview")
+async def options_overview(
+    request: Request,
+    symbols: str | None = Query(default=None),
+    _=Depends(api_key_dep),
+):
+    client: httpx.AsyncClient = request.app.state.http_client
+    parsed_symbols = None
+    if symbols:
+        parsed_symbols = [
+            part.strip().upper() for part in symbols.split(",") if part.strip()
+        ]
+
+    data = await get_options_overview(client, parsed_symbols)
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
     return data
 
 

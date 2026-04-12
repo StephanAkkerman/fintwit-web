@@ -188,6 +188,49 @@ async def test_stocktwits_returns_empty_list_when_service_unavailable(async_clie
 
 
 @pytest.mark.asyncio
+async def test_options_overview_returns_data(async_client):
+    app.state.http_client = AsyncMock()
+
+    with patch("app.api.main.get_options_overview", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = {
+            "totals": {
+                "call_volume": 1000,
+                "put_volume": 800,
+                "total_volume": 1800,
+                "put_call_ratio": 0.8,
+            },
+            "symbols": [],
+            "bullish": [],
+            "bearish": [],
+            "most_active_contracts": [],
+            "source": "nasdaq",
+        }
+
+        response = await async_client.get(
+            "/api/options/overview", headers={"X-API-Key": "test-api-key"}
+        )
+
+    assert response.status_code == 200
+    assert response.json()["source"] == "nasdaq"
+    mock_get.assert_awaited_once_with(app.state.http_client, None)
+
+
+@pytest.mark.asyncio
+async def test_options_overview_returns_503_when_service_unavailable(async_client):
+    app.state.http_client = AsyncMock()
+
+    with patch("app.api.main.get_options_overview", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = None
+
+        response = await async_client.get(
+            "/api/options/overview", headers={"X-API-Key": "test-api-key"}
+        )
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Service Unavailable"}
+
+
+@pytest.mark.asyncio
 async def test_economic_events_returns_data(async_client):
     app.state.http_client = AsyncMock()
 

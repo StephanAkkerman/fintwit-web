@@ -21,6 +21,8 @@ Last updated: 2026-04-12
 - Operational backfill command for historical tweet sentiment (`python -m app.runtime.backfill_sentiment`).
 - SSE broadcasting (`/api/stream`) and engagement update handling for tweet updates.
 - Service-backed endpoints for Fear & Greed, treemap, StockTwits, SPY heatmap, and trending crypto.
+- Additional market-microstructure endpoints now available: Binance gainers/losers (`/api/binance/gainers-losers`) and Nasdaq stock halts (`/api/stock-halts`).
+- Options migration slice: market options overview endpoint (`/api/options/overview`) now available, powered by Nasdaq most-active option-chain data for major US underlyings.
 - NFT migration slice: CoinGecko trending NFTs endpoint (`/api/nfts/trending`) now available.
 - Stock migration slice: market session endpoint (`/api/stocks/market-hours`) now available with pre-market/after-hours state mapping for major exchanges.
 - Stock market-hours service hardening: short-lived cache plus stale-cache fallback now keeps the endpoint available during transient Yahoo rate limits (`429`).
@@ -68,6 +70,9 @@ Last updated: 2026-04-12
 - Home route includes a WallStreetBets radar widget with latest Reddit post momentum signals.
 - NFTs route includes a CoinGecko-based trending collections widget with floor price and 24h floor change.
 - Stocks route now includes a market-hours banner showing major exchange session state (open/pre-market/after-hours/closed).
+- Crypto route now includes a Binance movers widget (top gainers/losers).
+- Stocks route now includes a Nasdaq trading halts widget.
+- Options route now includes a market activity widget for calls, puts, put/call ratio, and most-active contracts.
 - Forex route now includes an economic events widget backed by Investing high-impact calendar data.
 - Economic events widget now displays country/region flag emojis and explicit impact badges per event.
 
@@ -79,6 +84,9 @@ Last updated: 2026-04-12
 - Trending crypto widget: `/api/trending-crypto` -> `TrendingCryptoWidget`.
 - StockTwits widget: `/api/stocktwits` -> `StocktwitsWidget`.
 - SPY heatmap widget: `/api/spy-heatmap` -> `SpyHeatmapWidget`.
+- Binance movers widget: `/api/binance/gainers-losers` -> `BinanceGainersLosersWidget`.
+- Nasdaq stock halts widget: `/api/stock-halts` -> `StockHaltsWidget`.
+- Options overview widget: `/api/options/overview` -> `OptionsOverviewWidget`.
 - Market overview stream assets: `/api/posts` + `/api/stream` -> `MarketOverview`.
 - Debug admin panel: `/api/debug/tweet` -> `DebugAdminPanel` (`/admin`).
 - Portfolio panel: `/api/portfolio/positions` + `/api/portfolio/summary` -> `PortfolioPanel` (`/portfolio`).
@@ -93,4 +101,4 @@ Last updated: 2026-04-12
 
 ## Suggested Next Connections
 
-- Continue legacy feature migration from `fintwit-bot` domains not yet ported (forex, options, NFTs).
+- Continue legacy feature migration from `fintwit-bot` domains not yet ported (forex, options volume/SPACs/short-interest slices, NFTs).

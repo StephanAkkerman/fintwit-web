@@ -107,6 +107,74 @@ export type StocktwitsItem = {
   val: string;
 };
 
+export type BinanceMoverItem = {
+  symbol: string;
+  price_change_percent: number;
+  price: number;
+  volume: number;
+  website: string;
+};
+
+export type BinanceGainersLosers = {
+  gainers: BinanceMoverItem[];
+  losers: BinanceMoverItem[];
+};
+
+export type StockHaltItem = {
+  Time: string;
+  'Issue Symbol': string;
+  'Resumption Time'?: string;
+};
+
+export type OptionContractActivity = {
+  symbol: string;
+  contract_type: 'CALL' | 'PUT' | string;
+  expiry_date?: string | null;
+  strike?: number | null;
+  last?: number | null;
+  change_percent?: number | null;
+  volume: number;
+  open_interest: number;
+  website?: string | null;
+};
+
+export type OptionSymbolOverview = {
+  symbol: string;
+  asset_class: string;
+  as_of?: string | null;
+  call_volume: number;
+  put_volume: number;
+  total_volume: number;
+  put_call_ratio?: number | null;
+  bullish_minus_bearish: number;
+  top_call?: OptionContractActivity | null;
+  top_put?: OptionContractActivity | null;
+};
+
+export type OptionsOverviewResponse = {
+  symbols: OptionSymbolOverview[];
+  totals: {
+    call_volume: number;
+    put_volume: number;
+    total_volume: number;
+    put_call_ratio?: number | null;
+  };
+  bullish: Array<{
+    symbol: string;
+    call_volume: number;
+    put_volume: number;
+    bullish_minus_bearish: number;
+  }>;
+  bearish: Array<{
+    symbol: string;
+    call_volume: number;
+    put_volume: number;
+    bullish_minus_bearish: number;
+  }>;
+  most_active_contracts: OptionContractActivity[];
+  source: string;
+};
+
 export type SpyHeatmapDateRange =
   | 'one_day'
   | 'after_hours'
