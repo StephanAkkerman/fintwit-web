@@ -36,10 +36,12 @@ Last updated: 2026-04-12
 - Live tweet timeline using initial REST load + SSE updates.
 - Timeline pagination: initial REST load now requests 200 tweets, with manual load-older pagination wired via `before_id`.
 - Quote tweet markdown rendering with quote embed styling.
+- Repost handling: retweeted posts now render with original author identity (name/avatar) and explicit reposter attribution line.
 - Quote tweet header now mirrors native X styling by showing quoted author identity (instead of a generic label) and quoted timestamp when available.
 - Quote tweet header now includes the quoted user's avatar next to their name when image metadata is available.
 - Quote embeds now consume backend `quoted_tweet` metadata/media directly (author, handle, timestamp, image), with markdown heuristics only as fallback.
 - Quote image handling inside embed (with main image placement before quote embed).
+- Tweet body rendering now preserves original line breaks and intentional blank lines.
 - Tweet images now open in an in-page lightbox preview (no full-page navigation away from timeline).
 - Tweet timestamps are shown in the viewer's local timezone (UTC source timestamps normalized server-side with offset).
 - Financial asset blocks in tweet cards are intentionally compact and now show ticker, full name, type, price, and daily % change.

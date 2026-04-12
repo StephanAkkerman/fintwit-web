@@ -34,6 +34,24 @@ describe('TweetCard', () => {
     expect(screen.getByText('Hello world')).toBeInTheDocument()
   })
 
+  it('preserves line breaks and blank lines in tweet text', () => {
+    const { container } = render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          text: 'Line one\nLine two\n\nLine four',
+        }}
+      />
+    )
+
+    const paragraphs = Array.from(container.querySelectorAll('p'))
+    expect(paragraphs.length).toBeGreaterThanOrEqual(2)
+    expect(paragraphs[0].textContent).toBe('Line one\nLine two')
+    expect(paragraphs[1].textContent).toBe('Line four')
+    expect(paragraphs[0].className).toContain('whitespace-pre-wrap')
+    expect(paragraphs[1].className).toContain('whitespace-pre-wrap')
+  })
+
   it('renders quote-tweet markdown as blockquote with parsed links', () => {
     const quoteText =
       '> [@opensea](https://x.com/opensea/status/1893717105483483558):\n> Treasure Chests from our final Wave are now unlocked.'
@@ -185,6 +203,51 @@ describe('TweetCard', () => {
 
     const quoteAvatar = screen.getByAltText('Quoted user avatar') as HTMLImageElement
     expect(quoteAvatar.src).toContain('legacy-avatar.jpg')
+  })
+
+  it('renders repost attribution with original author identity', () => {
+    const { container } = render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          user_name: 'Repost Account',
+          user_screen_name: 'repostacct',
+          user_img: 'https://example.com/reposter.jpg',
+          title: 'Repost Account retweeted Original Analyst',
+          text: 'Original post body',
+          quoted_tweet: {
+            id: '9001',
+            text: 'Original post body',
+            user_name: 'Original Analyst',
+            user_screen_name: 'originalanalyst',
+            user_img: 'https://example.com/original.jpg',
+            url: 'https://x.com/originalanalyst/status/9001',
+            media: [],
+            tickers: [],
+            hashtags: [],
+            title: 'Original Analyst tweeted',
+            media_types: [],
+            created_at: '2026-04-01T12:00:00Z',
+            likes: 0,
+            retweets: 0,
+            replies: 0,
+            views: 0,
+          },
+        }}
+      />
+    )
+
+    expect(screen.getByText('Original Analyst')).toBeInTheDocument()
+    expect(screen.getByText('@originalanalyst')).toBeInTheDocument()
+    expect(screen.getByText('Reposted by Repost Account')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /open/i })).toHaveAttribute(
+      'href',
+      'https://x.com/originalanalyst/status/9001'
+    )
+
+    const headerImage = container.querySelector('header img') as HTMLImageElement | null
+    expect(headerImage?.src).toContain('original.jpg')
+    expect(container.querySelector('blockquote')).not.toBeInTheDocument()
   })
 
   it('renders an Open link pointing to the tweet URL', () => {

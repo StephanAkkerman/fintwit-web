@@ -12,6 +12,7 @@ from ..ml.sentiment import FinTwitSentiment
 from .broadcast import Broadcaster
 from .enricher import AssetEnricher
 from .symbols import merge_symbols
+from .xclient_compat import apply_xclient_retweet_patch
 
 ENGAGEMENT_FIELDS = ("replies", "likes", "views", "retweets")
 logger = logging.getLogger(__name__)
@@ -52,6 +53,7 @@ async def run_stream(
     bc: Broadcaster,
     sentiment_model: FinTwitSentiment | None = None,
 ) -> None:
+    apply_xclient_retweet_patch()
     backoff = 1.0
     enricher = AssetEnricher()
     last_id_path = os.getenv("XTIMELINE_LAST_ID_PATH", "state/last_id.txt")

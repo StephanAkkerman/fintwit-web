@@ -83,6 +83,11 @@ function parseTweetDate(createdAt: string | null | undefined): Date | null {
   return parsed
 }
 
+function isRepostTweet(t: Tweet): boolean {
+  const title = String(t.title ?? '').toLowerCase()
+  return title.includes('retweeted') && Boolean(t.quoted_tweet)
+}
+
 type QuoteMeta = {
   displayName: string | null
   screenName: string | null
@@ -168,7 +173,7 @@ function stripQuotedLeadHandleLine(text: string): string {
   }
 
   lines.splice(firstQuoteIndex, 1)
-  return lines.join('\n').replace(/\n{3,}/g, '\n\n')
+  return lines.join('\n')
 }
 
 function extractQuoteMeta(t: Tweet): QuoteMeta {
@@ -233,6 +238,9 @@ export default function TweetCard({
 }) {
   const [lightboxImage, setLightboxImage] = useState<{ url: string; alt: string } | null>(null)
 
+  const isRepost = isRepostTweet(t)
+  const headerTweet = isRepost && t.quoted_tweet ? t.quoted_tweet : t
+
   useEffect(() => {
     if (!lightboxImage) return
 
@@ -252,11 +260,11 @@ export default function TweetCard({
     }
   }, [lightboxImage])
 
-  const createdAt = parseTweetDate(t.created_at)
+  const createdAt = parseTweetDate(headerTweet.created_at)
   const timeLabel = createdAt
     ? createdAt.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
     : null
-  const hasQuoteEmbed = Boolean(t.quoted_tweet) || /(^|\n)\s*>\s*/.test(t.text ?? '')
+  const hasQuoteEmbed = !isRepost && (Boolean(t.quoted_tweet) || /(^|\n)\s*>\s*/.test(t.text ?? ''))
   const rawText = hasQuoteEmbed ? stripQuotedLeadHandleLine(t.text ?? '') : (t.text ?? '')
   const renderedText = onTickerSelect ? linkifySymbols(rawText) : rawText
   const allMedia = t.media ?? []
@@ -319,15 +327,18 @@ export default function TweetCard({
   return (
     <article className="rounded-2xl shadow p-4 bg-white dark:bg-zinc-900">
       <header className="flex items-center gap-3">
-        <img src={t.user_img} alt="" className="h-10 w-10 rounded-full" />
+        <img src={headerTweet.user_img} alt="" className="h-10 w-10 rounded-full" />
         <div className="min-w-0">
-          <div className="font-semibold truncate">{t.user_name}</div>
-          <div className="text-sm text-zinc-500">@{t.user_screen_name}</div>
+          <div className="font-semibold truncate">{headerTweet.user_name}</div>
+          <div className="text-sm text-zinc-500">@{headerTweet.user_screen_name}</div>
+          {isRepost && (
+            <div className="text-xs text-zinc-500">Reposted by {t.user_name}</div>
+          )}
         </div>
         <div className="ml-auto flex flex-col items-end gap-0.5">
           <a
             className="text-sm text-blue-600 hover:underline"
-            href={t.url}
+            href={headerTweet.url}
             target="_blank"
             rel="noreferrer"
           >
@@ -359,7 +370,7 @@ export default function TweetCard({
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
-            p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+            p: ({ children }) => <p className="mb-2 whitespace-pre-wrap last:mb-0">{children}</p>,
             a: ({ href, children }) => {
               const filterIdx = href?.indexOf(FILTER_HREF_PREFIX) ?? -1
               if (filterIdx !== -1 && onTickerSelect) {

@@ -66,6 +66,8 @@ For equities/ETFs, `tweet.assets[*].company_profile` may include curated finance
   - `assets[].symbol` and `assets[].kind` for category and ticker filters,
   - `assets[].financials.website` for price links,
   - `assets[].symbol`, `assets[].name`, `assets[].kind`, `assets[].financials.price`, and `assets[].financials.change_percent` for compact financial card rendering in `TweetCard`,
+  - `title` + `quoted_tweet` to distinguish reposts from quote embeds and render original-author header with reposter attribution,
+  - tweet `text` is rendered with preserved user-authored line breaks and blank lines,
   - `sentiment_*` for main-post sentiment rendering,
   - `quoted_sentiment_*` for quote-post sentiment rendering.
   - media URLs are rendered as in-page image previews (lightbox) in `TweetCard` rather than opening directly in a new tab on image click.
