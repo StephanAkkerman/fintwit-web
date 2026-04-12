@@ -12,12 +12,6 @@ logger = logging.getLogger(__name__)
 
 _YAHOO_PRICED_KINDS = {"EQUITY", "ETF", "INDEX", "FUTURE", "FOREX", "COMMODITY"}
 
-# Fallback lookups for common symbols that are often posted in shorthand form.
-_SYMBOL_LOOKUP_OVERRIDES = {
-    "DXY": {"lookup": "DX-Y.NYB", "kind": "INDEX", "name": "US Dollar Index"},
-    "VIX": {"lookup": "^VIX", "kind": "INDEX", "name": "CBOE Volatility Index"},
-}
-
 
 def _normalize_kind(kind: object) -> str:
     return str(kind or "").strip().upper()
@@ -79,13 +73,6 @@ class AssetEnricher:
                     ):
                         yahoo_lookup = yahoo_lookup_value.upper()
 
-                    override = _SYMBOL_LOOKUP_OVERRIDES.get(symbol)
-                    if _normalize_kind(kind) == "UNKNOWN" and override:
-                        kind = override["kind"]
-                        yahoo_lookup = override["lookup"]
-                        if not name:
-                            name = override["name"]
-
                     self._cache[symbol] = {
                         "symbol": symbol,
                         "kind": kind,
@@ -93,23 +80,6 @@ class AssetEnricher:
                         "market_cap": market_cap,
                         "meta": meta,
                         "yahoo_lookup": yahoo_lookup,
-                    }
-
-                for symbol in misses:
-                    if symbol in self._cache:
-                        continue
-
-                    override = _SYMBOL_LOOKUP_OVERRIDES.get(symbol)
-                    if not override:
-                        continue
-
-                    self._cache[symbol] = {
-                        "symbol": symbol,
-                        "kind": override["kind"],
-                        "name": override["name"],
-                        "market_cap": None,
-                        "meta": {"source": "override"},
-                        "yahoo_lookup": override["lookup"],
                     }
 
         # preserve input order, unique by first occurrence

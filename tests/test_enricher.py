@@ -136,9 +136,14 @@ async def test_classify_forex_uses_yahoo_lookup_for_stock_info():
 
 
 @pytest.mark.asyncio
-async def test_classify_unknown_dxy_uses_local_override():
+async def test_classify_dxy_uses_classifier_yahoo_lookup():
     enricher = AssetEnricher()
-    classifier_row = {"ticker": "DXY", "category": "Unknown"}
+    classifier_row = {
+        "ticker": "DXY",
+        "category": "Index",
+        "name": "US Dollar Index",
+        "yahoo_lookup": "DX-Y.NYB",
+    }
     with (
         patch.object(enricher._cls, "classify_async", return_value=[classifier_row]),
         patch(
