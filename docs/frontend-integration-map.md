@@ -1,6 +1,6 @@
 # Frontend Integration Map
 
-Last updated: 2026-04-10
+Last updated: 2026-04-12
 
 ## Mounted in `App.tsx` Today
 
@@ -23,6 +23,12 @@ Route-level sections:
   - `StocktwitsWidget`
   - `SpyHeatmapWidget`
   - Tweet timeline auto-filtered to stock signals
+  - Chart-focused sort controls: Latest / Charts first / Charts only
+
+- `/forex`
+  - `EconomicEventsWidget`
+  - Investing high-impact macro calendar table
+  - Tweet timeline auto-filtered to macro/forex signals
   - Chart-focused sort controls: Latest / Charts first / Charts only
 
 - `/nfts`
@@ -80,6 +86,10 @@ Route-level sections:
 - `StockMarketHoursBanner` + `useStockMarketHours`
   - Fetches: `/api/stocks/market-hours`
   - Purpose: Display current major exchange session states, including pre-market and after-hours.
+
+- `EconomicEventsWidget` + `useEconomicEvents`
+  - Fetches: `/api/events/economic?limit=...`
+  - Purpose: Display upcoming high-impact US and Euro-zone economic events with flag emojis, impact badges, and actual/forecast/previous fields.
 
 - `SpyHeatmapWidget` + `useSpyHeatmap`
   - Fetches: `/api/spy-heatmap?date=...`

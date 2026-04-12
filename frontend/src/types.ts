@@ -179,6 +179,21 @@ export type StockMarketHoursItem = {
   next_close: string | null;
 };
 
+export type EconomicEventItem = {
+  id: string;
+  date: string | null;
+  time: string | null;
+  zone: string | null;
+  currency: string | null;
+  event: string;
+  actual: string | null;
+  forecast: string | null;
+  previous: string | null;
+  impact_score: number | null;
+  impact_emoji: string | null;
+  source: string | null;
+};
+
 export type IbkrPosition = {
   id: number;
   account: string;

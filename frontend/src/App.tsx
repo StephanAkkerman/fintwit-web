@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import DebugAdminPanel from './components/DebugAdminPanel'
+import EconomicEventsWidget from './components/EconomicEventsWidget'
 import FearGreedWidget from './components/FearGreedWidget'
+import IbkrPanel from './components/IbkrPanel'
 import MarketOverview from './components/MarketOverview'
 import NftTrendingWidget from './components/NftTrendingWidget'
-import IbkrPanel from './components/IbkrPanel'
 import RedditWsbWidget from './components/RedditWsbWidget'
 import SpyHeatmapWidget from './components/SpyHeatmapWidget'
 import StockMarketHoursBanner from './components/StockMarketHoursBanner'
@@ -17,13 +18,14 @@ import type { Tweet } from './types'
 import { hasChartSignal } from './utils/tweetSignals'
 
 type FilterKey = 'all' | 'crypto' | 'stock' | 'non-financial'
-type RouteKey = 'home' | 'crypto' | 'stocks' | 'nfts' | 'portfolio' | 'admin'
+type RouteKey = 'home' | 'crypto' | 'stocks' | 'forex' | 'nfts' | 'portfolio' | 'admin'
 type ChartSortMode = 'latest' | 'charts-first' | 'charts-only'
 
 const SECTIONS: Array<{ key: RouteKey; label: string; path: string; subtitle: string }> = [
   { key: 'home', label: 'Home', path: '/', subtitle: 'Cross-market stream' },
   { key: 'crypto', label: 'Crypto', path: '/crypto', subtitle: 'Coins, trend, heatmap' },
   { key: 'stocks', label: 'Stocks', path: '/stocks', subtitle: 'Equity sentiment and SPY map' },
+  { key: 'forex', label: 'Forex', path: '/forex', subtitle: 'Macro events and FX sentiment' },
   { key: 'nfts', label: 'NFTs', path: '/nfts', subtitle: 'Collection momentum and floor-price pulse' },
   { key: 'portfolio', label: 'Portfolio', path: '/portfolio', subtitle: 'IBKR stock positions and PnL' },
   { key: 'admin', label: 'Admin', path: '/admin', subtitle: 'Debug tweet injection and verification' },
@@ -39,6 +41,7 @@ const FILTERS: Array<{ key: FilterKey; label: string }> = [
 function routeFromPath(pathname: string): RouteKey {
   if (pathname.startsWith('/crypto')) return 'crypto'
   if (pathname.startsWith('/stocks')) return 'stocks'
+  if (pathname.startsWith('/forex')) return 'forex'
   if (pathname.startsWith('/nfts')) return 'nfts'
   if (pathname.startsWith('/portfolio')) return 'portfolio'
   if (pathname.startsWith('/admin')) return 'admin'
@@ -48,6 +51,7 @@ function routeFromPath(pathname: string): RouteKey {
 function pathFromRoute(route: RouteKey): string {
   if (route === 'crypto') return '/crypto'
   if (route === 'stocks') return '/stocks'
+  if (route === 'forex') return '/forex'
   if (route === 'nfts') return '/nfts'
   if (route === 'portfolio') return '/portfolio'
   if (route === 'admin') return '/admin'
@@ -129,7 +133,7 @@ export default function App() {
   const effectiveFilter: FilterKey =
     route === 'crypto'
       ? 'crypto'
-      : route === 'stocks' || route === 'portfolio'
+      : route === 'stocks' || route === 'forex' || route === 'portfolio'
         ? 'stock'
         : activeFilter
 
@@ -171,7 +175,7 @@ export default function App() {
       })
     }
 
-    if (route !== 'crypto' && route !== 'stocks') {
+    if (route !== 'crypto' && route !== 'stocks' && route !== 'forex') {
       return scoped
     }
 
@@ -257,10 +261,10 @@ export default function App() {
                   })}
                 </div>
               </>
-            ) : route === 'crypto' || route === 'stocks' ? (
+            ) : route === 'crypto' || route === 'stocks' || route === 'forex' ? (
               <>
                 <p className="mt-4 px-2 text-xs text-zinc-500">
-                  Timeline is auto-filtered to {route === 'crypto' ? 'crypto' : 'stocks'} signals on this page.
+                  Timeline is auto-filtered to {route === 'crypto' ? 'crypto' : route === 'forex' ? 'macro/forex' : 'stocks'} signals on this page.
                 </p>
                 <div className="mt-3 px-2">
                   <h3 className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Chart sort</h3>
@@ -398,6 +402,8 @@ export default function App() {
                 <SpyHeatmapWidget />
               </>
             )}
+
+            {route === 'forex' && <EconomicEventsWidget />}
 
             {route === 'nfts' && <NftTrendingWidget />}
 

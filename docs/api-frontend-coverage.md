@@ -1,6 +1,6 @@
 # API and Frontend Coverage Matrix
 
-Last updated: 2026-04-10
+Last updated: 2026-04-12
 
 ## Authentication
 
@@ -16,6 +16,7 @@ Last updated: 2026-04-10
 | `/api/fear-greed` | GET | `alternative.me/fng` | `{ value, change, status }` | Connected via `FearGreedWidget` |
 | `/api/treemap` | GET | `coin360.com/site-api/coins` | Coin360 top-100 treemap payload | Connected via `TreemapWidget` |
 | `/api/trending-crypto` | GET | `coinmarketcap.com/data-api/v3/topsearch/rank` | List of trending coins with price/change/volume/website | Connected via `TrendingCryptoWidget` |
+| `/api/events/economic` | GET | `www.investing.com/economic-calendar/Service/getCalendarFilteredData` (high-impact, this-week view for US + Euro zone) | Economic calendar rows with date/time/zone/currency/event and actual/forecast/previous values plus impact metadata (`impact_score`, `impact_emoji`) | Connected via `EconomicEventsWidget` |
 | `/api/nfts/trending` | GET | `api.coingecko.com/api/v3/search/trending` (`nfts` section) | Trending NFT collections with floor price, floor currency, floor 24h change, thumbnail, and website | Connected via `NftTrendingWidget` |
 | `/api/stocks/market-hours` | GET | `query1.finance.yahoo.com/v7/finance/quote` market-state fields for representative exchange symbols (short-lived cache + stale-cache fallback on transient failures/rate limits) | Major exchange session status (`Open`, `Pre-market`, `After-hours`, `Closed`) with timezone and exchange metadata | Connected via `StockMarketHoursBanner` |
 | `/api/stocktwits` | GET | `api.stocktwits.com/api/2/charts/{keyword}` (curl-first, then httpx; short-lived cache fallback on transient failures) | Formatted StockTwits rank list (`symbol`, `name`, `price`, `val`); returns `[]` during transient upstream unavailability | Connected via `StocktwitsWidget` |
@@ -49,6 +50,7 @@ The enriched values are attached under `tweet.assets[*].financials` and consumed
   - `/` home overview,
   - `/crypto` crypto-focused widgets,
   - `/stocks` stock-focused widgets,
+  - `/forex` macro/forex-focused widgets,
   - `/nfts` NFT-focused widgets,
   - `/portfolio` portfolio management.
 

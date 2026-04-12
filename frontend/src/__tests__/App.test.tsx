@@ -47,6 +47,9 @@ beforeEach(() => {
     if (url.includes('/api/stocks/market-hours')) {
       return Promise.resolve({ ok: true, json: async () => [] } as Response)
     }
+    if (url.includes('/api/events/economic')) {
+      return Promise.resolve({ ok: true, json: async () => [] } as Response)
+    }
     if (url.includes('/api/spy-heatmap')) {
       return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)
     }
@@ -69,6 +72,23 @@ beforeEach(() => {
           }),
         } as Response
       )
+    }
+    if (url.includes('/api/ibkr/status')) {
+      return Promise.resolve(
+        {
+          ok: true,
+          json: async () => ({ configured: false, connected: false, last_sync: null, last_error: null }),
+        } as Response
+      )
+    }
+    if (url.includes('/api/ibkr/positions')) {
+      return Promise.resolve({ ok: true, json: async () => [] } as Response)
+    }
+    if (url.includes('/api/ibkr/trades')) {
+      return Promise.resolve({ ok: true, json: async () => [] } as Response)
+    }
+    if (url.includes('/api/ibkr/account')) {
+      return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
     }
     return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
   })
@@ -116,6 +136,17 @@ describe('App', () => {
     expect(window.location.pathname).toBe('/stocks')
   })
 
+  it('shows forex section widget when navigating to /forex', async () => {
+    render(<App />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open /forex' }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: /economic events/i })).toBeInTheDocument()
+    )
+    expect(window.location.pathname).toBe('/forex')
+  })
+
   it('shows nft section widget when navigating to /nfts', async () => {
     render(<App />)
 
@@ -159,6 +190,23 @@ describe('App', () => {
       if (url.includes('/api/debug/tweet')) {
         return Promise.resolve({ ok: true, json: async () => ({ id: 123, text: 'Debug tweet' }) } as Response)
       }
+      if (url.includes('/api/ibkr/status')) {
+        return Promise.resolve(
+          {
+            ok: true,
+            json: async () => ({ configured: false, connected: false, last_sync: null, last_error: null }),
+          } as Response
+        )
+      }
+      if (url.includes('/api/ibkr/positions')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/ibkr/trades')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/ibkr/account')) {
+        return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
+      }
       return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
     })
 
@@ -178,7 +226,7 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open /portfolio' }))
 
     await waitFor(() => {
-      expect(screen.getByText(/ibkr portfolio/i)).toBeInTheDocument()
+      expect(screen.getByText(/ibkr live positions/i)).toBeInTheDocument()
     })
     expect(window.location.pathname).toBe('/portfolio')
   })
@@ -271,6 +319,23 @@ describe('App', () => {
       }
       if (url.includes('/api/spy-heatmap')) {
         return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)
+      }
+      if (url.includes('/api/ibkr/status')) {
+        return Promise.resolve(
+          {
+            ok: true,
+            json: async () => ({ configured: false, connected: false, last_sync: null, last_error: null }),
+          } as Response
+        )
+      }
+      if (url.includes('/api/ibkr/positions')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/ibkr/trades')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/ibkr/account')) {
+        return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
       }
       return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
     })
@@ -375,6 +440,23 @@ describe('App', () => {
       if (url.includes('/api/spy-heatmap')) {
         return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)
       }
+      if (url.includes('/api/ibkr/status')) {
+        return Promise.resolve(
+          {
+            ok: true,
+            json: async () => ({ configured: false, connected: false, last_sync: null, last_error: null }),
+          } as Response
+        )
+      }
+      if (url.includes('/api/ibkr/positions')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/ibkr/trades')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/ibkr/account')) {
+        return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
+      }
       return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
     })
 
@@ -385,7 +467,7 @@ describe('App', () => {
       expect(screen.getByText('Crypto User')).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Filter by $AAPL' }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Filter by $AAPL' })[0])
 
     await waitFor(() => {
       expect(screen.getByText('Stock User')).toBeInTheDocument()
@@ -460,6 +542,23 @@ describe('App', () => {
       if (url.includes('/api/spy-heatmap')) {
         return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)
       }
+      if (url.includes('/api/ibkr/status')) {
+        return Promise.resolve(
+          {
+            ok: true,
+            json: async () => ({ configured: false, connected: false, last_sync: null, last_error: null }),
+          } as Response
+        )
+      }
+      if (url.includes('/api/ibkr/positions')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/ibkr/trades')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/ibkr/account')) {
+        return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
+      }
       return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
     })
 
@@ -476,7 +575,7 @@ describe('App', () => {
     await waitFor(() => {
       expect(screen.getByText('Sol User')).toBeInTheDocument()
       expect(screen.queryByText('Apple User')).not.toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Filter by $SOL' })).toBeInTheDocument()
+      expect(screen.getAllByRole('button', { name: 'Filter by $SOL' }).length).toBeGreaterThan(0)
     })
   })
 
@@ -548,6 +647,23 @@ describe('App', () => {
       }
       if (url.includes('/api/spy-heatmap')) {
         return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)
+      }
+      if (url.includes('/api/ibkr/status')) {
+        return Promise.resolve(
+          {
+            ok: true,
+            json: async () => ({ configured: false, connected: false, last_sync: null, last_error: null }),
+          } as Response
+        )
+      }
+      if (url.includes('/api/ibkr/positions')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/ibkr/trades')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/ibkr/account')) {
+        return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
       }
       return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
     })

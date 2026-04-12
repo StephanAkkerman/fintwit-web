@@ -22,18 +22,19 @@ from ..runtime.enricher import AssetEnricher
 from ..runtime.ibkr_sync import run_ibkr_sync
 from ..runtime.streamer import run_stream
 from ..runtime.symbols import merge_symbols
+from ..services.binance_service import get_gainers_losers
 from ..services.cmc import get_trending_crypto
-from ..services.ibkr import IbkrGateway
 from ..services.coin360_service import get_treemap_data
+from ..services.events_service import get_economic_events
 from ..services.fear_greed_service import get_feargreed
+from ..services.ibkr import IbkrGateway
 from ..services.market_hours_service import get_stock_market_hours
+from ..services.nasdaq_service import get_halt_data
 from ..services.nft_service import get_trending_nfts
 from ..services.reddit_service import get_reddit_hot_posts, is_valid_subreddit_name
 from ..services.stocktwits_service import get_stocktwits_data
 from ..services.unusual_whales import get_spy_heatmap
-from ..services.nasdaq_service import get_halt_data
 from ..services.yahoo import get_stock_info
-from ..services.binance_service import get_gainers_losers
 
 with suppress(Exception):
     from dotenv import load_dotenv
@@ -139,6 +140,20 @@ async def fear_greed(_=Depends(api_key_dep)):
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data
+
+
+@app.get("/api/events/economic")
+async def economic_events(
+    request: Request,
+    limit: int = Query(25, ge=1, le=100),
+    _=Depends(api_key_dep),
+):
+    client: httpx.AsyncClient = request.app.state.http_client
+    data = await get_economic_events(client, limit=limit)
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
+
 
 @app.get("/api/stock-halts")
 async def stock_halts(request: Request, _=Depends(api_key_dep)):
@@ -474,12 +489,16 @@ async def ibkr_positions(_=Depends(api_key_dep)):
         qty = float(p["quantity"])
         avg_cost = float(p["avg_cost"])
         cost_basis = qty * avg_cost
-        market_value = qty * (float(market_price) if market_price is not None else avg_cost)
+        market_value = qty * (
+            float(market_price) if market_price is not None else avg_cost
+        )
         unrealized_pnl = market_value - cost_basis
         enriched.append(
             {
                 **p,
-                "market_price": float(market_price) if market_price is not None else None,
+                "market_price": (
+                    float(market_price) if market_price is not None else None
+                ),
                 "market_value": market_value,
                 "cost_basis": cost_basis,
                 "unrealized_pnl": unrealized_pnl,

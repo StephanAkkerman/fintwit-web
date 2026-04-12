@@ -188,6 +188,53 @@ async def test_stocktwits_returns_empty_list_when_service_unavailable(async_clie
 
 
 @pytest.mark.asyncio
+async def test_economic_events_returns_data(async_client):
+    app.state.http_client = AsyncMock()
+
+    with patch("app.api.main.get_economic_events", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = [
+            {
+                "id": "1001",
+                "date": "11/04/2024",
+                "time": "14:30",
+                "zone": "united states",
+                "currency": "USD",
+                "event": "Nonfarm Payrolls",
+                "actual": "250K",
+                "forecast": "230K",
+                "previous": "210K",
+                "impact_score": 3,
+                "impact_emoji": "🟥",
+                "source": "https://www.investing.com/economic-calendar/",
+            }
+        ]
+
+        response = await async_client.get(
+            "/api/events/economic?limit=10", headers={"X-API-Key": "test-api-key"}
+        )
+
+    assert response.status_code == 200
+    assert response.json()[0]["id"] == "1001"
+    assert response.json()[0]["impact_emoji"] == "🟥"
+    mock_get.assert_awaited_once_with(app.state.http_client, limit=10)
+
+
+@pytest.mark.asyncio
+async def test_economic_events_returns_503_when_service_unavailable(async_client):
+    app.state.http_client = AsyncMock()
+
+    with patch("app.api.main.get_economic_events", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = None
+
+        response = await async_client.get(
+            "/api/events/economic", headers={"X-API-Key": "test-api-key"}
+        )
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Service Unavailable"}
+
+
+@pytest.mark.asyncio
 async def test_stock_market_hours_returns_data(async_client):
     app.state.http_client = AsyncMock()
 

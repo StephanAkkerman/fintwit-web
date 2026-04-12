@@ -6,6 +6,7 @@ import pytest
 import app.services.coingecko as coingecko_service
 import app.services.market_hours_service as market_hours_service
 from app.services.coingecko import get_crypto_info
+from app.services.events_service import get_economic_events
 from app.services.market_hours_service import get_stock_market_hours
 from app.services.nft_service import get_trending_nfts
 from app.services.reddit_service import get_reddit_hot_posts, is_valid_subreddit_name
@@ -18,11 +19,17 @@ from app.services.yahoo import get_stock_info
 
 @pytest.fixture(autouse=True)
 def _reset_coingecko_cache():
+    reset_market_hours_cache = getattr(
+        market_hours_service, "_reset_cache_for_tests", None
+    )
+
     coingecko_service._reset_cache_for_tests()
-    market_hours_service._reset_cache_for_tests()
+    if callable(reset_market_hours_cache):
+        reset_market_hours_cache()
     yield
     coingecko_service._reset_cache_for_tests()
-    market_hours_service._reset_cache_for_tests()
+    if callable(reset_market_hours_cache):
+        reset_market_hours_cache()
 
 
 def _mock_response(status: int, json_data: dict) -> MagicMock:
@@ -53,6 +60,56 @@ def _mock_session(*responses) -> MagicMock:
     session.__aexit__ = AsyncMock(return_value=False)
     mock_cs = MagicMock(return_value=session)
     return mock_cs
+
+
+# ---------------------------------------------------------------------------
+# Events – get_economic_events
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_economic_events_success_parses_rows():
+    html_fragment = """
+        <table>
+            <tr><td id="theDay1712793600">Thu</td></tr>
+            <tr id="eventRowId_1001">
+                <td class="first left">14:30</td>
+                <td class="left flagCur noWrap"><span title="United States"></span> USD</td>
+                <td class="sentiment noWrap"><i class="grayFullBullishIcon"></i><i class="grayFullBullishIcon"></i><i class="grayFullBullishIcon"></i></td>
+                <td class="left event">Nonfarm Payrolls</td>
+                <td id="eventActual_1001">250K</td>
+                <td id="eventForecast_1001">230K</td>
+                <td id="eventPrevious_1001">210K</td>
+            </tr>
+        </table>
+        """
+
+    client = AsyncMock()
+    client.post = AsyncMock(return_value=_httpx_response(200, {"data": html_fragment}))
+
+    result = await get_economic_events(client, limit=10)
+
+    assert result is not None
+    assert len(result) == 1
+    assert result[0]["id"] == "1001"
+    assert result[0]["event"] == "Nonfarm Payrolls"
+    assert result[0]["zone"] == "united states"
+    assert result[0]["currency"] == "USD"
+    assert result[0]["actual"] == "250K"
+    assert result[0]["forecast"] == "230K"
+    assert result[0]["previous"] == "210K"
+    assert result[0]["impact_score"] == 3
+    assert result[0]["impact_emoji"] == "🟥"
+
+
+@pytest.mark.asyncio
+async def test_get_economic_events_http_error_returns_none():
+    client = AsyncMock()
+    client.post = AsyncMock(return_value=_httpx_response(503, {}))
+
+    result = await get_economic_events(client)
+
+    assert result is None
 
 
 # ---------------------------------------------------------------------------
