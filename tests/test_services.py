@@ -151,6 +151,7 @@ async def test_get_stock_info_success():
     assert result["volume"] == 50_000_000 * 185.0
     assert "yahoo" in result["website"]
     assert "AAPL" in result["website"]
+    assert result["source"] == "yahoo"
 
 
 @pytest.mark.asyncio
@@ -241,6 +242,31 @@ async def test_get_stock_info_exception_returns_none():
     assert result is None
 
 
+@pytest.mark.asyncio
+async def test_get_stock_info_uses_tradingview_fallback_when_yahoo_unavailable():
+    tv_fallback = {
+        "price": 185.5,
+        "change_percent": 0.9,
+        "volume": 12_000_000.0,
+        "website": "https://www.tradingview.com/symbols/NASDAQ-AAPL/",
+        "source": "tradingview",
+    }
+
+    with (
+        patch(
+            "app.services.yahoo.aiohttp.ClientSession",
+            _mock_session(_mock_response(429, {})),
+        ),
+        patch(
+            "app.services.yahoo.get_tradingview_quote",
+            new=AsyncMock(return_value=tv_fallback),
+        ),
+    ):
+        result = await get_stock_info("AAPL")
+
+    assert result == tv_fallback
+
+
 # ---------------------------------------------------------------------------
 # CoinGecko – get_crypto_info
 # ---------------------------------------------------------------------------
@@ -272,6 +298,7 @@ async def test_get_crypto_info_success():
     assert result["change_percent"] == 3.2
     assert result["volume"] == 25_000_000_000.0
     assert "bitcoin" in result["website"]
+    assert result["source"] == "coingecko"
 
 
 @pytest.mark.asyncio
@@ -298,6 +325,7 @@ async def test_get_crypto_info_search_http_error_uses_yahoo_fallback():
         "change_percent": 1.0,
         "volume": 10_000_000.0,
         "website": "https://finance.yahoo.com/quote/BTC-USD",
+        "source": "yahoo",
     }
     with (
         patch(
@@ -315,12 +343,42 @@ async def test_get_crypto_info_search_http_error_uses_yahoo_fallback():
 
 
 @pytest.mark.asyncio
+async def test_get_crypto_info_search_http_error_uses_tradingview_when_yahoo_none():
+    tv_fallback = {
+        "price": 45100.0,
+        "change_percent": 1.2,
+        "volume": 20_000_000_000.0,
+        "website": "https://www.tradingview.com/symbols/BINANCE-BTCUSDT/",
+        "source": "tradingview",
+    }
+
+    with (
+        patch(
+            "app.services.coingecko.aiohttp.ClientSession",
+            _mock_session(_mock_response(429, {})),
+        ),
+        patch(
+            "app.services.coingecko.get_stock_info",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "app.services.coingecko.get_tradingview_quote",
+            new=AsyncMock(return_value=tv_fallback),
+        ),
+    ):
+        result = await get_crypto_info("BTC")
+
+    assert result == tv_fallback
+
+
+@pytest.mark.asyncio
 async def test_get_crypto_info_price_http_error_uses_yahoo_fallback():
     yahoo_fallback = {
         "price": 45000.0,
         "change_percent": 1.0,
         "volume": 10_000_000.0,
         "website": "https://finance.yahoo.com/quote/BTC-USD",
+        "source": "yahoo",
     }
     mock_cs = _mock_session(
         _mock_response(200, COINGECKO_SEARCH_RESPONSE),

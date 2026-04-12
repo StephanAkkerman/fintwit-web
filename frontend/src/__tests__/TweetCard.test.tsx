@@ -293,6 +293,7 @@ describe('TweetCard', () => {
               financials: {
                 price: 185.12,
                 change_percent: 1.73,
+                source: 'coingecko',
               },
             },
           ],
@@ -305,6 +306,7 @@ describe('TweetCard', () => {
     expect(screen.getByText('+1.73%')).toBeInTheDocument()
     expect(screen.getByText('Information Technology')).toBeInTheDocument()
     expect(screen.getByText('NASDAQ Global Select | United States | USD | Mega Cap')).toBeInTheDocument()
+    expect(screen.getByText('Source: COINGECKO')).toBeInTheDocument()
   })
 
   it('calls ticker filter callback when financial ticker is clicked', () => {

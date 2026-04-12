@@ -19,3 +19,4 @@ dotenv==0.9.9
 lxml
 python-dateutil
 ib_insync==0.9.86
+tradingview-scraper==0.4.20

@@ -50,7 +50,7 @@ Route-level sections:
 
 - Tweet timeline (`useTweets` + `TweetCard`)
   - Fetches: `/api/posts?limit=200` on initial mount, `/api/posts?limit=200&before_id=...` for manual older-page loading, and `/api/stream` (SSE)
-  - Purpose: live timeline with native-style quote headers (quoted avatar + author + timestamp), quote embeds, media, in-page image lightbox previews, financial cards (including optional equity sector/industry labels and compact equity/ETF company profile fields), chart badge signals, separate main/quoted sentiment badges, and engagement updates.
+  - Purpose: live timeline with native-style quote headers (quoted avatar + author + timestamp), quote embeds, media, in-page image lightbox previews, financial cards (including optional equity sector/industry labels and compact equity/ETF company profile fields), quote source marker (`yahoo`/`coingecko`/`tradingview`), chart badge signals, separate main/quoted sentiment badges, and engagement updates.
   - Quote integration: consumes `quoted_tweet` payload from backend for quote author metadata and quote media placement (falls back to markdown inference when absent).
 
 - Sidebar filters

@@ -483,6 +483,10 @@ export default function TweetCard({
                 : null
             const hasPrice = typeof financials?.price === 'number'
             const hasChange = typeof financials?.change_percent === 'number'
+            const sourceLabel =
+              typeof financials?.source === 'string' && financials.source.trim().length > 0
+                ? financials.source.toUpperCase()
+                : null
             const change = hasChange ? (financials?.change_percent as number) : 0
             const changeClass =
               change > 0
@@ -554,6 +558,11 @@ export default function TweetCard({
                     {hasChange ? fmtChangePercent(change) : 'N/A'}
                   </span>
                 </div>
+                {sourceLabel && (
+                  <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                    Source: {sourceLabel}
+                  </div>
+                )}
               </div>
             )
           })}

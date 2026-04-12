@@ -5,6 +5,7 @@ export type AssetFinancials = {
   change_percent?: number | null;
   volume?: number | null;
   website?: string | null;
+  source?: string | null;
 };
 
 export type AssetCompanyProfile = {

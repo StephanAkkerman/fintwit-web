@@ -5,6 +5,8 @@ from typing import Optional
 
 import aiohttp
 
+from .tradingview_quote import get_tradingview_quote
+
 logger = logging.getLogger(__name__)
 
 headers = {
@@ -111,6 +113,7 @@ async def _fetch_yahoo_chart(lookup_symbol: str) -> Optional[dict]:
         "change_percent": change,
         "volume": volume,
         "website": f"https://finance.yahoo.com/quote/{lookup_symbol}",
+        "source": "yahoo",
     }
 
 
@@ -146,6 +149,12 @@ async def get_stock_info(ticker: str) -> Optional[dict]:
         if found:
             logger.info("[yahoo] serving stale cache for %s", symbol)
             return stale
+
+        tradingview_payload = await get_tradingview_quote(symbol, asset_hint="stock")
+        if tradingview_payload is not None:
+            logger.info("[yahoo] using tradingview fallback for %s", symbol)
+            await _set_cached(symbol, tradingview_payload)
+            return tradingview_payload
 
         await _set_cached(symbol, None)
         return None

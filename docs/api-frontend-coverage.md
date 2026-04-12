@@ -34,16 +34,18 @@ Last updated: 2026-04-12
 These services are not exposed as standalone endpoints, but are used in asset enrichment for tweets:
 
 - Yahoo Finance (`query1.finance.yahoo.com`) for equities:
-  - returns `price`, `change_percent`, `volume`, `website`.
+  - returns `price`, `change_percent`, `volume`, `website`, `source`.
   - now uses short-lived cache/throttling and classifier-provided `yahoo_lookup` symbols (including centralized shortcut mappings for symbols like `SPY` and `DXY`) to reduce transient rate-limit misses for ETF/index/forex-like symbols.
+  - if Yahoo is unavailable/rate-limited and no stale cache exists, uses TradingView symbol quote fallback.
 - CoinGecko (`api.coingecko.com`) for crypto:
-  - returns `price`, `change_percent`, `volume`, `website`.
-  - uses short-lived cache and Yahoo `-USD` fallback when CoinGecko is rate-limited (`429`) or temporarily unavailable.
+  - returns `price`, `change_percent`, `volume`, `website`, `source`.
+  - uses short-lived cache and Yahoo `-USD` fallback when CoinGecko is rate-limited (`429`) or temporarily unavailable; if Yahoo fallback also fails, attempts TradingView quote fallback.
 - FinTwitBERT sentiment (`StephanAkkerman/FinTwitBERT-sentiment`) for tweet text:
   - returns separate main-post and quoted-post sentiment fields (`sentiment_*`, `quoted_sentiment_*`).
   - historical tweets can be backfilled via `python -m app.runtime.backfill_sentiment`.
 
 The enriched values are attached under `tweet.assets[*].financials` and consumed in `TweetCard`.
+`tweet.assets[*].financials.source` indicates which provider served the quote (for example `yahoo`, `coingecko`, `tradingview`).
 Static classification metadata under `tweet.assets[*]` may also include `sector` and `industry` for equities.
 For equities/ETFs, `tweet.assets[*].company_profile` may include curated financedatabase fields: `industry_group`, `country`, `exchange`, `currency`, `website`, and `market_cap_category`.
 

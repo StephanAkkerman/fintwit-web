@@ -5,6 +5,7 @@ from typing import Optional
 
 import aiohttp
 
+from .tradingview_quote import get_tradingview_quote
 from .yahoo import get_stock_info
 
 logger = logging.getLogger(__name__)
@@ -111,7 +112,25 @@ async def _fallback_to_yahoo(ticker: str) -> Optional[dict]:
         "website": info.get(
             "website", f"https://finance.yahoo.com/quote/{yahoo_symbol}"
         ),
+        "source": info.get("source") or "yahoo",
     }
+
+
+async def _fallback_to_tradingview(ticker: str) -> Optional[dict]:
+    for candidate in (f"{ticker}USD", f"{ticker}-USD", ticker):
+        payload = await get_tradingview_quote(candidate, asset_hint="crypto")
+        if payload is not None:
+            logger.info("[coingecko] using tradingview fallback for %s", ticker)
+            return payload
+
+    return None
+
+
+async def _fallback_quote(ticker: str) -> Optional[dict]:
+    yahoo_payload = await _fallback_to_yahoo(ticker)
+    if yahoo_payload is not None:
+        return yahoo_payload
+    return await _fallback_to_tradingview(ticker)
 
 
 def _reset_cache_for_tests() -> None:
@@ -133,7 +152,7 @@ async def get_crypto_info(ticker: str) -> Optional[dict]:
             async with aiohttp.ClientSession() as session:
                 coin_id = await _resolve_coin_id(session, ticker)
                 if coin_id is None:
-                    fallback = await _fallback_to_yahoo(ticker)
+                    fallback = await _fallback_quote(ticker)
                     await _set_cached(ticker, fallback)
                     return fallback
 
@@ -151,7 +170,7 @@ async def get_crypto_info(ticker: str) -> Optional[dict]:
                 ) as price_response:
                     if price_response.status == 429:
                         logger.warning("[coingecko] price rate-limited for %s", ticker)
-                        fallback = await _fallback_to_yahoo(ticker)
+                        fallback = await _fallback_quote(ticker)
                         await _set_cached(ticker, fallback)
                         return fallback
 
@@ -161,13 +180,13 @@ async def get_crypto_info(ticker: str) -> Optional[dict]:
                             price_response.status,
                             ticker,
                         )
-                        fallback = await _fallback_to_yahoo(ticker)
+                        fallback = await _fallback_quote(ticker)
                         await _set_cached(ticker, fallback)
                         return fallback
 
                     price_data = await price_response.json()
                     if coin_id not in price_data:
-                        fallback = await _fallback_to_yahoo(ticker)
+                        fallback = await _fallback_quote(ticker)
                         await _set_cached(ticker, fallback)
                         return fallback
 
@@ -177,12 +196,13 @@ async def get_crypto_info(ticker: str) -> Optional[dict]:
                         "change_percent": info.get("usd_24h_change", 0.0),
                         "volume": info.get("usd_24h_vol", 0.0),
                         "website": f"https://www.coingecko.com/en/coins/{coin_id}",
+                        "source": "coingecko",
                     }
                     await _set_cached(ticker, payload)
                     return payload
     except Exception as exc:
         logger.debug("[coingecko] %s fetch failed: %r", ticker, exc)
-        fallback = await _fallback_to_yahoo(ticker)
+        fallback = await _fallback_quote(ticker)
         await _set_cached(ticker, fallback)
         return fallback
 
