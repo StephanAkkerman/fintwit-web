@@ -1,4 +1,4 @@
-xtimeline==0.1.1
+xtimeline==0.1.4
 timm==1.0.26
 torch
 Pillow
@@ -16,3 +16,4 @@ asyncpraw>=7.8,<8
 dotenv==0.9.9
 lxml
 python-dateutil
+ib_insync>=0.9,<1

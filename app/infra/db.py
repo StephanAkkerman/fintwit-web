@@ -36,6 +36,12 @@ class TweetRow(Base):
     )
     quoted_sentiment_emoji: Mapped[str] = mapped_column(String, nullable=True)
     quoted_sentiment_score: Mapped[float] = mapped_column(Float, nullable=True)
+    quoted_tweet: Mapped[dict] = mapped_column(
+        JSON().with_variant(SQLITE_JSON, "sqlite"),
+        nullable=True,
+        default=None,
+        server_default=sql_text("NULL"),
+    )
     assets: Mapped[list] = mapped_column(
         JSON().with_variant(SQLITE_JSON, "sqlite"),
         default=list,
@@ -63,6 +69,37 @@ class PortfolioPositionRow(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[DateTime] = mapped_column(DateTime, nullable=True, index=True)
     updated_at: Mapped[DateTime] = mapped_column(DateTime, nullable=True, index=True)
+
+
+class IbkrPositionRow(Base):
+    __tablename__ = "ibkr_positions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    account: Mapped[str] = mapped_column(String, index=True)
+    symbol: Mapped[str] = mapped_column(String, index=True)
+    sec_type: Mapped[str] = mapped_column(String)
+    exchange: Mapped[str] = mapped_column(String, nullable=True)
+    currency: Mapped[str] = mapped_column(String, default="USD")
+    quantity: Mapped[float] = mapped_column(Float)
+    avg_cost: Mapped[float] = mapped_column(Float)
+    synced_at: Mapped[DateTime] = mapped_column(DateTime, index=True)
+
+
+class IbkrTradeRow(Base):
+    __tablename__ = "ibkr_trades"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    exec_id: Mapped[str] = mapped_column(String, unique=True, index=True)
+    account: Mapped[str] = mapped_column(String, index=True)
+    symbol: Mapped[str] = mapped_column(String, index=True)
+    sec_type: Mapped[str] = mapped_column(String)
+    currency: Mapped[str] = mapped_column(String)
+    side: Mapped[str] = mapped_column(String)  # BOT / SLD
+    quantity: Mapped[float] = mapped_column(Float)
+    price: Mapped[float] = mapped_column(Float)
+    commission: Mapped[float] = mapped_column(Float, nullable=True)
+    executed_at: Mapped[DateTime] = mapped_column(DateTime, index=True, nullable=True)
+    created_at: Mapped[DateTime] = mapped_column(DateTime)
 
 
 def create_engine(url: str = "sqlite+aiosqlite:///./data.db") -> AsyncEngine:

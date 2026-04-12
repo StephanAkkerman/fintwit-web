@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Tweet } from '../types'
@@ -30,6 +31,179 @@ function parseFinancialSymbols(text: string): { tickers: string[]; hashtags: str
   return { tickers, hashtags }
 }
 
+const FILTER_HREF_PREFIX = '#filter-'
+
+function linkifySymbols(text: string): string {
+  // Single-pass replacement: match $TICKER or #hashtag together so the
+  // hashtag branch can't re-match inside an already-replaced cashtag href.
+  return text.replace(
+    /(?<!\w)(?:\$([A-Za-z][A-Za-z0-9]{0,9})|#([A-Za-z][A-Za-z0-9_]{0,29}))\b/g,
+    (_, tickerSym, hashtagSym) => {
+      if (tickerSym) {
+        const sym = tickerSym.toUpperCase()
+        return `[$${sym}](${FILTER_HREF_PREFIX}${sym})`
+      }
+      const tag = hashtagSym.toUpperCase()
+      return `[#${hashtagSym}](${FILTER_HREF_PREFIX}${tag})`
+    },
+  )
+}
+
+function parseTweetDate(createdAt: string | null | undefined): Date | null {
+  if (!createdAt) return null
+
+  const hasOffset = /([zZ]|[+-]\d{2}:\d{2})$/.test(createdAt)
+  const normalized = hasOffset ? createdAt : `${createdAt}Z`
+  const parsed = new Date(normalized)
+
+  if (Number.isNaN(parsed.getTime())) {
+    return null
+  }
+
+  return parsed
+}
+
+type QuoteMeta = {
+  displayName: string | null
+  screenName: string | null
+  url: string | null
+  createdAt: Date | null
+  userImg: string | null
+}
+
+const X_SNOWFLAKE_EPOCH = 1_288_834_974_657n
+
+function decodeXStatusTimestamp(statusId: string): Date | null {
+  try {
+    const tweetId = BigInt(statusId)
+    const timestampMs = Number((tweetId >> 22n) + X_SNOWFLAKE_EPOCH)
+
+    if (!Number.isFinite(timestampMs)) {
+      return null
+    }
+
+    const parsed = new Date(timestampMs)
+    if (Number.isNaN(parsed.getTime())) {
+      return null
+    }
+
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function normalizeScreenName(value: string | null | undefined): string | null {
+  if (!value) {
+    return null
+  }
+
+  const cleaned = value.trim().replace(/^@+/, '')
+  if (!cleaned) {
+    return null
+  }
+
+  const match = cleaned.match(/^([A-Za-z0-9_]{1,15})$/)
+  return match ? match[1] : null
+}
+
+function buildQuotedUrl(
+  screenName: string | null,
+  quoteId: number | string | null | undefined,
+  fallbackUrl: string | null
+): string | null {
+  const normalized = normalizeScreenName(screenName)
+  const normalizedId = quoteId == null ? '' : String(quoteId).trim()
+
+  if (normalized && /^\d+$/.test(normalizedId)) {
+    return `https://x.com/${normalized}/status/${normalizedId}`
+  }
+
+  return fallbackUrl
+}
+
+function stripQuotedLeadHandleLine(text: string): string {
+  if (!text || !/(^|\n)\s*>\s*/.test(text)) {
+    return text
+  }
+
+  const lines = text.split('\n')
+  const firstQuoteIndex = lines.findIndex((line) => /^\s*>/.test(line))
+  if (firstQuoteIndex < 0) {
+    return text
+  }
+
+  const candidate = lines[firstQuoteIndex].trim()
+  const looksLikeQuoteLead =
+    /^>\s*\[[^\]]+\]\(https?:\/\/(?:x|twitter)\.com\/[^\s)]+\)\s*:\s*$/i.test(candidate) ||
+    /^>\s*@?[A-Za-z0-9_]{1,15}\s*:\s*$/i.test(candidate)
+
+  if (!looksLikeQuoteLead) {
+    return text
+  }
+
+  const nextQuoteLine = lines.slice(firstQuoteIndex + 1).find((line) => line.trim().length > 0)
+  if (!nextQuoteLine || !/^\s*>/.test(nextQuoteLine)) {
+    return text
+  }
+
+  lines.splice(firstQuoteIndex, 1)
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n')
+}
+
+function extractQuoteMeta(t: Tweet): QuoteMeta {
+  const quotedTweet = t.quoted_tweet ?? null
+  const text = t.text ?? ''
+  const quoteLines = text
+    .split('\n')
+    .map((line) => line.replace(/^\s*>\s?/, '').trim())
+    .filter(Boolean)
+
+  const firstQuoteLine = quoteLines[0] ?? ''
+  const markdownUserMatch = firstQuoteLine.match(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/i)
+  const quoteStatusUrlMatch = text.match(/https?:\/\/(?:x|twitter)\.com\/[^/\s]+\/status\/(\d+)/i)
+
+  const fallbackQuotedUrl =
+    t.quoted_url?.trim() ||
+    quotedTweet?.url?.trim() ||
+    markdownUserMatch?.[2]?.trim() ||
+    quoteStatusUrlMatch?.[0] ||
+    null
+
+  const rawDisplayName =
+    t.quoted_user_name?.trim() || quotedTweet?.user_name?.trim() || markdownUserMatch?.[1]?.trim() || null
+  const profileNameFromUrl =
+    fallbackQuotedUrl?.match(/https?:\/\/(?:x|twitter)\.com\/([A-Za-z0-9_]{1,15})/i)?.[1] ?? null
+
+  const screenName =
+    normalizeScreenName(t.quoted_user_screen_name) ||
+    normalizeScreenName(quotedTweet?.user_screen_name) ||
+    normalizeScreenName(rawDisplayName) ||
+    normalizeScreenName(profileNameFromUrl)
+
+  const quotedUrl = buildQuotedUrl(screenName, quotedTweet?.id, fallbackQuotedUrl)
+
+  const displayName = rawDisplayName || (screenName ? `@${screenName}` : null)
+
+  let createdAt = parseTweetDate(t.quoted_created_at) ?? parseTweetDate(quotedTweet?.created_at)
+  if (!createdAt && quotedUrl) {
+    const statusId = quotedUrl.match(/status\/(\d+)/i)?.[1]
+    if (statusId) {
+      createdAt = decodeXStatusTimestamp(statusId)
+    }
+  }
+
+  const userImg = t.quoted_user_img?.trim() || quotedTweet?.user_img?.trim() || null
+
+  return {
+    displayName,
+    screenName,
+    url: quotedUrl,
+    createdAt,
+    userImg,
+  }
+}
+
 export default function TweetCard({
   t,
   onTickerSelect,
@@ -37,23 +211,56 @@ export default function TweetCard({
   t: Tweet
   onTickerSelect?: (ticker: string) => void
 }) {
-  const createdAt = t.created_at ? new Date(t.created_at) : null
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; alt: string } | null>(null)
+
+  useEffect(() => {
+    if (!lightboxImage) return
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    const onKeyDown = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') {
+        setLightboxImage(null)
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [lightboxImage])
+
+  const createdAt = parseTweetDate(t.created_at)
   const timeLabel = createdAt
     ? createdAt.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
     : null
-  const hasQuoteEmbed = /(^|\n)\s*>\s*/.test(t.text ?? '')
+  const hasQuoteEmbed = Boolean(t.quoted_tweet) || /(^|\n)\s*>\s*/.test(t.text ?? '')
+  const rawText = hasQuoteEmbed ? stripQuotedLeadHandleLine(t.text ?? '') : (t.text ?? '')
+  const renderedText = onTickerSelect ? linkifySymbols(rawText) : rawText
   const allMedia = t.media ?? []
-  let quotedMediaIndex = -1
-  if (hasQuoteEmbed) {
+  const quotedTweetMedia = (t.quoted_tweet?.media ?? []).filter((m) => typeof m?.url === 'string' && !!m.url)
+  const quotedMediaUrls = new Set(quotedTweetMedia.map((m) => m.url))
+
+  let fallbackQuotedMediaIndex = -1
+  if (hasQuoteEmbed && quotedTweetMedia.length === 0) {
     for (let i = allMedia.length - 1; i >= 0; i -= 1) {
       if (allMedia[i]?.type === 'photo') {
-        quotedMediaIndex = i
+        fallbackQuotedMediaIndex = i
         break
       }
     }
   }
-  const quotedMedia = quotedMediaIndex >= 0 ? allMedia[quotedMediaIndex] : undefined
-  const inlineMedia = allMedia.filter((_, i) => i !== quotedMediaIndex)
+
+  const fallbackQuotedMedia = fallbackQuotedMediaIndex >= 0 ? allMedia[fallbackQuotedMediaIndex] : undefined
+  const quotedMedia = quotedTweetMedia[0] ?? fallbackQuotedMedia
+  const inlineMedia = allMedia.filter((m, i) => {
+    if (typeof m?.url === 'string' && quotedMediaUrls.has(m.url)) {
+      return false
+    }
+    return i !== fallbackQuotedMediaIndex
+  })
   const showInlineMediaBeforeQuote = hasQuoteEmbed && inlineMedia.length > 0
   const parsedSymbols = parseFinancialSymbols(t.text ?? '')
   const tickerBadges = [...new Set([...(t.tickers ?? []), ...parsedSymbols.tickers].map((v) => v.toUpperCase()))]
@@ -64,6 +271,18 @@ export default function TweetCard({
   const sentimentEmoji = t.sentiment_emoji ?? null
   const quotedSentimentLabel = t.quoted_sentiment_label?.toUpperCase() ?? null
   const quotedSentimentEmoji = t.quoted_sentiment_emoji ?? null
+  const quoteMeta = hasQuoteEmbed ? extractQuoteMeta(t) : null
+  const quotedTimeLabel = quoteMeta?.createdAt
+    ? quoteMeta.createdAt.toLocaleString(undefined, {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      })
+    : null
+  const quotedHandle = quoteMeta?.screenName ? `@${quoteMeta.screenName}` : null
+  const showQuotedHandle = Boolean(
+    quotedHandle && quotedHandle.toLowerCase() !== (quoteMeta?.displayName ?? '').toLowerCase()
+  )
+  const showQuotedMetaLine = Boolean(showQuotedHandle || quotedTimeLabel)
   const sentimentClass =
     sentimentLabel === 'BULLISH'
       ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
@@ -104,9 +323,15 @@ export default function TweetCard({
         {showInlineMediaBeforeQuote && (
           <div className="mb-3 grid grid-cols-2 gap-2">
             {inlineMedia.map((m, i) => (
-              <a key={i} href={m.url} target="_blank" rel="noreferrer">
+              <button
+                key={i}
+                type="button"
+                onClick={() => setLightboxImage({ url: m.url, alt: m.type || 'Tweet media' })}
+                aria-label="Open image preview"
+                className="overflow-hidden rounded-xl"
+              >
                 <img src={m.url} alt={m.type} className="rounded-xl w-full object-cover" />
-              </a>
+              </button>
             ))}
           </div>
         )}
@@ -115,24 +340,71 @@ export default function TweetCard({
           remarkPlugins={[remarkGfm]}
           components={{
             p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-            a: ({ href, children }) => (
-              <a
-                href={href}
-                target="_blank"
-                rel="noreferrer"
-                className="text-blue-600 dark:text-blue-400 hover:underline"
-              >
-                {children}
-              </a>
-            ),
+            a: ({ href, children }) => {
+              const filterIdx = href?.indexOf(FILTER_HREF_PREFIX) ?? -1
+              if (filterIdx !== -1 && onTickerSelect) {
+                const symbol = href!.slice(filterIdx + FILTER_HREF_PREFIX.length)
+                return (
+                  <button
+                    type="button"
+                    onClick={() => onTickerSelect(symbol)}
+                    className="text-blue-500 dark:text-blue-400 hover:underline font-medium cursor-pointer"
+                  >
+                    {children}
+                  </button>
+                )
+              }
+              return (
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  {children}
+                </a>
+              )
+            },
             blockquote: ({ children }) => (
               <blockquote className="my-3 overflow-hidden rounded-2xl border border-zinc-300 bg-white/70 shadow-sm transition-colors hover:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-900/60 dark:hover:border-zinc-500">
-                <div className="flex items-center gap-1.5 border-b border-zinc-200 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M7 17h6v-6H9V7H5v6a4 4 0 0 0 4 4h2" />
-                    <path d="M17 17h2a4 4 0 0 0 4-4V7h-4v4h4" />
-                  </svg>
-                  <span>Quoted post</span>
+                <div className="flex items-start justify-between gap-2 border-b border-zinc-200 px-3 py-2 dark:border-zinc-700">
+                  <div className="flex min-w-0 items-start gap-2">
+                    {quoteMeta?.userImg && (
+                      <img
+                        src={quoteMeta.userImg}
+                        alt="Quoted user avatar"
+                        className="mt-0.5 h-7 w-7 shrink-0 rounded-full"
+                      />
+                    )}
+                    <div className="min-w-0">
+                      {quoteMeta?.url ? (
+                        <a
+                          href={quoteMeta.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          aria-label="Quoted tweet author"
+                          className="truncate text-sm font-semibold text-zinc-900 hover:underline dark:text-zinc-100"
+                        >
+                          {quoteMeta.displayName ?? 'Quoted post'}
+                        </a>
+                      ) : (
+                        <div className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                          {quoteMeta?.displayName ?? 'Quoted post'}
+                        </div>
+                      )}
+                      {showQuotedMetaLine && (
+                        <div className="mt-0.5 flex items-center gap-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+                          {showQuotedHandle && <span>{quotedHandle}</span>}
+                          {showQuotedHandle && quotedTimeLabel && <span aria-hidden="true">&middot;</span>}
+                          {quotedTimeLabel && (
+                            <time aria-label="Quoted tweet timestamp" dateTime={quoteMeta?.createdAt?.toISOString()}>
+                              {quotedTimeLabel}
+                            </time>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                   {(quotedSentimentLabel || quotedSentimentEmoji) && (
                     <span
                       aria-label="Quoted tweet sentiment"
@@ -152,18 +424,18 @@ export default function TweetCard({
                   {children}
                 </div>
                 {quotedMedia && (
-                  <a
-                    href={quotedMedia.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block border-t border-zinc-200 dark:border-zinc-700"
+                  <button
+                    type="button"
+                    onClick={() => setLightboxImage({ url: quotedMedia.url, alt: 'Quoted media' })}
+                    aria-label="Open quoted image preview"
+                    className="block w-full border-t border-zinc-200 dark:border-zinc-700"
                   >
                     <img
                       src={quotedMedia.url}
                       alt="Quoted media"
                       className="max-h-[28rem] w-full object-contain bg-zinc-100/70 dark:bg-zinc-800/60"
                     />
-                  </a>
+                  </button>
                 )}
               </blockquote>
             ),
@@ -177,16 +449,22 @@ export default function TweetCard({
             ),
           }}
         >
-          {t.text}
+          {renderedText}
         </ReactMarkdown>
       </div>
 
       {!showInlineMediaBeforeQuote && inlineMedia.length > 0 && (
         <div className="mt-3 grid grid-cols-2 gap-2">
           {inlineMedia.map((m, i) => (
-            <a key={i} href={m.url} target="_blank" rel="noreferrer">
+            <button
+              key={i}
+              type="button"
+              onClick={() => setLightboxImage({ url: m.url, alt: m.type || 'Tweet media' })}
+              aria-label="Open image preview"
+              className="overflow-hidden rounded-xl"
+            >
               <img src={m.url} alt={m.type} className="rounded-xl w-full object-cover" />
-            </a>
+            </button>
           ))}
         </div>
       )}
@@ -289,16 +567,40 @@ export default function TweetCard({
               <span>{sentimentLabel ?? 'SENTIMENT'}</span>
             </span>
           )}
-          {tickerBadges.map((sym) => (
-            <span key={sym} className="px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800">
-              ${sym}
-            </span>
-          ))}
-          {hashtagBadges.map((tag) => (
-            <span key={tag} className="px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800">
-              #{tag}
-            </span>
-          ))}
+          {tickerBadges.map((sym) =>
+            onTickerSelect ? (
+              <button
+                key={sym}
+                type="button"
+                onClick={() => onTickerSelect(sym)}
+                aria-label={`Filter by $${sym}`}
+                className="px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 cursor-pointer"
+              >
+                ${sym}
+              </button>
+            ) : (
+              <span key={sym} className="px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800">
+                ${sym}
+              </span>
+            )
+          )}
+          {hashtagBadges.map((tag) =>
+            onTickerSelect ? (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => onTickerSelect(tag)}
+                aria-label={`Filter by #${tag}`}
+                className="px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 cursor-pointer"
+              >
+                #{tag}
+              </button>
+            ) : (
+              <span key={tag} className="px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800">
+                #{tag}
+              </span>
+            )
+          )}
         </div>
 
         <div className="flex gap-3 shrink-0">
@@ -328,6 +630,35 @@ export default function TweetCard({
           )}
         </div>
       </footer>
+
+      {lightboxImage && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Image preview"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setLightboxImage(null)}
+        >
+          <div
+            className="relative w-full max-w-5xl"
+            onClick={(ev) => ev.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setLightboxImage(null)}
+              aria-label="Close image preview"
+              className="absolute right-2 top-2 rounded-full bg-black/70 px-3 py-1 text-sm font-semibold text-white hover:bg-black"
+            >
+              Close
+            </button>
+            <img
+              src={lightboxImage.url}
+              alt={lightboxImage.alt}
+              className="max-h-[85vh] w-full rounded-2xl object-contain"
+            />
+          </div>
+        </div>
+      )}
     </article>
   )
 }

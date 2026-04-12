@@ -1,6 +1,6 @@
 # API and Frontend Coverage Matrix
 
-Last updated: 2026-04-06
+Last updated: 2026-04-10
 
 ## Authentication
 
@@ -11,11 +11,13 @@ Last updated: 2026-04-06
 
 | Endpoint | Method | Data Source | Returns | Frontend Status |
 | --- | --- | --- | --- | --- |
-| `/api/posts` | GET | SQLite via `TweetRepo.latest` | Latest tweets including `assets`, engagement, media, symbols, and sentiment metadata for both main and quoted text (`sentiment_*`, `quoted_sentiment_*`) | Connected via `useTweets` |
-| `/api/stream` | GET (SSE) | In-memory broadcaster from stream worker | Real-time tweet/new engagement updates (including main + quoted sentiment metadata on new tweets) | Connected via `useTweets` |
+| `/api/posts` | GET | SQLite via `TweetRepo.latest` | Latest tweets including `assets`, engagement, media, symbols, full nested quoted tweet payload (`quoted_tweet`), and sentiment metadata for both main and quoted text (`sentiment_*`, `quoted_sentiment_*`). Supports pagination with `limit` (default 200, max 200) and `before_id` for older pages. | Connected via `useTweets` |
+| `/api/stream` | GET (SSE) | In-memory broadcaster from stream worker | Real-time tweet/new engagement updates (including full `quoted_tweet` payload plus main + quoted sentiment metadata on new tweets) | Connected via `useTweets` |
 | `/api/fear-greed` | GET | `alternative.me/fng` | `{ value, change, status }` | Connected via `FearGreedWidget` |
 | `/api/treemap` | GET | `coin360.com/site-api/coins` | Coin360 top-100 treemap payload | Connected via `TreemapWidget` |
 | `/api/trending-crypto` | GET | `coinmarketcap.com/data-api/v3/topsearch/rank` | List of trending coins with price/change/volume/website | Connected via `TrendingCryptoWidget` |
+| `/api/nfts/trending` | GET | `api.coingecko.com/api/v3/search/trending` (`nfts` section) | Trending NFT collections with floor price, floor currency, floor 24h change, thumbnail, and website | Connected via `NftTrendingWidget` |
+| `/api/stocks/market-hours` | GET | `query1.finance.yahoo.com/v7/finance/quote` market-state fields for representative exchange symbols (short-lived cache + stale-cache fallback on transient failures/rate limits) | Major exchange session status (`Open`, `Pre-market`, `After-hours`, `Closed`) with timezone and exchange metadata | Connected via `StockMarketHoursBanner` |
 | `/api/stocktwits` | GET | `api.stocktwits.com/api/2/charts/{keyword}` (curl-first, then httpx; short-lived cache fallback on transient failures) | Formatted StockTwits rank list (`symbol`, `name`, `price`, `val`); returns `[]` during transient upstream unavailability | Connected via `StocktwitsWidget` |
 | `/api/spy-heatmap` | GET | `phx.unusualwhales.com/api/etf/SPY/heatmap` | SPY heatmap JSON by date range | Connected via `SpyHeatmapWidget` |
 | `/api/reddit/wsb` | GET | `asyncpraw` (credentials via env) with fallback to `reddit.com/r/{subreddit}/hot.json` via `httpx` | Recent non-stickied Reddit hot posts with title/body/media normalization | Connected via `RedditWsbWidget` |
@@ -34,6 +36,7 @@ These services are not exposed as standalone endpoints, but are used in asset en
   - returns `price`, `change_percent`, `volume`, `website`.
 - CoinGecko (`api.coingecko.com`) for crypto:
   - returns `price`, `change_percent`, `volume`, `website`.
+  - uses short-lived cache and Yahoo `-USD` fallback when CoinGecko is rate-limited (`429`) or temporarily unavailable.
 - FinTwitBERT sentiment (`StephanAkkerman/FinTwitBERT-sentiment`) for tweet text:
   - returns separate main-post and quoted-post sentiment fields (`sentiment_*`, `quoted_sentiment_*`).
   - historical tweets can be backfilled via `python -m app.runtime.backfill_sentiment`.
@@ -46,6 +49,7 @@ The enriched values are attached under `tweet.assets[*].financials` and consumed
   - `/` home overview,
   - `/crypto` crypto-focused widgets,
   - `/stocks` stock-focused widgets,
+  - `/nfts` NFT-focused widgets,
   - `/portfolio` portfolio management.
 
 - Primary contracts live in `frontend/src/types.ts` (tweets, market widgets, and portfolio types).
@@ -55,3 +59,8 @@ The enriched values are attached under `tweet.assets[*].financials` and consumed
   - `assets[].financials.website` for price links,
   - `sentiment_*` for main-post sentiment rendering,
   - `quoted_sentiment_*` for quote-post sentiment rendering.
+  - media URLs are rendered as in-page image previews (lightbox) in `TweetCard` rather than opening directly in a new tab on image click.
+  - `created_at` is serialized with explicit UTC offset and rendered in the viewer's local timezone in `TweetCard`.
+  - quote embeds in `TweetCard` display quoted author identity and quoted timestamp in the embed header (using API-provided quote fields when available, with markdown/URL inference fallback).
+  - quote embeds in `TweetCard` also render the quoted user's avatar in the header (from `quoted_tweet.user_img` or `quoted_user_img` fallback).
+  - when present, quote embeds prefer `quoted_tweet` metadata/media from backend over markdown parsing heuristics.

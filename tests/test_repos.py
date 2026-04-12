@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pytest
 
 from tests.conftest import SAMPLE_TWEETS
@@ -72,6 +74,40 @@ async def test_upsert_many_persists_sentiment_fields(tweet_repo):
 
 
 @pytest.mark.asyncio
+async def test_upsert_many_persists_quoted_tweet_payload(tweet_repo):
+    payload = {
+        **SAMPLE_TWEETS[0],
+        "quoted_tweet": {
+            "id": 555,
+            "text": "Quoted tweet body",
+            "user_name": "Quoted User",
+            "user_screen_name": "quoteduser",
+            "user_img": "https://example.com/quoted-avatar.jpg",
+            "url": "https://x.com/quoteduser/status/555",
+            "created_at": "2026-04-09T07:00:00Z",
+            "media": [{"url": "https://example.com/quoted.jpg", "type": "photo"}],
+            "tickers": ["TSLA"],
+            "hashtags": ["EV"],
+            "title": "Quoted title",
+            "media_types": ["photo"],
+            "likes": 4,
+            "retweets": 1,
+            "replies": 2,
+            "views": 99,
+        },
+    }
+
+    await tweet_repo.upsert_many([payload])
+    row = await tweet_repo.by_id(SAMPLE_TWEETS[0]["id"])
+
+    assert row is not None
+    assert row["quoted_tweet"] is not None
+    assert row["quoted_tweet"]["id"] == 555
+    assert row["quoted_tweet"]["user_name"] == "Quoted User"
+    assert row["quoted_tweet"]["media"][0]["url"] == "https://example.com/quoted.jpg"
+
+
+@pytest.mark.asyncio
 async def test_latest_returns_results_ordered_desc_by_id(tweet_repo):
     await tweet_repo.upsert_many(SAMPLE_TWEETS)
     rows = await tweet_repo.latest()
@@ -121,6 +157,21 @@ async def test_latest_preserves_media_and_tickers(tweet_repo):
     rows = await tweet_repo.latest()
     assert rows[0]["media"] == SAMPLE_TWEETS[1]["media"]
     assert rows[0]["tickers"] == SAMPLE_TWEETS[1]["tickers"]
+
+
+@pytest.mark.asyncio
+async def test_latest_serializes_naive_created_at_as_utc(tweet_repo):
+    payload = {
+        **SAMPLE_TWEETS[0],
+        "id": 424242,
+        "created_at": datetime(2026, 4, 8, 20, 50, 0),
+    }
+
+    await tweet_repo.upsert_many([payload])
+    row = await tweet_repo.by_id(424242)
+
+    assert row is not None
+    assert row["created_at"] == "2026-04-08T20:50:00+00:00"
 
 
 @pytest.mark.asyncio

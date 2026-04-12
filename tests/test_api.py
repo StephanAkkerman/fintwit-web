@@ -57,7 +57,7 @@ async def test_list_posts_default_limit(async_client):
     with patch("app.api.main.REPO") as mock_repo:
         mock_repo.latest = AsyncMock(return_value=[])
         await async_client.get("/api/posts", headers={"X-API-Key": "test-api-key"})
-    mock_repo.latest.assert_called_once_with(50)
+    mock_repo.latest.assert_called_once_with(200, before_id=None)
 
 
 @pytest.mark.asyncio
@@ -67,7 +67,18 @@ async def test_list_posts_custom_limit(async_client):
         await async_client.get(
             "/api/posts?limit=10", headers={"X-API-Key": "test-api-key"}
         )
-    mock_repo.latest.assert_called_once_with(10)
+    mock_repo.latest.assert_called_once_with(10, before_id=None)
+
+
+@pytest.mark.asyncio
+async def test_list_posts_before_id_pagination(async_client):
+    with patch("app.api.main.REPO") as mock_repo:
+        mock_repo.latest = AsyncMock(return_value=[])
+        await async_client.get(
+            "/api/posts?limit=25&before_id=123",
+            headers={"X-API-Key": "test-api-key"},
+        )
+    mock_repo.latest.assert_called_once_with(25, before_id=123)
 
 
 @pytest.mark.asyncio
@@ -174,6 +185,52 @@ async def test_stocktwits_returns_empty_list_when_service_unavailable(async_clie
 
     assert response.status_code == 200
     assert response.json() == []
+
+
+@pytest.mark.asyncio
+async def test_stock_market_hours_returns_data(async_client):
+    app.state.http_client = AsyncMock()
+
+    with patch(
+        "app.api.main.get_stock_market_hours", new_callable=AsyncMock
+    ) as mock_get:
+        mock_get.return_value = [
+            {
+                "exchange": "NYSE",
+                "symbol": "SPY",
+                "session": "Pre-market",
+                "is_open": True,
+                "market_state": "PRE",
+                "as_of": "2026-04-10T11:00:00+00:00",
+                "timezone": "America/New_York",
+                "exchange_name": "NYSE Arca",
+            }
+        ]
+
+        response = await async_client.get(
+            "/api/stocks/market-hours", headers={"X-API-Key": "test-api-key"}
+        )
+
+    assert response.status_code == 200
+    assert response.json()[0]["exchange"] == "NYSE"
+    mock_get.assert_awaited_once_with(app.state.http_client)
+
+
+@pytest.mark.asyncio
+async def test_stock_market_hours_returns_503_when_service_unavailable(async_client):
+    app.state.http_client = AsyncMock()
+
+    with patch(
+        "app.api.main.get_stock_market_hours", new_callable=AsyncMock
+    ) as mock_get:
+        mock_get.return_value = None
+
+        response = await async_client.get(
+            "/api/stocks/market-hours", headers={"X-API-Key": "test-api-key"}
+        )
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Service Unavailable"}
 
 
 @pytest.mark.asyncio
@@ -298,3 +355,45 @@ async def test_portfolio_summary_returns_totals(async_client):
     data = response.json()
     assert data["totals"]["positions"] == 1
     assert data["totals"]["unrealized_pnl"] == 200.0
+
+
+@pytest.mark.asyncio
+async def test_trending_nfts_returns_data(async_client):
+    app.state.http_client = AsyncMock()
+
+    with patch("app.api.main.get_trending_nfts", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = [
+            {
+                "id": "doodles-official",
+                "name": "Doodles",
+                "symbol": "DOODLES",
+                "thumb": "https://example.com/doodles.png",
+                "floor_price": 1.24,
+                "floor_currency": "ETH",
+                "floor_change_24h": 2.5,
+                "website": "https://www.coingecko.com/en/nft/doodles-official",
+            }
+        ]
+
+        response = await async_client.get(
+            "/api/nfts/trending?limit=5", headers={"X-API-Key": "test-api-key"}
+        )
+
+    assert response.status_code == 200
+    assert response.json()[0]["name"] == "Doodles"
+    mock_get.assert_awaited_once_with(app.state.http_client, limit=5)
+
+
+@pytest.mark.asyncio
+async def test_trending_nfts_returns_503_when_service_unavailable(async_client):
+    app.state.http_client = AsyncMock()
+
+    with patch("app.api.main.get_trending_nfts", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = None
+
+        response = await async_client.get(
+            "/api/nfts/trending", headers={"X-API-Key": "test-api-key"}
+        )
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Service Unavailable"}

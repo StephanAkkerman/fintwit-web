@@ -15,15 +15,19 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from ..infra.db import create_engine, init_db
-from ..infra.repos import PortfolioRepo, TweetRepo
+from ..infra.repos import IbkrRepo, PortfolioRepo, TweetRepo
 from ..ml.sentiment import FinTwitSentiment
 from ..runtime.broadcast import Broadcaster
 from ..runtime.enricher import AssetEnricher
+from ..runtime.ibkr_sync import run_ibkr_sync
 from ..runtime.streamer import run_stream
 from ..runtime.symbols import merge_symbols
 from ..services.cmc import get_trending_crypto
+from ..services.ibkr import IbkrGateway
 from ..services.coin360_service import get_treemap_data
 from ..services.fear_greed_service import get_feargreed
+from ..services.market_hours_service import get_stock_market_hours
+from ..services.nft_service import get_trending_nfts
 from ..services.reddit_service import get_reddit_hot_posts, is_valid_subreddit_name
 from ..services.stocktwits_service import get_stocktwits_data
 from ..services.unusual_whales import get_spy_heatmap
@@ -39,6 +43,7 @@ ENGINE = create_engine(os.getenv("DB_URL", "sqlite+aiosqlite:///./data.db"))
 Session = async_sessionmaker(ENGINE, expire_on_commit=False)
 REPO = TweetRepo(Session)
 PORTFOLIO_REPO = PortfolioRepo(Session)
+IBKR_REPO = IbkrRepo(Session)
 BROADCAST = Broadcaster()
 logger = logging.getLogger(__name__)
 
@@ -67,12 +72,37 @@ async def lifespan(app: FastAPI):
 
     # start background stream: persist THEN broadcast
     task = asyncio.create_task(run_stream(REPO, BROADCAST, sentiment_model))
+
+    # start IBKR sync worker if enabled
+    ibkr_task: asyncio.Task | None = None
+    if os.getenv("IBKR_ENABLED", "").lower() in ("1", "true", "yes"):
+        gateway = IbkrGateway()
+        app.state.ibkr_gateway = gateway
+        ibkr_interval = int(os.getenv("IBKR_SYNC_INTERVAL", "60"))
+        ibkr_task = asyncio.create_task(
+            run_ibkr_sync(IBKR_REPO, gateway, interval=ibkr_interval)
+        )
+        logger.info(
+            "[ibkr] sync worker started (host=%s port=%s interval=%ds)",
+            os.getenv("IBKR_HOST", "ibgateway"),
+            os.getenv("IBKR_PORT", "4001"),
+            ibkr_interval,
+        )
+    else:
+        app.state.ibkr_gateway = None
+
     try:
         yield
     finally:
         task.cancel()
         with suppress(asyncio.CancelledError):
             await task
+        if ibkr_task is not None:
+            ibkr_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await ibkr_task
+            if app.state.ibkr_gateway is not None:
+                app.state.ibkr_gateway.stop()
         await app.state.http_client.aclose()
 
 
@@ -80,8 +110,12 @@ app = FastAPI(title="X Stream API", lifespan=lifespan)
 
 
 @app.get("/api/posts")
-async def list_posts(limit: int = Query(50, ge=1, le=200), _=Depends(api_key_dep)):
-    return await REPO.latest(limit)
+async def list_posts(
+    limit: int = Query(200, ge=1, le=200),
+    before_id: int | None = Query(default=None, ge=1),
+    _=Depends(api_key_dep),
+):
+    return await REPO.latest(limit, before_id=before_id)
 
 
 @app.get("/api/stream")
@@ -125,6 +159,15 @@ async def stocktwits(
     if data is None:
         # StockTwits can intermittently block requests; return empty payload to avoid UI hard-fail.
         return []
+    return data
+
+
+@app.get("/api/stocks/market-hours")
+async def stock_market_hours(request: Request, _=Depends(api_key_dep)):
+    client: httpx.AsyncClient = request.app.state.http_client
+    data = await get_stock_market_hours(client)
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
     return data
 
 
@@ -384,9 +427,96 @@ async def portfolio_summary(_=Depends(api_key_dep)):
     }
 
 
+@app.get("/api/ibkr/status")
+async def ibkr_status(request: Request, _=Depends(api_key_dep)):
+    gateway: IbkrGateway | None = request.app.state.ibkr_gateway
+    if gateway is None:
+        return {
+            "configured": False,
+            "connected": False,
+            "last_sync": None,
+            "last_error": None,
+        }
+    return {
+        "configured": True,
+        "connected": gateway.is_connected(),
+        "last_sync": gateway.last_sync.isoformat() if gateway.last_sync else None,
+        "last_error": gateway.last_error,
+    }
+
+
+@app.get("/api/ibkr/positions")
+async def ibkr_positions(_=Depends(api_key_dep)):
+    positions = await IBKR_REPO.list_positions()
+    if not positions:
+        return []
+
+    stock_positions = [p for p in positions if p["sec_type"] == "STK"]
+    quote_tasks = [get_stock_info(p["symbol"]) for p in stock_positions]
+    quote_results = await asyncio.gather(*quote_tasks, return_exceptions=True)
+    quote_map = {
+        pos["symbol"]: q
+        for pos, q in zip(stock_positions, quote_results)
+        if isinstance(q, dict)
+    }
+
+    enriched = []
+    for p in positions:
+        quote = quote_map.get(p["symbol"])
+        market_price = quote.get("price") if quote else None
+        qty = float(p["quantity"])
+        avg_cost = float(p["avg_cost"])
+        cost_basis = qty * avg_cost
+        market_value = qty * (float(market_price) if market_price is not None else avg_cost)
+        unrealized_pnl = market_value - cost_basis
+        enriched.append(
+            {
+                **p,
+                "market_price": float(market_price) if market_price is not None else None,
+                "market_value": market_value,
+                "cost_basis": cost_basis,
+                "unrealized_pnl": unrealized_pnl,
+                "unrealized_pnl_percent": (
+                    unrealized_pnl / cost_basis * 100 if cost_basis else 0.0
+                ),
+            }
+        )
+    return enriched
+
+
+@app.get("/api/ibkr/trades")
+async def ibkr_trades(
+    limit: int = Query(50, ge=1, le=200),
+    before_id: int | None = Query(default=None),
+    _=Depends(api_key_dep),
+):
+    return await IBKR_REPO.list_trades(limit=limit, before_id=before_id)
+
+
+@app.get("/api/ibkr/account")
+async def ibkr_account(request: Request, _=Depends(api_key_dep)):
+    gateway: IbkrGateway | None = request.app.state.ibkr_gateway
+    if gateway is None or not gateway.is_connected():
+        return {}
+    return await gateway.get_account_summary()
+
+
 @app.get("/api/trending-crypto")
 async def trending_crypto(_=Depends(api_key_dep)):
     data = await get_trending_crypto()
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
+
+
+@app.get("/api/nfts/trending")
+async def trending_nfts(
+    request: Request,
+    limit: int = Query(10, ge=1, le=30),
+    _=Depends(api_key_dep),
+):
+    client: httpx.AsyncClient = request.app.state.http_client
+    data = await get_trending_nfts(client, limit=limit)
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data

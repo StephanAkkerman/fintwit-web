@@ -16,6 +16,26 @@ export type Asset = {
   financials?: AssetFinancials | null;
 };
 
+export type QuotedTweet = {
+  id: number | string;
+  text: string;
+  user_name: string;
+  user_screen_name: string;
+  user_img: string;
+  url: string;
+  media: MediaItem[];
+  tickers: string[];
+  hashtags: string[];
+  title: string;
+  media_types: string[];
+  created_at: string;
+  likes: number;
+  retweets: number;
+  replies: number;
+  views: number;
+  is_subscriber_only?: boolean;
+};
+
 export type Tweet = {
   id: number;
   text: string;
@@ -36,6 +56,12 @@ export type Tweet = {
   sentiment_label?: 'BULLISH' | 'BEARISH' | 'NEUTRAL' | string | null;
   sentiment_emoji?: string | null;
   sentiment_score?: number | null;
+  quoted_user_name?: string | null;
+  quoted_user_screen_name?: string | null;
+  quoted_user_img?: string | null;
+  quoted_url?: string | null;
+  quoted_created_at?: string | null;
+  quoted_tweet?: QuotedTweet | null;
   quoted_sentiment_label?: 'BULLISH' | 'BEARISH' | 'NEUTRAL' | string | null;
   quoted_sentiment_emoji?: string | null;
   quoted_sentiment_score?: number | null;
@@ -130,4 +156,79 @@ export type RedditPost = {
   created_utc: number;
   url: string;
   image_urls: string[];
+};
+
+export type NftTrendingItem = {
+  id: string | null;
+  name: string;
+  symbol: string | null;
+  thumb: string | null;
+  floor_price: number | null;
+  floor_currency: string | null;
+  floor_change_24h: number | null;
+  website: string | null;
+};
+
+export type StockMarketHoursItem = {
+  exchange: string;
+  symbol: string;
+  session: string;
+  is_open: boolean;
+  market_state: string | null;
+  as_of: string | null;
+  timezone: string | null;
+  exchange_name: string | null;
+};
+
+export type IbkrPosition = {
+  id: number;
+  account: string;
+  symbol: string;
+  sec_type: string;
+  exchange: string;
+  currency: string;
+  quantity: number;
+  avg_cost: number;
+  synced_at: string;
+  // enriched by backend
+  market_price?: number | null;
+  market_value: number;
+  cost_basis: number;
+  unrealized_pnl: number;
+  unrealized_pnl_percent: number;
+};
+
+export type IbkrTrade = {
+  id: number;
+  exec_id: string;
+  account: string;
+  symbol: string;
+  sec_type: string;
+  currency: string;
+  side: 'BOT' | 'SLD' | string;
+  quantity: number;
+  price: number;
+  commission?: number | null;
+  executed_at?: string | null;
+  created_at: string;
+};
+
+export type IbkrAccountValue = {
+  value: number;
+  currency: string;
+};
+
+export type IbkrAccountSummary = {
+  NetLiquidation?: IbkrAccountValue;
+  TotalCashValue?: IbkrAccountValue;
+  UnrealizedPnL?: IbkrAccountValue;
+  RealizedPnL?: IbkrAccountValue;
+  GrossPositionValue?: IbkrAccountValue;
+};
+
+export type IbkrStatus = {
+  configured: boolean;
+  connected: boolean;
+  last_sync: string | null;
+  last_error: string | null;
 };

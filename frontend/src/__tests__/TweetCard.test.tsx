@@ -10,11 +10,16 @@ const baseTweet: Tweet = {
   user_screen_name: 'testuser',
   user_img: 'https://example.com/avatar.jpg',
   url: 'https://x.com/testuser/status/1',
+  created_at: '',
   media: [],
   tickers: [],
   hashtags: [],
   title: '',
   media_types: [],
+  replies: 0,
+  likes: 0,
+  views: 0,
+  retweets: 0,
 }
 
 describe('TweetCard', () => {
@@ -31,14 +36,48 @@ describe('TweetCard', () => {
 
   it('renders quote-tweet markdown as blockquote with parsed links', () => {
     const quoteText =
-      '> [@opensea](https://twitter.com/opensea):\n> Treasure Chests from our final Wave are now unlocked.'
+      '> [@opensea](https://x.com/opensea/status/1893717105483483558):\n> Treasure Chests from our final Wave are now unlocked.'
 
-    const { container } = render(<TweetCard t={{ ...baseTweet, text: quoteText }} />)
+    const { container } = render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          text: quoteText,
+          quoted_tweet: {
+            id: '1893717105483483558',
+            text: 'Treasure Chests from our final Wave are now unlocked.',
+            user_name: 'OpenSea',
+            user_screen_name: 'opensea',
+            user_img: 'https://example.com/opensea.jpg',
+            url: 'https://x.com/user/status/1893717105483483558',
+            media: [],
+            tickers: [],
+            hashtags: [],
+            title: 'OpenSea quote',
+            media_types: [],
+            created_at: '2026-03-08T18:00:00Z',
+            likes: 1,
+            retweets: 1,
+            replies: 1,
+            views: 1,
+          },
+        }}
+      />
+    )
 
     expect(container.querySelector('blockquote')).toBeInTheDocument()
-    expect(screen.getByText('Quoted post')).toBeInTheDocument()
-    const quoteUserLink = screen.getByRole('link', { name: '@opensea' })
-    expect(quoteUserLink).toHaveAttribute('href', 'https://twitter.com/opensea')
+    expect(screen.queryByText('Quoted post')).not.toBeInTheDocument()
+
+    const quoteUserLink = screen.getByLabelText('Quoted tweet author')
+    expect(quoteUserLink).toHaveTextContent('OpenSea')
+    expect(quoteUserLink).toHaveAttribute('href', 'https://x.com/opensea/status/1893717105483483558')
+    expect(screen.queryByRole('link', { name: '@opensea' })).not.toBeInTheDocument()
+    const quoteAvatar = screen.getByAltText('Quoted user avatar') as HTMLImageElement
+    expect(quoteAvatar.src).toContain('opensea.jpg')
+
+    const quotedTime = screen.getByLabelText('Quoted tweet timestamp')
+    expect(quotedTime).toBeInTheDocument()
+    expect(quotedTime.getAttribute('datetime')).toBeTruthy()
   })
 
   it('renders quoted image inside the quote embed', () => {
@@ -54,6 +93,24 @@ describe('TweetCard', () => {
             { url: 'https://example.com/inline.jpg', type: 'photo' },
             { url: 'https://example.com/quoted.jpg', type: 'photo' },
           ],
+          quoted_tweet: {
+            id: 2,
+            text: 'Treasure Chests from our final Wave are now unlocked.',
+            user_name: 'OpenSea',
+            user_screen_name: 'opensea',
+            user_img: 'https://example.com/opensea.jpg',
+            url: 'https://x.com/user/status/2',
+            media: [{ url: 'https://example.com/quoted.jpg', type: 'photo' }],
+            tickers: [],
+            hashtags: [],
+            title: 'OpenSea quote',
+            media_types: ['photo'],
+            created_at: '2026-03-08T18:00:00Z',
+            likes: 1,
+            retweets: 1,
+            replies: 1,
+            views: 1,
+          },
         }}
       />
     )
@@ -64,9 +121,70 @@ describe('TweetCard', () => {
     const inlineImage = screen.getByAltText('photo') as HTMLImageElement
     expect(inlineImage.src).toContain('inline.jpg')
 
-    const quoteBlock = screen.getByText('Quoted post').closest('blockquote')
+    const quoteBlock = quotedImage.closest('blockquote')
     expect(quoteBlock).toBeInTheDocument()
-    expect(quoteBlock?.compareDocumentPosition(inlineImage) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
+    if (!quoteBlock) {
+      throw new Error('Expected quoted media to be inside a blockquote')
+    }
+    expect(quoteBlock.compareDocumentPosition(inlineImage) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
+  })
+
+  it('renders quote header metadata from quoted_tweet when markdown header is absent', () => {
+    const quoteText = '> Quoted body only.'
+
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          text: quoteText,
+          quoted_tweet: {
+            id: 321,
+            text: 'Quoted body only.',
+            user_name: 'Macro Analyst',
+            user_screen_name: 'macroanalyst',
+            user_img: 'https://example.com/macro.jpg',
+            url: 'https://x.com/user/status/321',
+            media: [],
+            tickers: [],
+            hashtags: [],
+            title: 'Macro quote',
+            media_types: [],
+            created_at: '2026-04-09T08:15:00Z',
+            likes: 0,
+            retweets: 0,
+            replies: 0,
+            views: 0,
+          },
+        }}
+      />
+    )
+
+    const quoteUserLink = screen.getByLabelText('Quoted tweet author')
+    expect(quoteUserLink).toHaveTextContent('Macro Analyst')
+    expect(quoteUserLink).toHaveAttribute('href', 'https://x.com/macroanalyst/status/321')
+    expect(screen.getByLabelText('Quoted tweet timestamp')).toBeInTheDocument()
+    const quoteAvatar = screen.getByAltText('Quoted user avatar') as HTMLImageElement
+    expect(quoteAvatar.src).toContain('macro.jpg')
+  })
+
+  it('renders quote avatar from quoted_user_img fallback when quoted_tweet is absent', () => {
+    const quoteText = '> [@legacyuser](https://x.com/legacyuser/status/333):\n> Legacy quote payload.'
+
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          text: quoteText,
+          quoted_user_name: 'Legacy User',
+          quoted_user_screen_name: 'legacyuser',
+          quoted_user_img: 'https://example.com/legacy-avatar.jpg',
+          quoted_created_at: '2026-04-09T09:00:00Z',
+        }}
+      />
+    )
+
+    const quoteAvatar = screen.getByAltText('Quoted user avatar') as HTMLImageElement
+    expect(quoteAvatar.src).toContain('legacy-avatar.jpg')
   })
 
   it('renders an Open link pointing to the tweet URL', () => {
@@ -98,18 +216,19 @@ describe('TweetCard', () => {
     expect(screen.getByLabelText('Chart tweet')).toBeInTheDocument()
   })
 
-  it('shows chart badge when tweet has photo media', () => {
+  it('does not show chart badge for photo media when has_chart is false', () => {
     render(
       <TweetCard
         t={{
           ...baseTweet,
+          has_chart: false,
           media: [{ url: 'https://example.com/chart.jpg', type: 'photo' }],
           media_types: ['photo'],
         }}
       />
     )
 
-    expect(screen.getByLabelText('Chart tweet')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Chart tweet')).not.toBeInTheDocument()
   })
 
   it('renders sentiment badge when sentiment fields are available', () => {
@@ -235,6 +354,41 @@ describe('TweetCard', () => {
       (img as HTMLImageElement).src.includes('img')
     )
     expect(mediaImgs).toHaveLength(2)
+  })
+
+  it('opens image preview dialog when inline media is clicked', () => {
+    const tweetWithMedia: Tweet = {
+      ...baseTweet,
+      media: [{ url: 'https://example.com/img1.jpg', type: 'photo' }],
+    }
+
+    render(<TweetCard t={tweetWithMedia} />)
+
+    fireEvent.click(screen.getByAltText('photo'))
+    const dialog = screen.getByRole('dialog', { name: 'Image preview' })
+    expect(dialog).toBeInTheDocument()
+    const previewImage = dialog.querySelector('img') as HTMLImageElement
+    expect(previewImage?.src).toContain('img1.jpg')
+  })
+
+  it('opens image preview dialog when quoted media is clicked', () => {
+    const quoteText = '> [@opensea](https://twitter.com/opensea):\n> Quoted image.'
+
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          text: quoteText,
+          media: [
+            { url: 'https://example.com/inline.jpg', type: 'photo' },
+            { url: 'https://example.com/quoted.jpg', type: 'photo' },
+          ],
+        }}
+      />
+    )
+
+    fireEvent.click(screen.getByAltText('Quoted media'))
+    expect(screen.getByRole('dialog', { name: 'Image preview' })).toBeInTheDocument()
   })
 
   it('does not render media section when media array is empty', () => {

@@ -2,25 +2,29 @@ import { useEffect, useMemo, useState } from 'react'
 import DebugAdminPanel from './components/DebugAdminPanel'
 import FearGreedWidget from './components/FearGreedWidget'
 import MarketOverview from './components/MarketOverview'
-import PortfolioPanel from './components/PortfolioPanel'
+import NftTrendingWidget from './components/NftTrendingWidget'
+import IbkrPanel from './components/IbkrPanel'
 import RedditWsbWidget from './components/RedditWsbWidget'
 import SpyHeatmapWidget from './components/SpyHeatmapWidget'
+import StockMarketHoursBanner from './components/StockMarketHoursBanner'
 import StocktwitsWidget from './components/StocktwitsWidget'
 import TreemapWidget from './components/TreemapWidget'
 import TrendingCryptoWidget from './components/TrendingCryptoWidget'
 import TweetCard from './components/TweetCard'
+import { useIbkr } from './hooks/useIbkr'
 import { useTweets } from './hooks/useTweets'
 import type { Tweet } from './types'
 import { hasChartSignal } from './utils/tweetSignals'
 
 type FilterKey = 'all' | 'crypto' | 'stock' | 'non-financial'
-type RouteKey = 'home' | 'crypto' | 'stocks' | 'portfolio' | 'admin'
+type RouteKey = 'home' | 'crypto' | 'stocks' | 'nfts' | 'portfolio' | 'admin'
 type ChartSortMode = 'latest' | 'charts-first' | 'charts-only'
 
 const SECTIONS: Array<{ key: RouteKey; label: string; path: string; subtitle: string }> = [
   { key: 'home', label: 'Home', path: '/', subtitle: 'Cross-market stream' },
   { key: 'crypto', label: 'Crypto', path: '/crypto', subtitle: 'Coins, trend, heatmap' },
   { key: 'stocks', label: 'Stocks', path: '/stocks', subtitle: 'Equity sentiment and SPY map' },
+  { key: 'nfts', label: 'NFTs', path: '/nfts', subtitle: 'Collection momentum and floor-price pulse' },
   { key: 'portfolio', label: 'Portfolio', path: '/portfolio', subtitle: 'IBKR stock positions and PnL' },
   { key: 'admin', label: 'Admin', path: '/admin', subtitle: 'Debug tweet injection and verification' },
 ]
@@ -35,6 +39,7 @@ const FILTERS: Array<{ key: FilterKey; label: string }> = [
 function routeFromPath(pathname: string): RouteKey {
   if (pathname.startsWith('/crypto')) return 'crypto'
   if (pathname.startsWith('/stocks')) return 'stocks'
+  if (pathname.startsWith('/nfts')) return 'nfts'
   if (pathname.startsWith('/portfolio')) return 'portfolio'
   if (pathname.startsWith('/admin')) return 'admin'
   return 'home'
@@ -43,6 +48,7 @@ function routeFromPath(pathname: string): RouteKey {
 function pathFromRoute(route: RouteKey): string {
   if (route === 'crypto') return '/crypto'
   if (route === 'stocks') return '/stocks'
+  if (route === 'nfts') return '/nfts'
   if (route === 'portfolio') return '/portfolio'
   if (route === 'admin') return '/admin'
   return '/'
@@ -73,7 +79,8 @@ function matchesTicker(tweet: Tweet, ticker: string): boolean {
   const fromTickers = (tweet.tickers ?? []).map((t) => t.toUpperCase())
   const fromAssets = (tweet.assets ?? []).map((asset) => asset.symbol.toUpperCase())
   const fromText = extractTickersFromText(tweet.text ?? '')
-  return [...fromTickers, ...fromAssets, ...fromText].includes(target)
+  const fromHashtags = (tweet.hashtags ?? []).map((h) => h.toUpperCase())
+  return [...fromTickers, ...fromAssets, ...fromText, ...fromHashtags].includes(target)
 }
 
 function matchesFilter(tweet: Tweet, filter: FilterKey): boolean {
@@ -95,7 +102,8 @@ function matchesFilter(tweet: Tweet, filter: FilterKey): boolean {
 }
 
 export default function App() {
-  const { tweets } = useTweets('') // same-origin API (proxied in dev)
+  const { tweets, hasMore, isLoadingOlder, loadOlder } = useTweets('') // same-origin API (proxied in dev)
+  const { status: ibkrStatus, positions: ibkrPositions, trades: ibkrTrades, account: ibkrAccount, loading: ibkrLoading, error: ibkrError, reload: reloadIbkr } = useIbkr()
   const [route, setRoute] = useState<RouteKey>(() => routeFromPath(window.location.pathname))
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all')
   const [tickerFilter, setTickerFilter] = useState<string | null>(null)
@@ -140,12 +148,28 @@ export default function App() {
     [tweets]
   )
 
+  const portfolioSymbols = useMemo(
+    () => new Set(ibkrPositions.map((p) => p.symbol.toUpperCase())),
+    [ibkrPositions]
+  )
+
   const displayedTweets = useMemo(() => {
-    const scoped = tweets.filter(
+    let scoped = tweets.filter(
       (tweet) =>
         matchesFilter(tweet, effectiveFilter) &&
         (!tickerFilter || matchesTicker(tweet, tickerFilter))
     )
+
+    if (route === 'portfolio' && portfolioSymbols.size > 0) {
+      scoped = scoped.filter((tweet) => {
+        const symbols = [
+          ...(tweet.tickers ?? []).map((t) => t.toUpperCase()),
+          ...(tweet.assets ?? []).map((a) => a.symbol.toUpperCase()),
+          ...extractTickersFromText(tweet.text ?? ''),
+        ]
+        return symbols.some((s) => portfolioSymbols.has(s))
+      })
+    }
 
     if (route !== 'crypto' && route !== 'stocks') {
       return scoped
@@ -160,7 +184,7 @@ export default function App() {
     }
 
     return scoped
-  }, [tweets, effectiveFilter, tickerFilter, route, chartSortMode])
+  }, [tweets, effectiveFilter, tickerFilter, route, chartSortMode, portfolioSymbols])
 
   const onTickerSelect = (ticker: string) => {
     setActiveFilter('all')
@@ -282,7 +306,13 @@ export default function App() {
               </>
             ) : route === 'portfolio' ? (
               <p className="mt-4 px-2 text-xs text-zinc-500">
-                Portfolio route is focused on IBKR stocks and auto-filters timeline to stock signals.
+                {portfolioSymbols.size > 0
+                  ? `Showing tweets for your ${portfolioSymbols.size} position${portfolioSymbols.size === 1 ? '' : 's'}: ${[...portfolioSymbols].join(', ')}`
+                  : 'Timeline will filter to your IBKR positions once connected.'}
+              </p>
+            ) : route === 'nfts' ? (
+              <p className="mt-4 px-2 text-xs text-zinc-500">
+                NFTs route highlights trending collections and floor-price momentum from CoinGecko.
               </p>
             ) : (
               <p className="mt-4 px-2 text-xs text-zinc-500">
@@ -363,18 +393,43 @@ export default function App() {
 
             {route === 'stocks' && (
               <>
+                <StockMarketHoursBanner />
                 <StocktwitsWidget />
                 <SpyHeatmapWidget />
               </>
             )}
 
-            {route === 'portfolio' && <PortfolioPanel />}
+            {route === 'nfts' && <NftTrendingWidget />}
+
+            {route === 'portfolio' && (
+              <IbkrPanel
+                status={ibkrStatus}
+                positions={ibkrPositions}
+                trades={ibkrTrades}
+                account={ibkrAccount}
+                loading={ibkrLoading}
+                error={ibkrError}
+                reload={reloadIbkr}
+              />
+            )}
 
             {route === 'admin' && <DebugAdminPanel />}
 
             {displayedTweets.map((t) => (
               <TweetCard key={t.id} t={t} onTickerSelect={onTickerSelect} />
             ))}
+            {hasMore && (
+              <div className="flex justify-center py-2">
+                <button
+                  type="button"
+                  onClick={() => void loadOlder()}
+                  disabled={isLoadingOlder}
+                  className="rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                >
+                  {isLoadingOlder ? 'Loading older tweets...' : 'Load older tweets'}
+                </button>
+              </div>
+            )}
             {displayedTweets.length === 0 && (
               <div className="rounded-2xl border border-dashed border-zinc-300 bg-white/70 p-5 text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-400">
                 No tweets in this filter yet.

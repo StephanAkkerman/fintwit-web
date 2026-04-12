@@ -6,6 +6,7 @@ package-lock.json
 logs/
 models/
 data.db-journal
+*tfvars
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -57,6 +57,10 @@ async def backfill_tweet_sentiment(
         stmt = select(TweetRow.id, TweetRow.text).where(TweetRow.id > last_id)
         if not include_existing:
             stmt = stmt.where(TweetRow.sentiment_label.is_(None))
+        # Only classify tweets that contain financial signals (cashtags or hashtags)
+        stmt = stmt.where(
+            TweetRow.text.contains("$") | TweetRow.text.contains("#")
+        )
         stmt = stmt.order_by(TweetRow.id.asc()).limit(current_batch_size)
 
         async with session_factory() as session:

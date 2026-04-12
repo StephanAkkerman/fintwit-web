@@ -3,13 +3,26 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
+import app.services.coingecko as coingecko_service
+import app.services.market_hours_service as market_hours_service
 from app.services.coingecko import get_crypto_info
+from app.services.market_hours_service import get_stock_market_hours
+from app.services.nft_service import get_trending_nfts
 from app.services.reddit_service import get_reddit_hot_posts, is_valid_subreddit_name
 from app.services.yahoo import get_stock_info
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _reset_coingecko_cache():
+    coingecko_service._reset_cache_for_tests()
+    market_hours_service._reset_cache_for_tests()
+    yield
+    coingecko_service._reset_cache_for_tests()
+    market_hours_service._reset_cache_for_tests()
 
 
 def _mock_response(status: int, json_data: dict) -> MagicMock:
@@ -175,43 +188,98 @@ async def test_get_crypto_info_success():
 @pytest.mark.asyncio
 async def test_get_crypto_info_no_coins_returns_none():
     data = {"coins": []}
-    with patch(
-        "app.services.coingecko.aiohttp.ClientSession",
-        _mock_session(_mock_response(200, data)),
+    with (
+        patch(
+            "app.services.coingecko.aiohttp.ClientSession",
+            _mock_session(_mock_response(200, data)),
+        ),
+        patch(
+            "app.services.coingecko.get_stock_info", new=AsyncMock(return_value=None)
+        ),
     ):
         result = await get_crypto_info("UNKNOWN")
+
     assert result is None
 
 
 @pytest.mark.asyncio
-async def test_get_crypto_info_search_http_error_returns_none():
-    with patch(
-        "app.services.coingecko.aiohttp.ClientSession",
-        _mock_session(_mock_response(429, {})),
+async def test_get_crypto_info_search_http_error_uses_yahoo_fallback():
+    yahoo_fallback = {
+        "price": 45000.0,
+        "change_percent": 1.0,
+        "volume": 10_000_000.0,
+        "website": "https://finance.yahoo.com/quote/BTC-USD",
+    }
+    with (
+        patch(
+            "app.services.coingecko.aiohttp.ClientSession",
+            _mock_session(_mock_response(429, {})),
+        ),
+        patch(
+            "app.services.coingecko.get_stock_info",
+            new=AsyncMock(return_value=yahoo_fallback),
+        ),
     ):
         result = await get_crypto_info("BTC")
-    assert result is None
+
+    assert result == yahoo_fallback
 
 
 @pytest.mark.asyncio
-async def test_get_crypto_info_price_http_error_returns_none():
+async def test_get_crypto_info_price_http_error_uses_yahoo_fallback():
+    yahoo_fallback = {
+        "price": 45000.0,
+        "change_percent": 1.0,
+        "volume": 10_000_000.0,
+        "website": "https://finance.yahoo.com/quote/BTC-USD",
+    }
     mock_cs = _mock_session(
         _mock_response(200, COINGECKO_SEARCH_RESPONSE),
         _mock_response(429, {}),
     )
-    with patch("app.services.coingecko.aiohttp.ClientSession", mock_cs):
+    with (
+        patch("app.services.coingecko.aiohttp.ClientSession", mock_cs),
+        patch(
+            "app.services.coingecko.get_stock_info",
+            new=AsyncMock(return_value=yahoo_fallback),
+        ),
+    ):
         result = await get_crypto_info("BTC")
-    assert result is None
+
+    assert result == yahoo_fallback
 
 
 @pytest.mark.asyncio
 async def test_get_crypto_info_exception_returns_none():
-    with patch(
-        "app.services.coingecko.aiohttp.ClientSession",
-        side_effect=Exception("Network error"),
+    with (
+        patch(
+            "app.services.coingecko.aiohttp.ClientSession",
+            side_effect=Exception("Network error"),
+        ),
+        patch(
+            "app.services.coingecko.get_stock_info", new=AsyncMock(return_value=None)
+        ),
     ):
         result = await get_crypto_info("BTC")
+
     assert result is None
+
+
+@pytest.mark.asyncio
+async def test_get_crypto_info_uses_cache_on_second_call():
+    mock_cs = _mock_session(
+        _mock_response(200, COINGECKO_SEARCH_RESPONSE),
+        _mock_response(200, COINGECKO_PRICE_RESPONSE),
+    )
+
+    with patch("app.services.coingecko.aiohttp.ClientSession", mock_cs):
+        first = await get_crypto_info("BTC")
+        second = await get_crypto_info("BTC")
+
+    assert first == second
+    # First call performs 2 requests (search + price), second call is cache hit.
+    session_obj = mock_cs.return_value.__aenter__.return_value
+    assert session_obj.get.call_count == 2
 
 
 # ---------------------------------------------------------------------------
@@ -385,6 +453,176 @@ async def test_get_reddit_hot_posts_falls_back_to_httpx_when_asyncpraw_none():
 
     assert posts is not None
     assert posts[0]["id"] == "fallback1"
+
+
+# ---------------------------------------------------------------------------
+# NFTs – get_trending_nfts
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_trending_nfts_success_parses_fields():
+    payload = {
+        "nfts": [
+            {
+                "id": "doodles-official",
+                "name": "Doodles",
+                "symbol": "DOODLES",
+                "thumb": "https://example.com/doodles.png",
+                "native_currency_symbol": "eth",
+                "floor_price_in_native_currency": 1.2345,
+                "floor_price_24h_percentage_change": -3.21,
+            }
+        ]
+    }
+
+    client = AsyncMock()
+    client.get = AsyncMock(return_value=_httpx_response(200, payload))
+
+    result = await get_trending_nfts(client, limit=5)
+
+    assert result is not None
+    assert len(result) == 1
+    assert result[0]["id"] == "doodles-official"
+    assert result[0]["name"] == "Doodles"
+    assert result[0]["symbol"] == "DOODLES"
+    assert result[0]["floor_price"] == pytest.approx(1.2345)
+    assert result[0]["floor_currency"] == "ETH"
+    assert result[0]["floor_change_24h"] == pytest.approx(-3.21)
+    assert result[0]["website"] == "https://www.coingecko.com/en/nft/doodles-official"
+
+
+@pytest.mark.asyncio
+async def test_get_trending_nfts_http_error_returns_none():
+    client = AsyncMock()
+    client.get = AsyncMock(return_value=_httpx_response(503, {}))
+
+    result = await get_trending_nfts(client)
+
+    assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Market Hours – get_stock_market_hours
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_stock_market_hours_maps_sessions():
+    payload = {
+        "quoteResponse": {
+            "result": [
+                {
+                    "symbol": "SPY",
+                    "marketState": "PRE",
+                    "regularMarketTime": 1712746800,
+                    "exchangeTimezoneName": "America/New_York",
+                    "fullExchangeName": "NYSE Arca",
+                },
+                {
+                    "symbol": "QQQ",
+                    "marketState": "POST",
+                    "regularMarketTime": 1712746800,
+                    "exchangeTimezoneName": "America/New_York",
+                    "fullExchangeName": "NASDAQ",
+                },
+                {
+                    "symbol": "^FTSE",
+                    "marketState": "REGULAR",
+                    "regularMarketTime": 1712746800,
+                    "exchangeTimezoneName": "Europe/London",
+                    "fullExchangeName": "FTSE",
+                },
+            ]
+        }
+    }
+
+    client = AsyncMock()
+    client.get = AsyncMock(return_value=_httpx_response(200, payload))
+
+    result = await get_stock_market_hours(client)
+
+    assert result is not None
+    by_exchange = {row["exchange"]: row for row in result}
+    assert by_exchange["NYSE"]["session"] == "Pre-market"
+    assert by_exchange["NYSE"]["is_open"] is True
+    assert by_exchange["NASDAQ"]["session"] == "After-hours"
+    assert by_exchange["NASDAQ"]["is_open"] is True
+    assert by_exchange["LSE"]["session"] == "Open"
+    assert by_exchange["LSE"]["is_open"] is True
+    assert by_exchange["JPX"]["session"] == "Unknown"
+    assert by_exchange["HKEX"]["session"] == "Unknown"
+
+
+@pytest.mark.asyncio
+async def test_get_stock_market_hours_http_error_returns_none():
+    client = AsyncMock()
+    client.get = AsyncMock(return_value=_httpx_response(503, {}))
+
+    result = await get_stock_market_hours(client)
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_get_stock_market_hours_uses_cache_for_subsequent_calls():
+    payload = {
+        "quoteResponse": {
+            "result": [
+                {
+                    "symbol": "SPY",
+                    "marketState": "REGULAR",
+                    "regularMarketTime": 1712746800,
+                    "exchangeTimezoneName": "America/New_York",
+                    "fullExchangeName": "NYSE Arca",
+                }
+            ]
+        }
+    }
+
+    client = AsyncMock()
+    client.get = AsyncMock(return_value=_httpx_response(200, payload))
+
+    first = await get_stock_market_hours(client)
+    second = await get_stock_market_hours(client)
+
+    assert first is not None
+    assert second is not None
+    assert client.get.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_get_stock_market_hours_uses_stale_cache_when_rate_limited():
+    payload = {
+        "quoteResponse": {
+            "result": [
+                {
+                    "symbol": "SPY",
+                    "marketState": "PRE",
+                    "regularMarketTime": 1712746800,
+                    "exchangeTimezoneName": "America/New_York",
+                    "fullExchangeName": "NYSE Arca",
+                }
+            ]
+        }
+    }
+
+    client = AsyncMock()
+    client.get = AsyncMock(
+        side_effect=[
+            _httpx_response(200, payload),
+            _httpx_response(429, {}),
+        ]
+    )
+
+    with patch.object(market_hours_service, "_CACHE_TTL_SECONDS", 0):
+        first = await get_stock_market_hours(client)
+        second = await get_stock_market_hours(client)
+
+    assert first is not None
+    assert second is not None
+    assert first == second
+    assert client.get.call_count == 2
 
 
 def test_is_valid_subreddit_name():

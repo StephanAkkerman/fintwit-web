@@ -35,10 +35,16 @@ beforeEach(() => {
     if (url.includes('/api/trending-crypto')) {
       return Promise.resolve({ ok: true, json: async () => [] } as Response)
     }
+    if (url.includes('/api/nfts/trending')) {
+      return Promise.resolve({ ok: true, json: async () => [] } as Response)
+    }
     if (url.includes('/api/treemap')) {
       return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)
     }
     if (url.includes('/api/stocktwits')) {
+      return Promise.resolve({ ok: true, json: async () => [] } as Response)
+    }
+    if (url.includes('/api/stocks/market-hours')) {
       return Promise.resolve({ ok: true, json: async () => [] } as Response)
     }
     if (url.includes('/api/spy-heatmap')) {
@@ -105,8 +111,20 @@ describe('App', () => {
     await waitFor(() =>
       expect(screen.getByText(/stocktwits signals/i)).toBeInTheDocument()
     )
+    expect(screen.getByText(/major exchange sessions/i)).toBeInTheDocument()
     expect(screen.getByText(/spy heatmap/i)).toBeInTheDocument()
     expect(window.location.pathname).toBe('/stocks')
+  })
+
+  it('shows nft section widget when navigating to /nfts', async () => {
+    render(<App />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open /nfts' }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: /trending nfts/i })).toBeInTheDocument()
+    )
+    expect(window.location.pathname).toBe('/nfts')
   })
 
   it('shows debug admin panel when navigating to /admin', async () => {
@@ -481,6 +499,7 @@ describe('App', () => {
         likes: 0,
         views: 0,
         retweets: 0,
+        has_chart: false,
         assets: [{ symbol: 'BTC', kind: 'crypto' }],
       },
       {
@@ -500,6 +519,7 @@ describe('App', () => {
         likes: 0,
         views: 0,
         retweets: 0,
+        has_chart: true,
         assets: [{ symbol: 'ETH', kind: 'crypto' }],
       },
     ]

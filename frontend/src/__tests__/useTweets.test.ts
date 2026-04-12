@@ -53,8 +53,30 @@ describe('useTweets', () => {
     const { result } = renderHook(() => useTweets(''))
 
     await waitFor(() => expect(result.current.tweets).toHaveLength(2))
+    expect(fetch).toHaveBeenCalledWith('/api/posts?limit=200', { credentials: 'include' })
     expect(result.current.tweets[0].id).toBe(1)
     expect(result.current.tweets[1].id).toBe(2)
+  })
+
+  it('loads older tweets using before_id pagination', async () => {
+    const initialData = [makeTweet(5), makeTweet(4)]
+    const olderData = [makeTweet(3), makeTweet(2)]
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({ json: async () => initialData } as Response)
+      .mockResolvedValueOnce({ json: async () => olderData } as Response)
+
+    const { result } = renderHook(() => useTweets('', 2000, 2))
+    await waitFor(() => expect(result.current.tweets).toHaveLength(2))
+
+    await act(async () => {
+      await result.current.loadOlder()
+    })
+
+    await waitFor(() => expect(result.current.tweets).toHaveLength(4))
+    expect(fetch).toHaveBeenNthCalledWith(2, '/api/posts?limit=2&before_id=4', {
+      credentials: 'include',
+    })
+    expect(result.current.tweets.map((t) => t.id)).toEqual([5, 4, 3, 2])
   })
 
   it('prepends new tweet received via SSE', async () => {
