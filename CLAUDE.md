@@ -91,9 +91,11 @@ When building a new feature, follow the 7-step order in `AGENTS.md`:
 5. API endpoint
 6. Frontend hook
 7. Frontend UI component
+8. Update migration/API docs in `docs/` to reflect the new implementation and current connection status.
 
 ## Code Style
 
 - **Python:** Ruff + Black (line length 88), NumPy-style docstrings, isort with Black profile
 - **TypeScript:** strict mode, ESNext modules
 - Supported Python: 3.10–3.13
+

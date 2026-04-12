@@ -154,11 +154,8 @@ async def stocktwits(
 
 
 @app.get("/api/stocks/market-hours")
-async def stock_market_hours(request: Request, _=Depends(api_key_dep)):
-    client: httpx.AsyncClient = request.app.state.http_client
-    data = await get_stock_market_hours(client)
-    if data is None:
-        raise HTTPException(status_code=503, detail="Service Unavailable")
+async def stock_market_hours(_=Depends(api_key_dep)):
+    data = await get_stock_market_hours()
     return data
 
 

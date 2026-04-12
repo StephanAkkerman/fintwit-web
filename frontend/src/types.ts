@@ -171,13 +171,12 @@ export type NftTrendingItem = {
 
 export type StockMarketHoursItem = {
   exchange: string;
-  symbol: string;
   session: string;
   is_open: boolean;
-  market_state: string | null;
   as_of: string | null;
   timezone: string | null;
-  exchange_name: string | null;
+  next_open: string | null;
+  next_close: string | null;
 };
 
 export type IbkrPosition = {

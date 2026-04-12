@@ -1,6 +1,8 @@
 xtimeline==0.1.4
 timm==1.0.26
 torch
+exchange_calendars
+pandas
 Pillow
 requests
 transformers>=4.48,<5
