@@ -31,6 +31,7 @@ from ..services.nft_service import get_trending_nfts
 from ..services.reddit_service import get_reddit_hot_posts, is_valid_subreddit_name
 from ..services.stocktwits_service import get_stocktwits_data
 from ..services.unusual_whales import get_spy_heatmap
+from ..services.nasdaq_service import get_halt_data
 from ..services.yahoo import get_stock_info
 
 with suppress(Exception):
@@ -134,6 +135,14 @@ async def stream(_=Depends(api_key_dep)):
 @app.get("/api/fear-greed")
 async def fear_greed(_=Depends(api_key_dep)):
     data = await get_feargreed()
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
+
+@app.get("/api/stock-halts")
+async def stock_halts(request: Request, _=Depends(api_key_dep)):
+    client: httpx.AsyncClient = request.app.state.http_client
+    data = await get_halt_data(client)
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data
