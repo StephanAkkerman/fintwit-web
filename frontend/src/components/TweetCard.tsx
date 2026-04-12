@@ -31,6 +31,24 @@ function parseFinancialSymbols(text: string): { tickers: string[]; hashtags: str
   return { tickers, hashtags }
 }
 
+const FILTER_HREF_PREFIX = '#filter-'
+
+function linkifySymbols(text: string): string {
+  // Single-pass replacement: match $TICKER or #hashtag together so the
+  // hashtag branch can't re-match inside an already-replaced cashtag href.
+  return text.replace(
+    /(?<!\w)(?:\$([A-Za-z][A-Za-z0-9]{0,9})|#([A-Za-z][A-Za-z0-9_]{0,29}))\b/g,
+    (_, tickerSym, hashtagSym) => {
+      if (tickerSym) {
+        const sym = tickerSym.toUpperCase()
+        return `[$${sym}](${FILTER_HREF_PREFIX}${sym})`
+      }
+      const tag = hashtagSym.toUpperCase()
+      return `[#${hashtagSym}](${FILTER_HREF_PREFIX}${tag})`
+    },
+  )
+}
+
 function parseTweetDate(createdAt: string | null | undefined): Date | null {
   if (!createdAt) return null
 
@@ -219,7 +237,8 @@ export default function TweetCard({
     ? createdAt.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
     : null
   const hasQuoteEmbed = Boolean(t.quoted_tweet) || /(^|\n)\s*>\s*/.test(t.text ?? '')
-  const renderedText = hasQuoteEmbed ? stripQuotedLeadHandleLine(t.text ?? '') : (t.text ?? '')
+  const rawText = hasQuoteEmbed ? stripQuotedLeadHandleLine(t.text ?? '') : (t.text ?? '')
+  const renderedText = onTickerSelect ? linkifySymbols(rawText) : rawText
   const allMedia = t.media ?? []
   const quotedTweetMedia = (t.quoted_tweet?.media ?? []).filter((m) => typeof m?.url === 'string' && !!m.url)
   const quotedMediaUrls = new Set(quotedTweetMedia.map((m) => m.url))
@@ -321,16 +340,31 @@ export default function TweetCard({
           remarkPlugins={[remarkGfm]}
           components={{
             p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-            a: ({ href, children }) => (
-              <a
-                href={href}
-                target="_blank"
-                rel="noreferrer"
-                className="text-blue-600 dark:text-blue-400 hover:underline"
-              >
-                {children}
-              </a>
-            ),
+            a: ({ href, children }) => {
+              const filterIdx = href?.indexOf(FILTER_HREF_PREFIX) ?? -1
+              if (filterIdx !== -1 && onTickerSelect) {
+                const symbol = href!.slice(filterIdx + FILTER_HREF_PREFIX.length)
+                return (
+                  <button
+                    type="button"
+                    onClick={() => onTickerSelect(symbol)}
+                    className="text-blue-500 dark:text-blue-400 hover:underline font-medium cursor-pointer"
+                  >
+                    {children}
+                  </button>
+                )
+              }
+              return (
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  {children}
+                </a>
+              )
+            },
             blockquote: ({ children }) => (
               <blockquote className="my-3 overflow-hidden rounded-2xl border border-zinc-300 bg-white/70 shadow-sm transition-colors hover:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-900/60 dark:hover:border-zinc-500">
                 <div className="flex items-start justify-between gap-2 border-b border-zinc-200 px-3 py-2 dark:border-zinc-700">
@@ -533,16 +567,40 @@ export default function TweetCard({
               <span>{sentimentLabel ?? 'SENTIMENT'}</span>
             </span>
           )}
-          {tickerBadges.map((sym) => (
-            <span key={sym} className="px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800">
-              ${sym}
-            </span>
-          ))}
-          {hashtagBadges.map((tag) => (
-            <span key={tag} className="px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800">
-              #{tag}
-            </span>
-          ))}
+          {tickerBadges.map((sym) =>
+            onTickerSelect ? (
+              <button
+                key={sym}
+                type="button"
+                onClick={() => onTickerSelect(sym)}
+                aria-label={`Filter by $${sym}`}
+                className="px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 cursor-pointer"
+              >
+                ${sym}
+              </button>
+            ) : (
+              <span key={sym} className="px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800">
+                ${sym}
+              </span>
+            )
+          )}
+          {hashtagBadges.map((tag) =>
+            onTickerSelect ? (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => onTickerSelect(tag)}
+                aria-label={`Filter by #${tag}`}
+                className="px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 cursor-pointer"
+              >
+                #{tag}
+              </button>
+            ) : (
+              <span key={tag} className="px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800">
+                #{tag}
+              </span>
+            )
+          )}
         </div>
 
         <div className="flex gap-3 shrink-0">

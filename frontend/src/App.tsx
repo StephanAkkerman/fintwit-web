@@ -79,7 +79,8 @@ function matchesTicker(tweet: Tweet, ticker: string): boolean {
   const fromTickers = (tweet.tickers ?? []).map((t) => t.toUpperCase())
   const fromAssets = (tweet.assets ?? []).map((asset) => asset.symbol.toUpperCase())
   const fromText = extractTickersFromText(tweet.text ?? '')
-  return [...fromTickers, ...fromAssets, ...fromText].includes(target)
+  const fromHashtags = (tweet.hashtags ?? []).map((h) => h.toUpperCase())
+  return [...fromTickers, ...fromAssets, ...fromText, ...fromHashtags].includes(target)
 }
 
 function matchesFilter(tweet: Tweet, filter: FilterKey): boolean {
