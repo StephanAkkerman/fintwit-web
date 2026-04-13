@@ -360,3 +360,60 @@ async def test_run_stream_marks_options_intent_payload(tmp_path, monkeypatch):
     assert persisted["options_context"] is not None
     assert persisted["options_context"]["classification"] == "OPTIONS"
     assert persisted["options_context"]["side"] == "CALL"
+
+
+@pytest.mark.asyncio
+async def test_run_stream_does_not_enrich_assets_from_hashtags_only(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("XTIMELINE_LAST_ID_PATH", str(tmp_path / "last_id.txt"))
+
+    tweet = DummyTweet(
+        {
+            "id": 1003,
+            "text": "#OOTT #Tankers #IranWar",
+            "tickers": [],
+            "hashtags": [],
+            "created_at": "2026-04-04T12:00:00+00:00",
+            "likes": 1,
+            "replies": 0,
+            "views": 10,
+            "retweets": 0,
+        },
+        is_update=False,
+    )
+    client_cls = make_client_class(tweet)
+
+    repo = MagicMock()
+    repo.upsert_many = AsyncMock(return_value=1)
+    repo.update_fields = AsyncMock(return_value=None)
+
+    published_event = asyncio.Event()
+
+    async def _publish(_item):
+        published_event.set()
+
+    bc = MagicMock()
+    bc.publish = AsyncMock(side_effect=_publish)
+
+    with (
+        patch("app.runtime.streamer.xclient.XTimelineClient", client_cls),
+        patch(
+            "app.runtime.streamer.merge_symbols",
+            return_value=([], ["OOTT", "TANKERS", "IRANWAR"]),
+        ),
+        patch("app.runtime.streamer.AssetEnricher") as mock_enricher_cls,
+    ):
+        mock_enricher = mock_enricher_cls.return_value
+        mock_enricher.classify = AsyncMock(return_value=[{"symbol": "TANKERS"}])
+
+        task = asyncio.create_task(streamer.run_stream(repo, bc))
+        await asyncio.wait_for(published_event.wait(), timeout=1.0)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    mock_enricher.classify.assert_not_awaited()
+    persisted = repo.upsert_many.await_args.args[0][0]
+    assert persisted["assets"] == []
+    assert persisted["hashtags"] == ["OOTT", "TANKERS", "IRANWAR"]

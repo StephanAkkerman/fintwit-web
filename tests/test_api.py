@@ -156,7 +156,7 @@ async def test_debug_tweet_extracts_tickers_and_hashtags_from_text(async_client)
     data = response.json()
     assert data["tickers"] == ["AAPL"]
     assert data["hashtags"] == ["BTC"]
-    classifier.assert_awaited_once_with(["AAPL", "BTC"])
+    classifier.assert_awaited_once_with(["AAPL"])
 
 
 @pytest.mark.asyncio

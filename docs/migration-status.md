@@ -13,6 +13,8 @@ Last updated: 2026-04-13
 - Asset enrichment local symbol overrides: ambiguous symbols now use deterministic mappings before pricing/classification (`ETH` forced to `CRYPTO`; `EURUSD` -> `EURUSD=X`; `USOIL` -> `CL=F`).
 - Quote fallback hardening: when Yahoo/CoinGecko are rate-limited or unavailable, enrichment now attempts TradingView quote fallback before returning no price data.
 - Quote source marker: enriched financial payload now includes `source` so frontend can display the provider used (`yahoo`, `coingecko`, `tradingview`).
+- Asset noise reduction: unsupported/unknown classifier kinds are now excluded from tweet `assets`, so non-financial hashtags (for example topic tags) are not rendered as unknown ticker assets.
+- Asset extraction signal tightening: enrichment now uses cashtags/tickers only (not hashtags) so topic hashtags (for example `#OOTT`, `#Tankers`) do not generate asset cards.
 - Equity asset enrichment now includes optional `sector` and `industry` metadata (for example `AAPL`/`NVDA` tagged as technology) sourced from classifier metadata.
 - Equity/ETF asset enrichment now includes optional `company_profile` metadata (`industry_group`, `country`, `exchange`, `currency`, `website`, `market_cap_category`) from classifier metadata.
 - Crypto enrichment hardening: CoinGecko caching and Yahoo `-USD` fallback when CoinGecko returns rate-limit/transient failures.

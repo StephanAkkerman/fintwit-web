@@ -87,6 +87,10 @@ def _should_use_yahoo(kind: object) -> bool:
     return _normalize_kind(kind) in _YAHOO_PRICED_KINDS
 
 
+def _is_supported_kind(kind: object) -> bool:
+    return _is_crypto_kind(kind) or _should_use_yahoo(kind)
+
+
 def _local_classification_override(symbol: str) -> dict | None:
     normalized = str(symbol or "").strip().upper()
     if not normalized:
@@ -229,6 +233,9 @@ class AssetEnricher:
         # preserve input order, unique by first occurrence
         uniq = list(OrderedDict.fromkeys(symbols))
         classified = [self._cache[s].copy() for s in uniq if s in self._cache]
+        classified = [
+            entry for entry in classified if _is_supported_kind(entry.get("kind"))
+        ]
         logger.debug(
             "[enricher] classified: %s", [(e["symbol"], e["kind"]) for e in classified]
         )

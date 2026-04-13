@@ -335,12 +335,29 @@ async def test_classify_lowercase_crypto_kind_also_fetches_crypto_info():
 
 
 @pytest.mark.asyncio
-async def test_classify_unknown_kind_returns_none_financials():
+async def test_classify_unknown_kind_is_excluded_from_assets():
     enricher = AssetEnricher()
     mock_result = _mock_classifier_result("XYZ", "UNKNOWN")
     with patch.object(enricher._cls, "classify_async", return_value=[mock_result]):
         result = await enricher.classify(["XYZ"])
-    assert result[0]["financials"] is None
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_classify_excludes_unknown_but_keeps_supported_kinds():
+    enricher = AssetEnricher()
+    unknown = _mock_classifier_result("OOTT", "UNKNOWN")
+    equity = _mock_classifier_result("AAPL", "EQUITY")
+
+    with (
+        patch.object(enricher._cls, "classify_async", return_value=[unknown, equity]),
+        patch("app.runtime.enricher.get_stock_info", return_value=STOCK_FINANCIALS),
+    ):
+        result = await enricher.classify(["OOTT", "AAPL"])
+
+    assert len(result) == 1
+    assert result[0]["symbol"] == "AAPL"
+    assert result[0]["financials"] == STOCK_FINANCIALS
 
 
 @pytest.mark.asyncio

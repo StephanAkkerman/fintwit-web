@@ -51,6 +51,8 @@ The enriched values are attached under `tweet.assets[*].financials` and consumed
 `tweet.assets[*].financials.source` indicates which provider served the quote (for example `yahoo`, `coingecko`, `tradingview`).
 Static classification metadata under `tweet.assets[*]` may also include `sector` and `industry` for equities.
 Ambiguous symbols are disambiguated in enrichment with local overrides before cache/classifier fallback (for example `ETH` is forced to crypto, and `EURUSD`/`USOIL` map to Yahoo-compatible lookups).
+Unsupported classifier kinds (for example `UNKNOWN`) are excluded from `tweet.assets` so topic hashtags are less likely to appear as false asset cards.
+Asset enrichment is driven by cashtags/tickers; hashtags are still returned in tweet metadata but are not promoted to asset cards by themselves.
 For equities/ETFs, `tweet.assets[*].company_profile` may include curated financedatabase fields: `industry_group`, `country`, `exchange`, `currency`, `website`, and `market_cap_category`.
 
 ## Frontend Contract Notes

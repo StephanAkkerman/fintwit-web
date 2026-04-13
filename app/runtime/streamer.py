@@ -101,6 +101,7 @@ async def run_stream(
                     t_dict["tickers"] = tickers
                     t_dict["hashtags"] = hashtags
                     symbols = [*tickers, *hashtags]
+                    asset_symbols = [*tickers]
 
                     options_signal = classify_options_intent(t_dict.get("text"))
                     t_dict["is_options_tweet"] = options_signal["is_options_tweet"]
@@ -110,9 +111,10 @@ async def run_stream(
                         else None
                     )
 
-                    # Enrich the tweet with financial info if there are symbols
-                    if symbols:
-                        assets = await enricher.classify(symbols)
+                    # Enrich assets from cashtags/tickers only. Hashtags are kept
+                    # for display/filter metadata but are too noisy for asset cards.
+                    if asset_symbols:
+                        assets = await enricher.classify(asset_symbols)
                         t_dict["assets"] = assets
                     else:
                         t_dict["assets"] = []

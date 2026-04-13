@@ -316,11 +316,11 @@ def _normalize_portfolio_payload(payload: dict) -> dict:
 @app.post("/api/debug/tweet")
 async def debug_tweet(body: DebugTweet, request: Request):
     tickers, hashtags = merge_symbols(body.text, body.tickers, body.hashtags)
-    symbols = tickers + hashtags
+    asset_symbols = list(tickers)
     assets = []
-    if symbols:
+    if asset_symbols:
         enricher = AssetEnricher()
-        assets = await enricher.classify(symbols)
+        assets = await enricher.classify(asset_symbols)
 
     main_sentiment = None
     quoted_sentiment = None
