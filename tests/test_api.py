@@ -57,7 +57,7 @@ async def test_list_posts_default_limit(async_client):
     with patch("app.api.main.REPO") as mock_repo:
         mock_repo.latest = AsyncMock(return_value=[])
         await async_client.get("/api/posts", headers={"X-API-Key": "test-api-key"})
-    mock_repo.latest.assert_called_once_with(200, before_id=None)
+    mock_repo.latest.assert_called_once_with(200, before_id=None, options_only=False)
 
 
 @pytest.mark.asyncio
@@ -67,7 +67,7 @@ async def test_list_posts_custom_limit(async_client):
         await async_client.get(
             "/api/posts?limit=10", headers={"X-API-Key": "test-api-key"}
         )
-    mock_repo.latest.assert_called_once_with(10, before_id=None)
+    mock_repo.latest.assert_called_once_with(10, before_id=None, options_only=False)
 
 
 @pytest.mark.asyncio
@@ -78,7 +78,17 @@ async def test_list_posts_before_id_pagination(async_client):
             "/api/posts?limit=25&before_id=123",
             headers={"X-API-Key": "test-api-key"},
         )
-    mock_repo.latest.assert_called_once_with(25, before_id=123)
+    mock_repo.latest.assert_called_once_with(25, before_id=123, options_only=False)
+
+
+@pytest.mark.asyncio
+async def test_list_posts_options_only_true(async_client):
+    with patch("app.api.main.REPO") as mock_repo:
+        mock_repo.latest = AsyncMock(return_value=[])
+        await async_client.get(
+            "/api/posts?options_only=true", headers={"X-API-Key": "test-api-key"}
+        )
+    mock_repo.latest.assert_called_once_with(200, before_id=None, options_only=True)
 
 
 @pytest.mark.asyncio
@@ -147,6 +157,33 @@ async def test_debug_tweet_extracts_tickers_and_hashtags_from_text(async_client)
     assert data["tickers"] == ["AAPL"]
     assert data["hashtags"] == ["BTC"]
     classifier.assert_awaited_once_with(["AAPL", "BTC"])
+
+
+@pytest.mark.asyncio
+async def test_debug_tweet_adds_options_intent_metadata(async_client):
+    classifier = AsyncMock(return_value=[])
+
+    with (
+        patch("app.api.main.REPO") as mock_repo,
+        patch("app.api.main.BROADCAST") as mock_broadcast,
+        patch("app.api.main.AssetEnricher") as mock_enricher_cls,
+    ):
+        mock_repo.upsert_many = AsyncMock(return_value=1)
+        mock_broadcast.publish = AsyncMock()
+        mock_enricher = mock_enricher_cls.return_value
+        mock_enricher.classify = classifier
+
+        response = await async_client.post(
+            "/api/debug/tweet",
+            json={"text": "$TSLA AUG 390c up about 15%", "tickers": [], "hashtags": []},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["is_options_tweet"] is True
+    assert data["options_context"] is not None
+    assert data["options_context"]["classification"] == "OPTIONS"
+    assert data["options_context"]["side"] == "CALL"
 
 
 @pytest.mark.asyncio

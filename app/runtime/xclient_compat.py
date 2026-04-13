@@ -42,7 +42,14 @@ def apply_xclient_retweet_patch() -> None:
     if _PATCH_APPLIED:
         return
 
-    original_parser = xclient.XTimelineClient._parse_single_tweet
+    client_cls = getattr(xclient, "XTimelineClient", None)
+    if client_cls is None or not hasattr(client_cls, "_parse_single_tweet"):
+        logger.warning(
+            "[xclient-compat] skipping retweet parser patch; _parse_single_tweet is unavailable"
+        )
+        return
+
+    original_parser = client_cls._parse_single_tweet
 
     def patched_parse_single_tweet(self: xclient.XTimelineClient, tw: dict):
         parsed = original_parser(self, tw)
@@ -71,6 +78,6 @@ def apply_xclient_retweet_patch() -> None:
 
         return replace(parsed, quoted_tweet=nested)
 
-    xclient.XTimelineClient._parse_single_tweet = patched_parse_single_tweet
+    client_cls._parse_single_tweet = patched_parse_single_tweet
     _PATCH_APPLIED = True
     logger.info("[xclient-compat] retweet parser patch applied")

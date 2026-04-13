@@ -1,6 +1,6 @@
 # Migration Status
 
-Last updated: 2026-04-12
+Last updated: 2026-04-13
 
 ## Backend: Implemented
 
@@ -23,6 +23,8 @@ Last updated: 2026-04-12
 - Service-backed endpoints for Fear & Greed, treemap, StockTwits, SPY heatmap, and trending crypto.
 - Additional market-microstructure endpoints now available: Binance gainers/losers (`/api/binance/gainers-losers`) and Nasdaq stock halts (`/api/stock-halts`).
 - Options migration slice: market options overview endpoint (`/api/options/overview`) now available, powered by Nasdaq most-active option-chain data for major US underlyings.
+- Stream/runtime options-intent classification now tags tweets with `is_options_tweet` and structured `options_context` (contracts/side/score) for options-focused filtering and UI routing.
+- Options tweet delivery now supports backend feed filtering (`options_only=true`) on both `/api/posts` and `/api/stream` for route-level isolation.
 - NFT migration slice: CoinGecko trending NFTs endpoint (`/api/nfts/trending`) now available.
 - Stock migration slice: market session endpoint (`/api/stocks/market-hours`) now available with pre-market/after-hours state mapping for major exchanges.
 - Stock market-hours service hardening: short-lived cache plus stale-cache fallback now keeps the endpoint available during transient Yahoo rate limits (`429`).
@@ -73,6 +75,8 @@ Last updated: 2026-04-12
 - Crypto route now includes a Binance movers widget (top gainers/losers).
 - Stocks route now includes a Nasdaq trading halts widget.
 - Options route now includes a market activity widget for calls, puts, put/call ratio, and most-active contracts.
+- Options route timeline now filters to tweets classified as options-intent (`is_options_tweet=true`) instead of generic stock-linked tweets.
+- Options route now consumes options-only REST/SSE feeds so only options-classified tweets are fetched and rendered there.
 - Forex route now includes an economic events widget backed by Investing high-impact calendar data.
 - Economic events widget now displays country/region flag emojis and explicit impact badges per event.
 
@@ -87,6 +91,7 @@ Last updated: 2026-04-12
 - Binance movers widget: `/api/binance/gainers-losers` -> `BinanceGainersLosersWidget`.
 - Nasdaq stock halts widget: `/api/stock-halts` -> `StockHaltsWidget`.
 - Options overview widget: `/api/options/overview` -> `OptionsOverviewWidget`.
+- Options tweet intent metadata: `/api/posts` + `/api/stream` -> options route timeline filtering (`is_options_tweet`, `options_context`).
 - Market overview stream assets: `/api/posts` + `/api/stream` -> `MarketOverview`.
 - Debug admin panel: `/api/debug/tweet` -> `DebugAdminPanel` (`/admin`).
 - Portfolio panel: `/api/portfolio/positions` + `/api/portfolio/summary` -> `PortfolioPanel` (`/portfolio`).

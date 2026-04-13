@@ -1,6 +1,6 @@
 # Frontend Integration Map
 
-Last updated: 2026-04-12
+Last updated: 2026-04-13
 
 ## Mounted in `App.tsx` Today
 
@@ -36,7 +36,7 @@ Route-level sections:
 - `/options`
   - `OptionsOverviewWidget`
   - Nasdaq-based options activity summary (calls/puts totals, put-call ratio, most-active contracts)
-  - Tweet timeline auto-filtered to stock-linked symbols
+  - Tweet timeline sourced from options-only tweet feed (`/api/posts?...&options_only=true` + `/api/stream?options_only=true`)
 
 - `/nfts`
   - `NftTrendingWidget`
@@ -56,8 +56,9 @@ Route-level sections:
   - Purpose: sentiment snapshot card.
 
 - Tweet timeline (`useTweets` + `TweetCard`)
-  - Fetches: `/api/posts?limit=200` on initial mount, `/api/posts?limit=200&before_id=...` for manual older-page loading, and `/api/stream` (SSE)
-  - Purpose: live timeline with native-style quote headers (quoted avatar + author + timestamp), repost attribution headers (original author identity + reposter line), subscriber-only post icons (main/repost/quoted when flagged), quote embeds, preserved body whitespace/line breaks, media, in-page image lightbox previews, compact financial cards (ticker + full name + type + linked price + daily % change), chart badge signals, separate main/quoted sentiment badges, and engagement updates.
+  - Fetches: `/api/posts?limit=200` on initial mount, `/api/posts?limit=200&before_id=...` for manual older-page loading, and `/api/stream` (SSE).
+  - Options route variant: uses `options_only=true` on both REST + SSE feed calls so only options-classified tweets are loaded there.
+  - Purpose: live timeline with native-style quote headers (quoted avatar + author + timestamp), repost attribution headers (original author identity + reposter line), subscriber-only post icons (main/repost/quoted when flagged), quote embeds, preserved body whitespace/line breaks, media, in-page image lightbox previews, compact financial cards (ticker + full name + type + linked price + daily % change), chart badge signals, separate main/quoted sentiment badges, options-intent metadata support (`is_options_tweet`, `options_context`), and engagement updates.
   - Quote integration: consumes `quoted_tweet` payload from backend for quote author metadata and quote media placement (falls back to markdown inference when absent).
 
 - Sidebar filters

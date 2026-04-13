@@ -146,4 +146,32 @@ describe('useTweets', () => {
     unmount()
     expect(MockEventSource.instances[0].close).toHaveBeenCalled()
   })
+
+  it('uses options-only feed params when optionsOnly is enabled', async () => {
+    const initialData = [makeTweet(10)]
+    const olderData = [makeTweet(9)]
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({ json: async () => initialData } as Response)
+      .mockResolvedValueOnce({ json: async () => olderData } as Response)
+
+    const { result } = renderHook(() => useTweets('', 2000, 1, true))
+
+    await waitFor(() => expect(result.current.tweets).toHaveLength(1))
+    expect(fetch).toHaveBeenNthCalledWith(1, '/api/posts?limit=1&options_only=true', {
+      credentials: 'include',
+    })
+    expect(MockEventSource.instances[0].url).toBe('/api/stream?options_only=true')
+
+    await act(async () => {
+      await result.current.loadOlder()
+    })
+
+    expect(fetch).toHaveBeenNthCalledWith(
+      2,
+      '/api/posts?limit=1&before_id=10&options_only=true',
+      {
+        credentials: 'include',
+      }
+    )
+  })
 })

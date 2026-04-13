@@ -11,6 +11,7 @@ from ..ml.chart import is_chart
 from ..ml.sentiment import FinTwitSentiment
 from .broadcast import Broadcaster
 from .enricher import AssetEnricher
+from .options_intent import classify_options_intent
 from .symbols import merge_symbols
 from .xclient_compat import apply_xclient_retweet_patch
 
@@ -100,6 +101,14 @@ async def run_stream(
                     t_dict["tickers"] = tickers
                     t_dict["hashtags"] = hashtags
                     symbols = [*tickers, *hashtags]
+
+                    options_signal = classify_options_intent(t_dict.get("text"))
+                    t_dict["is_options_tweet"] = options_signal["is_options_tweet"]
+                    t_dict["options_context"] = (
+                        options_signal["options_context"]
+                        if options_signal["is_options_tweet"]
+                        else None
+                    )
 
                     # Enrich the tweet with financial info if there are symbols
                     if symbols:

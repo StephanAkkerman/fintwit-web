@@ -88,6 +88,42 @@ async def test_upsert_many_persists_subscriber_only_flag(tweet_repo):
 
 
 @pytest.mark.asyncio
+async def test_upsert_many_persists_options_intent_fields(tweet_repo):
+    payload = {
+        **SAMPLE_TWEETS[0],
+        "is_options_tweet": True,
+        "options_context": {
+            "classification": "OPTIONS",
+            "score": 6,
+            "confidence": "medium",
+            "side": "CALL",
+            "contract_count": 1,
+            "contracts": [
+                {
+                    "symbol": "TSLA",
+                    "right": "CALL",
+                    "strike": 390.0,
+                    "expiry": "AUG",
+                    "notional_usd": None,
+                    "source": "compact",
+                }
+            ],
+            "keyword_hits": ["flow"],
+            "cashtags": ["TSLA"],
+        },
+    }
+
+    await tweet_repo.upsert_many([payload])
+    row = await tweet_repo.by_id(SAMPLE_TWEETS[0]["id"])
+
+    assert row is not None
+    assert row["is_options_tweet"] is True
+    assert row["options_context"] is not None
+    assert row["options_context"]["classification"] == "OPTIONS"
+    assert row["options_context"]["contracts"][0]["symbol"] == "TSLA"
+
+
+@pytest.mark.asyncio
 async def test_upsert_many_persists_quoted_tweet_payload(tweet_repo):
     payload = {
         **SAMPLE_TWEETS[0],
@@ -137,6 +173,42 @@ async def test_latest_respects_limit(tweet_repo):
 
 
 @pytest.mark.asyncio
+async def test_latest_options_only_filters_non_options_rows(tweet_repo):
+    normal = {**SAMPLE_TWEETS[0], "id": 3101, "is_options_tweet": False}
+    options = {
+        **SAMPLE_TWEETS[1],
+        "id": 3102,
+        "is_options_tweet": True,
+        "options_context": {
+            "classification": "OPTIONS",
+            "score": 6,
+            "confidence": "medium",
+            "side": "CALL",
+            "contract_count": 1,
+            "contracts": [
+                {
+                    "symbol": "TSLA",
+                    "right": "CALL",
+                    "strike": 250.0,
+                    "expiry": "AUG",
+                    "notional_usd": None,
+                    "source": "compact",
+                }
+            ],
+            "keyword_hits": ["flow"],
+            "cashtags": ["TSLA"],
+        },
+    }
+
+    await tweet_repo.upsert_many([normal, options])
+
+    rows = await tweet_repo.latest(options_only=True)
+    assert len(rows) == 1
+    assert rows[0]["id"] == 3102
+    assert rows[0]["is_options_tweet"] is True
+
+
+@pytest.mark.asyncio
 async def test_latest_returns_all_expected_fields(tweet_repo):
     await tweet_repo.upsert_many([SAMPLE_TWEETS[0]])
     rows = await tweet_repo.latest()
@@ -155,6 +227,8 @@ async def test_latest_returns_all_expected_fields(tweet_repo):
         "media_types",
         "assets",
         "is_subscriber_only",
+        "is_options_tweet",
+        "options_context",
     }
     assert expected_keys.issubset(row.keys())
 

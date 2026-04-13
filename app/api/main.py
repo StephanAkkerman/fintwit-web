@@ -20,6 +20,7 @@ from ..ml.sentiment import FinTwitSentiment
 from ..runtime.broadcast import Broadcaster
 from ..runtime.enricher import AssetEnricher
 from ..runtime.ibkr_sync import run_ibkr_sync
+from ..runtime.options_intent import classify_options_intent
 from ..runtime.streamer import run_stream
 from ..runtime.symbols import merge_symbols
 from ..services.binance_service import get_gainers_losers
@@ -116,18 +117,21 @@ app = FastAPI(title="X Stream API", lifespan=lifespan)
 async def list_posts(
     limit: int = Query(200, ge=1, le=200),
     before_id: int | None = Query(default=None, ge=1),
+    options_only: bool = Query(default=False),
     _=Depends(api_key_dep),
 ):
-    return await REPO.latest(limit, before_id=before_id)
+    return await REPO.latest(limit, before_id=before_id, options_only=options_only)
 
 
 @app.get("/api/stream")
-async def stream(_=Depends(api_key_dep)):
+async def stream(options_only: bool = Query(default=False), _=Depends(api_key_dep)):
     async def gen():
         q = await BROADCAST.subscribe()
         try:
             while True:
                 item = await q.get()
+                if options_only and item.get("is_options_tweet") is not True:
+                    continue
                 yield f"data: {json.dumps(item, default=str)}\n\n"
         finally:
             await BROADCAST.unsubscribe(q)
@@ -329,6 +333,8 @@ async def debug_tweet(body: DebugTweet, request: Request):
         except Exception as exc:
             logger.warning("[debug-tweet] sentiment classification failed: %r", exc)
 
+    options_signal = classify_options_intent(body.text)
+
     tweet = {
         **body.model_dump(),
         "tickers": tickers,
@@ -352,6 +358,12 @@ async def debug_tweet(body: DebugTweet, request: Request):
         ),
         "quoted_sentiment_score": (
             quoted_sentiment["score"] if quoted_sentiment else None
+        ),
+        "is_options_tweet": options_signal["is_options_tweet"],
+        "options_context": (
+            options_signal["options_context"]
+            if options_signal["is_options_tweet"]
+            else None
         ),
     }
     await REPO.upsert_many([tweet])

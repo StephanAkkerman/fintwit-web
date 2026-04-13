@@ -49,6 +49,26 @@ export type QuotedTweet = {
   is_subscriber_only?: boolean;
 };
 
+export type TweetOptionContract = {
+  symbol: string;
+  right: 'CALL' | 'PUT' | string;
+  strike?: number | null;
+  expiry?: string | null;
+  notional_usd?: number | null;
+  source?: string | null;
+};
+
+export type TweetOptionsContext = {
+  classification: 'OPTIONS' | 'SPOT_OR_OTHER' | string;
+  score: number;
+  confidence: 'low' | 'medium' | 'high' | string;
+  side: 'CALL' | 'PUT' | 'MIXED' | 'UNKNOWN' | string;
+  contract_count: number;
+  contracts: TweetOptionContract[];
+  keyword_hits: string[];
+  cashtags: string[];
+};
+
 export type Tweet = {
   id: number;
   text: string;
@@ -58,6 +78,8 @@ export type Tweet = {
   url: string;
   created_at: string;
   is_subscriber_only?: boolean;
+  is_options_tweet?: boolean;
+  options_context?: TweetOptionsContext | null;
   media: MediaItem[];
   tickers: string[];
   hashtags: string[];

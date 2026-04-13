@@ -50,6 +50,9 @@ def _row_to_dict(r: TweetRow) -> dict:
         "quoted_sentiment_emoji": r.quoted_sentiment_emoji,
         "quoted_sentiment_score": r.quoted_sentiment_score,
         "quoted_tweet": r.quoted_tweet,
+        "has_chart": r.has_chart,
+        "is_options_tweet": r.is_options_tweet,
+        "options_context": r.options_context,
         "assets": r.assets,
     }
 
@@ -103,10 +106,17 @@ class TweetRepo:
                 await s.execute(stmt)
         return len(tweet_list)
 
-    async def latest(self, limit: int = 50, before_id: int | None = None):
+    async def latest(
+        self,
+        limit: int = 50,
+        before_id: int | None = None,
+        options_only: bool = False,
+    ):
         stmt = select(TweetRow)
         if before_id is not None:
             stmt = stmt.where(TweetRow.id < before_id)
+        if options_only:
+            stmt = stmt.where(TweetRow.is_options_tweet.is_(True))
         stmt = stmt.order_by(TweetRow.id.desc()).limit(limit)
         async with self.Session() as s:
             rows = (await s.execute(stmt)).scalars().all()

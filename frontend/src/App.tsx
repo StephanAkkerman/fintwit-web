@@ -112,9 +112,9 @@ function matchesFilter(tweet: Tweet, filter: FilterKey): boolean {
 }
 
 export default function App() {
-  const { tweets, hasMore, isLoadingOlder, loadOlder } = useTweets('') // same-origin API (proxied in dev)
-  const { status: ibkrStatus, positions: ibkrPositions, trades: ibkrTrades, account: ibkrAccount, loading: ibkrLoading, error: ibkrError, reload: reloadIbkr } = useIbkr()
   const [route, setRoute] = useState<RouteKey>(() => routeFromPath(window.location.pathname))
+  const { tweets, hasMore, isLoadingOlder, loadOlder } = useTweets('', 2000, 200, route === 'options') // same-origin API (proxied in dev)
+  const { status: ibkrStatus, positions: ibkrPositions, trades: ibkrTrades, account: ibkrAccount, loading: ibkrLoading, error: ibkrError, reload: reloadIbkr } = useIbkr()
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all')
   const [tickerFilter, setTickerFilter] = useState<string | null>(null)
   const [tickerInput, setTickerInput] = useState('')
@@ -139,7 +139,7 @@ export default function App() {
   const effectiveFilter: FilterKey =
     route === 'crypto'
       ? 'crypto'
-      : route === 'stocks' || route === 'forex' || route === 'options' || route === 'portfolio'
+      : route === 'stocks' || route === 'forex' || route === 'portfolio'
         ? 'stock'
         : activeFilter
 
@@ -179,6 +179,10 @@ export default function App() {
         ]
         return symbols.some((s) => portfolioSymbols.has(s))
       })
+    }
+
+    if (route === 'options') {
+      scoped = scoped.filter((tweet) => tweet.is_options_tweet === true)
     }
 
     if (route !== 'crypto' && route !== 'stocks' && route !== 'forex') {
@@ -316,7 +320,7 @@ export default function App() {
               </>
             ) : route === 'options' ? (
               <p className="mt-4 px-2 text-xs text-zinc-500">
-                Options page is auto-filtered to stock-linked symbols and highlights call/put activity.
+                Options page is auto-filtered to tweets classified as options flow/contract commentary.
               </p>
             ) : route === 'portfolio' ? (
               <p className="mt-4 px-2 text-xs text-zinc-500">

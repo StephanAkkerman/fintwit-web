@@ -6,7 +6,7 @@ import type { Tweet } from '../types'
  * and then subscribes to /api/stream via SSE.
  * Dedups by tweet.id and keeps up to `maxItems` in memory.
  */
-export function useTweets(apiBase = '', maxItems = 2000, pageSize = 200) {
+export function useTweets(apiBase = '', maxItems = 2000, pageSize = 200, optionsOnly = false) {
   const [tweets, setTweets] = useState<Tweet[]>([])
   const [hasMore, setHasMore] = useState(true)
   const [isLoadingOlder, setIsLoadingOlder] = useState(false)
@@ -18,7 +18,8 @@ export function useTweets(apiBase = '', maxItems = 2000, pageSize = 200) {
     let cancelled = false
     ;(async () => {
       try {
-        const r = await fetch(`${apiBase}/api/posts?limit=${pageSize}`, {
+        const optionsQuery = optionsOnly ? '&options_only=true' : ''
+        const r = await fetch(`${apiBase}/api/posts?limit=${pageSize}${optionsQuery}`, {
           credentials: 'include',
         })
         const data: Tweet[] = await r.json()
@@ -34,7 +35,7 @@ export function useTweets(apiBase = '', maxItems = 2000, pageSize = 200) {
     return () => {
       cancelled = true
     }
-  }, [apiBase, pageSize])
+  }, [apiBase, pageSize, optionsOnly])
 
   const loadOlder = async () => {
     if (loadingOlderRef.current || !hasMore) return
@@ -49,7 +50,8 @@ export function useTweets(apiBase = '', maxItems = 2000, pageSize = 200) {
     setIsLoadingOlder(true)
 
     try {
-      const r = await fetch(`${apiBase}/api/posts?limit=${pageSize}&before_id=${oldest.id}`, {
+      const optionsQuery = optionsOnly ? '&options_only=true' : ''
+      const r = await fetch(`${apiBase}/api/posts?limit=${pageSize}&before_id=${oldest.id}${optionsQuery}`, {
         credentials: 'include',
       })
       const older: Tweet[] = await r.json()
@@ -74,7 +76,8 @@ export function useTweets(apiBase = '', maxItems = 2000, pageSize = 200) {
 
   // live updates
   useEffect(() => {
-    const es = new EventSource(`${apiBase}/api/stream`, { withCredentials: true })
+    const optionsQuery = optionsOnly ? '?options_only=true' : ''
+    const es = new EventSource(`${apiBase}/api/stream${optionsQuery}`, { withCredentials: true })
     es.onmessage = (ev) => {
       try {
         const t: Tweet = JSON.parse(ev.data)
@@ -98,7 +101,7 @@ export function useTweets(apiBase = '', maxItems = 2000, pageSize = 200) {
       // Default EventSource will auto-reconnect; you could also show a small banner.
     }
     return () => es.close()
-  }, [apiBase, maxItems])
+  }, [apiBase, maxItems, optionsOnly])
 
   return useMemo(
     () => ({ tweets, hasMore, isLoadingOlder, loadOlder }),

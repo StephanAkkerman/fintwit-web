@@ -99,6 +99,8 @@ async def test_run_stream_new_tweet_upserts_and_broadcasts(tmp_path, monkeypatch
     persisted = repo.upsert_many.await_args.args[0][0]
     assert isinstance(persisted["created_at"], datetime)
     assert persisted["assets"] == [{"symbol": "AAPL"}]
+    assert persisted["is_options_tweet"] is False
+    assert persisted["options_context"] is None
     assert published[0]["id"] == 123
 
     instance = client_cls.instances[0]
@@ -305,3 +307,56 @@ async def test_run_stream_passes_through_quoted_tweet_payload(tmp_path, monkeypa
     assert persisted["quoted_tweet"]["user_name"] == "Quoted Author"
     assert persisted["quoted_tweet"]["created_at"] == "2026-04-04T11:50:00Z"
     assert published[0]["quoted_tweet"]["id"] == 902
+
+
+@pytest.mark.asyncio
+async def test_run_stream_marks_options_intent_payload(tmp_path, monkeypatch):
+    monkeypatch.setenv("XTIMELINE_LAST_ID_PATH", str(tmp_path / "last_id.txt"))
+
+    tweet = DummyTweet(
+        {
+            "id": 1002,
+            "text": "$TSLA AUG 390c up 15%",
+            "tickers": [],
+            "hashtags": [],
+            "created_at": "2026-04-04T12:00:00+00:00",
+            "likes": 7,
+            "replies": 1,
+            "views": 55,
+            "retweets": 2,
+        },
+        is_update=False,
+    )
+    client_cls = make_client_class(tweet)
+
+    repo = MagicMock()
+    repo.upsert_many = AsyncMock(return_value=1)
+    repo.update_fields = AsyncMock(return_value=None)
+
+    published_event = asyncio.Event()
+
+    async def _publish(_item):
+        published_event.set()
+
+    bc = MagicMock()
+    bc.publish = AsyncMock(side_effect=_publish)
+
+    with (
+        patch("app.runtime.streamer.xclient.XTimelineClient", client_cls),
+        patch("app.runtime.streamer.merge_symbols", return_value=(["TSLA"], [])),
+        patch("app.runtime.streamer.AssetEnricher") as mock_enricher_cls,
+    ):
+        mock_enricher = mock_enricher_cls.return_value
+        mock_enricher.classify = AsyncMock(return_value=[{"symbol": "TSLA"}])
+
+        task = asyncio.create_task(streamer.run_stream(repo, bc))
+        await asyncio.wait_for(published_event.wait(), timeout=1.0)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    persisted = repo.upsert_many.await_args.args[0][0]
+    assert persisted["is_options_tweet"] is True
+    assert persisted["options_context"] is not None
+    assert persisted["options_context"]["classification"] == "OPTIONS"
+    assert persisted["options_context"]["side"] == "CALL"

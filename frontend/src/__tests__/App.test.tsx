@@ -178,6 +178,11 @@ describe('App', () => {
     await waitFor(() =>
       expect(screen.getByRole('heading', { name: /options overview/i })).toBeInTheDocument()
     )
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some((call) => String(call[0]).includes('/api/posts?limit=200&options_only=true'))
+      ).toBe(true)
+    })
     expect(window.location.pathname).toBe('/options')
   })
 
@@ -610,6 +615,110 @@ describe('App', () => {
       expect(screen.getByText('Sol User')).toBeInTheDocument()
       expect(screen.queryByText('Apple User')).not.toBeInTheDocument()
       expect(screen.getAllByRole('button', { name: 'Filter by $SOL' }).length).toBeGreaterThan(0)
+    })
+  })
+
+  it('shows only options-classified tweets on the options route', async () => {
+    const posts: Tweet[] = [
+      {
+        id: 1,
+        text: '$TSLA AUG 390c up about 15%',
+        user_name: 'Options User',
+        user_screen_name: 'options_user',
+        user_img: 'https://example.com/options.jpg',
+        url: 'https://x.com/options/status/1',
+        created_at: '',
+        is_options_tweet: true,
+        media: [],
+        tickers: ['TSLA'],
+        hashtags: [],
+        title: '',
+        media_types: [],
+        replies: 0,
+        likes: 0,
+        views: 0,
+        retweets: 0,
+        assets: [{ symbol: 'TSLA', kind: 'EQUITY' }],
+      },
+      {
+        id: 2,
+        text: '$AAPL long update',
+        user_name: 'Spot User',
+        user_screen_name: 'spot_user',
+        user_img: 'https://example.com/spot.jpg',
+        url: 'https://x.com/spot/status/2',
+        created_at: '',
+        is_options_tweet: false,
+        media: [],
+        tickers: ['AAPL'],
+        hashtags: [],
+        title: '',
+        media_types: [],
+        replies: 0,
+        likes: 0,
+        views: 0,
+        retweets: 0,
+        assets: [{ symbol: 'AAPL', kind: 'EQUITY' }],
+      },
+    ]
+
+    fetchMock.mockImplementation((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/api/posts')) {
+        return Promise.resolve({ ok: true, json: async () => posts } as Response)
+      }
+      if (url.includes('/api/options/overview')) {
+        return Promise.resolve(
+          {
+            ok: true,
+            json: async () => ({
+              symbols: [],
+              totals: { call_volume: 0, put_volume: 0, total_volume: 0, put_call_ratio: null },
+              bullish: [],
+              bearish: [],
+              most_active_contracts: [],
+              source: 'nasdaq',
+            }),
+          } as Response
+        )
+      }
+      if (url.includes('/api/fear-greed')) {
+        return Promise.resolve(
+          {
+            ok: true,
+            json: async () => ({ value: 50, change: '+0', status: 'Neutral' }),
+          } as Response
+        )
+      }
+      if (url.includes('/api/reddit/wsb')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/ibkr/status')) {
+        return Promise.resolve(
+          {
+            ok: true,
+            json: async () => ({ configured: false, connected: false, last_sync: null, last_error: null }),
+          } as Response
+        )
+      }
+      if (url.includes('/api/ibkr/positions')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/ibkr/trades')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/ibkr/account')) {
+        return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
+    })
+
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open /options' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Options User')).toBeInTheDocument()
+      expect(screen.queryByText('Spot User')).not.toBeInTheDocument()
     })
   })
 

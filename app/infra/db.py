@@ -59,6 +59,19 @@ class TweetRow(Base):
         default=None,
         server_default=sql_text("NULL"),
     )
+    is_options_tweet: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=sql_text("0"),
+        index=True,
+    )
+    options_context: Mapped[dict] = mapped_column(
+        JSON().with_variant(SQLITE_JSON, "sqlite"),
+        nullable=True,
+        default=None,
+        server_default=sql_text("NULL"),
+    )
 
 
 class PortfolioPositionRow(Base):
