@@ -55,6 +55,9 @@ Last updated: 2026-04-13
 - Ticker filtering via:
   - clicking ticker inside financial asset widget,
   - manual typed input in sidebar ticker filter.
+- User filtering via:
+  - clicking tweet author name or avatar,
+  - manual typed input in sidebar user filter.
 - Route-level segmentation pages implemented:
   - `/` home overview,
   - `/crypto` crypto widgets,

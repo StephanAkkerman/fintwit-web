@@ -474,6 +474,34 @@ describe('TweetCard', () => {
     expect(onTickerSelect).toHaveBeenCalledWith('SOL')
   })
 
+  it('calls user filter callback when author name is clicked', () => {
+    const onUserSelect = vi.fn()
+
+    render(
+      <TweetCard
+        t={baseTweet}
+        onUserSelect={onUserSelect}
+      />
+    )
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Filter by user @testuser' })[1])
+    expect(onUserSelect).toHaveBeenCalledWith('testuser')
+  })
+
+  it('calls user filter callback when author avatar is clicked', () => {
+    const onUserSelect = vi.fn()
+
+    render(
+      <TweetCard
+        t={baseTweet}
+        onUserSelect={onUserSelect}
+      />
+    )
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Filter by user @testuser' })[0])
+    expect(onUserSelect).toHaveBeenCalledWith('testuser')
+  })
+
   it('links financial price to the source website when available', () => {
     render(
       <TweetCard

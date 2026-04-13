@@ -246,9 +246,11 @@ function extractQuoteMeta(t: Tweet): QuoteMeta {
 export default function TweetCard({
   t,
   onTickerSelect,
+  onUserSelect,
 }: {
   t: Tweet
   onTickerSelect?: (ticker: string) => void
+  onUserSelect?: (user: string) => void
 }) {
   const [lightboxImage, setLightboxImage] = useState<{ url: string; alt: string } | null>(null)
 
@@ -327,6 +329,7 @@ export default function TweetCard({
   const showQuotedMetaLine = Boolean(showQuotedHandle || quotedTimeLabel)
   const isSubscriberOnly = Boolean(headerTweet.is_subscriber_only)
   const isQuotedSubscriberOnly = Boolean(t.quoted_tweet?.is_subscriber_only)
+  const headerUserFilterValue = headerTweet.user_screen_name || headerTweet.user_name
   const sentimentClass =
     sentimentLabel === 'BULLISH'
       ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
@@ -343,13 +346,50 @@ export default function TweetCard({
   return (
     <article className="rounded-2xl shadow p-4 bg-white dark:bg-zinc-900">
       <header className="flex items-center gap-3">
-        <img src={headerTweet.user_img} alt="" className="h-10 w-10 rounded-full" />
+        {onUserSelect ? (
+          <button
+            type="button"
+            onClick={() => onUserSelect(headerUserFilterValue)}
+            aria-label={`Filter by user @${headerTweet.user_screen_name}`}
+            className="shrink-0"
+          >
+            <img
+              src={headerTweet.user_img}
+              alt={`${headerTweet.user_name} avatar`}
+              className="h-10 w-10 rounded-full"
+            />
+          </button>
+        ) : (
+          <img src={headerTweet.user_img} alt={`${headerTweet.user_name} avatar`} className="h-10 w-10 rounded-full" />
+        )}
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-1.5">
-            <div className="font-semibold truncate">{headerTweet.user_name}</div>
+            {onUserSelect ? (
+              <button
+                type="button"
+                onClick={() => onUserSelect(headerUserFilterValue)}
+                aria-label={`Filter by user @${headerTweet.user_screen_name}`}
+                className="truncate text-left font-semibold hover:underline"
+              >
+                {headerTweet.user_name}
+              </button>
+            ) : (
+              <div className="font-semibold truncate">{headerTweet.user_name}</div>
+            )}
             {isSubscriberOnly && <SubscriberOnlyBadge ariaLabel="Subscribers-only post" />}
           </div>
-          <div className="text-sm text-zinc-500">@{headerTweet.user_screen_name}</div>
+          {onUserSelect ? (
+            <button
+              type="button"
+              onClick={() => onUserSelect(headerUserFilterValue)}
+              aria-label={`Filter by user @${headerTweet.user_screen_name}`}
+              className="text-sm text-zinc-500 hover:underline"
+            >
+              @{headerTweet.user_screen_name}
+            </button>
+          ) : (
+            <div className="text-sm text-zinc-500">@{headerTweet.user_screen_name}</div>
+          )}
           {isRepost && (
             <div className="text-xs text-zinc-500">Reposted by {t.user_name}</div>
           )}

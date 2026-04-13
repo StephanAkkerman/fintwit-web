@@ -66,6 +66,9 @@ Route-level sections:
   - Ticker filters:
     - click ticker in tweet financial card,
     - type ticker manually and apply.
+  - User filters:
+    - click tweet author name/avatar,
+    - type user name manually and apply.
 
 - `TreemapWidget` + `useTreemap`
   - Fetches: `/api/treemap`

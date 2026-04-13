@@ -77,6 +77,12 @@ function normalizeTickerInput(value: string): string | null {
   return normalized
 }
 
+function normalizeUserInput(value: string): string | null {
+  const normalized = value.trim().replace(/^@+/, '').toLowerCase()
+  if (!normalized) return null
+  return normalized
+}
+
 function matchesTicker(tweet: Tweet, ticker: string): boolean {
   const target = ticker.toUpperCase()
   const fromTickers = (tweet.tickers ?? []).map((t) => t.toUpperCase())
@@ -84,6 +90,24 @@ function matchesTicker(tweet: Tweet, ticker: string): boolean {
   const fromText = extractTickersFromText(tweet.text ?? '')
   const fromHashtags = (tweet.hashtags ?? []).map((h) => h.toUpperCase())
   return [...fromTickers, ...fromAssets, ...fromText, ...fromHashtags].includes(target)
+}
+
+function matchesUser(tweet: Tweet, user: string): boolean {
+  const target = user.toLowerCase()
+  const candidates = [
+    tweet.user_name,
+    tweet.user_screen_name,
+    tweet.quoted_user_name,
+    tweet.quoted_user_screen_name,
+    tweet.quoted_tweet?.user_name,
+    tweet.quoted_tweet?.user_screen_name,
+  ]
+
+  return candidates.some((value) => {
+    if (!value) return false
+    const normalized = value.replace(/^@+/, '').toLowerCase()
+    return normalized.includes(target)
+  })
 }
 
 function matchesFilter(tweet: Tweet, filter: FilterKey): boolean {
@@ -109,6 +133,8 @@ export default function App() {
   const { status: ibkrStatus, positions: ibkrPositions, trades: ibkrTrades, account: ibkrAccount, loading: ibkrLoading, error: ibkrError, reload: reloadIbkr } = useIbkr()
   const [tickerFilter, setTickerFilter] = useState<string | null>(null)
   const [tickerInput, setTickerInput] = useState('')
+  const [userFilter, setUserFilter] = useState<string | null>(null)
+  const [userInput, setUserInput] = useState('')
   const [chartSortMode, setChartSortMode] = useState<ChartSortMode>('latest')
 
   useEffect(() => {
@@ -148,7 +174,8 @@ export default function App() {
     let scoped = tweets.filter(
       (tweet) =>
         matchesFilter(tweet, effectiveFilter) &&
-        (!tickerFilter || matchesTicker(tweet, tickerFilter))
+        (!tickerFilter || matchesTicker(tweet, tickerFilter)) &&
+        (!userFilter || matchesUser(tweet, userFilter))
     )
 
     if (route === 'portfolio' && portfolioSymbols.size > 0) {
@@ -179,7 +206,7 @@ export default function App() {
     }
 
     return scoped
-  }, [tweets, effectiveFilter, tickerFilter, route, chartSortMode, portfolioSymbols])
+  }, [tweets, effectiveFilter, tickerFilter, userFilter, route, chartSortMode, portfolioSymbols])
 
   const onTickerSelect = (ticker: string) => {
     setTickerInput(ticker)
@@ -191,6 +218,20 @@ export default function App() {
     if (!ticker) return
     setTickerInput(ticker)
     setTickerFilter(ticker)
+  }
+
+  const onUserSelect = (user: string) => {
+    const normalized = normalizeUserInput(user)
+    if (!normalized) return
+    setUserInput(normalized)
+    setUserFilter((current) => (current === normalized ? null : normalized))
+  }
+
+  const applyTypedUserFilter = () => {
+    const user = normalizeUserInput(userInput)
+    if (!user) return
+    setUserInput(user)
+    setUserFilter(user)
   }
 
   return (
@@ -338,6 +379,55 @@ export default function App() {
                 <p className="mt-2 px-2 text-xs text-zinc-500">Type a ticker or click one in a tweet to filter.</p>
               )}
             </div>
+
+            <div className="mt-4 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+              <h3 className="px-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+                User
+              </h3>
+              <form
+                className="mt-2 flex items-center gap-2 px-2"
+                onSubmit={(ev) => {
+                  ev.preventDefault()
+                  applyTypedUserFilter()
+                }}
+              >
+                <input
+                  id="user-filter-input"
+                  type="text"
+                  value={userInput}
+                  onChange={(ev) => setUserInput(ev.target.value)}
+                  placeholder="@trader"
+                  aria-label="User name"
+                  className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none ring-zinc-400 placeholder:text-zinc-400 focus:ring-2 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                />
+                <button
+                  type="submit"
+                  className="rounded-lg bg-zinc-900 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+                >
+                  Apply
+                </button>
+              </form>
+
+              {userFilter ? (
+                <div className="mt-2 flex items-center gap-2 px-2">
+                  <span className="rounded-full bg-zinc-900 px-2 py-1 text-xs font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900">
+                    @{userFilter}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUserFilter(null)
+                      setUserInput('')
+                    }}
+                    className="text-xs text-zinc-500 hover:underline"
+                  >
+                    Clear
+                  </button>
+                </div>
+              ) : (
+                <p className="mt-2 px-2 text-xs text-zinc-500">Type a user name or click a tweet author to filter.</p>
+              )}
+            </div>
           </aside>
 
           <section className="space-y-3 min-w-0">
@@ -392,7 +482,7 @@ export default function App() {
             {route === 'admin' && <DebugAdminPanel />}
 
             {displayedTweets.map((t) => (
-              <TweetCard key={t.id} t={t} onTickerSelect={onTickerSelect} />
+              <TweetCard key={t.id} t={t} onTickerSelect={onTickerSelect} onUserSelect={onUserSelect} />
             ))}
             {hasMore && (
               <div className="flex justify-center py-2">
