@@ -51,7 +51,7 @@ Last updated: 2026-04-13
 - Tweet timestamps are shown in the viewer's local timezone (UTC source timestamps normalized server-side with offset).
 - Financial asset blocks in tweet cards are intentionally compact and now show ticker, full name, type, price, and daily % change.
 - Price links to source financial website when available.
-- Sidebar filters: all, crypto, stock, non-financial.
+- Sidebar category filter widget removed; route sections now drive category scope.
 - Ticker filtering via:
   - clicking ticker inside financial asset widget,
   - manual typed input in sidebar ticker filter.

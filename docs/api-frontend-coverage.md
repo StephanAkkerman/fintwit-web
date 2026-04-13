@@ -67,7 +67,8 @@ For equities/ETFs, `tweet.assets[*].company_profile` may include curated finance
 - Primary contracts live in `frontend/src/types.ts` (tweets, market widgets, and portfolio types).
 - Timeline and filters rely on:
   - `tickers`, `hashtags`, and symbol extraction from text,
-  - `assets[].symbol` and `assets[].kind` for category and ticker filters,
+  - route-level section selection for category scope (home/all, crypto, stock/macro, options-only feed),
+  - `assets[].symbol` and `assets[].kind` for ticker and route-scoped filtering,
   - `assets[].financials.website` for price links,
   - `assets[].symbol`, `assets[].name`, `assets[].kind`, `assets[].financials.price`, and `assets[].financials.change_percent` for compact financial card rendering in `TweetCard`,
   - `title` + `quoted_tweet` to distinguish reposts from quote embeds and render original-author header with reposter attribution,

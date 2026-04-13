@@ -132,6 +132,17 @@ describe('App', () => {
     expect(screen.getByText(/wallstreetbets radar/i)).toBeInTheDocument()
   })
 
+  it('does not render legacy category filter widget', async () => {
+    render(<App />)
+
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: /x stream/i })).toBeInTheDocument()
+    )
+
+    expect(screen.queryByText('Filters')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Timeline filter Crypto' })).not.toBeInTheDocument()
+  })
+
   it('shows crypto section widgets when navigating to /crypto', async () => {
     render(<App />)
 
@@ -268,145 +279,6 @@ describe('App', () => {
       expect(screen.getByText(/ibkr live positions/i)).toBeInTheDocument()
     })
     expect(window.location.pathname).toBe('/portfolio')
-  })
-
-  it('filters by crypto, stock, and non-financial categories', async () => {
-    const posts: Tweet[] = [
-      {
-        id: 1,
-        text: '$BTC breakout',
-        user_name: 'Crypto User',
-        user_screen_name: 'crypto_user',
-        user_img: 'https://example.com/c.jpg',
-        url: 'https://x.com/crypto_user/status/1',
-        created_at: '',
-        media: [],
-        tickers: ['BTC'],
-        hashtags: [],
-        title: '',
-        media_types: [],
-        replies: 0,
-        likes: 0,
-        views: 0,
-        retweets: 0,
-        assets: [{ symbol: 'BTC', kind: 'crypto' }],
-      },
-      {
-        id: 2,
-        text: '$AAPL earnings',
-        user_name: 'Stock User',
-        user_screen_name: 'stock_user',
-        user_img: 'https://example.com/s.jpg',
-        url: 'https://x.com/stock_user/status/2',
-        created_at: '',
-        media: [],
-        tickers: ['AAPL'],
-        hashtags: [],
-        title: '',
-        media_types: [],
-        replies: 0,
-        likes: 0,
-        views: 0,
-        retweets: 0,
-        assets: [{ symbol: 'AAPL', kind: 'EQUITY' }],
-      },
-      {
-        id: 3,
-        text: 'Just chatting about weekend plans',
-        user_name: 'General User',
-        user_screen_name: 'general_user',
-        user_img: 'https://example.com/g.jpg',
-        url: 'https://x.com/general_user/status/3',
-        created_at: '',
-        media: [],
-        tickers: [],
-        hashtags: [],
-        title: '',
-        media_types: [],
-        replies: 0,
-        likes: 0,
-        views: 0,
-        retweets: 0,
-        assets: [],
-      },
-    ]
-
-    fetchMock.mockImplementation((input: string | URL | Request) => {
-      const url = String(input)
-      if (url.includes('/api/posts')) {
-        return Promise.resolve({ ok: true, json: async () => posts } as Response)
-      }
-      if (url.includes('/api/fear-greed')) {
-        return Promise.resolve(
-          {
-            ok: true,
-            json: async () => ({ value: 50, change: '+0', status: 'Neutral' }),
-          } as Response
-        )
-      }
-      if (url.includes('/api/reddit/wsb')) {
-        return Promise.resolve({ ok: true, json: async () => [] } as Response)
-      }
-      if (url.includes('/api/trending-crypto')) {
-        return Promise.resolve({ ok: true, json: async () => [] } as Response)
-      }
-      if (url.includes('/api/treemap')) {
-        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)
-      }
-      if (url.includes('/api/stocktwits')) {
-        return Promise.resolve({ ok: true, json: async () => [] } as Response)
-      }
-      if (url.includes('/api/spy-heatmap')) {
-        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)
-      }
-      if (url.includes('/api/ibkr/status')) {
-        return Promise.resolve(
-          {
-            ok: true,
-            json: async () => ({ configured: false, connected: false, last_sync: null, last_error: null }),
-          } as Response
-        )
-      }
-      if (url.includes('/api/ibkr/positions')) {
-        return Promise.resolve({ ok: true, json: async () => [] } as Response)
-      }
-      if (url.includes('/api/ibkr/trades')) {
-        return Promise.resolve({ ok: true, json: async () => [] } as Response)
-      }
-      if (url.includes('/api/ibkr/account')) {
-        return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
-      }
-      return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
-    })
-
-    render(<App />)
-
-    await waitFor(() => {
-      expect(screen.getByText('Crypto User')).toBeInTheDocument()
-      expect(screen.getByText('Stock User')).toBeInTheDocument()
-      expect(screen.getByText('General User')).toBeInTheDocument()
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'Timeline filter Crypto' }))
-    await waitFor(() => {
-      expect(screen.getByText('Crypto User')).toBeInTheDocument()
-      expect(screen.queryByText('Stock User')).not.toBeInTheDocument()
-      expect(screen.queryByText('General User')).not.toBeInTheDocument()
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'Timeline filter Stock' }))
-    await waitFor(() => {
-      expect(screen.getByText('Stock User')).toBeInTheDocument()
-      expect(screen.queryByText('Crypto User')).not.toBeInTheDocument()
-      expect(screen.queryByText('General User')).not.toBeInTheDocument()
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'Timeline filter Non-financial' }))
-    await waitFor(() => {
-      expect(screen.getByText('General User')).toBeInTheDocument()
-      expect(screen.queryByText('Crypto User')).not.toBeInTheDocument()
-      expect(screen.queryByText('Stock User')).not.toBeInTheDocument()
-    })
   })
 
   it('filters tweets by ticker when a financial ticker is clicked', async () => {

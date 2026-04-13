@@ -20,7 +20,7 @@ import { useTweets } from './hooks/useTweets'
 import type { Tweet } from './types'
 import { hasChartSignal } from './utils/tweetSignals'
 
-type FilterKey = 'all' | 'crypto' | 'stock' | 'non-financial'
+type FilterKey = 'all' | 'crypto' | 'stock'
 type RouteKey = 'home' | 'crypto' | 'stocks' | 'forex' | 'options' | 'nfts' | 'portfolio' | 'admin'
 type ChartSortMode = 'latest' | 'charts-first' | 'charts-only'
 
@@ -33,13 +33,6 @@ const SECTIONS: Array<{ key: RouteKey; label: string; path: string; subtitle: st
   { key: 'nfts', label: 'NFTs', path: '/nfts', subtitle: 'Collection momentum and floor-price pulse' },
   { key: 'portfolio', label: 'Portfolio', path: '/portfolio', subtitle: 'IBKR stock positions and PnL' },
   { key: 'admin', label: 'Admin', path: '/admin', subtitle: 'Debug tweet injection and verification' },
-]
-
-const FILTERS: Array<{ key: FilterKey; label: string }> = [
-  { key: 'all', label: 'All' },
-  { key: 'crypto', label: 'Crypto' },
-  { key: 'stock', label: 'Stock' },
-  { key: 'non-financial', label: 'Non-financial' },
 ]
 
 function routeFromPath(pathname: string): RouteKey {
@@ -107,15 +100,13 @@ function matchesFilter(tweet: Tweet, filter: FilterKey): boolean {
     (assets.length === 0 && hasFinancialSignals)
 
   if (filter === 'crypto') return hasCrypto
-  if (filter === 'stock') return hasStock
-  return !hasFinancialSignals
+  return hasStock
 }
 
 export default function App() {
   const [route, setRoute] = useState<RouteKey>(() => routeFromPath(window.location.pathname))
   const { tweets, hasMore, isLoadingOlder, loadOlder } = useTweets('', 2000, 200, route === 'options') // same-origin API (proxied in dev)
   const { status: ibkrStatus, positions: ibkrPositions, trades: ibkrTrades, account: ibkrAccount, loading: ibkrLoading, error: ibkrError, reload: reloadIbkr } = useIbkr()
-  const [activeFilter, setActiveFilter] = useState<FilterKey>('all')
   const [tickerFilter, setTickerFilter] = useState<string | null>(null)
   const [tickerInput, setTickerInput] = useState('')
   const [chartSortMode, setChartSortMode] = useState<ChartSortMode>('latest')
@@ -141,21 +132,11 @@ export default function App() {
       ? 'crypto'
       : route === 'stocks' || route === 'forex' || route === 'portfolio'
         ? 'stock'
-        : activeFilter
+        : 'all'
 
   const activeSection = useMemo(
     () => SECTIONS.find((section) => section.key === route) ?? SECTIONS[0],
     [route]
-  )
-
-  const counts = useMemo(
-    () => ({
-      all: tweets.length,
-      crypto: tweets.filter((tweet) => matchesFilter(tweet, 'crypto')).length,
-      stock: tweets.filter((tweet) => matchesFilter(tweet, 'stock')).length,
-      'non-financial': tweets.filter((tweet) => matchesFilter(tweet, 'non-financial')).length,
-    }),
-    [tweets]
   )
 
   const portfolioSymbols = useMemo(
@@ -201,7 +182,6 @@ export default function App() {
   }, [tweets, effectiveFilter, tickerFilter, route, chartSortMode, portfolioSymbols])
 
   const onTickerSelect = (ticker: string) => {
-    setActiveFilter('all')
     setTickerInput(ticker)
     setTickerFilter((current) => (current === ticker ? null : ticker))
   }
@@ -209,7 +189,6 @@ export default function App() {
   const applyTypedTickerFilter = () => {
     const ticker = normalizeTickerInput(tickerInput)
     if (!ticker) return
-    setActiveFilter('all')
     setTickerInput(ticker)
     setTickerFilter(ticker)
   }
@@ -244,34 +223,7 @@ export default function App() {
               })}
             </div>
 
-            {route === 'home' ? (
-              <>
-                <h2 className="mt-4 px-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">Filters</h2>
-                <div className="mt-2 flex flex-col gap-1">
-                  {FILTERS.map((filter) => {
-                    const active = filter.key === activeFilter
-                    return (
-                      <button
-                        key={filter.key}
-                        type="button"
-                        onClick={() => setActiveFilter(filter.key)}
-                        aria-label={`Timeline filter ${filter.label}`}
-                        className={`flex items-center justify-between rounded-xl px-3 py-2 text-sm transition-colors ${
-                          active
-                            ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
-                            : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                        }`}
-                      >
-                        <span>{filter.label}</span>
-                        <span className={`rounded-full px-2 py-0.5 text-xs ${active ? 'bg-white/20 dark:bg-black/10' : 'bg-zinc-200 dark:bg-zinc-700'}`}>
-                          {counts[filter.key]}
-                        </span>
-                      </button>
-                    )
-                  })}
-                </div>
-              </>
-            ) : route === 'crypto' || route === 'stocks' || route === 'forex' ? (
+            {route === 'crypto' || route === 'stocks' || route === 'forex' ? (
               <>
                 <p className="mt-4 px-2 text-xs text-zinc-500">
                   Timeline is auto-filtered to {route === 'crypto' ? 'crypto' : route === 'forex' ? 'macro/forex' : 'stocks'} signals on this page.

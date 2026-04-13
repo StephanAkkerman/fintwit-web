@@ -62,7 +62,7 @@ Route-level sections:
   - Quote integration: consumes `quoted_tweet` payload from backend for quote author metadata and quote media placement (falls back to markdown inference when absent).
 
 - Sidebar filters
-  - Category filters: all, crypto, stock, non-financial.
+  - Category scope is controlled by route/section selection.
   - Ticker filters:
     - click ticker in tweet financial card,
     - type ticker manually and apply.
