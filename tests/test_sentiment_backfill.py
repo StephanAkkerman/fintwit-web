@@ -164,7 +164,7 @@ async def test_backfill_writes_quoted_sentiment_separately(db_engine, tweet_repo
     quote_tweet = {
         **SAMPLE_TWEETS[0],
         "id": 999999,
-        "text": "Bull update\n\n> Bearish old post",
+        "text": "Bull update $TSLA\n\n> Bearish old post #tsla",
     }
     await tweet_repo.upsert_many([quote_tweet])
 
