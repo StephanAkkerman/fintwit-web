@@ -67,3 +67,72 @@ async def get_gainers_losers(client: httpx.AsyncClient) -> Dict[str, Any] | None
         "gainers": gainers,
         "losers": losers
     }
+
+async def get_funding_rates(client: httpx.AsyncClient) -> Dict[str, Any] | None:
+    """
+    Fetches the premium index data from Binance, filters for USDT pairs,
+    and returns the top 15 lowest funding rates and the time to the next funding.
+
+    Returns:
+        A dictionary containing "lowest_rates" and "time_to_next_funding".
+    """
+    url = "https://fapi.binance.com/fapi/v1/premiumIndex"
+
+    try:
+        response = await client.get(url)
+        response.raise_for_status()
+        binance_data = response.json()
+    except Exception as e:
+        logger.exception(f"Could not fetch Binance funding rate data: {e}")
+        return None
+
+    if not isinstance(binance_data, list):
+        logger.warning(f"Unexpected response type from Binance funding API: {type(binance_data)}")
+        return None
+
+    from datetime import datetime
+    usdt_pairs = []
+
+    for item in binance_data:
+        symbol = item.get("symbol", "")
+        if "USDT" in symbol:
+            try:
+                rate_str = item.get("lastFundingRate", "0")
+                rate = float(rate_str)
+                base_symbol = symbol.replace("USDT", "")
+                next_funding_time = int(item.get("nextFundingTime", 0))
+
+                usdt_pairs.append({
+                    "symbol": base_symbol,
+                    "last_funding_rate": rate,
+                    "last_funding_rate_pct": f"{round(rate * 100, 4)}%",
+                    "next_funding_time": next_funding_time
+                })
+            except (ValueError, TypeError) as e:
+                logger.debug(f"Could not parse funding data for symbol {symbol}: {e}")
+                continue
+
+    if not usdt_pairs:
+        return None
+
+    # Sort lowest to highest
+    sorted_pairs = sorted(usdt_pairs, key=lambda x: x["last_funding_rate"])
+
+    # Top 15 lowest
+    lowest_15 = sorted_pairs[:15]
+
+    if lowest_15:
+        # Time in milliseconds
+        next_funding_unix = lowest_15[0]["next_funding_time"] / 1000.0
+        next_funding_dt = datetime.fromtimestamp(next_funding_unix)
+        time_to_next = next_funding_dt - datetime.now()
+
+        # Format "next funding in X" (e.g. 0:02:44)
+        time_to_next_str = str(time_to_next).split(".")[0]
+    else:
+        time_to_next_str = "Unknown"
+
+    return {
+        "lowest_rates": lowest_15,
+        "time_to_next_funding": time_to_next_str
+    }

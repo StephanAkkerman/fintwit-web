@@ -22,7 +22,7 @@ from ..runtime.enricher import AssetEnricher
 from ..runtime.ibkr_sync import run_ibkr_sync
 from ..runtime.streamer import run_stream
 from ..runtime.symbols import merge_symbols
-from ..services.binance_service import get_gainers_losers
+from ..services.binance_service import get_funding_rates, get_gainers_losers
 from ..services.cmc import get_trending_crypto
 from ..services.coin360_service import get_treemap_data
 from ..services.events_service import get_economic_events
@@ -552,6 +552,15 @@ async def trending_crypto(_=Depends(api_key_dep)):
     data = await get_trending_crypto()
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
+
+
+@app.get("/api/binance/funding-rates")
+async def binance_funding_rates(request: Request, _=Depends(api_key_dep)):
+    client: httpx.AsyncClient = request.app.state.http_client
+    data = await get_funding_rates(client)
+    if not data:
+        raise HTTPException(status_code=500, detail="Failed to fetch Binance funding rates")
     return data
 
 
