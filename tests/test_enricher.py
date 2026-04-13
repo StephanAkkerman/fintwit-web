@@ -206,6 +206,63 @@ async def test_classify_usoil_uses_local_commodity_override():
 
 
 @pytest.mark.asyncio
+async def test_classify_nq_uses_local_future_override():
+    enricher = AssetEnricher()
+    with (
+        patch.object(enricher._cls, "classify_async", return_value=[]) as mock_cls,
+        patch(
+            "app.runtime.enricher.get_stock_info", return_value=STOCK_FINANCIALS
+        ) as mock_stock,
+        patch(
+            "app.runtime.enricher.get_crypto_info", return_value=CRYPTO_FINANCIALS
+        ) as mock_crypto,
+    ):
+        result = await enricher.classify(["NQ"])
+
+    mock_cls.assert_not_called()
+    mock_stock.assert_called_once_with("NQ=F")
+    mock_crypto.assert_not_called()
+    assert result[0]["symbol"] == "NQ"
+    assert result[0]["kind"] == "FUTURE"
+    assert result[0]["name"] == "E-mini Nasdaq-100 Futures"
+    assert result[0]["financials"] == STOCK_FINANCIALS
+
+
+@pytest.mark.asyncio
+async def test_classify_ym_local_override_replaces_stale_cached_crypto():
+    enricher = AssetEnricher()
+    enricher._cache["YM"] = {
+        "symbol": "YM",
+        "kind": "CRYPTO",
+        "name": "Wrong Cache Entry",
+        "market_cap": None,
+        "sector": None,
+        "industry": None,
+        "company_profile": None,
+        "meta": None,
+        "yahoo_lookup": "YM-USD",
+    }
+
+    with (
+        patch.object(enricher._cls, "classify_async", return_value=[]) as mock_cls,
+        patch(
+            "app.runtime.enricher.get_stock_info", return_value=STOCK_FINANCIALS
+        ) as mock_stock,
+        patch(
+            "app.runtime.enricher.get_crypto_info", return_value=CRYPTO_FINANCIALS
+        ) as mock_crypto,
+    ):
+        result = await enricher.classify(["YM"])
+
+    mock_cls.assert_not_called()
+    mock_stock.assert_called_once_with("YM=F")
+    mock_crypto.assert_not_called()
+    assert result[0]["kind"] == "FUTURE"
+    assert result[0]["name"] == "E-mini Dow Futures"
+    assert result[0]["financials"] == STOCK_FINANCIALS
+
+
+@pytest.mark.asyncio
 async def test_classify_eth_uses_local_crypto_override():
     enricher = AssetEnricher()
     with (

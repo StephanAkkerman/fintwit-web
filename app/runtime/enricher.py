@@ -42,6 +42,31 @@ _LOCAL_SYMBOL_OVERRIDES = {
         "category": "CRYPTO",
         "name": "Ethereum",
     },
+    "DXY": {
+        "category": "INDEX",
+        "name": "US Dollar Index",
+        "yahoo_lookup": "DX-Y.NYB",
+    },
+    "SPY": {
+        "category": "ETF",
+        "name": "SPDR S&P 500 ETF Trust",
+        "yahoo_lookup": "SPY",
+    },
+    "YM": {
+        "category": "FUTURE",
+        "name": "E-mini Dow Futures",
+        "yahoo_lookup": "YM=F",
+    },
+    "NQ": {
+        "category": "FUTURE",
+        "name": "E-mini Nasdaq-100 Futures",
+        "yahoo_lookup": "NQ=F",
+    },
+    "ES": {
+        "category": "FUTURE",
+        "name": "E-mini S&P 500 Futures",
+        "yahoo_lookup": "ES=F",
+    },
     "USOIL": {
         "category": "COMMODITY",
         "name": "Crude Oil",
