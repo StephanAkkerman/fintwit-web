@@ -48,7 +48,8 @@ MOCK_HTML_RESPONSE = """
 
 @pytest.mark.asyncio
 async def test_get_stock_halts_success(async_client):
-    today = datetime.datetime.now().strftime("%m/%d/%Y")
+    from dateutil import tz
+    today = datetime.datetime.now(tz.gettz("US/Eastern")).strftime("%m/%d/%Y")
     mock_html = MOCK_HTML_RESPONSE.format(today=today)
 
     mock_fetch = AsyncMock(return_value={"result": mock_html})
