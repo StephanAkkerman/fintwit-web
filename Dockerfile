@@ -1,4 +1,4 @@
-FROM python:3.13-slim
+FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -21,6 +21,16 @@ RUN pip install --upgrade pip \
     && grep -Ev '^torch([[:space:]]|$|[<>=!~])' requirements.txt > requirements.no-torch.txt \
     && pip install -r requirements.no-torch.txt \
     && rm -f requirements.no-torch.txt
+
+# Fail fast during image build if PyTorch CPU execution is not compatible.
+RUN python - <<'PY'
+import platform
+import torch
+
+x = torch.randn(8, 8)
+_ = x @ x
+print("torch_ok", platform.machine(), torch.__version__)
+PY
 
 COPY app ./app
 COPY curl.txt ./curl.txt
