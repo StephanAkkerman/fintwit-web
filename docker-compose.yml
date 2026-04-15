@@ -19,7 +19,7 @@ services:
       AUTO_RESTART_TIME: ${AUTO_RESTART_TIME:-11:45 PM}
       VNC_SERVER_PASSWORD: ${VNC_SERVER_PASSWORD:-changeme}
     volumes:
-      - ./ibgateway-settings:${TWS_SETTINGS_PATH:-/home/ibgateway/tws_settings}
+      - ibgateway-settings:${TWS_SETTINGS_PATH:-/home/ibgateway/tws_settings}
     ports:
       - "127.0.0.1:4001:4001" # TWS API (live)
       - "127.0.0.1:5901:5900" # VNC (optional inspection)
@@ -67,3 +67,6 @@ services:
     restart: unless-stopped
     profiles:
       - tunnel
+
+volumes:
+  ibgateway-settings:
