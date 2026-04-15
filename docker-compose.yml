@@ -8,12 +8,21 @@ services:
     environment:
       TWS_USERID: ${TWS_USERID}
       TWS_PASSWORD: ${TWS_PASSWORD}
-      TRADING_MODE: live
+      # Use live by default; override with TRADING_MODE=paper if needed.
+      TRADING_MODE: ${TRADING_MODE:-live}
       READ_ONLY_API: "yes"
+      # Headless-friendly defaults for API reliability.
+      TWS_ACCEPT_INCOMING: ${TWS_ACCEPT_INCOMING:-accept}
+      TWS_SETTINGS_PATH: ${TWS_SETTINGS_PATH:-/home/ibgateway/tws_settings}
+      TWOFA_TIMEOUT_ACTION: ${TWOFA_TIMEOUT_ACTION:-restart}
+      RELOGIN_AFTER_TWOFA_TIMEOUT: ${RELOGIN_AFTER_TWOFA_TIMEOUT:-yes}
+      AUTO_RESTART_TIME: ${AUTO_RESTART_TIME:-11:45 PM}
       VNC_SERVER_PASSWORD: ${VNC_SERVER_PASSWORD:-changeme}
+    volumes:
+      - ./ibgateway-settings:${TWS_SETTINGS_PATH:-/home/ibgateway/tws_settings}
     ports:
-      - "127.0.0.1:4001:4001"  # TWS API (live)
-      - "127.0.0.1:5901:5900"  # VNC (optional inspection)
+      - "127.0.0.1:4001:4001" # TWS API (live)
+      - "127.0.0.1:5901:5900" # VNC (optional inspection)
 
   backend:
     build:
@@ -28,7 +37,8 @@ services:
       API_KEY: ${API_KEY:-}
       IBKR_ENABLED: "true"
       IBKR_HOST: ibgateway
-      IBKR_PORT: "4001"
+      # Keep this aligned with TRADING_MODE (live=4001, paper=4002).
+      IBKR_PORT: ${IBKR_PORT:-4001}
       IBKR_SYNC_INTERVAL: "60"
     volumes:
       - ./state:/app/state

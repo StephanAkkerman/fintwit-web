@@ -41,7 +41,10 @@ from ..services.yahoo import get_stock_info
 with suppress(Exception):
     from dotenv import load_dotenv
 
-    load_dotenv(dotenv_path=Path(__file__).resolve().parents[2] / ".env", override=True)
+    # Keep existing process env (for Docker/Compose) authoritative.
+    load_dotenv(
+        dotenv_path=Path(__file__).resolve().parents[2] / ".env", override=False
+    )
 
 ENGINE = create_engine(os.getenv("DB_URL", "sqlite+aiosqlite:///./data.db"))
 Session = async_sessionmaker(ENGINE, expire_on_commit=False)
