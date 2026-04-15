@@ -1,6 +1,6 @@
 # API and Frontend Coverage Matrix
 
-Last updated: 2026-04-13
+Last updated: 2026-04-15
 
 ## Authentication
 
@@ -19,7 +19,7 @@ Last updated: 2026-04-13
 | `/api/binance/gainers-losers` | GET | `api.binance.com/api/v3/ticker/24hr` | Top USDT-pair gainers and losers with price, 24h change, volume, and Binance market URL | Connected via `BinanceGainersLosersWidget` |
 | `/api/events/economic` | GET | `www.investing.com/economic-calendar/Service/getCalendarFilteredData` (high-impact, this-week view for US + Euro zone) | Economic calendar rows with date/time/zone/currency/event and actual/forecast/previous values plus impact metadata (`impact_score`, `impact_emoji`) | Connected via `EconomicEventsWidget` |
 | `/api/nfts/trending` | GET | `api.coingecko.com/api/v3/search/trending` (`nfts` section) | Trending NFT collections with floor price, floor currency, floor 24h change, thumbnail, and website | Connected via `NftTrendingWidget` |
-| `/api/stocks/market-hours` | GET | `query1.finance.yahoo.com/v7/finance/quote` market-state fields for representative exchange symbols (short-lived cache + stale-cache fallback on transient failures/rate limits) | Major exchange session status (`Open`, `Pre-market`, `After-hours`, `Closed`) with timezone and exchange metadata | Connected via `StockMarketHoursBanner` |
+| `/api/stocks/market-hours` | GET | `exchange_calendars` exchange sessions for representative global exchanges | Major exchange session status (`Open`, `Pre-market`, `After-hours`, `Closed`) with timezone plus closure metadata (`closure_reason`, `is_holiday`, optional `holiday_name`) when closed | Connected via `StockMarketHoursBanner` |
 | `/api/stock-halts` | GET | `www.nasdaqtrader.com/RPCHandler.axd` (`BL_TradeHalt.GetTradeHalts`) | Current-day Nasdaq halt rows with halt time, issue symbol, and optional resumption time | Connected via `StockHaltsWidget` |
 | `/api/options/overview` | GET | `api.nasdaq.com/api/quote/{symbol}/option-chain/most-active?assetclass=...` (aggregated across default major symbols, optional `symbols` query override) | Calls/puts totals, market put-call ratio, bullish-vs-bearish symbol ranking, and most-active contracts | Connected via `OptionsOverviewWidget` |
 | `/api/stocktwits` | GET | `api.stocktwits.com/api/2/charts/{keyword}` (curl-first, then httpx; short-lived cache fallback on transient failures) | Formatted StockTwits rank list (`symbol`, `name`, `price`, `val`); returns `[]` during transient upstream unavailability | Connected via `StocktwitsWidget` |

@@ -1,6 +1,6 @@
 # Frontend Integration Map
 
-Last updated: 2026-04-13
+Last updated: 2026-04-15
 
 ## Mounted in `App.tsx` Today
 
@@ -100,7 +100,7 @@ Route-level sections:
 
 - `StockMarketHoursBanner` + `useStockMarketHours`
   - Fetches: `/api/stocks/market-hours`
-  - Purpose: Display current major exchange session states, including pre-market and after-hours.
+  - Purpose: Display current major exchange session states, including pre-market/after-hours plus explicit closure context for weekends vs holidays (with holiday name when available).
 
 - `StockHaltsWidget` + `useStockHalts`
   - Fetches: `/api/stock-halts`

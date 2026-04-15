@@ -30,6 +30,17 @@ beforeEach(() => {
             timezone: 'America/New_York',
             exchange_name: 'NASDAQ',
           },
+          {
+            exchange: 'LSE',
+            session: 'Closed',
+            is_open: false,
+            as_of: '2026-12-25T12:00:00+00:00',
+            timezone: 'Europe/London',
+            next_open: '2026-12-29T08:00:00+00:00',
+            next_close: null,
+            closure_reason: 'holiday',
+            holiday_name: 'Christmas Day',
+          },
         ],
       } as Response
     )
@@ -50,5 +61,6 @@ describe('StockMarketHoursBanner', () => {
 
     expect(screen.getByText('Pre-market')).toBeInTheDocument()
     expect(screen.getByText('After-hours')).toBeInTheDocument()
+    expect(screen.getByText('Holiday: Christmas Day')).toBeInTheDocument()
   })
 })

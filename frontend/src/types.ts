@@ -281,6 +281,9 @@ export type StockMarketHoursItem = {
   timezone: string | null;
   next_open: string | null;
   next_close: string | null;
+  closure_reason?: 'holiday' | 'weekend' | string | null;
+  is_holiday?: boolean;
+  holiday_name?: string | null;
 };
 
 export type EconomicEventItem = {

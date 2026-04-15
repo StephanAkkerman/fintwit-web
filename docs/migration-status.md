@@ -1,6 +1,6 @@
 # Migration Status
 
-Last updated: 2026-04-13
+Last updated: 2026-04-15
 
 ## Backend: Implemented
 
@@ -29,7 +29,7 @@ Last updated: 2026-04-13
 - Options tweet delivery now supports backend feed filtering (`options_only=true`) on both `/api/posts` and `/api/stream` for route-level isolation.
 - NFT migration slice: CoinGecko trending NFTs endpoint (`/api/nfts/trending`) now available.
 - Stock migration slice: market session endpoint (`/api/stocks/market-hours`) now available with pre-market/after-hours state mapping for major exchanges.
-- Stock market-hours service hardening: short-lived cache plus stale-cache fallback now keeps the endpoint available during transient Yahoo rate limits (`429`).
+- Stock market-hours endpoint now derives schedules from `exchange_calendars` and includes explicit closed-session context (`closure_reason`, `is_holiday`, optional `holiday_name`) so holiday closures can be distinguished from weekends.
 - Events migration slice: Investing economic calendar endpoint (`/api/events/economic`) now available for high-impact US and Euro-zone events.
 - Service-backed endpoints for Fear & Greed, treemap, StockTwits, SPY heatmap, trending crypto, and WallStreetBets Reddit hot posts.
 - Reddit WallStreetBets ingestion uses asyncpraw-first (legacy-style credentials) with HTTP JSON fallback when credentials are missing.
@@ -76,7 +76,7 @@ Last updated: 2026-04-13
 - Portfolio route includes add/list/toggle/delete workflows and summary cards (positions, market value, cost basis, unrealized PnL).
 - Home route includes a WallStreetBets radar widget with latest Reddit post momentum signals.
 - NFTs route includes a CoinGecko-based trending collections widget with floor price and 24h floor change.
-- Stocks route now includes a market-hours banner showing major exchange session state (open/pre-market/after-hours/closed).
+- Stocks route now includes a market-hours banner showing major exchange session state (open/pre-market/after-hours/closed) with explicit holiday closure labels when applicable.
 - Crypto route now includes a Binance movers widget (top gainers/losers).
 - Stocks route now includes a Nasdaq trading halts widget.
 - Options route now includes a market activity widget for calls, puts, put/call ratio, and most-active contracts.

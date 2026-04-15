@@ -25,6 +25,14 @@ function formatCountdown(isoString: string | null, _tick: number): string | null
 function ExchangeCard({ row, tick }: { row: StockMarketHoursItem; tick: number }) {
   const countdown = formatCountdown(row.next_close ?? row.next_open, tick)
   const label = row.next_close ? 'closes in' : 'opens in'
+  const closureMessage =
+    row.closure_reason === 'holiday'
+      ? row.holiday_name
+        ? `Holiday: ${row.holiday_name}`
+        : 'Holiday closure'
+      : row.closure_reason === 'weekend'
+        ? 'Weekend closure'
+        : null
 
   return (
     <article className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900/60">
@@ -38,6 +46,9 @@ function ExchangeCard({ row, tick }: { row: StockMarketHoursItem; tick: number }
           ) : (
             <p className="text-[11px] text-zinc-500">{row.timezone}</p>
           )}
+          {closureMessage ? (
+            <p className="text-[11px] font-medium text-amber-700 dark:text-amber-300">{closureMessage}</p>
+          ) : null}
         </div>
         <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${sessionClass(row.session)}`}>
           {row.session}
