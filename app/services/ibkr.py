@@ -16,7 +16,9 @@ The result is bridged back to uvicorn's loop with ``asyncio.wrap_future()``.
 
 Configuration (env vars):
   IBKR_HOST       hostname of the IB Gateway container  (default: ibgateway)
-  IBKR_PORT       TWS API port — 4001 live, 4002 paper   (default: 4001)
+    IBKR_PORT       IB API port.
+                                    For ghcr.io/gnzsnz/ib-gateway in Docker network: 4003 live, 4004 paper.
+                                    For direct/non-socat setups: often 4001 live, 4002 paper. (default: 4001)
   IBKR_CLIENT_ID  client slot number                     (default: 1)
 """
 

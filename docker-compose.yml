@@ -21,7 +21,8 @@ services:
     volumes:
       - ibgateway-settings:${TWS_SETTINGS_PATH:-/home/ibgateway/tws_settings}
     ports:
-      - "127.0.0.1:4001:4001" # TWS API (live)
+      - "127.0.0.1:4001:4003" # TWS API (live; socat)
+      - "127.0.0.1:4002:4004" # TWS API (paper; socat)
       - "127.0.0.1:5901:5900" # VNC (optional inspection)
 
   backend:
@@ -37,8 +38,8 @@ services:
       API_KEY: ${API_KEY:-}
       IBKR_ENABLED: "true"
       IBKR_HOST: ibgateway
-      # Keep this aligned with TRADING_MODE (live=4001, paper=4002).
-      IBKR_PORT: ${IBKR_PORT:-4001}
+      # Keep this aligned with TRADING_MODE (live=4003, paper=4004).
+      IBKR_PORT: ${IBKR_PORT:-4003}
       IBKR_SYNC_INTERVAL: "60"
     volumes:
       - ./state:/app/state
@@ -65,8 +66,6 @@ services:
     depends_on:
       - frontend
     restart: unless-stopped
-    profiles:
-      - tunnel
 
 volumes:
   ibgateway-settings:

@@ -45,6 +45,23 @@ Use your `.env` file at repo root.
 
 Important: keep env formatting as `KEY=value` (no spaces around `=`) for max compatibility.
 
+Minimum IBKR-related values for Pi deployments:
+
+```bash
+TRADING_MODE=live
+IBKR_PORT=4003
+VNC_SERVER_PASSWORD=change-me-to-a-strong-password
+TWS_USERID=your-ibkr-username
+TWS_PASSWORD=your-ibkr-password
+```
+
+If you use paper trading instead of live:
+
+```bash
+TRADING_MODE=paper
+IBKR_PORT=4004
+```
+
 ### 3) Build and run locally on Pi
 
 ```bash
@@ -60,11 +77,59 @@ This stack runs:
 
 The frontend container proxies `/api/*` and `/api/stream` to the backend container.
 
-##### 3.1) Start all at once with Cloudflare tunnel
-If you have your Cloudflare tunnel configured (see next section), you can start the tunnel and app together with:
+##### 3.2) IBKR on Raspberry Pi (headless + local VNC)
+
+The compose file starts an `ibgateway` container and a backend sync worker. Most days this can run headless, but IBKR may still require occasional interactive login/2FA approval.
+
+Start IBKR + backend:
 
 ```bash
-docker compose --profile tunnel up -d --build
+docker compose up -d --build ibgateway backend
+```
+
+If you already use RealVNC to access your Pi desktop, keep using it. Then, inside the Pi desktop session, open a local VNC client connection to the IB Gateway container:
+
+```bash
+# install once on the Pi if needed
+sudo apt update
+sudo apt install -y remmina remmina-plugin-vnc
+```
+
+In Remmina:
+
+- Protocol: VNC
+- Server: `127.0.0.1:5901`
+- Password: `VNC_SERVER_PASSWORD` from `.env`
+
+Complete IB Gateway login and any 2FA prompt, then keep it running.
+
+Verify sync health:
+
+```bash
+docker logs -f fintwit-ibgateway
+docker logs -f fintwit-backend
+
+curl -H "X-API-Key: YOUR_API_KEY" http://127.0.0.1:8000/api/ibkr/status
+curl -H "X-API-Key: YOUR_API_KEY" "http://127.0.0.1:8000/api/ibkr/trades?limit=20"
+```
+
+Expected behavior:
+
+- `ibkr/status` eventually reports `connected: true`
+- `ibkr/trades` returns recent executions when available
+
+Notes:
+
+- Backend in Docker connects to host `ibgateway` (container network), not `localhost`.
+- For `ghcr.io/gnzsnz/ib-gateway`, backend should use socat ports: live `4003`, paper `4004`.
+- The IB Gateway settings are persisted in a Docker named volume (`ibgateway-settings`) to avoid host filesystem permission issues on Raspberry Pi.
+- If you see `connection refused on ibgateway:4003`, IB Gateway is up but not fully logged in/authorized yet, or login/2FA is incomplete.
+
+##### 3.1) Start all at once with Cloudflare tunnel
+If you have your Cloudflare tunnel configured (see next section), start the stack with:
+
+```bash
+docker compose up -d --build
 ```
 
 ### 4) Cloudflare DNS delegation
@@ -91,13 +156,13 @@ Then fetch the tunnel token:
 terraform output -raw tunnel_token
 ```
 
-### 6) Start cloudflared (as Compose profile)
+### 6) Start cloudflared
 
 From repo root:
 
 ```bash
 export CLOUDFLARE_TUNNEL_TOKEN="<terraform tunnel_token output>"
-docker compose --profile tunnel up -d
+docker compose up -d
 ```
 
 Public hostname defaults to `fintwit.akkerman.ai` (configurable in `infra/terraform.tfvars`).
