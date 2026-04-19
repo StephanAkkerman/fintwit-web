@@ -20,6 +20,7 @@ Configuration (env vars):
                                     For ghcr.io/gnzsnz/ib-gateway in Docker network: 4003 live, 4004 paper.
                                     For direct/non-socat setups: often 4001 live, 4002 paper. (default: 4001)
   IBKR_CLIENT_ID  client slot number                     (default: 1)
+    IBKR_CONNECT_TIMEOUT  connect timeout in seconds       (default: 30)
 """
 
 import asyncio
@@ -51,8 +52,10 @@ class IbkrGateway:
         self._host = host or os.getenv("IBKR_HOST", "ibgateway")
         self._port = port or int(os.getenv("IBKR_PORT", "4001"))
         self._client_id = client_id or int(os.getenv("IBKR_CLIENT_ID", "1"))
+        self._connect_timeout = float(os.getenv("IBKR_CONNECT_TIMEOUT", "30"))
         self.last_sync: datetime | None = None
         self.last_error: str | None = None
+        self._connect_lock = asyncio.Lock()
 
         self._ib: IB | None = None
         self._ib_loop = asyncio.new_event_loop()
@@ -93,31 +96,51 @@ class IbkrGateway:
     # ------------------------------------------------------------------
 
     async def connect(self) -> bool:
-        try:
-            await self._submit(self._connect_on_ib_loop())
-            logger.info(
-                "[ibkr] connected to %s:%d (client %d)",
-                self._host,
-                self._port,
-                self._client_id,
-            )
-            self.last_error = None
-            return True
-        except ConnectionRefusedError:
-            self.last_error = (
-                "Connection refused — log in to IB Gateway via VNC at localhost:5900"
-            )
-            logger.warning(
-                "[ibkr] connection refused on %s:%d — "
-                "log in to IB Gateway first via VNC at localhost:5900",
-                self._host,
-                self._port,
-            )
-            return False
-        except Exception as exc:
-            self.last_error = str(exc)
-            logger.error("[ibkr] connect failed: %r", exc)
-            return False
+        async with self._connect_lock:
+            if self._ib is not None and self._ib.isConnected():
+                return True
+
+            try:
+                logger.info(
+                    "[ibkr] connecting to %s:%d (client %d, timeout=%.1fs)",
+                    self._host,
+                    self._port,
+                    self._client_id,
+                    self._connect_timeout,
+                )
+                await self._submit(self._connect_on_ib_loop())
+                logger.info(
+                    "[ibkr] connected to %s:%d (client %d)",
+                    self._host,
+                    self._port,
+                    self._client_id,
+                )
+                self.last_error = None
+                return True
+            except ConnectionRefusedError:
+                self.last_error = "Connection refused — log in to IB Gateway via VNC at localhost:5900"
+                logger.warning(
+                    "[ibkr] connection refused on %s:%d — "
+                    "log in to IB Gateway first via VNC at localhost:5900",
+                    self._host,
+                    self._port,
+                )
+                return False
+            except TimeoutError as exc:
+                self.last_error = (
+                    f"Connect timeout after {self._connect_timeout:.1f}s "
+                    "(gateway not ready/auth pending)"
+                )
+                logger.error(
+                    "[ibkr] connect timed out after %.1fs: %r",
+                    self._connect_timeout,
+                    exc,
+                )
+                return False
+            except Exception as exc:
+                self.last_error = str(exc)
+                logger.error("[ibkr] connect failed: %r", exc)
+                return False
 
     async def _connect_on_ib_loop(self) -> None:
         """Runs entirely on the ib_insync loop — all internal Futures stay there."""
@@ -126,7 +149,7 @@ class IbkrGateway:
             self._port,
             clientId=self._client_id,
             readonly=True,
-            timeout=10,
+            timeout=self._connect_timeout,
         )
         # Brief pause so the server can push initial position/account data
         await asyncio.sleep(1)

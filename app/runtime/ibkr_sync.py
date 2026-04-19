@@ -32,6 +32,10 @@ async def run_ibkr_sync(
 
     while True:
         try:
+            connected = gateway.is_connected() or await gateway.connect()
+            if not connected:
+                raise RuntimeError(gateway.last_error or "IBKR connect failed")
+
             positions = await gateway.get_positions()
 
             if positions:
