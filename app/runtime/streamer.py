@@ -171,6 +171,6 @@ async def run_stream(
 
             backoff = 1.0
         except Exception as e:
-            print(f"[stream] error: {e!r}; retrying in {backoff:.1f}s")
+            logger.warning("[stream] error: %r; retrying in %.1fs", e, backoff)
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, 60.0)

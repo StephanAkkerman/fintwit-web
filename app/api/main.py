@@ -3,6 +3,7 @@ import asyncio
 import json
 import logging
 import os
+import time
 from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timezone
 from pathlib import Path
@@ -64,6 +65,9 @@ async def api_key_dep(request: Request):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    startup_started = time.perf_counter()
+    logger.info("[startup] initializing application")
+
     await init_db(ENGINE)
     app.state.API_KEY = os.getenv("API_KEY", "")
     app.state.http_client = httpx.AsyncClient()
@@ -99,8 +103,13 @@ async def lifespan(app: FastAPI):
         app.state.ibkr_gateway = None
 
     try:
+        logger.info(
+            "[startup] application ready in %.2fs",
+            time.perf_counter() - startup_started,
+        )
         yield
     finally:
+        logger.info("[shutdown] stopping background workers")
         task.cancel()
         with suppress(asyncio.CancelledError):
             await task

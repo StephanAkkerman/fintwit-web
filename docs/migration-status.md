@@ -1,6 +1,6 @@
 # Migration Status
 
-Last updated: 2026-04-15
+Last updated: 2026-04-19
 
 ## Backend: Implemented
 
@@ -36,6 +36,7 @@ Last updated: 2026-04-15
 - StockTwits service fallback for anti-bot blocks: curl-first fetch strategy with short-lived per-keyword cache fallback to avoid transient 503s (curl is executed via thread-backed sync subprocess for Windows/uvicorn compatibility).
 - Portfolio backend for IBKR-style stock tracking: positions CRUD endpoints and live summary valuation/PnL using Yahoo quotes.
 - Deployment scaffolding for self-hosting: backend Docker image, frontend Nginx reverse proxy for `/api/*` + `/api/stream`, Docker Compose stack for Raspberry Pi, and Terraform-managed Cloudflare tunnel + DNS.
+- Frontend proxy resilience hardening: containerized Nginx now uses Docker DNS re-resolution for backend upstream (`backend:8000`) so backend restarts do not leave stale upstream IPs that can surface first-hit `502` responses.
 
 ## Frontend: Implemented
 
