@@ -118,9 +118,9 @@ class TweetRepo:
             stmt = stmt.where(TweetRow.id < before_id)
         if since_hours is not None:
             # SQLite rows are stored as naive UTC datetimes in this project.
-            since_at = (datetime.now(timezone.utc) - timedelta(hours=since_hours)).replace(
-                tzinfo=None
-            )
+            since_at = (
+                datetime.now(timezone.utc) - timedelta(hours=since_hours)
+            ).replace(tzinfo=None)
             stmt = stmt.where(TweetRow.created_at >= since_at)
         if options_only:
             stmt = stmt.where(TweetRow.is_options_tweet.is_(True))
