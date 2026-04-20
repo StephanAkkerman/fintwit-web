@@ -32,15 +32,16 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     && rm -f requirements.no-torch.txt constraints.txt
 
 # Fail fast during image build if PyTorch CPU execution is not compatible.
-RUN python - <<'PY'
+RUN TORCH_VERSION_EXPECTED="${TORCH_VERSION}" python - <<'PY'
 import platform
 import torch
+import os
 
 x = torch.randn(8, 8)
 _ = x @ x
 print("torch_ok", platform.machine(), torch.__version__)
 
-expected = "${TORCH_VERSION}".strip()
+expected = os.environ.get("TORCH_VERSION_EXPECTED", "").strip()
 actual = torch.__version__.split("+", 1)[0]
 if expected and actual != expected:
     raise RuntimeError(f"Unexpected torch version: expected {expected}, got {torch.__version__}")
