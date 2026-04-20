@@ -12,6 +12,7 @@ import SpyHeatmapWidget from './components/SpyHeatmapWidget'
 import StockHaltsWidget from './components/StockHaltsWidget'
 import StockMarketHoursBanner from './components/StockMarketHoursBanner'
 import StocktwitsWidget from './components/StocktwitsWidget'
+import TickerMentionsPanel from './components/TickerMentionsPanel'
 import TreemapWidget from './components/TreemapWidget'
 import TrendingCryptoWidget from './components/TrendingCryptoWidget'
 import TweetCard from './components/TweetCard'
@@ -129,7 +130,7 @@ function matchesFilter(tweet: Tweet, filter: FilterKey): boolean {
 
 export default function App() {
   const [route, setRoute] = useState<RouteKey>(() => routeFromPath(window.location.pathname))
-  const { tweets, hasMore, isLoadingOlder, loadOlder } = useTweets('', 2000, 200, route === 'options') // same-origin API (proxied in dev)
+  const { tweets, hasMore, isLoadingOlder, loadOlder } = useTweets('', 2000, 200, route === 'options', 24) // same-origin API (proxied in dev)
   const { status: ibkrStatus, positions: ibkrPositions, trades: ibkrTrades, account: ibkrAccount, loading: ibkrLoading, error: ibkrError, reload: reloadIbkr } = useIbkr()
   const [tickerFilter, setTickerFilter] = useState<string | null>(null)
   const [tickerInput, setTickerInput] = useState('')
@@ -170,11 +171,10 @@ export default function App() {
     [ibkrPositions]
   )
 
-  const displayedTweets = useMemo(() => {
+  const scopedTweets = useMemo(() => {
     let scoped = tweets.filter(
       (tweet) =>
         matchesFilter(tweet, effectiveFilter) &&
-        (!tickerFilter || matchesTicker(tweet, tickerFilter)) &&
         (!userFilter || matchesUser(tweet, userFilter))
     )
 
@@ -193,6 +193,16 @@ export default function App() {
       scoped = scoped.filter((tweet) => tweet.is_options_tweet === true)
     }
 
+    return scoped
+  }, [tweets, effectiveFilter, userFilter, route, portfolioSymbols])
+
+  const displayedTweets = useMemo(() => {
+    let scoped = scopedTweets
+
+    if (tickerFilter) {
+      scoped = scoped.filter((tweet) => matchesTicker(tweet, tickerFilter))
+    }
+
     if (route !== 'crypto' && route !== 'stocks' && route !== 'forex') {
       return scoped
     }
@@ -206,7 +216,7 @@ export default function App() {
     }
 
     return scoped
-  }, [tweets, effectiveFilter, tickerFilter, userFilter, route, chartSortMode, portfolioSymbols])
+  }, [scopedTweets, tickerFilter, route, chartSortMode])
 
   const onTickerSelect = (ticker: string) => {
     setTickerInput(ticker)
@@ -435,6 +445,15 @@ export default function App() {
               <h1 className="text-2xl font-bold">X Stream</h1>
               <p className="text-sm text-zinc-500">{activeSection.subtitle}</p>
             </header>
+
+            {route !== 'admin' && (
+              <TickerMentionsPanel
+                tweets={scopedTweets}
+                scopeLabel={activeSection.label}
+                selectedUser={userFilter}
+                onTickerSelect={onTickerSelect}
+              />
+            )}
 
             {route === 'home' && (
               <>

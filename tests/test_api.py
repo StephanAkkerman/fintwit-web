@@ -92,6 +92,21 @@ async def test_list_posts_options_only_true(async_client):
 
 
 @pytest.mark.asyncio
+async def test_list_posts_since_hours_forwards_to_repo(async_client):
+    with patch("app.api.main.REPO") as mock_repo:
+        mock_repo.latest = AsyncMock(return_value=[])
+        await async_client.get(
+            "/api/posts?since_hours=24", headers={"X-API-Key": "test-api-key"}
+        )
+    mock_repo.latest.assert_called_once_with(
+        200,
+        before_id=None,
+        options_only=False,
+        since_hours=24,
+    )
+
+
+@pytest.mark.asyncio
 async def test_list_posts_limit_too_low_returns_422(async_client):
     with patch("app.api.main.REPO") as mock_repo:
         mock_repo.latest = AsyncMock(return_value=[])
@@ -107,6 +122,16 @@ async def test_list_posts_limit_too_high_returns_422(async_client):
         mock_repo.latest = AsyncMock(return_value=[])
         response = await async_client.get(
             "/api/posts?limit=201", headers={"X-API-Key": "test-api-key"}
+        )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_list_posts_since_hours_too_high_returns_422(async_client):
+    with patch("app.api.main.REPO") as mock_repo:
+        mock_repo.latest = AsyncMock(return_value=[])
+        response = await async_client.get(
+            "/api/posts?since_hours=169", headers={"X-API-Key": "test-api-key"}
         )
     assert response.status_code == 422
 

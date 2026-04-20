@@ -53,7 +53,7 @@ describe('useTweets', () => {
     const { result } = renderHook(() => useTweets(''))
 
     await waitFor(() => expect(result.current.tweets).toHaveLength(2))
-    expect(fetch).toHaveBeenCalledWith('/api/posts?limit=200', { credentials: 'include' })
+    expect(fetch).toHaveBeenCalledWith('/api/posts?limit=200&since_hours=24', { credentials: 'include' })
     expect(result.current.tweets[0].id).toBe(1)
     expect(result.current.tweets[1].id).toBe(2)
   })
@@ -73,7 +73,7 @@ describe('useTweets', () => {
     })
 
     await waitFor(() => expect(result.current.tweets).toHaveLength(4))
-    expect(fetch).toHaveBeenNthCalledWith(2, '/api/posts?limit=2&before_id=4', {
+    expect(fetch).toHaveBeenNthCalledWith(2, '/api/posts?limit=2&before_id=4&since_hours=24', {
       credentials: 'include',
     })
     expect(result.current.tweets.map((t) => t.id)).toEqual([5, 4, 3, 2])
@@ -157,7 +157,7 @@ describe('useTweets', () => {
     const { result } = renderHook(() => useTweets('', 2000, 1, true))
 
     await waitFor(() => expect(result.current.tweets).toHaveLength(1))
-    expect(fetch).toHaveBeenNthCalledWith(1, '/api/posts?limit=1&options_only=true', {
+    expect(fetch).toHaveBeenNthCalledWith(1, '/api/posts?limit=1&since_hours=24&options_only=true', {
       credentials: 'include',
     })
     expect(MockEventSource.instances[0].url).toBe('/api/stream?options_only=true')
@@ -168,7 +168,7 @@ describe('useTweets', () => {
 
     expect(fetch).toHaveBeenNthCalledWith(
       2,
-      '/api/posts?limit=1&before_id=10&options_only=true',
+      '/api/posts?limit=1&before_id=10&since_hours=24&options_only=true',
       {
         credentials: 'include',
       }

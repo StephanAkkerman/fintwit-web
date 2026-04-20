@@ -2,24 +2,39 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Tweet } from '../types'
 
 /**
- * Loads initial tweets from /api/posts (200 by default), supports pagination,
+ * Loads initial tweets from /api/posts using a time window (24h by default), supports pagination,
  * and then subscribes to /api/stream via SSE.
  * Dedups by tweet.id and keeps up to `maxItems` in memory.
  */
-export function useTweets(apiBase = '', maxItems = 2000, pageSize = 200, optionsOnly = false) {
+export function useTweets(
+  apiBase = '',
+  maxItems = 2000,
+  pageSize = 200,
+  optionsOnly = false,
+  sinceHours: number | null = 24
+) {
   const [tweets, setTweets] = useState<Tweet[]>([])
   const [hasMore, setHasMore] = useState(true)
   const [isLoadingOlder, setIsLoadingOlder] = useState(false)
   const ids = useRef<Set<number>>(new Set())
   const loadingOlderRef = useRef(false)
 
+  const buildPostsQuery = (beforeId?: number) => {
+    const params = new URLSearchParams()
+    params.set('limit', String(pageSize))
+    if (beforeId !== undefined) params.set('before_id', String(beforeId))
+    if (sinceHours !== null) params.set('since_hours', String(sinceHours))
+    if (optionsOnly) params.set('options_only', 'true')
+    return params.toString()
+  }
+
   // initial load
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       try {
-        const optionsQuery = optionsOnly ? '&options_only=true' : ''
-        const r = await fetch(`${apiBase}/api/posts?limit=${pageSize}${optionsQuery}`, {
+        const query = buildPostsQuery()
+        const r = await fetch(`${apiBase}/api/posts?${query}`, {
           credentials: 'include',
         })
         const data: Tweet[] = await r.json()
@@ -35,7 +50,7 @@ export function useTweets(apiBase = '', maxItems = 2000, pageSize = 200, options
     return () => {
       cancelled = true
     }
-  }, [apiBase, pageSize, optionsOnly])
+  }, [apiBase, pageSize, optionsOnly, sinceHours])
 
   const loadOlder = async () => {
     if (loadingOlderRef.current || !hasMore) return
@@ -50,8 +65,8 @@ export function useTweets(apiBase = '', maxItems = 2000, pageSize = 200, options
     setIsLoadingOlder(true)
 
     try {
-      const optionsQuery = optionsOnly ? '&options_only=true' : ''
-      const r = await fetch(`${apiBase}/api/posts?limit=${pageSize}&before_id=${oldest.id}${optionsQuery}`, {
+      const query = buildPostsQuery(oldest.id)
+      const r = await fetch(`${apiBase}/api/posts?${query}`, {
         credentials: 'include',
       })
       const older: Tweet[] = await r.json()

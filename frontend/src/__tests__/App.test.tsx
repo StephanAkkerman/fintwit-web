@@ -191,7 +191,7 @@ describe('App', () => {
     )
     await waitFor(() => {
       expect(
-        fetchMock.mock.calls.some((call) => String(call[0]).includes('/api/posts?limit=200&options_only=true'))
+        fetchMock.mock.calls.some((call) => String(call[0]).includes('/api/posts?limit=200&since_hours=24&options_only=true'))
       ).toBe(true)
     })
     expect(window.location.pathname).toBe('/options')
@@ -594,6 +594,134 @@ describe('App', () => {
       expect(screen.getByText('Stock User')).toBeInTheDocument()
       expect(screen.queryByText('Macro User')).not.toBeInTheDocument()
       expect(screen.getByLabelText('User name')).toHaveValue('stock_user')
+    })
+  })
+
+  it('updates ticker mention pulse when user filter changes', async () => {
+    const posts: Tweet[] = [
+      {
+        id: 1,
+        text: '$AAPL update from equity side',
+        user_name: 'Stock User',
+        user_screen_name: 'stock_user',
+        user_img: 'https://example.com/s.jpg',
+        url: 'https://x.com/stock_user/status/1',
+        created_at: '',
+        media: [],
+        tickers: ['AAPL'],
+        hashtags: [],
+        title: '',
+        media_types: [],
+        replies: 0,
+        likes: 0,
+        views: 0,
+        retweets: 0,
+        assets: [{ symbol: 'AAPL', kind: 'EQUITY' }],
+      },
+      {
+        id: 2,
+        text: '$BTC momentum',
+        user_name: 'Crypto User',
+        user_screen_name: 'crypto_user',
+        user_img: 'https://example.com/c.jpg',
+        url: 'https://x.com/crypto_user/status/2',
+        created_at: '',
+        media: [],
+        tickers: ['BTC'],
+        hashtags: [],
+        title: '',
+        media_types: [],
+        replies: 0,
+        likes: 0,
+        views: 0,
+        retweets: 0,
+        assets: [{ symbol: 'BTC', kind: 'CRYPTO' }],
+      },
+      {
+        id: 3,
+        text: '$ETH setup',
+        user_name: 'Crypto User',
+        user_screen_name: 'crypto_user',
+        user_img: 'https://example.com/c.jpg',
+        url: 'https://x.com/crypto_user/status/3',
+        created_at: '',
+        media: [],
+        tickers: ['ETH'],
+        hashtags: [],
+        title: '',
+        media_types: [],
+        replies: 0,
+        likes: 0,
+        views: 0,
+        retweets: 0,
+        assets: [{ symbol: 'ETH', kind: 'CRYPTO' }],
+      },
+    ]
+
+    fetchMock.mockImplementation((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/api/posts')) {
+        return Promise.resolve({ ok: true, json: async () => posts } as Response)
+      }
+      if (url.includes('/api/fear-greed')) {
+        return Promise.resolve(
+          {
+            ok: true,
+            json: async () => ({ value: 50, change: '+0', status: 'Neutral' }),
+          } as Response
+        )
+      }
+      if (url.includes('/api/reddit/wsb')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/trending-crypto')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/treemap')) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)
+      }
+      if (url.includes('/api/stocktwits')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/spy-heatmap')) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)
+      }
+      if (url.includes('/api/ibkr/status')) {
+        return Promise.resolve(
+          {
+            ok: true,
+            json: async () => ({ configured: false, connected: false, last_sync: null, last_error: null }),
+          } as Response
+        )
+      }
+      if (url.includes('/api/ibkr/positions')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/ibkr/trades')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/ibkr/account')) {
+        return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
+    })
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /ticker mention pulse/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Filter by analytics ticker $AAPL' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Filter by analytics ticker $BTC' })).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByLabelText('User name'), { target: { value: '@crypto_user' } })
+    fireEvent.submit(screen.getByLabelText('User name').closest('form') as HTMLFormElement)
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Filter by analytics ticker $AAPL' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Filter by analytics ticker $BTC' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Filter by analytics ticker $ETH' })).toBeInTheDocument()
+      expect(screen.getByText(/focused on @crypto_user/i)).toBeInTheDocument()
     })
   })
 

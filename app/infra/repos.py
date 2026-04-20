@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Iterable
 
 from sqlalchemy import delete, select, update
@@ -111,10 +111,17 @@ class TweetRepo:
         limit: int = 50,
         before_id: int | None = None,
         options_only: bool = False,
+        since_hours: int | None = None,
     ):
         stmt = select(TweetRow)
         if before_id is not None:
             stmt = stmt.where(TweetRow.id < before_id)
+        if since_hours is not None:
+            # SQLite rows are stored as naive UTC datetimes in this project.
+            since_at = (datetime.now(timezone.utc) - timedelta(hours=since_hours)).replace(
+                tzinfo=None
+            )
+            stmt = stmt.where(TweetRow.created_at >= since_at)
         if options_only:
             stmt = stmt.where(TweetRow.is_options_tweet.is_(True))
         stmt = stmt.order_by(TweetRow.id.desc()).limit(limit)

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -206,6 +206,20 @@ async def test_latest_options_only_filters_non_options_rows(tweet_repo):
     assert len(rows) == 1
     assert rows[0]["id"] == 3102
     assert rows[0]["is_options_tweet"] is True
+
+
+@pytest.mark.asyncio
+async def test_latest_since_hours_filters_old_rows(tweet_repo):
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    recent = {**SAMPLE_TWEETS[0], "id": 4101, "created_at": now - timedelta(hours=3)}
+    stale = {**SAMPLE_TWEETS[1], "id": 4102, "created_at": now - timedelta(hours=30)}
+
+    await tweet_repo.upsert_many([recent, stale])
+
+    rows = await tweet_repo.latest(since_hours=24)
+    ids = [row["id"] for row in rows]
+    assert 4101 in ids
+    assert 4102 not in ids
 
 
 @pytest.mark.asyncio

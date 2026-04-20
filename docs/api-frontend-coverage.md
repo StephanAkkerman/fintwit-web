@@ -1,6 +1,6 @@
 # API and Frontend Coverage Matrix
 
-Last updated: 2026-04-19
+Last updated: 2026-04-20
 
 ## Authentication
 
@@ -11,7 +11,7 @@ Last updated: 2026-04-19
 
 | Endpoint | Method | Data Source | Returns | Frontend Status |
 | --- | --- | --- | --- | --- |
-| `/api/posts` | GET | SQLite via `TweetRepo.latest` | Latest tweets including `assets`, engagement, media, symbols, full nested quoted tweet payload (`quoted_tweet`), and sentiment metadata for both main and quoted text (`sentiment_*`, `quoted_sentiment_*`). Supports pagination with `limit` (default 200, max 200) and `before_id` for older pages. Tweet payload may include `is_subscriber_only` on top-level and quoted tweet objects when present from upstream. Options-intent metadata is also available as `is_options_tweet` + `options_context` when classification is positive. Supports `options_only=true` to return only options-classified tweets. | Connected via `useTweets` |
+| `/api/posts` | GET | SQLite via `TweetRepo.latest` | Latest tweets including `assets`, engagement, media, symbols, full nested quoted tweet payload (`quoted_tweet`), and sentiment metadata for both main and quoted text (`sentiment_*`, `quoted_sentiment_*`). Supports pagination with `limit` (default 200, max 200) and `before_id` for older pages. Also supports optional time-window filtering via `since_hours` (1-168). Tweet payload may include `is_subscriber_only` on top-level and quoted tweet objects when present from upstream. Options-intent metadata is also available as `is_options_tweet` + `options_context` when classification is positive. Supports `options_only=true` to return only options-classified tweets. | Connected via `useTweets` |
 | `/api/stream` | GET (SSE) | In-memory broadcaster from stream worker | Real-time tweet/new engagement updates (including full `quoted_tweet` payload plus main + quoted sentiment metadata on new tweets). Stream payload may include `is_subscriber_only` on top-level and quoted tweet objects when present from upstream. Options-intent metadata is also included as `is_options_tweet` + `options_context` when classification is positive. Supports `options_only=true` to stream only options-classified tweets. | Connected via `useTweets` |
 | `/api/fear-greed` | GET | `alternative.me/fng` | `{ value, change, status }` | Connected via `FearGreedWidget` |
 | `/api/treemap` | GET | `coin360.com/site-api/coins` | Coin360 top-100 treemap payload | Connected via `TreemapWidget` |
@@ -86,6 +86,8 @@ For equities/ETFs, `tweet.assets[*].company_profile` may include curated finance
   - quote embeds in `TweetCard` display quoted author identity and quoted timestamp in the embed header (using API-provided quote fields when available, with markdown/URL inference fallback).
   - quote embeds in `TweetCard` also render the quoted user's avatar in the header (from `quoted_tweet.user_img` or `quoted_user_img` fallback).
   - when present, quote embeds prefer `quoted_tweet` metadata/media from backend over markdown parsing heuristics.
+  - `TickerMentionsPanel` derives "top mentioned symbols" analytics from the loaded timeline subset (post route scope + user filter + portfolio/options constraints) and supports click-through ticker filtering from its bars.
+  - `useTweets` now requests `/api/posts` with `since_hours=24` by default, so timeline and analytics are anchored to the last 24h of loaded tweets.
 
 - Crypto route widgets rely on:
   - `/api/trending-crypto` for top searched coin context,

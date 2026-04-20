@@ -1,6 +1,6 @@
 # Migration Status
 
-Last updated: 2026-04-19
+Last updated: 2026-04-20
 
 ## Backend: Implemented
 
@@ -41,7 +41,7 @@ Last updated: 2026-04-19
 ## Frontend: Implemented
 
 - Live tweet timeline using initial REST load + SSE updates.
-- Timeline pagination: initial REST load now requests 200 tweets, with manual load-older pagination wired via `before_id`.
+- Timeline pagination: initial REST load now requests the last 24 hours (`since_hours=24`) with manual load-older pagination wired via `before_id` within the same time window.
 - Quote tweet markdown rendering with quote embed styling.
 - Repost handling: retweeted posts now render with original author identity (name/avatar) and explicit reposter attribution line.
 - Quote tweet header now mirrors native X styling by showing quoted author identity (instead of a generic label) and quoted timestamp when available.
@@ -61,6 +61,8 @@ Last updated: 2026-04-19
 - User filtering via:
   - clicking tweet author name or avatar,
   - manual typed input in sidebar user filter.
+- Ticker mention analytics panel now renders on all non-admin routes, using the currently loaded tweet set to visualize top mentioned symbols, mention share, chart-signal density, and quick insight tags.
+- Ticker mention analytics are route-aware and user-aware: changing route scope or applying a user filter updates the visualization to that exact subset (for example, "what @user mentions most").
 - Route-level segmentation pages implemented:
   - `/` home overview,
   - `/crypto` crypto widgets,
@@ -99,6 +101,7 @@ Last updated: 2026-04-19
 - Options overview widget: `/api/options/overview` -> `OptionsOverviewWidget`.
 - Options tweet intent metadata: `/api/posts` + `/api/stream` -> options route timeline filtering (`is_options_tweet`, `options_context`).
 - Market overview stream assets: `/api/posts` + `/api/stream` -> `MarketOverview`.
+- Ticker mention pulse: `/api/posts` + `/api/stream` -> `TickerMentionsPanel` (route-scoped + user-scoped mention analytics).
 - Debug admin panel: `/api/debug/tweet` -> `DebugAdminPanel` (`/admin`).
 - Portfolio panel: `/api/portfolio/positions` + `/api/portfolio/summary` -> `PortfolioPanel` (`/portfolio`).
 - WallStreetBets panel: `/api/reddit/wsb` -> `RedditWsbWidget` (`/`).
