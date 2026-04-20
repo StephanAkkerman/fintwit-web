@@ -16,11 +16,10 @@ RUN apt-get update \
 
 COPY requirements.txt ./
 RUN pip install --upgrade pip \
-    && if [ "$(uname -m)" = "x86_64" ]; then \
-         pip install --index-url https://download.pytorch.org/whl/cpu "torch==${TORCH_VERSION}"; \
-       else \
-         pip install "torch==${TORCH_VERSION}"; \
-       fi \
+    && pip install \
+         --index-url https://download.pytorch.org/whl/cpu \
+         --extra-index-url https://pypi.org/simple \
+         "torch==${TORCH_VERSION}" \
     && grep -Ev '^torch([[:space:]]|$|[<>=!~])' requirements.txt > requirements.no-torch.txt \
     && pip install -r requirements.no-torch.txt \
     && rm -f requirements.no-torch.txt
