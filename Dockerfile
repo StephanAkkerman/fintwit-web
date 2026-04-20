@@ -27,8 +27,9 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
 COPY requirements.txt ./
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     grep -Ev '^torch([[:space:]]|$|[<>=!~])' requirements.txt > requirements.no-torch.txt \
-    && pip install -r requirements.no-torch.txt \
-    && rm -f requirements.no-torch.txt
+    && printf 'torch==%s\n' "${TORCH_VERSION}" > constraints.txt \
+    && pip install -c constraints.txt -r requirements.no-torch.txt \
+    && rm -f requirements.no-torch.txt constraints.txt
 
 # Fail fast during image build if PyTorch CPU execution is not compatible.
 RUN python - <<'PY'
@@ -38,6 +39,11 @@ import torch
 x = torch.randn(8, 8)
 _ = x @ x
 print("torch_ok", platform.machine(), torch.__version__)
+
+expected = "${TORCH_VERSION}".strip()
+actual = torch.__version__.split("+", 1)[0]
+if expected and actual != expected:
+    raise RuntimeError(f"Unexpected torch version: expected {expected}, got {torch.__version__}")
 PY
 
 COPY app ./app
