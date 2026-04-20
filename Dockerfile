@@ -1,26 +1,32 @@
+# syntax=docker/dockerfile:1.7
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-  PYTHONFAULTHANDLER=1 \
-    PIP_NO_CACHE_DIR=1
+    PYTHONFAULTHANDLER=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
 WORKDIR /app
 
 ARG TORCH_VERSION=2.8.0
 
 # git is required for requirements that install from GitHub.
-RUN apt-get update \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update \
     && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt ./
-RUN pip install --upgrade pip \
+RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
+    pip install --upgrade pip setuptools wheel \
     && pip install \
          --index-url https://download.pytorch.org/whl/cpu \
          --extra-index-url https://pypi.org/simple \
-         "torch==${TORCH_VERSION}" \
-    && grep -Ev '^torch([[:space:]]|$|[<>=!~])' requirements.txt > requirements.no-torch.txt \
+         "torch==${TORCH_VERSION}"
+
+COPY requirements.txt ./
+RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
+    grep -Ev '^torch([[:space:]]|$|[<>=!~])' requirements.txt > requirements.no-torch.txt \
     && pip install -r requirements.no-torch.txt \
     && rm -f requirements.no-torch.txt
 

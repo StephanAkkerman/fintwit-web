@@ -96,6 +96,17 @@ IBKR_PORT=4004
 docker compose up -d --build
 ```
 
+Build speed tips on Raspberry Pi:
+
+- For day-to-day restarts, use `docker compose up -d` (without `--build`).
+- Rebuild only when dependencies or Dockerfile change: `docker compose build backend`.
+- Keep BuildKit enabled for cached package downloads across rebuilds:
+
+```bash
+export DOCKER_BUILDKIT=1
+export COMPOSE_DOCKER_CLI_BUILD=1
+```
+
 The backend Docker image installs CPU-only PyTorch wheels (`download.pytorch.org/whl/cpu`) to avoid pulling large CUDA runtime packages on Linux hosts.
 
 This stack runs:
