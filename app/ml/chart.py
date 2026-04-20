@@ -7,12 +7,22 @@ blocks startup.  All inference is offloaded to a thread pool via
 
 import asyncio
 import logging
+import os
 from io import BytesIO
 from typing import Union
 
 logger = logging.getLogger(__name__)
 
 _pipeline = None  # lazily initialised
+
+
+def _chart_enabled() -> bool:
+    return os.getenv("CHART_ENABLED", "true").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
 
 
 def _load_pipeline():
@@ -53,13 +63,18 @@ def _load_pipeline():
         "hf_hub:StephanAkkerman/chart-recognizer", pretrained=True
     )
     model.eval()
-    transform = create_transform(**resolve_data_config(model.pretrained_cfg, model=model))
+    transform = create_transform(
+        **resolve_data_config(model.pretrained_cfg, model=model)
+    )
     labels = model.pretrained_cfg["label_names"]
     return _Pipeline(model=model, transform=transform, labels=labels)
 
 
 def _classify_sync(image_url: str) -> str:
     """Blocking classification — run this inside a thread."""
+    if not _chart_enabled():
+        return "not_chart"
+
     global _pipeline
     if _pipeline is None:
         logger.info("[chart] loading chart-recognizer model…")
@@ -74,5 +89,8 @@ def _classify_sync(image_url: str) -> str:
 
 async def is_chart(image_url: str) -> bool:
     """Return True if the image at *image_url* is classified as a financial chart."""
+    if not _chart_enabled():
+        return False
+
     label = await asyncio.to_thread(_classify_sync, image_url)
     return label == "chart"

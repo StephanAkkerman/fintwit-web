@@ -55,6 +55,22 @@ TWS_USERID=your-ibkr-username
 TWS_PASSWORD=your-ibkr-password
 ```
 
+If your backend crashes on Raspberry Pi with a PyTorch `Illegal instruction`
+error in chart recognition, temporarily disable chart inference:
+
+```bash
+CHART_ENABLED=false
+```
+
+To isolate the exact failing stage (PyTorch conv vs timm vs chart model), run
+the chart stack probe inside the backend container:
+
+```bash
+docker exec -it fintwit-backend python -m app.runtime.probe_chart_stack
+```
+
+This prints the first failing probe and whether it crashed with `SIGILL`.
+
 If you use paper trading instead of live:
 
 ```bash
