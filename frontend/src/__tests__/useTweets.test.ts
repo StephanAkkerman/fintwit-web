@@ -58,6 +58,29 @@ describe('useTweets', () => {
     expect(result.current.tweets[1].id).toBe(2)
   })
 
+  it('uses selected lookback window and reloads when it changes', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({ json: async () => [makeTweet(1)] } as Response)
+      .mockResolvedValueOnce({ json: async () => [makeTweet(2)] } as Response)
+
+    const { result, rerender } = renderHook(
+      ({ hours }) => useTweets('', 2000, 200, false, hours),
+      { initialProps: { hours: 48 as number | null } }
+    )
+
+    await waitFor(() => expect(result.current.tweets[0]?.id).toBe(1))
+    expect(fetch).toHaveBeenNthCalledWith(1, '/api/posts?limit=200&since_hours=48', {
+      credentials: 'include',
+    })
+
+    rerender({ hours: 168 })
+
+    await waitFor(() => expect(result.current.tweets[0]?.id).toBe(2))
+    expect(fetch).toHaveBeenNthCalledWith(2, '/api/posts?limit=200&since_hours=168', {
+      credentials: 'include',
+    })
+  })
+
   it('loads older tweets using before_id pagination', async () => {
     const initialData = [makeTweet(5), makeTweet(4)]
     const olderData = [makeTweet(3), makeTweet(2)]

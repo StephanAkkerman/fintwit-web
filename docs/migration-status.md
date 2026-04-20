@@ -42,6 +42,8 @@ Last updated: 2026-04-20
 
 - Live tweet timeline using initial REST load + SSE updates.
 - Timeline pagination: initial REST load now requests the last 24 hours (`since_hours=24`) with manual load-older pagination wired via `before_id` within the same time window.
+- Sidebar lookback toggle now supports 24h/48h/7d windows and triggers immediate timeline reloads so users can compare data volume and load-speed impact.
+- Sidebar performance mini-metrics now show last load duration, fetched tweet count, and currently loaded in-memory count for quick impact checks while changing lookback windows.
 - Quote tweet markdown rendering with quote embed styling.
 - Repost handling: retweeted posts now render with original author identity (name/avatar) and explicit reposter attribution line.
 - Quote tweet header now mirrors native X styling by showing quoted author identity (instead of a generic label) and quoted timestamp when available.

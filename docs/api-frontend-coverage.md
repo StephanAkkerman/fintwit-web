@@ -88,6 +88,8 @@ For equities/ETFs, `tweet.assets[*].company_profile` may include curated finance
   - when present, quote embeds prefer `quoted_tweet` metadata/media from backend over markdown parsing heuristics.
   - `TickerMentionsPanel` derives "top mentioned symbols" analytics from the loaded timeline subset (post route scope + user filter + portfolio/options constraints) and supports click-through ticker filtering from its bars.
   - `useTweets` now requests `/api/posts` with `since_hours=24` by default, so timeline and analytics are anchored to the last 24h of loaded tweets.
+  - Sidebar lookback controls can switch `since_hours` between `24`, `48`, and `168` to compare response/load behavior while keeping route/user filters intact.
+  - `useTweets` exposes load-impact stats (`lastLoadDurationMs`, `lastLoadedCount`, `tweets.length`) that are surfaced in the sidebar for quick performance comparison across windows.
 
 - Crypto route widgets rely on:
   - `/api/trending-crypto` for top searched coin context,

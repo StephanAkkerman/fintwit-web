@@ -15,7 +15,10 @@ export function useTweets(
 ) {
   const [tweets, setTweets] = useState<Tweet[]>([])
   const [hasMore, setHasMore] = useState(true)
+  const [isInitialLoading, setIsInitialLoading] = useState(false)
   const [isLoadingOlder, setIsLoadingOlder] = useState(false)
+  const [lastLoadDurationMs, setLastLoadDurationMs] = useState<number | null>(null)
+  const [lastLoadedCount, setLastLoadedCount] = useState(0)
   const ids = useRef<Set<number>>(new Set())
   const loadingOlderRef = useRef(false)
 
@@ -31,7 +34,9 @@ export function useTweets(
   // initial load
   useEffect(() => {
     let cancelled = false
+    setIsInitialLoading(true)
     ;(async () => {
+      const startedAt = globalThis.performance?.now?.() ?? Date.now()
       try {
         const query = buildPostsQuery()
         const r = await fetch(`${apiBase}/api/posts?${query}`, {
@@ -39,12 +44,21 @@ export function useTweets(
         })
         const data: Tweet[] = await r.json()
         if (cancelled) return
+        const endedAt = globalThis.performance?.now?.() ?? Date.now()
         ids.current = new Set(data.map((t) => t.id))
         setTweets(data)
+        setLastLoadedCount(data.length)
+        setLastLoadDurationMs(Math.max(0, Math.round(endedAt - startedAt)))
         setHasMore(data.length === pageSize)
       } catch (e) {
+        if (cancelled) return
         console.error('initial load failed', e)
+        setLastLoadedCount(0)
         setHasMore(false)
+      } finally {
+        if (!cancelled) {
+          setIsInitialLoading(false)
+        }
       }
     })()
     return () => {
@@ -119,7 +133,15 @@ export function useTweets(
   }, [apiBase, maxItems, optionsOnly])
 
   return useMemo(
-    () => ({ tweets, hasMore, isLoadingOlder, loadOlder }),
-    [tweets, hasMore, isLoadingOlder]
+    () => ({
+      tweets,
+      hasMore,
+      isInitialLoading,
+      isLoadingOlder,
+      loadOlder,
+      lastLoadDurationMs,
+      lastLoadedCount,
+    }),
+    [tweets, hasMore, isInitialLoading, isLoadingOlder, lastLoadDurationMs, lastLoadedCount]
   )
 }

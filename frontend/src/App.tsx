@@ -24,6 +24,13 @@ import { hasChartSignal } from './utils/tweetSignals'
 type FilterKey = 'all' | 'crypto' | 'stock'
 type RouteKey = 'home' | 'crypto' | 'stocks' | 'forex' | 'options' | 'nfts' | 'portfolio' | 'admin'
 type ChartSortMode = 'latest' | 'charts-first' | 'charts-only'
+type LookbackWindow = 24 | 48 | 168
+
+const LOOKBACK_WINDOWS: Array<{ value: LookbackWindow; label: string }> = [
+  { value: 24, label: '24h' },
+  { value: 48, label: '48h' },
+  { value: 168, label: '7d' },
+]
 
 const SECTIONS: Array<{ key: RouteKey; label: string; path: string; subtitle: string }> = [
   { key: 'home', label: 'Home', path: '/', subtitle: 'Cross-market stream' },
@@ -130,7 +137,16 @@ function matchesFilter(tweet: Tweet, filter: FilterKey): boolean {
 
 export default function App() {
   const [route, setRoute] = useState<RouteKey>(() => routeFromPath(window.location.pathname))
-  const { tweets, hasMore, isLoadingOlder, loadOlder } = useTweets('', 2000, 200, route === 'options', 24) // same-origin API (proxied in dev)
+  const [lookbackHours, setLookbackHours] = useState<LookbackWindow>(24)
+  const {
+    tweets,
+    hasMore,
+    isInitialLoading,
+    isLoadingOlder,
+    loadOlder,
+    lastLoadDurationMs,
+    lastLoadedCount,
+  } = useTweets('', 2000, 200, route === 'options', lookbackHours) // same-origin API (proxied in dev)
   const { status: ibkrStatus, positions: ibkrPositions, trades: ibkrTrades, account: ibkrAccount, loading: ibkrLoading, error: ibkrError, reload: reloadIbkr } = useIbkr()
   const [tickerFilter, setTickerFilter] = useState<string | null>(null)
   const [tickerInput, setTickerInput] = useState('')
@@ -340,6 +356,39 @@ export default function App() {
                 Use this route to inject a debug tweet via `/api/debug/tweet` and verify timeline behavior.
               </p>
             )}
+
+            <div className="mt-4 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+              <h3 className="px-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+                Lookback
+              </h3>
+              <div className="mt-2 flex flex-wrap gap-1.5 px-2">
+                {LOOKBACK_WINDOWS.map((window) => {
+                  const active = lookbackHours === window.value
+                  return (
+                    <button
+                      key={window.value}
+                      type="button"
+                      aria-label={`Lookback ${window.label}`}
+                      onClick={() => setLookbackHours(window.value)}
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                        active
+                          ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                          : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                      }`}
+                    >
+                      {window.label}
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="mt-2 space-y-1 px-2 text-xs text-zinc-500">
+                <p>Current window: last {lookbackHours}h</p>
+                <p>Last load: {lastLoadDurationMs === null ? '--' : `${lastLoadDurationMs} ms`}</p>
+                <p>Fetched tweets: {lastLoadedCount}</p>
+                <p>Loaded in memory: {tweets.length}</p>
+                {isInitialLoading && <p className="text-zinc-400">Refreshing timeline...</p>}
+              </div>
+            </div>
 
             <div className="mt-4 border-t border-zinc-200 pt-3 dark:border-zinc-800">
               <h3 className="px-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">

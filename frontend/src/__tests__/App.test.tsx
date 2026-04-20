@@ -197,6 +197,189 @@ describe('App', () => {
     expect(window.location.pathname).toBe('/options')
   })
 
+  it('switches lookback window and refreshes performance stats', async () => {
+    const oneTweet: Tweet[] = [
+      {
+        id: 1,
+        text: '$BTC first pass',
+        user_name: 'Crypto User',
+        user_screen_name: 'crypto_user',
+        user_img: 'https://example.com/c.jpg',
+        url: 'https://x.com/crypto_user/status/1',
+        created_at: '',
+        media: [],
+        tickers: ['BTC'],
+        hashtags: [],
+        title: '',
+        media_types: [],
+        replies: 0,
+        likes: 0,
+        views: 0,
+        retweets: 0,
+        assets: [{ symbol: 'BTC', kind: 'CRYPTO' }],
+      },
+    ]
+
+    const threeTweets: Tweet[] = [
+      oneTweet[0],
+      {
+        id: 2,
+        text: '$ETH second pass',
+        user_name: 'Crypto User',
+        user_screen_name: 'crypto_user',
+        user_img: 'https://example.com/c.jpg',
+        url: 'https://x.com/crypto_user/status/2',
+        created_at: '',
+        media: [],
+        tickers: ['ETH'],
+        hashtags: [],
+        title: '',
+        media_types: [],
+        replies: 0,
+        likes: 0,
+        views: 0,
+        retweets: 0,
+        assets: [{ symbol: 'ETH', kind: 'CRYPTO' }],
+      },
+      {
+        id: 3,
+        text: '$SOL third pass',
+        user_name: 'Crypto User',
+        user_screen_name: 'crypto_user',
+        user_img: 'https://example.com/c.jpg',
+        url: 'https://x.com/crypto_user/status/3',
+        created_at: '',
+        media: [],
+        tickers: ['SOL'],
+        hashtags: [],
+        title: '',
+        media_types: [],
+        replies: 0,
+        likes: 0,
+        views: 0,
+        retweets: 0,
+        assets: [{ symbol: 'SOL', kind: 'CRYPTO' }],
+      },
+    ]
+
+    fetchMock.mockImplementation((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/api/posts?limit=200&since_hours=24')) {
+        return Promise.resolve({ ok: true, json: async () => oneTweet } as Response)
+      }
+      if (url.includes('/api/posts?limit=200&since_hours=168')) {
+        return Promise.resolve({ ok: true, json: async () => threeTweets } as Response)
+      }
+      if (url.includes('/api/fear-greed')) {
+        return Promise.resolve(
+          {
+            ok: true,
+            json: async () => ({ value: 50, change: '+0', status: 'Neutral' }),
+          } as Response
+        )
+      }
+      if (url.includes('/api/reddit/wsb')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/trending-crypto')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/binance/gainers-losers')) {
+        return Promise.resolve({ ok: true, json: async () => ({ gainers: [], losers: [] }) } as Response)
+      }
+      if (url.includes('/api/nfts/trending')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/treemap')) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)
+      }
+      if (url.includes('/api/stocktwits')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/stocks/market-hours')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/stock-halts')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/events/economic')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/options/overview')) {
+        return Promise.resolve(
+          {
+            ok: true,
+            json: async () => ({
+              symbols: [],
+              totals: { call_volume: 0, put_volume: 0, total_volume: 0, put_call_ratio: null },
+              bullish: [],
+              bearish: [],
+              most_active_contracts: [],
+              source: 'nasdaq',
+            }),
+          } as Response
+        )
+      }
+      if (url.includes('/api/spy-heatmap')) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)
+      }
+      if (url.includes('/api/portfolio/positions')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/portfolio/summary')) {
+        return Promise.resolve(
+          {
+            ok: true,
+            json: async () => ({
+              totals: {
+                positions: 0,
+                market_value: 0,
+                cost_basis: 0,
+                unrealized_pnl: 0,
+                unrealized_pnl_percent: 0,
+              },
+              positions: [],
+            }),
+          } as Response
+        )
+      }
+      if (url.includes('/api/ibkr/status')) {
+        return Promise.resolve(
+          {
+            ok: true,
+            json: async () => ({ configured: false, connected: false, last_sync: null, last_error: null }),
+          } as Response
+        )
+      }
+      if (url.includes('/api/ibkr/positions')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/ibkr/trades')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/ibkr/account')) {
+        return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
+      }
+
+      return Promise.resolve({ ok: true, json: async () => [] } as Response)
+    })
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByText(/current window: last 24h/i)).toBeInTheDocument()
+      expect(screen.getByText('Fetched tweets: 1')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Lookback 7d' }))
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some((call) => String(call[0]).includes('/api/posts?limit=200&since_hours=168'))).toBe(true)
+      expect(screen.getByText(/current window: last 168h/i)).toBeInTheDocument()
+      expect(screen.getByText('Fetched tweets: 3')).toBeInTheDocument()
+    })
+  })
+
   it('shows nft section widget when navigating to /nfts', async () => {
     render(<App />)
 

@@ -72,6 +72,9 @@ Route-level sections:
 
 - Sidebar filters
   - Category scope is controlled by route/section selection.
+  - Lookback controls:
+    - toggle timeline window across `24h`, `48h`, and `7d` (`since_hours` values `24/48/168`),
+    - display load-impact metrics (last load ms, fetched tweet count, loaded-in-memory count).
   - Ticker filters:
     - click ticker in tweet financial card,
     - type ticker manually and apply.
