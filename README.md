@@ -62,6 +62,18 @@ error in chart recognition, temporarily disable chart inference:
 CHART_ENABLED=false
 ```
 
+To pin/downgrade PyTorch used by the backend Docker image, set:
+
+```bash
+TORCH_VERSION=2.8.0
+```
+
+and rebuild:
+
+```bash
+docker compose up -d --build backend
+```
+
 To isolate the exact failing stage (PyTorch conv vs timm vs chart model), run
 the chart stack probe inside the backend container:
 

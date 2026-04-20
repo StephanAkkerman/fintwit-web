@@ -7,6 +7,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+ARG TORCH_VERSION=2.8.0
+
 # git is required for requirements that install from GitHub.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git \
@@ -15,9 +17,9 @@ RUN apt-get update \
 COPY requirements.txt ./
 RUN pip install --upgrade pip \
     && if [ "$(uname -m)" = "x86_64" ]; then \
-         pip install --index-url https://download.pytorch.org/whl/cpu torch; \
+         pip install --index-url https://download.pytorch.org/whl/cpu "torch==${TORCH_VERSION}"; \
        else \
-         pip install torch; \
+         pip install "torch==${TORCH_VERSION}"; \
        fi \
     && grep -Ev '^torch([[:space:]]|$|[<>=!~])' requirements.txt > requirements.no-torch.txt \
     && pip install -r requirements.no-torch.txt \
