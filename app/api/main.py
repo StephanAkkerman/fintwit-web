@@ -127,7 +127,7 @@ app = FastAPI(title="X Stream API", lifespan=lifespan)
 
 @app.get("/api/posts")
 async def list_posts(
-    limit: int = Query(200, ge=1, le=200),
+    limit: int = Query(200, ge=1, le=2000),
     before_id: int | None = Query(default=None, ge=1),
     since_hours: int | None = Query(default=None, ge=1, le=168),
     options_only: bool = Query(default=False),

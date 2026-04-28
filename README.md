@@ -93,6 +93,7 @@ IBKR_PORT=4004
 ### 3) Build and run locally on Pi
 
 ```bash
+docker compose down # stop any existing containers first to avoid conflicts
 docker compose up -d --build
 ```
 

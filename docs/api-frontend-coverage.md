@@ -1,6 +1,6 @@
 # API and Frontend Coverage Matrix
 
-Last updated: 2026-04-20
+Last updated: 2026-04-28
 
 ## Authentication
 
@@ -11,7 +11,7 @@ Last updated: 2026-04-20
 
 | Endpoint | Method | Data Source | Returns | Frontend Status |
 | --- | --- | --- | --- | --- |
-| `/api/posts` | GET | SQLite via `TweetRepo.latest` | Latest tweets including `assets`, engagement, media, symbols, full nested quoted tweet payload (`quoted_tweet`), and sentiment metadata for both main and quoted text (`sentiment_*`, `quoted_sentiment_*`). Supports pagination with `limit` (default 200, max 200) and `before_id` for older pages. Also supports optional time-window filtering via `since_hours` (1-168). Tweet payload may include `is_subscriber_only` on top-level and quoted tweet objects when present from upstream. Options-intent metadata is also available as `is_options_tweet` + `options_context` when classification is positive. Supports `options_only=true` to return only options-classified tweets. | Connected via `useTweets` |
+| `/api/posts` | GET | SQLite via `TweetRepo.latest` | Latest tweets including `assets`, engagement, media, symbols, full nested quoted tweet payload (`quoted_tweet`), and sentiment metadata for both main and quoted text (`sentiment_*`, `quoted_sentiment_*`). Supports pagination with `limit` (default 200, max 2000) and `before_id` for older pages. Also supports optional time-window filtering via `since_hours` (1-168). The frontend pages in fixed 200-item batches until the selected time window is exhausted, so the loaded set reflects the full window rather than an arbitrary cap. Tweet payload may include `is_subscriber_only` on top-level and quoted tweet objects when present from upstream. Options-intent metadata is also available as `is_options_tweet` + `options_context` when classification is positive. Supports `options_only=true` to return only options-classified tweets. | Connected via `useTweets` |
 | `/api/stream` | GET (SSE) | In-memory broadcaster from stream worker | Real-time tweet/new engagement updates (including full `quoted_tweet` payload plus main + quoted sentiment metadata on new tweets). Stream payload may include `is_subscriber_only` on top-level and quoted tweet objects when present from upstream. Options-intent metadata is also included as `is_options_tweet` + `options_context` when classification is positive. Supports `options_only=true` to stream only options-classified tweets. | Connected via `useTweets` |
 | `/api/fear-greed` | GET | `alternative.me/fng` | `{ value, change, status }` | Connected via `FearGreedWidget` |
 | `/api/treemap` | GET | `coin360.com/site-api/coins` | Coin360 top-100 treemap payload | Connected via `TreemapWidget` |

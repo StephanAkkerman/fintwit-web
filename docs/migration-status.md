@@ -1,6 +1,6 @@
 # Migration Status
 
-Last updated: 2026-04-20
+Last updated: 2026-04-28
 
 ## Backend: Implemented
 
@@ -41,7 +41,7 @@ Last updated: 2026-04-20
 ## Frontend: Implemented
 
 - Live tweet timeline using initial REST load + SSE updates.
-- Timeline pagination: initial REST load now requests the last 24 hours (`since_hours=24`) with manual load-older pagination wired via `before_id` within the same time window.
+- Timeline pagination: initial REST load pages in fixed batches and keeps requesting older pages until the selected time window is exhausted, while manual load-older pagination still uses `before_id`.
 - Sidebar lookback toggle now supports 24h/48h/7d windows and triggers immediate timeline reloads so users can compare data volume and load-speed impact.
 - Sidebar performance mini-metrics now show last load duration, fetched tweet count, and currently loaded in-memory count for quick impact checks while changing lookback windows.
 - Quote tweet markdown rendering with quote embed styling.

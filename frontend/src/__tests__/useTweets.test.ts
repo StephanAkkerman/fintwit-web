@@ -81,6 +81,37 @@ describe('useTweets', () => {
     })
   })
 
+  it('keeps paging until the lookback window is fully loaded', async () => {
+    const now = Date.now()
+    const within24h = new Date(now - 2 * 60 * 60 * 1000).toISOString()
+    const justInside24h = new Date(now - 23 * 60 * 60 * 1000).toISOString()
+    const justOutside24h = new Date(now - 25 * 60 * 60 * 1000).toISOString()
+
+    const firstPage = [
+      { ...makeTweet(3), created_at: within24h },
+      { ...makeTweet(2), created_at: justInside24h },
+    ]
+    const secondPage = [
+      { ...makeTweet(1), created_at: justInside24h },
+      { ...makeTweet(0), created_at: justOutside24h },
+    ]
+
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({ json: async () => firstPage } as Response)
+      .mockResolvedValueOnce({ json: async () => secondPage } as Response)
+
+    const { result } = renderHook(() => useTweets('', 2000, 2, false, 24))
+
+    await waitFor(() => expect(result.current.tweets).toHaveLength(3))
+    expect(fetch).toHaveBeenNthCalledWith(1, '/api/posts?limit=2&since_hours=24', {
+      credentials: 'include',
+    })
+    expect(fetch).toHaveBeenNthCalledWith(2, '/api/posts?limit=2&before_id=2&since_hours=24', {
+      credentials: 'include',
+    })
+    expect(result.current.tweets.map((tweet) => tweet.id)).toEqual([3, 2, 1])
+  })
+
   it('loads older tweets using before_id pagination', async () => {
     const initialData = [makeTweet(5), makeTweet(4)]
     const olderData = [makeTweet(3), makeTweet(2)]
@@ -88,7 +119,7 @@ describe('useTweets', () => {
       .mockResolvedValueOnce({ json: async () => initialData } as Response)
       .mockResolvedValueOnce({ json: async () => olderData } as Response)
 
-    const { result } = renderHook(() => useTweets('', 2000, 2))
+    const { result } = renderHook(() => useTweets('', 2000, 2, false, null))
     await waitFor(() => expect(result.current.tweets).toHaveLength(2))
 
     await act(async () => {
@@ -96,7 +127,7 @@ describe('useTweets', () => {
     })
 
     await waitFor(() => expect(result.current.tweets).toHaveLength(4))
-    expect(fetch).toHaveBeenNthCalledWith(2, '/api/posts?limit=2&before_id=4&since_hours=24', {
+    expect(fetch).toHaveBeenNthCalledWith(2, '/api/posts?limit=2&before_id=4', {
       credentials: 'include',
     })
     expect(result.current.tweets.map((t) => t.id)).toEqual([5, 4, 3, 2])
@@ -177,10 +208,10 @@ describe('useTweets', () => {
       .mockResolvedValueOnce({ json: async () => initialData } as Response)
       .mockResolvedValueOnce({ json: async () => olderData } as Response)
 
-    const { result } = renderHook(() => useTweets('', 2000, 1, true))
+    const { result } = renderHook(() => useTweets('', 2000, 1, true, null))
 
     await waitFor(() => expect(result.current.tweets).toHaveLength(1))
-    expect(fetch).toHaveBeenNthCalledWith(1, '/api/posts?limit=1&since_hours=24&options_only=true', {
+    expect(fetch).toHaveBeenNthCalledWith(1, '/api/posts?limit=1&options_only=true', {
       credentials: 'include',
     })
     expect(MockEventSource.instances[0].url).toBe('/api/stream?options_only=true')
@@ -191,7 +222,7 @@ describe('useTweets', () => {
 
     expect(fetch).toHaveBeenNthCalledWith(
       2,
-      '/api/posts?limit=1&before_id=10&since_hours=24&options_only=true',
+      '/api/posts?limit=1&before_id=10&options_only=true',
       {
         credentials: 'include',
       }

@@ -31,6 +31,27 @@ export function useTweets(
     return params.toString()
   }
 
+  const isWithinWindow = (tweet: Tweet, cutoffMs: number | null) => {
+    if (cutoffMs === null) return true
+    const createdAtMs = Date.parse(tweet.created_at)
+    return !Number.isFinite(createdAtMs) || createdAtMs >= cutoffMs
+  }
+
+  const shouldContinuePaging = (page: Tweet[], cutoffMs: number | null) => {
+    if (cutoffMs === null) return false
+    if (page.length < pageSize) return false
+    const oldest = page[page.length - 1]
+    return oldest ? isWithinWindow(oldest, cutoffMs) : false
+  }
+
+  const fetchPage = async (beforeId?: number) => {
+    const query = buildPostsQuery(beforeId)
+    const r = await fetch(`${apiBase}/api/posts?${query}`, {
+      credentials: 'include',
+    })
+    return (await r.json()) as Tweet[]
+  }
+
   // initial load
   useEffect(() => {
     let cancelled = false
@@ -38,18 +59,39 @@ export function useTweets(
     ;(async () => {
       const startedAt = globalThis.performance?.now?.() ?? Date.now()
       try {
-        const query = buildPostsQuery()
-        const r = await fetch(`${apiBase}/api/posts?${query}`, {
-          credentials: 'include',
-        })
-        const data: Tweet[] = await r.json()
+        const cutoffMs = sinceHours !== null ? Date.now() - sinceHours * 60 * 60 * 1000 : null
+        const loaded = new Map<number, Tweet>()
+        let beforeId: number | undefined = undefined
+
+        while (true) {
+          const page = await fetchPage(beforeId)
+          if (cancelled) return
+
+          for (const tweet of page) {
+            if (isWithinWindow(tweet, cutoffMs)) {
+              loaded.set(tweet.id, tweet)
+            }
+          }
+
+          if (!shouldContinuePaging(page, cutoffMs)) {
+            break
+          }
+
+          beforeId = page[page.length - 1]?.id
+          if (!beforeId) {
+            break
+          }
+        }
+
+        const data = Array.from(loaded.values())
         if (cancelled) return
+
         const endedAt = globalThis.performance?.now?.() ?? Date.now()
         ids.current = new Set(data.map((t) => t.id))
         setTweets(data)
         setLastLoadedCount(data.length)
         setLastLoadDurationMs(Math.max(0, Math.round(endedAt - startedAt)))
-        setHasMore(data.length === pageSize)
+        setHasMore(sinceHours === null && data.length === pageSize)
       } catch (e) {
         if (cancelled) return
         console.error('initial load failed', e)
@@ -64,7 +106,7 @@ export function useTweets(
     return () => {
       cancelled = true
     }
-  }, [apiBase, pageSize, optionsOnly, sinceHours])
+  }, [apiBase, optionsOnly, pageSize, sinceHours])
 
   const loadOlder = async () => {
     if (loadingOlderRef.current || !hasMore) return
@@ -79,11 +121,7 @@ export function useTweets(
     setIsLoadingOlder(true)
 
     try {
-      const query = buildPostsQuery(oldest.id)
-      const r = await fetch(`${apiBase}/api/posts?${query}`, {
-        credentials: 'include',
-      })
-      const older: Tweet[] = await r.json()
+      const older = await fetchPage(oldest.id)
 
       setTweets((prev) => {
         const seen = new Set(prev.map((t) => t.id))
