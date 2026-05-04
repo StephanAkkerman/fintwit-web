@@ -135,6 +135,10 @@ function matchesFilter(tweet: Tweet, filter: FilterKey): boolean {
   return hasStock
 }
 
+function isSubscriberOnlyTweet(tweet: Tweet): boolean {
+  return Boolean(tweet.is_subscriber_only || tweet.quoted_tweet?.is_subscriber_only)
+}
+
 export default function App() {
   const [route, setRoute] = useState<RouteKey>(() => routeFromPath(window.location.pathname))
   const [lookbackHours, setLookbackHours] = useState<LookbackWindow>(24)
@@ -152,6 +156,7 @@ export default function App() {
   const [tickerInput, setTickerInput] = useState('')
   const [userFilter, setUserFilter] = useState<string | null>(null)
   const [userInput, setUserInput] = useState('')
+  const [subscriberOnlyFilter, setSubscriberOnlyFilter] = useState(false)
   const [chartSortMode, setChartSortMode] = useState<ChartSortMode>('latest')
 
   useEffect(() => {
@@ -191,7 +196,8 @@ export default function App() {
     let scoped = tweets.filter(
       (tweet) =>
         matchesFilter(tweet, effectiveFilter) &&
-        (!userFilter || matchesUser(tweet, userFilter))
+        (!userFilter || matchesUser(tweet, userFilter)) &&
+        (!subscriberOnlyFilter || isSubscriberOnlyTweet(tweet))
     )
 
     if (route === 'portfolio' && portfolioSymbols.size > 0) {
@@ -210,7 +216,7 @@ export default function App() {
     }
 
     return scoped
-  }, [tweets, effectiveFilter, userFilter, route, portfolioSymbols])
+  }, [tweets, effectiveFilter, userFilter, subscriberOnlyFilter, route, portfolioSymbols])
 
   const displayedTweets = useMemo(() => {
     let scoped = scopedTweets
@@ -263,8 +269,8 @@ export default function App() {
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100">
       <main className="mx-auto max-w-6xl p-4">
-        <div className="grid gap-4 lg:grid-cols-[15rem_minmax(0,1fr)]">
-          <aside className="h-fit rounded-2xl border border-zinc-200 bg-white/80 p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/70 lg:sticky lg:top-4">
+        <div className="grid gap-4 lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start">
+          <aside className="h-fit max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl border border-zinc-200 bg-white/80 p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/70 lg:sticky lg:top-4">
             <h2 className="px-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">Sections</h2>
             <div className="mt-2 flex flex-col gap-1">
               {SECTIONS.map((section) => {
@@ -387,6 +393,31 @@ export default function App() {
                 <p>Fetched tweets: {lastLoadedCount}</p>
                 <p>Loaded in memory: {tweets.length}</p>
                 {isInitialLoading && <p className="text-zinc-400">Refreshing timeline...</p>}
+              </div>
+            </div>
+
+            <div className="mt-4 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+              <h3 className="px-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+                Access
+              </h3>
+              <div className="mt-2 px-2">
+                <button
+                  type="button"
+                  aria-pressed={subscriberOnlyFilter}
+                  onClick={() => setSubscriberOnlyFilter((current) => !current)}
+                  className={`w-full rounded-xl px-3 py-2 text-left text-sm font-semibold transition-colors ${
+                    subscriberOnlyFilter
+                      ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                      : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700'
+                  }`}
+                >
+                  Subscriber-only tweets
+                </button>
+                <p className="mt-2 text-xs text-zinc-500">
+                  {subscriberOnlyFilter
+                    ? 'Showing only tweets marked as subscriber-only, including quoted subscriber-only posts.'
+                    : 'Toggle this to focus the timeline on subscriber-only posts.'}
+                </p>
               </div>
             </div>
 

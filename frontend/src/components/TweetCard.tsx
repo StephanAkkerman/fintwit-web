@@ -190,6 +190,29 @@ function stripQuotedLeadHandleLine(text: string): string {
   return lines.join('\n')
 }
 
+function hasMarkdownQuoteEmbed(text: string): boolean {
+  if (!text || !/(^|\n)\s*>\s*/.test(text)) {
+    return false
+  }
+
+  const lines = text.split('\n')
+  const firstQuoteIndex = lines.findIndex((line) => /^\s*>/.test(line))
+  if (firstQuoteIndex < 0) {
+    return false
+  }
+
+  const candidate = lines[firstQuoteIndex].trim()
+  const looksLikeQuoteLead =
+    /^>\s*\[[^\]]+\]\(https?:\/\/(?:x|twitter)\.com\/[^[\s)]+\)\s*:\s*$/i.test(candidate) ||
+    /^>\s*@?[A-Za-z0-9_]{1,15}\s*:\s*$/i.test(candidate)
+
+  if (!looksLikeQuoteLead) {
+    return false
+  }
+
+  return lines.slice(firstQuoteIndex + 1).some((line) => line.trim().length > 0 && /^\s*>/.test(line))
+}
+
 function extractQuoteMeta(t: Tweet): QuoteMeta {
   const quotedTweet = t.quoted_tweet ?? null
   const text = t.text ?? ''
@@ -280,7 +303,7 @@ export default function TweetCard({
   const timeLabel = createdAt
     ? createdAt.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
     : null
-  const hasQuoteEmbed = !isRepost && (Boolean(t.quoted_tweet) || /(^|\n)\s*>\s*/.test(t.text ?? ''))
+  const hasQuoteEmbed = !isRepost && (Boolean(t.quoted_tweet) || hasMarkdownQuoteEmbed(t.text ?? ''))
   const rawText = hasQuoteEmbed ? stripQuotedLeadHandleLine(t.text ?? '') : (t.text ?? '')
   const renderedText = onTickerSelect ? linkifySymbols(rawText) : rawText
   const allMedia = t.media ?? []
@@ -456,83 +479,87 @@ export default function TweetCard({
               )
             },
             blockquote: ({ children }) => (
-              <blockquote className="my-3 overflow-hidden rounded-2xl border border-zinc-300 bg-white/70 shadow-sm transition-colors hover:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-900/60 dark:hover:border-zinc-500">
-                <div className="flex items-start justify-between gap-2 border-b border-zinc-200 px-3 py-2 dark:border-zinc-700">
-                  <div className="flex min-w-0 items-start gap-2">
-                    {quoteMeta?.userImg && (
-                      <img
-                        src={quoteMeta.userImg}
-                        alt="Quoted user avatar"
-                        className="mt-0.5 h-7 w-7 shrink-0 rounded-full"
-                      />
-                    )}
-                    <div className="min-w-0">
-                      <div className="flex min-w-0 items-center gap-1.5">
-                        {quoteMeta?.url ? (
-                          <a
-                            href={quoteMeta.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            aria-label="Quoted tweet author"
-                            className="truncate text-sm font-semibold text-zinc-900 hover:underline dark:text-zinc-100"
-                          >
-                            {quoteMeta.displayName ?? 'Quoted post'}
-                          </a>
-                        ) : (
-                          <div className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                            {quoteMeta?.displayName ?? 'Quoted post'}
-                          </div>
-                        )}
-                        {isQuotedSubscriberOnly && (
-                          <SubscriberOnlyBadge ariaLabel="Quoted subscribers-only post" />
-                        )}
-                      </div>
-                      {showQuotedMetaLine && (
-                        <div className="mt-0.5 flex items-center gap-1 text-[11px] text-zinc-500 dark:text-zinc-400">
-                          {showQuotedHandle && <span>{quotedHandle}</span>}
-                          {showQuotedHandle && quotedTimeLabel && <span aria-hidden="true">&middot;</span>}
-                          {quotedTimeLabel && (
-                            <time aria-label="Quoted tweet timestamp" dateTime={quoteMeta?.createdAt?.toISOString()}>
-                              {quotedTimeLabel}
-                            </time>
+              hasQuoteEmbed ? (
+                <blockquote className="my-3 overflow-hidden rounded-2xl border border-zinc-300 bg-white/70 shadow-sm transition-colors hover:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-900/60 dark:hover:border-zinc-500">
+                  <div className="flex items-start justify-between gap-2 border-b border-zinc-200 px-3 py-2 dark:border-zinc-700">
+                    <div className="flex min-w-0 items-start gap-2">
+                      {quoteMeta?.userImg && (
+                        <img
+                          src={quoteMeta.userImg}
+                          alt="Quoted user avatar"
+                          className="mt-0.5 h-7 w-7 shrink-0 rounded-full"
+                        />
+                      )}
+                      <div className="min-w-0">
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          {quoteMeta?.url ? (
+                            <a
+                              href={quoteMeta.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              aria-label="Quoted tweet author"
+                              className="truncate text-sm font-semibold text-zinc-900 hover:underline dark:text-zinc-100"
+                            >
+                              {quoteMeta.displayName ?? 'Quoted post'}
+                            </a>
+                          ) : (
+                            <div className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                              {quoteMeta?.displayName ?? 'Quoted post'}
+                            </div>
+                          )}
+                          {isQuotedSubscriberOnly && (
+                            <SubscriberOnlyBadge ariaLabel="Quoted subscribers-only post" />
                           )}
                         </div>
-                      )}
+                        {showQuotedMetaLine && (
+                          <div className="mt-0.5 flex items-center gap-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+                            {showQuotedHandle && <span>{quotedHandle}</span>}
+                            {showQuotedHandle && quotedTimeLabel && <span aria-hidden="true">&middot;</span>}
+                            {quotedTimeLabel && (
+                              <time aria-label="Quoted tweet timestamp" dateTime={quoteMeta?.createdAt?.toISOString()}>
+                                {quotedTimeLabel}
+                              </time>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
+                    {(quotedSentimentLabel || quotedSentimentEmoji) && (
+                      <span
+                        aria-label="Quoted tweet sentiment"
+                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${quotedSentimentClass}`}
+                        title={
+                          typeof t.quoted_sentiment_score === 'number'
+                            ? `Quoted sentiment confidence: ${(t.quoted_sentiment_score * 100).toFixed(1)}%`
+                            : undefined
+                        }
+                      >
+                        <span>{quotedSentimentEmoji ?? '🦆'}</span>
+                        <span>{quotedSentimentLabel ?? 'SENTIMENT'}</span>
+                      </span>
+                    )}
                   </div>
-                  {(quotedSentimentLabel || quotedSentimentEmoji) && (
-                    <span
-                      aria-label="Quoted tweet sentiment"
-                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${quotedSentimentClass}`}
-                      title={
-                        typeof t.quoted_sentiment_score === 'number'
-                          ? `Quoted sentiment confidence: ${(t.quoted_sentiment_score * 100).toFixed(1)}%`
-                          : undefined
-                      }
+                  <div className="px-3 py-2 text-zinc-800 dark:text-zinc-200 [&_p]:mb-1.5 [&_p:last-child]:mb-0 [&_p:first-child_a]:font-semibold">
+                    {children}
+                  </div>
+                  {quotedMedia && (
+                    <button
+                      type="button"
+                      onClick={() => setLightboxImage({ url: quotedMedia.url, alt: 'Quoted media' })}
+                      aria-label="Open quoted image preview"
+                      className="block w-full border-t border-zinc-200 dark:border-zinc-700"
                     >
-                      <span>{quotedSentimentEmoji ?? '🦆'}</span>
-                      <span>{quotedSentimentLabel ?? 'SENTIMENT'}</span>
-                    </span>
+                      <img
+                        src={quotedMedia.url}
+                        alt="Quoted media"
+                        className="max-h-[28rem] w-full object-contain bg-zinc-100/70 dark:bg-zinc-800/60"
+                      />
+                    </button>
                   )}
-                </div>
-                <div className="px-3 py-2 text-zinc-800 dark:text-zinc-200 [&_p]:mb-1.5 [&_p:last-child]:mb-0 [&_p:first-child_a]:font-semibold">
-                  {children}
-                </div>
-                {quotedMedia && (
-                  <button
-                    type="button"
-                    onClick={() => setLightboxImage({ url: quotedMedia.url, alt: 'Quoted media' })}
-                    aria-label="Open quoted image preview"
-                    className="block w-full border-t border-zinc-200 dark:border-zinc-700"
-                  >
-                    <img
-                      src={quotedMedia.url}
-                      alt="Quoted media"
-                      className="max-h-[28rem] w-full object-contain bg-zinc-100/70 dark:bg-zinc-800/60"
-                    />
-                  </button>
-                )}
-              </blockquote>
+                </blockquote>
+              ) : (
+                <div className="my-2 whitespace-pre-wrap text-zinc-800 dark:text-zinc-200">{children}</div>
+              )
             ),
             ul: ({ children }) => <ul className="my-2 list-disc pl-5">{children}</ul>,
             ol: ({ children }) => <ol className="my-2 list-decimal pl-5">{children}</ol>,

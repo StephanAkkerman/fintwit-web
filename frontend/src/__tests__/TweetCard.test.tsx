@@ -111,6 +111,24 @@ describe('TweetCard', () => {
     expect(quotedTime.getAttribute('datetime')).toBeTruthy()
   })
 
+  it('does not treat plain leading > text as a quoted tweet embed', () => {
+    const plainText = 'main text\n> second text'
+
+    const { container } = render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          text: plainText,
+        }}
+      />
+    )
+
+    expect(screen.getByText('main text')).toBeInTheDocument()
+    expect(screen.getByText('second text')).toBeInTheDocument()
+    expect(container.querySelector('blockquote')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Quoted tweet author')).not.toBeInTheDocument()
+  })
+
   it('renders quoted image inside the quote embed', () => {
     const quoteText =
       '> [@opensea](https://twitter.com/opensea):\n> Treasure Chests from our final Wave are now unlocked.'

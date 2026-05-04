@@ -1,6 +1,6 @@
 # API and Frontend Coverage Matrix
 
-Last updated: 2026-04-28
+Last updated: 2026-05-04
 
 ## Authentication
 
@@ -73,6 +73,7 @@ For equities/ETFs, `tweet.assets[*].company_profile` may include curated finance
   - route-level section selection for category scope (home/all, crypto, stock/macro, options-only feed),
   - `assets[].symbol` and `assets[].kind` for ticker and route-scoped filtering,
   - `user_name` and `user_screen_name` for user-based filtering from sidebar input and author click actions,
+  - `is_subscriber_only` for the sidebar subscriber-only filter and exclusivity badges,
   - `assets[].financials.website` for price links,
   - `assets[].symbol`, `assets[].name`, `assets[].kind`, `assets[].financials.price`, and `assets[].financials.change_percent` for compact financial card rendering in `TweetCard`,
   - `title` + `quoted_tweet` to distinguish reposts from quote embeds and render original-author header with reposter attribution,

@@ -1,6 +1,6 @@
 # Migration Status
 
-Last updated: 2026-04-28
+Last updated: 2026-05-04
 
 ## Backend: Implemented
 
@@ -44,6 +44,7 @@ Last updated: 2026-04-28
 - Timeline pagination: initial REST load pages in fixed batches and keeps requesting older pages until the selected time window is exhausted, while manual load-older pagination still uses `before_id`.
 - Sidebar lookback toggle now supports 24h/48h/7d windows and triggers immediate timeline reloads so users can compare data volume and load-speed impact.
 - Sidebar performance mini-metrics now show last load duration, fetched tweet count, and currently loaded in-memory count for quick impact checks while changing lookback windows.
+- Sidebar subscriber-only toggle now filters the loaded timeline down to exclusive posts, including quoted subscriber-only posts when present.
 - Quote tweet markdown rendering with quote embed styling.
 - Repost handling: retweeted posts now render with original author identity (name/avatar) and explicit reposter attribution line.
 - Quote tweet header now mirrors native X styling by showing quoted author identity (instead of a generic label) and quoted timestamp when available.
@@ -57,6 +58,7 @@ Last updated: 2026-04-28
 - Financial asset blocks in tweet cards are intentionally compact and now show ticker, full name, type, price, and daily % change.
 - Price links to source financial website when available.
 - Sidebar category filter widget removed; route sections now drive category scope.
+- Sidebar subscriber-only toggle filters the loaded timeline to posts marked `is_subscriber_only`.
 - Ticker filtering via:
   - clicking ticker inside financial asset widget,
   - manual typed input in sidebar ticker filter.

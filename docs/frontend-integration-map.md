@@ -1,6 +1,6 @@
 # Frontend Integration Map
 
-Last updated: 2026-04-28
+Last updated: 2026-05-04
 
 ## Mounted in `App.tsx` Today
 
@@ -72,6 +72,7 @@ Route-level sections:
 
 - Sidebar filters
   - Category scope is controlled by route/section selection.
+  - Subscriber-only toggle filters the active timeline to exclusive posts flagged `is_subscriber_only`.
   - Lookback controls:
     - toggle timeline window across `24h`, `48h`, and `7d` (`since_hours` values `24/48/168`),
     - display load-impact metrics (last load ms, fetched tweet count, loaded-in-memory count).

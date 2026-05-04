@@ -780,6 +780,161 @@ describe('App', () => {
     })
   })
 
+  it('filters tweets to subscriber-only posts when enabled', async () => {
+    const posts: Tweet[] = [
+      {
+        id: 1,
+        text: 'Regular timeline post',
+        user_name: 'Public User',
+        user_screen_name: 'public_user',
+        user_img: 'https://example.com/public.jpg',
+        url: 'https://x.com/public_user/status/1',
+        created_at: '',
+        media: [],
+        tickers: [],
+        hashtags: [],
+        title: '',
+        media_types: [],
+        replies: 0,
+        likes: 0,
+        views: 0,
+        retweets: 0,
+      },
+      {
+        id: 2,
+        text: 'Subscriber-only alpha',
+        user_name: 'Paid User',
+        user_screen_name: 'paid_user',
+        user_img: 'https://example.com/paid.jpg',
+        url: 'https://x.com/paid_user/status/2',
+        created_at: '',
+        media: [],
+        tickers: [],
+        hashtags: [],
+        title: '',
+        media_types: [],
+        replies: 0,
+        likes: 0,
+        views: 0,
+        retweets: 0,
+        is_subscriber_only: true,
+      },
+    ]
+
+    fetchMock.mockImplementation((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/api/posts')) {
+        return Promise.resolve({ ok: true, json: async () => posts } as Response)
+      }
+      if (url.includes('/api/fear-greed')) {
+        return Promise.resolve(
+          {
+            ok: true,
+            json: async () => ({ value: 50, change: '+0', status: 'Neutral' }),
+          } as Response
+        )
+      }
+      if (url.includes('/api/reddit/wsb')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/trending-crypto')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/binance/gainers-losers')) {
+        return Promise.resolve({ ok: true, json: async () => ({ gainers: [], losers: [] }) } as Response)
+      }
+      if (url.includes('/api/nfts/trending')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/treemap')) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)
+      }
+      if (url.includes('/api/stocktwits')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/stocks/market-hours')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/stock-halts')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/events/economic')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/options/overview')) {
+        return Promise.resolve(
+          {
+            ok: true,
+            json: async () => ({
+              symbols: [],
+              totals: { call_volume: 0, put_volume: 0, total_volume: 0, put_call_ratio: null },
+              bullish: [],
+              bearish: [],
+              most_active_contracts: [],
+              source: 'nasdaq',
+            }),
+          } as Response
+        )
+      }
+      if (url.includes('/api/spy-heatmap')) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)
+      }
+      if (url.includes('/api/portfolio/positions')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/portfolio/summary')) {
+        return Promise.resolve(
+          {
+            ok: true,
+            json: async () => ({
+              totals: {
+                positions: 0,
+                market_value: 0,
+                cost_basis: 0,
+                unrealized_pnl: 0,
+                unrealized_pnl_percent: 0,
+              },
+              positions: [],
+            }),
+          } as Response
+        )
+      }
+      if (url.includes('/api/ibkr/status')) {
+        return Promise.resolve(
+          {
+            ok: true,
+            json: async () => ({ configured: false, connected: false, last_sync: null, last_error: null }),
+          } as Response
+        )
+      }
+      if (url.includes('/api/ibkr/positions')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/ibkr/trades')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/ibkr/account')) {
+        return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
+      }
+
+      return Promise.resolve({ ok: true, json: async () => [] } as Response)
+    })
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Regular timeline post')).toBeInTheDocument()
+      expect(screen.getByText('Subscriber-only alpha')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Subscriber-only tweets' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Subscriber-only alpha')).toBeInTheDocument()
+      expect(screen.queryByText('Regular timeline post')).not.toBeInTheDocument()
+    })
+  })
+
   it('updates ticker mention pulse when user filter changes', async () => {
     const posts: Tweet[] = [
       {
