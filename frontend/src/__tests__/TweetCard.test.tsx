@@ -544,6 +544,30 @@ describe('TweetCard', () => {
     expect(priceLink).toHaveAttribute('href', 'https://finance.yahoo.com/quote/AAPL')
   })
 
+  it('shows last close when available on an asset', () => {
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          assets: [
+            {
+              symbol: 'AAPL',
+              kind: 'EQUITY',
+              financials: {
+                price: 276.83,
+                last_close: 280.25,
+                change_percent: -1.22,
+                website: 'https://finance.yahoo.com/quote/AAPL',
+              },
+            },
+          ],
+        }}
+      />
+    )
+
+    expect(screen.getByText(/Last close\s+\$280[.,]25/)).toBeInTheDocument()
+  })
+
   it('renders tradingview technical analysis when available', () => {
     render(
       <TweetCard

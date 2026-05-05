@@ -67,7 +67,7 @@ Route-level sections:
 - Tweet timeline (`useTweets` + `TweetCard`)
   - Fetches: `/api/posts?limit=200&since_hours=24` on initial mount, then keeps paging in 200-item batches until the selected time window is exhausted, while `/api/posts?limit=...&before_id=...` remains available for manual older-page loading, and `/api/stream` (SSE).
   - Options route variant: uses `options_only=true` on both REST + SSE feed calls so only options-classified tweets are loaded there.
-  - Purpose: live timeline with native-style quote headers (quoted avatar + author + timestamp), repost attribution headers (original author identity + reposter line), subscriber-only post icons (main/repost/quoted when flagged), quote embeds, preserved body whitespace/line breaks, media, in-page image lightbox previews, compact financial cards (ticker + full name + type + linked price + daily % change + optional TradingView TA rows), chart badge signals, separate main/quoted sentiment badges, options-intent metadata support (`is_options_tweet`, `options_context`), and engagement updates.
+  - Purpose: live timeline with native-style quote headers (quoted avatar + author + timestamp), repost attribution headers (original author identity + reposter line), subscriber-only post icons (main/repost/quoted when flagged), quote embeds, preserved body whitespace/line breaks, media, in-page image lightbox previews, compact financial cards (ticker + full name + type + linked price + last close + daily % change + optional TradingView TA rows), chart badge signals, separate main/quoted sentiment badges, options-intent metadata support (`is_options_tweet`, `options_context`), and engagement updates.
   - Quote integration: consumes `quoted_tweet` payload from backend for quote author metadata and quote media placement (falls back to markdown inference when absent).
 
 - Sidebar filters
@@ -107,7 +107,7 @@ Route-level sections:
 
 - `MarketOverview` + `useMarketAssets` + `AssetBadge`
   - Fetches: `/api/posts` + `/api/stream` (derived live assets)
-  - Purpose: top streamed assets with live price/change links and optional TradingView TA summary rows.
+  - Purpose: top streamed assets with live current-price links, last-close context, and optional TradingView TA summary rows.
 
 - `RedditWsbWidget` + `useRedditWsb`
   - Fetches: `/api/reddit/wsb?limit=...`

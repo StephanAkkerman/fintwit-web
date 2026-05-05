@@ -601,6 +601,7 @@ export default function TweetCard({
               typeof asset.name === 'string' && asset.name.trim().length > 0 ? asset.name : ticker
             const typeLabel = formatAssetKind(asset.kind)
             const hasPrice = typeof financials?.price === 'number'
+            const hasLastClose = typeof financials?.last_close === 'number'
             const hasChange = typeof financials?.change_percent === 'number'
             const change = hasChange ? (financials?.change_percent as number) : 0
             const changeClass =
@@ -658,6 +659,11 @@ export default function TweetCard({
                     {hasChange ? fmtChangePercent(change) : 'N/A'}
                   </span>
                 </div>
+                {hasLastClose && (
+                  <div className="mt-0.5 text-[10px] text-zinc-500 dark:text-zinc-400">
+                    Last close {fmtPrice(financials!.last_close as number)}
+                  </div>
+                )}
                 <TradingViewAnalysis analysis={financials?.technical_analysis} />
               </div>
             )

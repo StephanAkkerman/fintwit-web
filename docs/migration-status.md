@@ -13,6 +13,7 @@ Last updated: 2026-05-05
 - Asset enrichment local symbol overrides: ambiguous symbols now use deterministic mappings before pricing/classification (`ETH` forced to `CRYPTO`; `EURUSD` -> `EURUSD=X`; `USOIL` -> `CL=F`).
 - Quote fallback hardening: when Yahoo/CoinGecko are rate-limited or unavailable, enrichment now attempts TradingView quote fallback before returning no price data.
 - Quote source marker: enriched financial payload now includes `source` so frontend can display the provider used (`yahoo`, `coingecko`, `tradingview`).
+- Yahoo quote enrichment now prefers the latest session trade as `price` and also exposes `last_close` for pre-market/after-hours cards.
 - TradingView technical analysis summaries (4H and 1D) are now attached to enriched tweet asset financial payloads under `technical_analysis` for ticker widgets.
 - Asset noise reduction: unsupported/unknown classifier kinds are now excluded from tweet `assets`, so non-financial hashtags (for example topic tags) are not rendered as unknown ticker assets.
 - Asset extraction signal tightening: enrichment now uses cashtags/tickers only (not hashtags) so topic hashtags (for example `#OOTT`, `#Tankers`) do not generate asset cards.
@@ -56,7 +57,7 @@ Last updated: 2026-05-05
 - Tweet body rendering now preserves original line breaks and intentional blank lines.
 - Tweet images now open in an in-page lightbox preview (no full-page navigation away from timeline).
 - Tweet timestamps are shown in the viewer's local timezone (UTC source timestamps normalized server-side with explicit UTC offset).
-- Financial asset blocks in tweet cards are intentionally compact and now show ticker, full name, type, price, daily % change, and optional TradingView TA summary rows.
+- Financial asset blocks in tweet cards are intentionally compact and now show ticker, full name, type, current price, last close when available, daily % change, and optional TradingView TA summary rows.
 - Price links to source financial website when available.
 - Sidebar category filter widget removed; route sections now drive category scope.
 - Sidebar subscriber-only toggle filters the loaded timeline to posts marked `is_subscriber_only`.

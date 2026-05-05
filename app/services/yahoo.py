@@ -5,7 +5,10 @@ from typing import Optional
 
 import aiohttp
 
-from .tradingview_quote import get_tradingview_quote
+try:
+    from .tradingview_quote import get_tradingview_quote
+except ImportError:  # pragma: no cover - allows direct script execution
+    from app.services.tradingview_quote import get_tradingview_quote
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +38,21 @@ def _clone_payload(payload: Optional[dict]) -> Optional[dict]:
     if payload is None:
         return None
     return dict(payload)
+
+
+def _last_non_null(values: object) -> Optional[float]:
+    if not isinstance(values, list):
+        return None
+
+    for value in reversed(values):
+        try:
+            if value is None:
+                continue
+            return float(value)
+        except (TypeError, ValueError):
+            continue
+
+    return None
 
 
 def _lookup_candidates(symbol: str) -> list[str]:
@@ -95,21 +113,30 @@ async def _fetch_yahoo_chart(lookup_symbol: str) -> Optional[dict]:
     if not result:
         return None
 
-    meta = result[0].get("meta", {})
-    price = meta.get("regularMarketPrice")
-    prev_close = meta.get("previousClose", price)
+    chart = result[0]
+    meta = chart.get("meta", {})
+    quote = chart.get("indicators", {}).get("quote", [{}])[0]
 
-    if price is None:
+    current_price = _last_non_null(quote.get("close"))
+    if current_price is None:
+        current_price = meta.get("regularMarketPrice")
+
+    if current_price is None:
         return None
+
+    prev_close = meta.get("previousClose")
+    if prev_close is None:
+        prev_close = meta.get("chartPreviousClose", current_price)
 
     change = 0.0
     if prev_close and prev_close != 0:
-        change = ((price - prev_close) / prev_close) * 100
+        change = ((current_price - prev_close) / prev_close) * 100
 
-    volume = meta.get("regularMarketVolume", 0) * price if price else 0
+    volume = meta.get("regularMarketVolume", 0) * current_price if current_price else 0
 
     return {
-        "price": price,
+        "price": current_price,
+        "last_close": prev_close,
         "change_percent": change,
         "volume": volume,
         "website": f"https://finance.yahoo.com/quote/{lookup_symbol}",

@@ -21,6 +21,7 @@ export type AssetTechnicalAnalysis = {
 
 export type AssetFinancials = {
   price?: number | null;
+  last_close?: number | null;
   change_percent?: number | null;
   volume?: number | null;
   website?: string | null;
