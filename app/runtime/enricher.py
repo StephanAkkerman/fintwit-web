@@ -6,6 +6,7 @@ from typing import Dict, List
 from ticker_classifier.classifier import TickerClassifier
 
 from ..services.coingecko import get_crypto_info
+from ..services.tradingview_ta_service import get_tradingview_ta_summary
 from ..services.yahoo import get_stock_info
 
 logger = logging.getLogger(__name__)
@@ -261,18 +262,36 @@ class AssetEnricher:
 
         financials = await asyncio.gather(*tasks, return_exceptions=True)
 
+        ta_tasks = []
+        for entry in classified:
+            kind = entry["kind"]
+            lookup_symbol = (entry.get("yahoo_lookup") or entry["symbol"] or "").upper()
+            if _is_crypto_kind(kind):
+                ta_tasks.append(get_tradingview_ta_summary(lookup_symbol, "crypto"))
+            elif _should_use_yahoo(kind):
+                ta_tasks.append(
+                    get_tradingview_ta_summary(lookup_symbol, str(kind).lower())
+                )
+            else:
+                ta_tasks.append(self._dummy_info())
+
+        technical_analysis = await asyncio.gather(*ta_tasks, return_exceptions=True)
+
         # Attach fresh financials to the result
-        for entry, fin in zip(classified, financials):
+        for entry, fin, ta in zip(classified, financials, technical_analysis):
             if isinstance(fin, BaseException):
                 logger.debug("[enricher] %s financials error: %r", entry["symbol"], fin)
                 entry["financials"] = None
             else:
-                entry["financials"] = fin
+                financial_payload = dict(fin) if isinstance(fin, dict) else fin
+                if isinstance(financial_payload, dict) and isinstance(ta, dict):
+                    financial_payload["technical_analysis"] = ta
+                entry["financials"] = financial_payload
                 logger.debug(
                     "[enricher] %s (%s) financials: %s",
                     entry["symbol"],
                     entry["kind"],
-                    fin,
+                    financial_payload,
                 )
 
         return classified

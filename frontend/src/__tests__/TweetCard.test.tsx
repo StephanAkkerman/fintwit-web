@@ -544,6 +544,53 @@ describe('TweetCard', () => {
     expect(priceLink).toHaveAttribute('href', 'https://finance.yahoo.com/quote/AAPL')
   })
 
+  it('renders tradingview technical analysis when available', () => {
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          assets: [
+            {
+              symbol: 'AAPL',
+              kind: 'EQUITY',
+              financials: {
+                price: 185.12,
+                change_percent: 1.73,
+                website: 'https://finance.yahoo.com/quote/AAPL',
+                technical_analysis: {
+                  source: 'tradingview_ta',
+                  four_h: {
+                    interval: 'four_h',
+                    recommendation: 'Buy',
+                    buy: 10,
+                    neutral: 8,
+                    sell: 4,
+                    summary: 'Buy\n10📈 8⌛️ 4📉',
+                  },
+                  one_d: {
+                    interval: 'one_d',
+                    recommendation: 'Strong Buy',
+                    buy: 13,
+                    neutral: 7,
+                    sell: 2,
+                    summary: 'Strong Buy\n13📈 7⌛️ 2📉',
+                  },
+                },
+              },
+            },
+          ],
+        }}
+      />
+    )
+
+    expect(screen.getByText('4H')).toBeInTheDocument()
+    expect(screen.getByText('1D')).toBeInTheDocument()
+    expect(screen.getByText('Buy')).toBeInTheDocument()
+    expect(screen.getByText('Strong Buy')).toBeInTheDocument()
+    expect(screen.getByText('10 buy · 8 neutral · 4 sell')).toBeInTheDocument()
+    expect(screen.getByText('13 buy · 7 neutral · 2 sell')).toBeInTheDocument()
+  })
+
   it('renders media images when present', () => {
     const tweetWithMedia: Tweet = {
       ...baseTweet,

@@ -1,11 +1,31 @@
 export type MediaItem = { url: string; type: string };
 
+export type AssetTradingViewSummary = {
+  interval?: 'four_h' | 'one_d' | string | null;
+  recommendation: string;
+  buy: number;
+  neutral: number;
+  sell: number;
+  summary: string;
+};
+
+export type AssetTechnicalAnalysis = {
+  source?: string | null;
+  website?: string | null;
+  symbol?: string | null;
+  exchange?: string | null;
+  screener?: string | null;
+  four_h?: AssetTradingViewSummary | null;
+  one_d?: AssetTradingViewSummary | null;
+};
+
 export type AssetFinancials = {
   price?: number | null;
   change_percent?: number | null;
   volume?: number | null;
   website?: string | null;
   source?: string | null;
+  technical_analysis?: AssetTechnicalAnalysis | null;
 };
 
 export type AssetCompanyProfile = {

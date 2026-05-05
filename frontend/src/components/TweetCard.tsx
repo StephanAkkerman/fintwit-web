@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Tweet } from '../types'
 import { hasChartSignal } from '../utils/tweetSignals'
+import TradingViewAnalysis from './TradingViewAnalysis'
 
 function fmt(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
@@ -639,24 +640,25 @@ export default function TweetCard({
                 <div className="truncate text-[11px] text-zinc-500 dark:text-zinc-400">{fullName}</div>
 
                 <div className="mt-1 flex items-center justify-between gap-2 text-sm">
-                    {hasPrice && financials?.website ? (
-                      <a
-                        href={financials.website}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="font-semibold text-zinc-900 underline-offset-2 hover:underline dark:text-zinc-100"
-                      >
-                        {fmtPrice(financials?.price as number)}
-                      </a>
-                    ) : (
-                      <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                        {hasPrice ? fmtPrice(financials?.price as number) : 'N/A'}
-                      </span>
-                    )}
+                  {hasPrice && financials?.website ? (
+                    <a
+                      href={financials.website}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-semibold text-zinc-900 underline-offset-2 hover:underline dark:text-zinc-100"
+                    >
+                      {fmtPrice(financials?.price as number)}
+                    </a>
+                  ) : (
+                    <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                      {hasPrice ? fmtPrice(financials?.price as number) : 'N/A'}
+                    </span>
+                  )}
                   <span className={`font-semibold ${changeClass}`}>
                     {hasChange ? fmtChangePercent(change) : 'N/A'}
                   </span>
                 </div>
+                <TradingViewAnalysis analysis={financials?.technical_analysis} />
               </div>
             )
           })}

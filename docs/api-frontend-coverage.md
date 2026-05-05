@@ -1,6 +1,6 @@
 # API and Frontend Coverage Matrix
 
-Last updated: 2026-05-04
+Last updated: 2026-05-05
 
 ## Authentication
 
@@ -11,8 +11,8 @@ Last updated: 2026-05-04
 
 | Endpoint | Method | Data Source | Returns | Frontend Status |
 | --- | --- | --- | --- | --- |
-| `/api/posts` | GET | SQLite via `TweetRepo.latest` | Latest tweets including `assets`, engagement, media, symbols, full nested quoted tweet payload (`quoted_tweet`), and sentiment metadata for both main and quoted text (`sentiment_*`, `quoted_sentiment_*`). Supports pagination with `limit` (default 200, max 2000) and `before_id` for older pages. Also supports optional time-window filtering via `since_hours` (1-168). The frontend pages in fixed 200-item batches until the selected time window is exhausted, so the loaded set reflects the full window rather than an arbitrary cap. Tweet payload may include `is_subscriber_only` on top-level and quoted tweet objects when present from upstream. Options-intent metadata is also available as `is_options_tweet` + `options_context` when classification is positive. Supports `options_only=true` to return only options-classified tweets. | Connected via `useTweets` |
-| `/api/stream` | GET (SSE) | In-memory broadcaster from stream worker | Real-time tweet/new engagement updates (including full `quoted_tweet` payload plus main + quoted sentiment metadata on new tweets). Stream payload may include `is_subscriber_only` on top-level and quoted tweet objects when present from upstream. Options-intent metadata is also included as `is_options_tweet` + `options_context` when classification is positive. Supports `options_only=true` to stream only options-classified tweets. | Connected via `useTweets` |
+| `/api/posts` | GET | SQLite via `TweetRepo.latest` | Latest tweets including `assets`, engagement, media, symbols, full nested quoted tweet payload (`quoted_tweet`), and sentiment metadata for both main and quoted text (`sentiment_*`, `quoted_sentiment_*`). Supports pagination with `limit` (default 200, max 2000) and `before_id` for older pages. Also supports optional time-window filtering via `since_hours` (1-168). The frontend pages in fixed 200-item batches until the selected time window is exhausted, so the loaded set reflects the full window rather than an arbitrary cap. Tweet payload may include `is_subscriber_only` on top-level and quoted tweet objects when present from upstream. Options-intent metadata is also available as `is_options_tweet` + `options_context` when classification is positive. Supports `options_only=true` to return only options-classified tweets. Enriched `assets[*].financials` may also include `technical_analysis` with TradingView 4H/1D summaries for ticker widgets. | Connected via `useTweets` |
+| `/api/stream` | GET (SSE) | In-memory broadcaster from stream worker | Real-time tweet/new engagement updates (including full `quoted_tweet` payload plus main + quoted sentiment metadata on new tweets). Stream payload may include `is_subscriber_only` on top-level and quoted tweet objects when present from upstream. Options-intent metadata is also included as `is_options_tweet` + `options_context` when classification is positive. Supports `options_only=true` to stream only options-classified tweets. Streamed `assets[*].financials` can also carry `technical_analysis` for the same ticker widgets as REST-loaded tweets. | Connected via `useTweets` |
 | `/api/fear-greed` | GET | `alternative.me/fng` | `{ value, change, status }` | Connected via `FearGreedWidget` |
 | `/api/treemap` | GET | `coin360.com/site-api/coins` | Coin360 top-100 treemap payload | Connected via `TreemapWidget` |
 | `/api/trending-crypto` | GET | `coinmarketcap.com/data-api/v3/topsearch/rank` | List of trending coins with price/change/volume/website | Connected via `TrendingCryptoWidget` |
@@ -49,6 +49,7 @@ These services are not exposed as standalone endpoints, but are used in asset en
 
 The enriched values are attached under `tweet.assets[*].financials` and consumed in `TweetCard`.
 `tweet.assets[*].financials.source` indicates which provider served the quote (for example `yahoo`, `coingecko`, `tradingview`).
+`tweet.assets[*].financials.technical_analysis` carries TradingView 4H/1D recommendation summaries for ticker widgets.
 Static classification metadata under `tweet.assets[*]` may also include `sector` and `industry` for equities.
 Ambiguous symbols are disambiguated in enrichment with local overrides before cache/classifier fallback (for example `ETH` is forced to crypto, and `EURUSD`/`USOIL` map to Yahoo-compatible lookups).
 Unsupported classifier kinds (for example `UNKNOWN`) are excluded from `tweet.assets` so topic hashtags are less likely to appear as false asset cards.
@@ -74,6 +75,7 @@ For equities/ETFs, `tweet.assets[*].company_profile` may include curated finance
   - `assets[].symbol` and `assets[].kind` for ticker and route-scoped filtering,
   - `user_name` and `user_screen_name` for user-based filtering from sidebar input and author click actions,
   - `is_subscriber_only` for the sidebar subscriber-only filter and exclusivity badges,
+  - `assets[].financials.technical_analysis` for TradingView 4H/1D summary rows in `TweetCard` and `AssetBadge`,
   - `assets[].financials.website` for price links,
   - `assets[].symbol`, `assets[].name`, `assets[].kind`, `assets[].financials.price`, and `assets[].financials.change_percent` for compact financial card rendering in `TweetCard`,
   - `title` + `quoted_tweet` to distinguish reposts from quote embeds and render original-author header with reposter attribution,

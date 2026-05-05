@@ -1,6 +1,6 @@
 # Migration Status
 
-Last updated: 2026-05-04
+Last updated: 2026-05-05
 
 ## Backend: Implemented
 
@@ -13,6 +13,7 @@ Last updated: 2026-05-04
 - Asset enrichment local symbol overrides: ambiguous symbols now use deterministic mappings before pricing/classification (`ETH` forced to `CRYPTO`; `EURUSD` -> `EURUSD=X`; `USOIL` -> `CL=F`).
 - Quote fallback hardening: when Yahoo/CoinGecko are rate-limited or unavailable, enrichment now attempts TradingView quote fallback before returning no price data.
 - Quote source marker: enriched financial payload now includes `source` so frontend can display the provider used (`yahoo`, `coingecko`, `tradingview`).
+- TradingView technical analysis summaries (4H and 1D) are now attached to enriched tweet asset financial payloads under `technical_analysis` for ticker widgets.
 - Asset noise reduction: unsupported/unknown classifier kinds are now excluded from tweet `assets`, so non-financial hashtags (for example topic tags) are not rendered as unknown ticker assets.
 - Asset extraction signal tightening: enrichment now uses cashtags/tickers only (not hashtags) so topic hashtags (for example `#OOTT`, `#Tankers`) do not generate asset cards.
 - Equity asset enrichment now includes optional `sector` and `industry` metadata (for example `AAPL`/`NVDA` tagged as technology) sourced from classifier metadata.
@@ -54,8 +55,8 @@ Last updated: 2026-05-04
 - Quote image handling inside embed (with main image placement before quote embed).
 - Tweet body rendering now preserves original line breaks and intentional blank lines.
 - Tweet images now open in an in-page lightbox preview (no full-page navigation away from timeline).
-- Tweet timestamps are shown in the viewer's local timezone (UTC source timestamps normalized server-side with offset).
-- Financial asset blocks in tweet cards are intentionally compact and now show ticker, full name, type, price, and daily % change.
+- Tweet timestamps are shown in the viewer's local timezone (UTC source timestamps normalized server-side with explicit UTC offset).
+- Financial asset blocks in tweet cards are intentionally compact and now show ticker, full name, type, price, daily % change, and optional TradingView TA summary rows.
 - Price links to source financial website when available.
 - Sidebar category filter widget removed; route sections now drive category scope.
 - Sidebar subscriber-only toggle filters the loaded timeline to posts marked `is_subscriber_only`.
@@ -105,6 +106,7 @@ Last updated: 2026-05-04
 - Options overview widget: `/api/options/overview` -> `OptionsOverviewWidget`.
 - Options tweet intent metadata: `/api/posts` + `/api/stream` -> options route timeline filtering (`is_options_tweet`, `options_context`).
 - Market overview stream assets: `/api/posts` + `/api/stream` -> `MarketOverview`.
+- TradingView TA summaries: `/api/posts` + `/api/stream` -> `tweet.assets[*].financials.technical_analysis` -> `TweetCard` / `AssetBadge`.
 - Ticker mention pulse: `/api/posts` + `/api/stream` -> `TickerMentionsPanel` (route-scoped + user-scoped mention analytics).
 - Debug admin panel: `/api/debug/tweet` -> `DebugAdminPanel` (`/admin`).
 - Portfolio panel: `/api/portfolio/positions` + `/api/portfolio/summary` -> `PortfolioPanel` (`/portfolio`).

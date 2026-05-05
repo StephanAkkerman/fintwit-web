@@ -1,4 +1,5 @@
 import type { Asset } from '../types'
+import TradingViewAnalysis from './TradingViewAnalysis'
 
 export default function AssetBadge({ asset }: { asset: Asset }) {
   if (!asset.financials) {
@@ -9,7 +10,7 @@ export default function AssetBadge({ asset }: { asset: Asset }) {
     )
   }
 
-  const { price, change_percent, website } = asset.financials
+  const { price, change_percent, website, technical_analysis } = asset.financials
   const isPositive = change_percent >= 0
   const changeColor = isPositive ? 'text-green-500' : 'text-red-500'
   const changeSign = isPositive ? '+' : ''
@@ -19,18 +20,26 @@ export default function AssetBadge({ asset }: { asset: Asset }) {
       href={website}
       target="_blank"
       rel="noreferrer"
-      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors text-sm text-zinc-900 dark:text-zinc-100"
+      className="inline-flex flex-col gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
     >
-      <div className="flex flex-col">
-        <span className="font-bold">${asset.symbol}</span>
-        {asset.name && <span className="text-[10px] text-zinc-500 truncate max-w-[100px]">{asset.name}</span>}
+      <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-col">
+          <span className="font-bold">${asset.symbol}</span>
+          {asset.name && (
+            <span className="max-w-[140px] truncate text-[10px] text-zinc-500">{asset.name}</span>
+          )}
+        </div>
+        <div className="ml-auto flex flex-col items-end border-l border-zinc-200 pl-2 dark:border-zinc-700">
+          <span className="font-mono">
+            ${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+          </span>
+          <span className={`text-[10px] font-bold ${changeColor}`}>
+            {changeSign}
+            {change_percent.toFixed(2)}%
+          </span>
+        </div>
       </div>
-      <div className="flex flex-col items-end border-l border-zinc-200 dark:border-zinc-700 pl-2">
-        <span className="font-mono">${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
-        <span className={`text-[10px] font-bold ${changeColor}`}>
-          {changeSign}{change_percent.toFixed(2)}%
-        </span>
-      </div>
+      <TradingViewAnalysis analysis={technical_analysis} />
     </a>
   )
 }

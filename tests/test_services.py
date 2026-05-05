@@ -28,21 +28,30 @@ def _reset_coingecko_cache():
     reset_options_cache = getattr(options_service, "_reset_cache_for_tests", None)
     reset_yahoo_cache = getattr(yahoo_service, "_reset_cache_for_tests", None)
 
-    coingecko_service._reset_cache_for_tests()
-    if callable(reset_market_hours_cache):
-        reset_market_hours_cache()
-    if callable(reset_options_cache):
-        reset_options_cache()
-    if callable(reset_yahoo_cache):
-        reset_yahoo_cache()
-    yield
-    coingecko_service._reset_cache_for_tests()
-    if callable(reset_market_hours_cache):
-        reset_market_hours_cache()
-    if callable(reset_options_cache):
-        reset_options_cache()
-    if callable(reset_yahoo_cache):
-        reset_yahoo_cache()
+    with (
+        patch(
+            "app.services.yahoo.get_tradingview_quote", new=AsyncMock(return_value=None)
+        ),
+        patch(
+            "app.services.coingecko.get_tradingview_quote",
+            new=AsyncMock(return_value=None),
+        ),
+    ):
+        coingecko_service._reset_cache_for_tests()
+        if callable(reset_market_hours_cache):
+            reset_market_hours_cache()
+        if callable(reset_options_cache):
+            reset_options_cache()
+        if callable(reset_yahoo_cache):
+            reset_yahoo_cache()
+        yield
+        coingecko_service._reset_cache_for_tests()
+        if callable(reset_market_hours_cache):
+            reset_market_hours_cache()
+        if callable(reset_options_cache):
+            reset_options_cache()
+        if callable(reset_yahoo_cache):
+            reset_yahoo_cache()
 
 
 def _mock_response(status: int, json_data: dict) -> MagicMock:

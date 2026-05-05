@@ -1,8 +1,18 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.runtime.enricher import AssetEnricher
+
+
+@pytest.fixture(autouse=True)
+def _disable_tradingview_ta_by_default():
+    with patch(
+        "app.runtime.enricher.get_tradingview_ta_summary",
+        new=AsyncMock(return_value=None),
+    ):
+        yield
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -37,6 +47,30 @@ STOCK_FINANCIALS = {
     "change_percent": 1.5,
     "volume": 80_000_000,
     "website": "https://finance.yahoo.com/quote/AAPL",
+}
+
+TRADINGVIEW_TA = {
+    "source": "tradingview_ta",
+    "website": "https://www.tradingview.com/symbols/NASDAQ-AAPL/",
+    "symbol": "AAPL",
+    "exchange": "NASDAQ",
+    "screener": "america",
+    "four_h": {
+        "interval": "four_h",
+        "recommendation": "Buy",
+        "buy": 10,
+        "neutral": 8,
+        "sell": 4,
+        "summary": "Buy\n10📈 8⌛️ 4📉",
+    },
+    "one_d": {
+        "interval": "one_d",
+        "recommendation": "Strong Buy",
+        "buy": 13,
+        "neutral": 7,
+        "sell": 2,
+        "summary": "Strong Buy\n13📈 7⌛️ 2📉",
+    },
 }
 
 CRYPTO_FINANCIALS = {
@@ -101,6 +135,25 @@ async def test_classify_crypto_fetches_crypto_info():
         result = await enricher.classify(["BTC"])
     mock_crypto.assert_called_once_with("BTC")
     assert result[0]["financials"] == CRYPTO_FINANCIALS
+
+
+@pytest.mark.asyncio
+async def test_classify_equity_attaches_tradingview_ta_summary():
+    enricher = AssetEnricher()
+    mock_result = _mock_classifier_result(
+        "AAPL", "EQUITY", "Apple Inc.", 3_000_000_000_000
+    )
+    with (
+        patch.object(enricher._cls, "classify_async", return_value=[mock_result]),
+        patch("app.runtime.enricher.get_stock_info", return_value=STOCK_FINANCIALS),
+        patch(
+            "app.runtime.enricher.get_tradingview_ta_summary",
+            new=AsyncMock(return_value=TRADINGVIEW_TA),
+        ),
+    ):
+        result = await enricher.classify(["AAPL"])
+
+    assert result[0]["financials"]["technical_analysis"] == TRADINGVIEW_TA
 
 
 @pytest.mark.asyncio
