@@ -3,6 +3,7 @@ import BinanceGainersLosersWidget from './components/BinanceGainersLosersWidget'
 import DebugAdminPanel from './components/DebugAdminPanel'
 import EconomicEventsWidget from './components/EconomicEventsWidget'
 import FearGreedWidget from './components/FearGreedWidget'
+import ForexMacroWidget from './components/ForexMacroWidget'
 import IbkrPanel from './components/IbkrPanel'
 import MarketOverview from './components/MarketOverview'
 import NftTrendingWidget from './components/NftTrendingWidget'
@@ -560,7 +561,12 @@ export default function App() {
               </>
             )}
 
-            {route === 'forex' && <EconomicEventsWidget />}
+            {route === 'forex' && (
+              <>
+                <ForexMacroWidget />
+                <EconomicEventsWidget />
+              </>
+            )}
 
             {route === 'options' && <OptionsOverviewWidget />}
 

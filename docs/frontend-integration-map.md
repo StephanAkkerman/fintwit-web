@@ -37,7 +37,9 @@ Route-level sections:
   - Chart-focused sort controls: Latest / Charts first / Charts only
 
 - `/forex`
+  - `ForexMacroWidget`
   - `EconomicEventsWidget`
+  - TradingView-backed US/EU yield curves, crypto indices, and stock/forex index snapshot
   - Investing high-impact macro calendar table
   - Tweet timeline auto-filtered to macro/forex signals
   - Chart-focused sort controls: Latest / Charts first / Charts only
@@ -132,6 +134,10 @@ Route-level sections:
 - `EconomicEventsWidget` + `useEconomicEvents`
   - Fetches: `/api/events/economic?limit=...`
   - Purpose: Display upcoming high-impact US and Euro-zone economic events with flag emojis, impact badges, and actual/forecast/previous fields.
+
+- `ForexMacroWidget` + `useForexMacroSnapshot`
+  - Fetches: `/api/forex/macro`
+  - Purpose: Display TradingView-backed US/EU yield curves, crypto indices, and the legacy stock/forex TradingView index panel for the macro route.
 
 - `SpyHeatmapWidget` + `useSpyHeatmap`
   - Fetches: `/api/spy-heatmap?date=...`

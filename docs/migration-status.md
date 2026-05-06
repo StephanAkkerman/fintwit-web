@@ -33,6 +33,8 @@ Last updated: 2026-05-05
 - Stock migration slice: market session endpoint (`/api/stocks/market-hours`) now available with pre-market/after-hours state mapping for major exchanges.
 - Stock market-hours endpoint now derives schedules from `exchange_calendars` and includes explicit closed-session context (`closure_reason`, `is_holiday`, optional `holiday_name`) so holiday closures can be distinguished from weekends.
 - Events migration slice: Investing economic calendar endpoint (`/api/events/economic`) now available for high-impact US and Euro-zone events.
+- Forex/macro migration slice: TradingView-backed macro snapshot endpoint (`/api/forex/macro`) now exposes US/EU yield curves plus major FX index quotes for the `/forex` route.
+- Forex/macro migration slice: the macro snapshot now also includes legacy crypto indices and the stock/forex TradingView index panel, with market-hours-aware visibility for the legacy stock/forex block.
 - Service-backed endpoints for Fear & Greed, treemap, StockTwits, SPY heatmap, trending crypto, and WallStreetBets Reddit hot posts.
 - Reddit WallStreetBets ingestion uses asyncpraw-first (legacy-style credentials) with HTTP JSON fallback when credentials are missing.
 - StockTwits service fallback for anti-bot blocks: curl-first fetch strategy with short-lived per-keyword cache fallback to avoid transient 503s (curl is executed via thread-backed sync subprocess for Windows/uvicorn compatibility).
@@ -92,6 +94,8 @@ Last updated: 2026-05-05
 - Options route timeline now filters to tweets classified as options-intent (`is_options_tweet=true`) instead of generic stock-linked tweets.
 - Options route now consumes options-only REST/SSE feeds so only options-classified tweets are fetched and rendered there.
 - Forex route now includes an economic events widget backed by Investing high-impact calendar data.
+- Forex route now includes a TradingView macro snapshot widget with yield curves and FX indices.
+- Forex route now includes legacy crypto indices plus the stock/forex TradingView index panel.
 - Economic events widget now displays country/region flag emojis and explicit impact badges per event.
 
 ## Connected End-to-End Today
@@ -115,6 +119,7 @@ Last updated: 2026-05-05
 - NFTs panel: `/api/nfts/trending` -> `NftTrendingWidget` (`/nfts`).
 - Stock market-hours banner: `/api/stocks/market-hours` -> `StockMarketHoursBanner` (`/stocks`).
 - Economic events panel: `/api/events/economic` -> `EconomicEventsWidget` (`/forex`).
+- Macro snapshot panel: `/api/forex/macro` -> `ForexMacroWidget` (`/forex`).
 
 ## Backend APIs Not Yet Connected in Main UI
 

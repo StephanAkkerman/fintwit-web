@@ -20,7 +20,7 @@ def _normalize_symbol(symbol: str) -> str:
         return ""
 
     if ":" in s:
-        _, _, s = s.partition(":")
+        return s
 
     if s.endswith("=X"):
         s = s[:-2]
@@ -45,7 +45,9 @@ def _scanner_priority(asset_hint: str | None) -> list[str]:
     return ["america", "global"]
 
 
-def _pick_best_row(rows: list[dict], asset_hint: str | None) -> Optional[dict]:
+def _pick_best_row(
+    rows: list[dict], asset_hint: str | None, requested_symbol_full: str | None = None
+) -> Optional[dict]:
     hint = str(asset_hint or "").strip().lower()
     best: tuple[float, dict] | None = None
 
@@ -77,11 +79,43 @@ def _pick_best_row(rows: list[dict], asset_hint: str | None) -> Optional[dict]:
         if best is None or score > best[0]:
             best = (score, row)
 
+    # If a requested full symbol was provided (e.g., 'CRYPTOCAP:TOTAL'), prefer exact matches
+    if requested_symbol_full:
+        rsf = str(requested_symbol_full).strip().upper()
+        try:
+            rp = rsf.split(":", 1)[0]
+        except Exception:
+            rp = None
+
+        # prefer exact symbol match first
+        for row in rows:
+            try:
+                row_symbol = str(row.get("symbol") or "").upper()
+                if row_symbol == rsf:
+                    return row
+            except Exception:
+                continue
+
+        # fallback: prefer rows from the same exchange/prefix
+        if rp:
+            for row in rows:
+                try:
+                    row_exchange = str(row.get("exchange") or "").upper()
+                    row_symbol = str(row.get("symbol") or "").upper()
+                    if row_exchange == rp or row_symbol.startswith(f"{rp}:"):
+                        return row
+                except Exception:
+                    continue
+
+        # Strict mode for qualified symbols: if no exact/prefix match was found,
+        # do not fall back to an unrelated exchange (e.g., OTC:PCCYF for USI:PCC).
+        return None
+
     return best[1] if best else None
 
 
 def _fetch_symbol_market_row_sync(
-    symbol: str, asset_hint: str | None
+    symbol: str, asset_hint: str | None, requested_symbol_full: str | None = None
 ) -> Optional[dict]:
     try:
         from tradingview_scraper.symbols.symbol_markets import SymbolMarkets
@@ -110,15 +144,19 @@ def _fetch_symbol_market_row_sync(
         if isinstance(data, list):
             rows.extend([r for r in data if isinstance(r, dict)])
 
-        best = _pick_best_row(rows, asset_hint)
-        if best is not None:
-            return best
+        # If we have a specific requested symbol (e.g., 'TVC:VIX'), keep accumulating
+        # rows from all scanners to ensure we find the exact match.
+        # Otherwise, do early returns for performance.
+        if requested_symbol_full is None:
+            best = _pick_best_row(rows, asset_hint, requested_symbol_full)
+            if best is not None:
+                return best
 
-    return _pick_best_row(rows, asset_hint)
+    return _pick_best_row(rows, asset_hint, requested_symbol_full)
 
 
 async def get_tradingview_quote(
-    symbol: str, asset_hint: str | None = None
+    symbol: str, asset_hint: str | None = None, prefer_realtime: bool = True
 ) -> Optional[dict]:
     """Best-effort TradingView quote fallback.
 
@@ -130,7 +168,65 @@ async def get_tradingview_quote(
     if not normalized:
         return None
 
-    row = await asyncio.to_thread(_fetch_symbol_market_row_sync, normalized, asset_hint)
+    # determine requested full symbol from original symbol (e.g., 'CRYPTOCAP:TOTAL', 'AMEX:SPY')
+    requested_symbol_full = None
+    try:
+        if ":" in symbol:
+            requested_symbol_full = str(symbol).strip().upper()
+    except Exception:
+        requested_symbol_full = None
+
+    # Prefer the shared websocket pool first. This keeps one TradingView socket
+    # alive per process and avoids the scanner picking an approximate row.
+    try:
+        from .tradingview_stream import get_shared_pool
+    except Exception:
+        try:
+            from app.services.tradingview_stream import get_shared_pool
+        except Exception:
+            get_shared_pool = None
+
+    if prefer_realtime and get_shared_pool is not None:
+        try:
+            pool_symbol = requested_symbol_full or normalized
+            realtime = await get_shared_pool().get_quote(
+                pool_symbol, asset_hint=asset_hint, timeout=6.0
+            )
+        except Exception as exc:
+            logger.debug(
+                "[tradingview] realtime pool failed for %s: %r",
+                requested_symbol_full or normalized,
+                exc,
+            )
+            realtime = None
+
+        if isinstance(realtime, dict) and _to_float(realtime.get("price")) is not None:
+            price = _to_float(realtime.get("price"))
+            if price is not None:
+                return {
+                    "price": price,
+                    "change_percent": _to_float(realtime.get("change_percent")) or 0.0,
+                    "volume": _to_float(realtime.get("volume")) or 0.0,
+                    "website": str(
+                        realtime.get("website")
+                        or f"https://www.tradingview.com/symbols/{normalized.replace(':', '-')}/"
+                    ),
+                    "source": "tradingview",
+                }
+
+    row = await asyncio.to_thread(
+        _fetch_symbol_market_row_sync, normalized, asset_hint, requested_symbol_full
+    )
+    if row is None and requested_symbol_full and ":" in requested_symbol_full:
+        # Some scanners only match on the ticker part. Keep this as fallback,
+        # but only after trying the fully-qualified symbol first.
+        ticker_only = requested_symbol_full.split(":", 1)[1]
+        row = await asyncio.to_thread(
+            _fetch_symbol_market_row_sync,
+            ticker_only,
+            asset_hint,
+            requested_symbol_full,
+        )
     if row is None:
         return None
 
@@ -155,7 +251,7 @@ if __name__ == "__main__":
     import json
 
     async def main() -> None:
-        quote = await get_tradingview_quote("AAPL", "stock")
+        quote = await get_tradingview_quote("USI:PCC", "stock")
         print(json.dumps(quote, indent=2))
 
     asyncio.run(main())

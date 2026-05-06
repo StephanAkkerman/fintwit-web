@@ -322,6 +322,49 @@ export type EconomicEventItem = {
   source: string | null;
 };
 
+export type ForexMacroCurvePoint = {
+  maturity: string;
+  symbol: string;
+  yield_percent: number;
+  change_percent?: number | null;
+  website?: string | null;
+  source?: string | null;
+};
+
+export type ForexMacroCurve = {
+  label: string;
+  points: ForexMacroCurvePoint[];
+  spread_2s10s?: number | null;
+};
+
+export type ForexMacroIndex = {
+  symbol: string;
+  name: string;
+  price: number;
+  category?: 'crypto' | 'stock' | 'forex' | 'macro' | null;
+  change_percent?: number | null;
+  website?: string | null;
+  source?: string | null;
+  tv_symbol?: string | null;
+};
+
+export type ForexMacroSnapshot = {
+  as_of: string;
+  yield_curves: ForexMacroCurve[];
+  crypto_indices?: ForexMacroIndex[];
+  stock_forex_indices?: ForexMacroIndex[];
+  fx_indices: ForexMacroIndex[];
+  stock_forex_visible?: boolean;
+  market_hours?: Array<Record<string, unknown>>;
+  sources?: {
+    yield_curves?: string | null;
+    crypto_indices?: string | null;
+    stock_forex_indices?: string | null;
+    fx_indices?: string | null;
+    market_hours?: string | null;
+  };
+};
+
 export type IbkrPosition = {
   id: number;
   account: string;

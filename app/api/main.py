@@ -30,6 +30,7 @@ from ..services.coin360_service import get_treemap_data
 from ..services.events_service import get_economic_events
 from ..services.fear_greed_service import get_feargreed
 from ..services.ibkr import IbkrGateway
+from ..services.macro_market import get_macro_snapshot
 from ..services.market_hours_service import get_stock_market_hours
 from ..services.nasdaq_service import get_halt_data
 from ..services.nft_service import get_trending_nfts
@@ -176,6 +177,14 @@ async def economic_events(
 ):
     client: httpx.AsyncClient = request.app.state.http_client
     data = await get_economic_events(client, limit=limit)
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
+
+
+@app.get("/api/forex/macro")
+async def forex_macro(_=Depends(api_key_dep)):
+    data = await get_macro_snapshot()
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data
