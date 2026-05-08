@@ -22,7 +22,7 @@ import { useTweets } from './hooks/useTweets'
 import type { Tweet } from './types'
 import { hasChartSignal } from './utils/tweetSignals'
 
-type FilterKey = 'all' | 'crypto' | 'stock'
+type FilterKey = 'all' | 'crypto' | 'stock' | 'forex'
 type RouteKey = 'home' | 'crypto' | 'stocks' | 'forex' | 'options' | 'nfts' | 'portfolio' | 'admin'
 type ChartSortMode = 'latest' | 'charts-first' | 'charts-only'
 type LookbackWindow = 24 | 48 | 168
@@ -68,6 +68,17 @@ function pathFromRoute(route: RouteKey): string {
 
 function isCryptoKind(kind: string | null | undefined): boolean {
   return (kind ?? '').toUpperCase().includes('CRYPTO')
+}
+
+function isForexKind(kind: string | null | undefined, symbol: string): boolean {
+  const k = (kind ?? '').toUpperCase()
+  const s = symbol.toUpperCase()
+  // Explicitly labeled forex or macro-related indices/futures
+  return (
+    k === 'FOREX' ||
+    (k === 'INDEX' && (s === 'DXY' || s === 'EXY' || s === 'BXY' || s === 'JXY' || s === 'USDOLLAR' || s.startsWith('US') || s.startsWith('EU'))) ||
+    (k === 'FUTURE' && (s.startsWith('6') || s === 'DX')) // e.g. 6E=F (EUR futures), DX=F (DXY futures)
+  )
 }
 
 function hasTickerLikeText(text: string): boolean {
@@ -127,12 +138,22 @@ function matchesFilter(tweet: Tweet, filter: FilterKey): boolean {
     assets.length > 0 ||
     (tweet.tickers?.length ?? 0) > 0 ||
     hasTickerLikeText(tweet.text ?? '')
-  const hasCrypto = assets.some((asset) => isCryptoKind(asset.kind))
-  const hasStock =
-    assets.some((asset) => !isCryptoKind(asset.kind)) ||
-    (assets.length === 0 && hasFinancialSignals)
 
-  if (filter === 'crypto') return hasCrypto
+  if (filter === 'crypto') {
+    return assets.some((asset) => isCryptoKind(asset.kind))
+  }
+
+  if (filter === 'forex') {
+    return assets.some((asset) => isForexKind(asset.kind, asset.symbol))
+  }
+
+  // Stock filter (default fallback for other assets or generic financial signals)
+  const hasCrypto = assets.some((asset) => isCryptoKind(asset.kind))
+  const hasForex = assets.some((asset) => isForexKind(asset.kind, asset.symbol))
+  const hasStock =
+    assets.some((asset) => !isCryptoKind(asset.kind) && !isForexKind(asset.kind, asset.symbol)) ||
+    (assets.length === 0 && hasFinancialSignals && !hasCrypto && !hasForex)
+
   return hasStock
 }
 
@@ -179,9 +200,11 @@ export default function App() {
   const effectiveFilter: FilterKey =
     route === 'crypto'
       ? 'crypto'
-      : route === 'stocks' || route === 'forex' || route === 'portfolio'
-        ? 'stock'
-        : 'all'
+      : route === 'forex'
+        ? 'forex'
+        : route === 'stocks' || route === 'portfolio'
+          ? 'stock'
+          : 'all'
 
   const activeSection = useMemo(
     () => SECTIONS.find((section) => section.key === route) ?? SECTIONS[0],
@@ -531,6 +554,7 @@ export default function App() {
               <TickerMentionsPanel
                 tweets={scopedTweets}
                 scopeLabel={activeSection.label}
+                route={route}
                 selectedUser={userFilter}
                 onTickerSelect={onTickerSelect}
               />

@@ -12,7 +12,7 @@ npm ci
 npm run dev
 ```
 
-The dev server proxies `/api/*` to `http://localhost:8000` (see `vite.config.ts`).
+The dev server proxies `/api/*` to `http://localhost:7999` (see `vite.config.ts`).
 
 ## Build
 

@@ -72,12 +72,12 @@ The legacy source is at `e:/GitHub/fintwit-bot/`. Key directories:
 
 ```bash
 # Backend
-uvicorn app.api.main:app --reload
+uvicorn app.api.main:app --port 7999 --reload
 pytest --maxfail=1 --disable-warnings -q
 ruff check . && ruff format .
 
 # Frontend (from /frontend)
-npm run dev      # proxies /api/* to http://127.0.0.1:8000
+npm run dev      # proxies /api/* to http://127.0.0.1:7999
 npm run build
 ```
 

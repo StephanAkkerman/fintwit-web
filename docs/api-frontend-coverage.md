@@ -70,7 +70,7 @@ For equities/ETFs, `tweet.assets[*].company_profile` may include curated finance
   - `/portfolio` portfolio management.
 
 - Primary contracts live in `frontend/src/types.ts` (tweets, market widgets, and portfolio types).
-- Containerized frontend proxy wiring: Nginx now resolves backend service DNS dynamically (`resolver 127.0.0.11`) for `/api/*` and `/api/stream` upstream routes to avoid stale upstream IPs after backend container restarts.
+- Containerized frontend proxy wiring: Nginx now resolves backend service DNS dynamically (`resolver 127.0.0.11`) on port 7999 for `/api/*` and `/api/stream` upstream routes to avoid stale upstream IPs after backend container restarts.
 - Timeline and filters rely on:
   - `tickers`, `hashtags`, and symbol extraction from text,
   - route-level section selection for category scope (home/all, crypto, stock/macro, options-only feed),

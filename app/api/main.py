@@ -55,6 +55,8 @@ PORTFOLIO_REPO = PortfolioRepo(Session)
 IBKR_REPO = IbkrRepo(Session)
 BROADCAST = Broadcaster()
 logger = logging.getLogger(__name__)
+logging.getLogger("httpx").setLevel(logging.INFO)
+logging.getLogger("httpcore").setLevel(logging.INFO)
 
 
 async def api_key_dep(request: Request):

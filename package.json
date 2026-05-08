@@ -1,6 +1,6 @@
 {
     "scripts": {
-        "dev": "concurrently --names \"backend,frontend\" --prefix-colors \"cyan,magenta\" \".\\.venv\\Scripts\\python.exe -m uvicorn app.api.main:app --reload\" \"wait-on tcp:127.0.0.1:8000 && npm run dev --prefix frontend\""
+        "dev": "concurrently --names \"backend,frontend\" --prefix-colors \"cyan,magenta\" \".\\.venv\\Scripts\\python.exe -m uvicorn app.api.main:app --port 7999 --reload\" \"wait-on tcp:127.0.0.1:7999 && npm run dev --prefix frontend\""
     },
     "devDependencies": {
         "concurrently": "^9.0.0",

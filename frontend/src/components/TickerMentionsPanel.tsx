@@ -5,6 +5,7 @@ import { hasChartSignal } from '../utils/tweetSignals'
 type TickerMentionsPanelProps = {
   tweets: Tweet[]
   scopeLabel: string
+  route: 'home' | 'crypto' | 'stocks' | 'forex' | 'portfolio' | 'options' | 'admin'
   selectedUser?: string | null
   onTickerSelect?: (ticker: string) => void
 }
@@ -62,32 +63,53 @@ function extractTickersFromText(text: string): string[] {
   return [...text.matchAll(tickerRegex)].map((match) => match[2].toUpperCase())
 }
 
-function extractTweetTickers(tweet: Tweet): string[] {
+function getAssetKindsForRoute(route: string): Set<string> {
+  if (route === 'crypto') return new Set(['CRYPTO', 'crypto'])
+  if (route === 'stocks') return new Set(['EQUITY', 'equity'])
+  return new Set() // Empty set means include all
+}
+
+function extractTweetTickers(tweet: Tweet, route: string): string[] {
   const symbols = new Set<string>()
+  const allowedKinds = getAssetKindsForRoute(route)
+  const shouldFilterByKind = allowedKinds.size > 0
 
-  for (const ticker of tweet.tickers ?? []) {
-    const normalized = ticker.trim().toUpperCase()
-    if (validTickerRegex.test(normalized)) symbols.add(normalized)
-  }
-
+  // Extract from assets with kind filtering
   for (const asset of tweet.assets ?? []) {
     const normalized = asset.symbol?.trim().toUpperCase() ?? ''
-    if (validTickerRegex.test(normalized)) symbols.add(normalized)
+    if (validTickerRegex.test(normalized)) {
+      // If we have kind-based filtering, check the asset kind
+      if (shouldFilterByKind && asset.kind) {
+        if (allowedKinds.has(asset.kind)) symbols.add(normalized)
+      } else if (!shouldFilterByKind) {
+        // If no kind-based filtering for this route, include all
+        symbols.add(normalized)
+      }
+    }
   }
 
-  for (const hashtag of tweet.hashtags ?? []) {
-    const normalized = hashtag.trim().replace(/^#/, '').toUpperCase()
-    if (validTickerRegex.test(normalized)) symbols.add(normalized)
-  }
+  // For tickers array and text-extracted tickers, only include if we're not doing strict kind filtering
+  // or if it's a route where we should include all
+  if (!shouldFilterByKind) {
+    for (const ticker of tweet.tickers ?? []) {
+      const normalized = ticker.trim().toUpperCase()
+      if (validTickerRegex.test(normalized)) symbols.add(normalized)
+    }
 
-  for (const ticker of extractTickersFromText(tweet.text ?? '')) {
-    if (validTickerRegex.test(ticker)) symbols.add(ticker)
+    for (const hashtag of tweet.hashtags ?? []) {
+      const normalized = hashtag.trim().replace(/^#/, '').toUpperCase()
+      if (validTickerRegex.test(normalized)) symbols.add(normalized)
+    }
+
+    for (const ticker of extractTickersFromText(tweet.text ?? '')) {
+      if (validTickerRegex.test(ticker)) symbols.add(ticker)
+    }
   }
 
   return [...symbols]
 }
 
-function buildMentionInsights(tweets: Tweet[]): MentionInsights {
+function buildMentionInsights(tweets: Tweet[], route: string): MentionInsights {
   const mentionMap = new Map<string, MentionAggregate>()
   const authorCounts = new Map<string, number>()
 
@@ -98,7 +120,7 @@ function buildMentionInsights(tweets: Tweet[]): MentionInsights {
     const isChartTweet = hasChartSignal(tweet)
     if (isChartTweet) chartSignalTweets += 1
 
-    const symbols = extractTweetTickers(tweet)
+    const symbols = extractTweetTickers(tweet, route)
     if (symbols.length === 0) continue
 
     tweetsWithMentions += 1
@@ -176,10 +198,11 @@ function buildMentionInsights(tweets: Tweet[]): MentionInsights {
 export default function TickerMentionsPanel({
   tweets,
   scopeLabel,
+  route,
   selectedUser,
   onTickerSelect,
 }: TickerMentionsPanelProps) {
-  const insights = useMemo(() => buildMentionInsights(tweets), [tweets])
+  const insights = useMemo(() => buildMentionInsights(tweets, route), [tweets, route])
   const topRows = insights.rows.slice(0, 8)
   const maxMentions = topRows[0]?.mentions ?? 1
   const focusLabel = selectedUser ? `@${selectedUser}` : 'all users'

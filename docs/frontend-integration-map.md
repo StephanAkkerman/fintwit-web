@@ -6,7 +6,7 @@ Last updated: 2026-05-05
 
 Infrastructure wiring note:
 
-- Frontend Nginx proxy now uses Docker DNS dynamic re-resolution for backend upstream (`backend:8000`) on `/api/*` and `/api/stream`, preventing stale-upstream `502` behavior after backend container restarts.
+- Frontend Nginx proxy now uses Docker DNS dynamic re-resolution for backend upstream (`backend:7999`) on `/api/*` and `/api/stream`, preventing stale-upstream `502` behavior after backend container restarts.
 
 Route-level sections:
 

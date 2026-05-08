@@ -113,7 +113,7 @@ The backend Docker image installs CPU-only PyTorch wheels (`download.pytorch.org
 This stack runs:
 
 - Frontend (Nginx + React build) on `127.0.0.1:3000`
-- Backend (FastAPI) on `127.0.0.1:8000`
+- Backend (FastAPI) on `127.0.0.1:7999`
 
 The frontend container proxies `/api/*` and `/api/stream` to the backend container.
 
@@ -149,8 +149,8 @@ Verify sync health:
 docker logs -f fintwit-ibgateway
 docker logs -f fintwit-backend
 
-curl -H "X-API-Key: YOUR_API_KEY" http://127.0.0.1:8000/api/ibkr/status
-curl -H "X-API-Key: YOUR_API_KEY" "http://127.0.0.1:8000/api/ibkr/trades?limit=20"
+curl -H "X-API-Key: YOUR_API_KEY" http://127.0.0.1:7999/api/ibkr/status
+curl -H "X-API-Key: YOUR_API_KEY" "http://127.0.0.1:7999/api/ibkr/trades?limit=20"
 ```
 
 Expected behavior:
@@ -215,7 +215,7 @@ Public hostname defaults to `fintwit.akkerman.ai` (configurable in `infra/terraf
 ### Start separately
 1. Run the backend using:
 ```bash
-uvicorn app.api.main:app --reload
+uvicorn app.api.main:app --port 7999 --reload
 ```
 2. Run the frontend using:
 ```bash

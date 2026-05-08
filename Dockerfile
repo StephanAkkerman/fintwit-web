@@ -50,6 +50,6 @@ PY
 COPY app ./app
 COPY curl.txt ./curl.txt
 
-EXPOSE 8000
+EXPOSE 7999
 
-CMD ["uvicorn", "app.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--log-config", "app/logging.ini"]
+CMD ["uvicorn", "app.api.main:app", "--host", "0.0.0.0", "--port", "7999", "--log-config", "app/logging.ini"]

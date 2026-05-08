@@ -1273,6 +1273,100 @@ describe('App', () => {
     })
   })
 
+  it('filters tweets to forex/macro signals on the forex route', async () => {
+    const posts: Tweet[] = [
+      {
+        id: 1,
+        text: '$EURUSD pair outlook',
+        user_name: 'Forex User',
+        user_screen_name: 'forex_user',
+        user_img: 'https://example.com/f.jpg',
+        url: 'https://x.com/f/1',
+        created_at: '',
+        media: [],
+        tickers: ['EURUSD'],
+        hashtags: [],
+        title: '',
+        media_types: [],
+        replies: 0,
+        likes: 0,
+        views: 0,
+        retweets: 0,
+        assets: [{ symbol: 'EURUSD', kind: 'FOREX' }],
+      },
+      {
+        id: 2,
+        text: '$AAPL breakout',
+        user_name: 'Stock User',
+        user_screen_name: 'stock_user',
+        user_img: 'https://example.com/s.jpg',
+        url: 'https://x.com/s/2',
+        created_at: '',
+        media: [],
+        tickers: ['AAPL'],
+        hashtags: [],
+        title: '',
+        media_types: [],
+        replies: 0,
+        likes: 0,
+        views: 0,
+        retweets: 0,
+        assets: [{ symbol: 'AAPL', kind: 'EQUITY' }],
+      },
+      {
+        id: 3,
+        text: '$BTC moon',
+        user_name: 'Crypto User',
+        user_screen_name: 'crypto_user',
+        user_img: 'https://example.com/c.jpg',
+        url: 'https://x.com/c/3',
+        created_at: '',
+        media: [],
+        tickers: ['BTC'],
+        hashtags: [],
+        title: '',
+        media_types: [],
+        replies: 0,
+        likes: 0,
+        views: 0,
+        retweets: 0,
+        assets: [{ symbol: 'BTC', kind: 'CRYPTO' }],
+      },
+    ]
+
+    fetchMock.mockImplementation((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/api/posts')) {
+        return Promise.resolve({ ok: true, json: async () => posts } as Response)
+      }
+      if (url.includes('/api/ibkr/positions')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/ibkr/trades')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/ibkr/account')) {
+        return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
+      }
+      if (url.includes('/api/ibkr/status')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ configured: false, connected: false, last_sync: null, last_error: null }),
+        } as Response)
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
+    })
+
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open /forex' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Forex User')).toBeInTheDocument()
+      expect(screen.queryByText('Stock User')).not.toBeInTheDocument()
+      expect(screen.queryByText('Crypto User')).not.toBeInTheDocument()
+    })
+  })
+
   it('sorts and filters chart tweets in crypto route', async () => {
     const posts: Tweet[] = [
       {
