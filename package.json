@@ -1,9 +1,8 @@
 {
     "scripts": {
-        "dev": "concurrently --names \"backend,frontend\" --prefix-colors \"cyan,magenta\" \".\\.venv\\Scripts\\python.exe -m uvicorn app.api.main:app --port 7999 --reload\" \"wait-on tcp:127.0.0.1:7999 && npm run dev --prefix frontend\""
+        "dev": "node scripts/dev.mjs"
     },
     "devDependencies": {
-        "concurrently": "^9.0.0",
         "wait-on": "^8.0.1"
     }
 }
