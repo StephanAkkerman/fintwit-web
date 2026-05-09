@@ -2,13 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import BinanceGainersLosersWidget from './components/BinanceGainersLosersWidget'
 import DebugAdminPanel from './components/DebugAdminPanel'
 import EconomicEventsWidget from './components/EconomicEventsWidget'
-import FearGreedWidget from './components/FearGreedWidget'
 import ForexMacroWidget from './components/ForexMacroWidget'
+import { OverviewDashboard } from './components/OverviewDashboard'
 import IbkrPanel from './components/IbkrPanel'
-import MarketOverview from './components/MarketOverview'
 import NftTrendingWidget from './components/NftTrendingWidget'
 import OptionsOverviewWidget from './components/OptionsOverviewWidget'
-import RedditWsbWidget from './components/RedditWsbWidget'
 import SpyHeatmapWidget from './components/SpyHeatmapWidget'
 import StockHaltsWidget from './components/StockHaltsWidget'
 import StockMarketHoursBanner from './components/StockMarketHoursBanner'
@@ -561,11 +559,7 @@ export default function App() {
             )}
 
             {route === 'home' && (
-              <>
-                <FearGreedWidget />
-                <RedditWsbWidget />
-                <MarketOverview />
-              </>
+              <OverviewDashboard onTickerClick={onTickerSelect} />
             )}
 
             {route === 'crypto' && (
