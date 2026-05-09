@@ -417,3 +417,50 @@ export type IbkrStatus = {
   last_sync: string | null;
   last_error: string | null;
 };
+
+export type AssetKind = 'all' | 'EQUITY' | 'CRYPTO' | 'FOREX';
+
+export type SentimentLabel = 'BULL' | 'BEAR' | 'NEUTRAL';
+
+export interface MacroTickerItem {
+  label: string; // "SPX" | "NDX" | "BTC" | "ETH" | "DXY" | "VIX" | "GOLD"
+  symbol: string;
+  price: number;
+  change_pct: number;
+  sparkline: number[]; // [] until intraday bars are added
+}
+
+export interface MentionHeatCell {
+  ticker: string;
+  mentions_24h: number;
+  avg_sentiment_24h: number; // -1 to 1
+  sentiment_label_24h: SentimentLabel;
+  asset_kind: string;
+  price_direction: number | null;
+}
+
+export interface SentimentShiftItem {
+  ticker: string;
+  mentions_24h: number;
+  sentiment_label_24h: SentimentLabel;
+  sentiment_label_prev: SentimentLabel;
+  asset_kind: string;
+}
+
+export interface VolumeBaselineItem {
+  ticker: string;
+  mentions_24h: number;
+  baseline_7d_avg: number;
+  volume_multiplier: number;
+  asset_kind: string;
+}
+
+export interface HiddenGemItem {
+  ticker: string;
+  mentions_24h: number;
+  gem_subtype: 'new' | 'resurfacing';
+  days_since_last: number | null;
+  first_seen: string | null;
+  last_seen: string | null;
+  asset_kind: string;
+}
