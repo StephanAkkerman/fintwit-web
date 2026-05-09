@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Swing-Trader Overview — 8 structural patterns</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4f4f7; padding: 2rem; color: #1a1a2e; }
+
+  h1 { font-size: 1.35rem; font-weight: 700; margin-bottom: 0.25rem; }
+  .sub { font-size: 0.875rem; color: #6b7280; margin-bottom: 1.75rem; }
+
+  .crazy8-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1.25rem;
+  }
+
+  .crazy8-card {
+    background: #fff;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 1.25rem;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .crazy8-card:hover {
+    border-color: #8b7ec8;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  }
+
+  .crazy8-header {
+    display: flex;
+    align-items: baseline;
+    gap: 0.625rem;
+    margin-bottom: 0.75rem;
+  }
+  .crazy8-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    background: #f0eeff;
+    color: #6c5ce7;
+    font-size: 0.75rem;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .crazy8-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1a1a2e;
+  }
+  .crazy8-thumb {
+    aspect-ratio: 4/3;
+    background: #f8f8fa;
+    border-radius: 8px;
+    border: 1px solid #ebebeb;
+    margin-bottom: 0.75rem;
+    padding: 0.75rem;
+    overflow: hidden;
+  }
+  .crazy8-desc {
+    font-size: 0.8125rem;
+    color: #6b7280;
+    line-height: 1.45;
+  }
+
+  /* Semantic colors (held constant):
+     Emerald (#22c55e) = live signal / treemap / sentiment
+     Amber (#f59e0b)   = volume spike / alert / attention
+     Purple (#8b7ec8)  = active / selected state
+  */
+</style>
+</head>
+<body>
+
+<h1>Swing-Trader Overview — 8 structural patterns</h1>
+<p class="sub">Click any to explore at full detail.</p>
+
+<div class="crazy8-grid">
+
+  <!-- 01: Newspaper Hero -->
+  <div class="crazy8-card" data-choice="1">
+    <div class="crazy8-header">
+      <span class="crazy8-num">01</span>
+      <span class="crazy8-title">Newspaper Hero</span>
+    </div>
+    <div class="crazy8-thumb">
+      <div style="display:flex; flex-direction:column; gap:5px; height:100%;">
+        <!-- Macro strip -->
+        <div style="display:flex; gap:3px; height:8px;">
+          <div style="flex:1; background:#d1fae5; border-radius:2px;"></div>
+          <div style="flex:1; background:#d1fae5; border-radius:2px;"></div>
+          <div style="flex:1; background:#fee2e2; border-radius:2px;"></div>
+          <div style="flex:1; background:#d1fae5; border-radius:2px;"></div>
+          <div style="flex:1; background:#fef3c7; border-radius:2px;"></div>
+          <div style="flex:1; background:#fee2e2; border-radius:2px;"></div>
+          <div style="flex:1; background:#d1fae5; border-radius:2px;"></div>
+          <div style="flex:1; background:#fee2e2; border-radius:2px;"></div>
+        </div>
+        <!-- Hero treemap -->
+        <div style="flex:2; background:#bbf7d0; border-radius:5px; display:grid; grid-template-columns:2fr 1fr 1fr; grid-template-rows:1fr 1fr; gap:2px; padding:4px;">
+          <div style="background:#22c55e; border-radius:3px; grid-row:1/3;"></div>
+          <div style="background:#4ade80; border-radius:3px;"></div>
+          <div style="background:#f87171; border-radius:3px;"></div>
+          <div style="background:#fbbf24; border-radius:3px;"></div>
+          <div style="background:#4ade80; border-radius:3px;"></div>
+        </div>
+        <!-- 3-column widgets -->
+        <div style="flex:1.5; display:grid; grid-template-columns:1fr 1fr 1fr; gap:4px;">
+          <!-- Leaderboard -->
+          <div style="background:#f0eeff; border-radius:4px; padding:4px; display:flex; flex-direction:column; gap:2px;">
+            <div style="height:3px; background:#8b7ec8; border-radius:2px; width:60%;"></div>
+            <div style="height:2px; background:#c4c0d8; border-radius:2px;"></div>
+            <div style="height:2px; background:#c4c0d8; border-radius:2px;"></div>
+            <div style="height:2px; background:#c4c0d8; border-radius:2px;"></div>
+          </div>
+          <!-- Volume spikes -->
+          <div style="background:#fffbeb; border-radius:4px; padding:4px; display:flex; flex-direction:column; gap:2px;">
+            <div style="height:3px; background:#f59e0b; border-radius:2px; width:70%;"></div>
+            <div style="height:2px; background:#fcd34d; border-radius:2px;"></div>
+            <div style="height:2px; background:#fcd34d; border-radius:2px;"></div>
+            <div style="height:2px; background:#fcd34d; border-radius:2px;"></div>
+          </div>
+          <!-- Calendar -->
+          <div style="background:#f8f8fa; border-radius:4px; padding:4px; display:flex; flex-direction:column; gap:2px;">
+            <div style="height:3px; background:#9ca3af; border-radius:2px; width:50%;"></div>
+            <div style="height:2px; background:#d1d5db; border-radius:2px;"></div>
+            <div style="height:2px; background:#d1d5db; border-radius:2px;"></div>
+            <div style="height:2px; background:#d1d5db; border-radius:2px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="crazy8-desc">Full-width treemap hero, dense macro strip above, three widget columns below. Scan → drill.</p>
+  </div>
+
+  <!-- 02: Bloomberg Grid -->
+  <div class="crazy8-card" data-choice="2">
+    <div class="crazy8-header">
+      <span class="crazy8-num">02</span>
+      <span class="crazy8-title">Bloomberg Grid</span>
+    </div>
+    <div class="crazy8-thumb">
+      <div style="display:flex; flex-direction:column; gap:4px; height:100%;">
+        <!-- Top bar -->
+        <div style="height:6px; background:#1e293b; border-radius:3px; display:flex; align-items:center; padding:0 4px; gap:3px;">
+          <div style="width:8px; height:3px; background:#22c55e; border-radius:1px;"></div>
+          <div style="width:8px; height:3px; background:#fbbf24; border-radius:1px;"></div>
+          <div style="width:8px; height:3px; background:#f87171; border-radius:1px;"></div>
+        </div>
+        <!-- Dense 3x3 grid -->
+        <div style="flex:1; display:grid; grid-template-columns:1fr 1fr 1fr; grid-template-rows:1fr 1fr 1fr; gap:3px;">
+          <div style="background:#bbf7d0; border-radius:3px; display:flex; align-items:center; justify-content:center;">
+            <!-- Treemap tile -->
+            <div style="width:80%; height:80%; display:grid; grid-template-columns:2fr 1fr; gap:1px;">
+              <div style="background:#22c55e; border-radius:2px;"></div>
+              <div style="display:flex; flex-direction:column; gap:1px;">
+                <div style="background:#4ade80; border-radius:2px; flex:1;"></div>
+                <div style="background:#f87171; border-radius:2px; flex:1;"></div>
+              </div>
+            </div>
+          </div>
+          <div style="background:#f0eeff; border-radius:3px; padding:3px; display:flex; flex-direction:column; gap:2px;">
+            <div style="height:2px; background:#8b7ec8; border-radius:1px; width:60%;"></div>
+            <div style="height:2px; background:#c4c0d8; border-radius:1px;"></div>
+            <div style="height:2px; background:#c4c0d8; border-radius:1px;"></div>
+            <div style="height:2px; background:#c4c0d8; border-radius:1px;"></div>
+          </div>
+          <div style="background:#fffbeb; border-radius:3px; padding:3px; display:flex; flex-direction:column; gap:2px;">
+            <div style="height:2px; background:#f59e0b; border-radius:1px; width:70%;"></div>
+            <div style="height:2px; background:#fcd34d; border-radius:1px;"></div>
+            <div style="height:2px; background:#fcd34d; border-radius:1px;"></div>
+          </div>
+          <div style="background:#f8f8fa; border-radius:3px; padding:3px;">
+            <div style="display:flex; gap:2px; height:100%;">
+              <div style="width:4px; background:#22c55e; border-radius:1px; align-self:flex-end; height:70%;"></div>
+              <div style="width:4px; background:#22c55e; border-radius:1px; align-self:flex-end; height:90%;"></div>
+              <div style="width:4px; background:#f87171; border-radius:1px; align-self:flex-end; height:50%;"></div>
+              <div style="width:4px; background:#22c55e; border-radius:1px; align-self:flex-end; height:80%;"></div>
+              <div style="width:4px; background:#fbbf24; border-radius:1px; align-self:flex-end; height:60%;"></div>
+            </div>
+          </div>
+          <div style="background:#f0eeff; border-radius:3px; padding:3px; display:flex; flex-direction:column; gap:2px;">
+            <div style="height:2px; background:#8b7ec8; border-radius:1px; width:50%;"></div>
+            <div style="height:2px; background:#c4c0d8; border-radius:1px;"></div>
+            <div style="height:2px; background:#c4c0d8; border-radius:1px;"></div>
+          </div>
+          <div style="background:#f8f8fa; border-radius:3px; padding:3px; display:flex; flex-direction:column; gap:2px;">
+            <div style="height:2px; background:#9ca3af; border-radius:1px;"></div>
+            <div style="height:2px; background:#d1d5db; border-radius:1px;"></div>
+            <div style="height:2px; background:#d1d5db; border-radius:1px;"></div>
+          </div>
+          <div style="grid-column:1/4; background:#fff; border:1px solid #e5e7eb; border-radius:3px; padding:3px; display:flex; gap:3px; align-items:center;">
+            <div style="width:12px; height:12px; border-radius:50%; background:#22c55e; flex-shrink:0;"></div>
+            <div style="flex:1; display:flex; flex-direction:column; gap:2px;">
+              <div style="height:2px; background:#d1d5db; border-radius:1px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="crazy8-desc">Dense 3×3 tile grid with dark topbar. Everything visible at once, no scroll. Terminal aesthetic.</p>
+  </div>
+
+  <!-- 03: Intelligence Brief -->
+  <div class="crazy8-card" data-choice="3">
+    <div class="crazy8-header">
+      <span class="crazy8-num">03</span>
+      <span class="crazy8-title">Intelligence Brief</span>
+    </div>
+    <div class="crazy8-thumb">
+      <div style="display:flex; flex-direction:column; gap:5px; height:100%;">
+        <!-- Header bar -->
+        <div style="height:5px; background:#e5e7eb; border-radius:3px;"></div>
+        <!-- 3-column editorial: State | Signal | Action -->
+        <div style="flex:1; display:grid; grid-template-columns:1fr 1.5fr 1fr; gap:4px;">
+          <!-- State column -->
+          <div style="background:#f8f8fa; border-radius:4px; padding:4px; display:flex; flex-direction:column; gap:3px;">
+            <div style="height:2px; background:#9ca3af; width:55%; border-radius:1px;"></div>
+            <div style="height:6px; background:#d1fae5; border-radius:2px;"></div>
+            <div style="height:6px; background:#fef3c7; border-radius:2px;"></div>
+            <div style="height:6px; background:#d1fae5; border-radius:2px;"></div>
+            <div style="height:6px; background:#fee2e2; border-radius:2px;"></div>
+          </div>
+          <!-- Signal column — treemap + leaderboard -->
+          <div style="display:flex; flex-direction:column; gap:3px;">
+            <div style="flex:2; background:#bbf7d0; border-radius:4px; padding:3px; display:grid; grid-template-columns:2fr 1fr 1fr; grid-template-rows:1fr 1fr; gap:2px;">
+              <div style="background:#22c55e; border-radius:2px; grid-row:1/3;"></div>
+              <div style="background:#4ade80; border-radius:2px;"></div>
+              <div style="background:#f87171; border-radius:2px;"></div>
+              <div style="background:#fbbf24; border-radius:2px;"></div>
+              <div style="background:#4ade80; border-radius:2px;"></div>
+            </div>
+            <div style="flex:1; background:#f0eeff; border-radius:4px; padding:3px; display:flex; flex-direction:column; gap:2px;">
+              <div style="height:2px; background:#8b7ec8; border-radius:1px; width:60%;"></div>
+              <div style="height:2px; background:#c4c0d8; border-radius:1px;"></div>
+              <div style="height:2px; background:#c4c0d8; border-radius:1px;"></div>
+            </div>
+          </div>
+          <!-- Action column -->
+          <div style="background:#f8f8fa; border-radius:4px; padding:4px; display:flex; flex-direction:column; gap:3px;">
+            <div style="height:2px; background:#9ca3af; width:55%; border-radius:1px;"></div>
+            <div style="height:5px; background:#fffbeb; border-radius:2px; border-left:2px solid #f59e0b;"></div>
+            <div style="height:5px; background:#f0eeff; border-radius:2px; border-left:2px solid #8b7ec8;"></div>
+            <div style="height:5px; background:#d1fae5; border-radius:2px; border-left:2px solid #22c55e;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="crazy8-desc">Three editorial columns: State (market) / Signal (heat + leaderboard) / Action (calendar, portfolio). Structured like a briefing doc.</p>
+  </div>
+
+  <!-- 04: Context Map -->
+  <div class="crazy8-card" data-choice="4">
+    <div class="crazy8-header">
+      <span class="crazy8-num">04</span>
+      <span class="crazy8-title">Context Map</span>
+    </div>
+    <div class="crazy8-thumb">
+      <div style="display:flex; flex-direction:column; gap:4px; height:100%;">
+        <!-- Macro strip -->
+        <div style="height:7px; display:flex; gap:2px;">
+          <div style="flex:1; background:#d1fae5; border-radius:2px;"></div>
+          <div style="flex:1; background:#d1fae5; border-radius:2px;"></div>
+          <div style="flex:1; background:#fee2e2; border-radius:2px;"></div>
+          <div style="flex:1; background:#d1fae5; border-radius:2px;"></div>
+          <div style="flex:1; background:#fef3c7; border-radius:2px;"></div>
+          <div style="flex:1; background:#fee2e2; border-radius:2px;"></div>
+          <div style="flex:1; background:#d1fae5; border-radius:2px;"></div>
+        </div>
+        <!-- Split: treemap left, stacked widgets right -->
+        <div style="flex:1; display:grid; grid-template-columns:2fr 1fr; gap:4px;">
+          <!-- Big treemap -->
+          <div style="background:#bbf7d0; border-radius:5px; padding:5px; display:grid; grid-template-columns:3fr 2fr 2fr; grid-template-rows:2fr 1fr 1fr; gap:2px;">
+            <div style="background:#22c55e; border-radius:3px; grid-row:1/4;"></div>
+            <div style="background:#4ade80; border-radius:2px; grid-column:2/4;"></div>
+            <div style="background:#fbbf24; border-radius:2px;"></div>
+            <div style="background:#f87171; border-radius:2px;"></div>
+            <div style="background:#4ade80; border-radius:2px;"></div>
+            <div style="background:#fbbf24; border-radius:2px;"></div>
+          </div>
+          <!-- Stacked mini-widgets -->
+          <div style="display:flex; flex-direction:column; gap:3px;">
+            <div style="flex:1; background:#f0eeff; border-radius:4px; padding:3px; display:flex; flex-direction:column; gap:2px;">
+              <div style="height:2px; background:#8b7ec8; border-radius:1px; width:60%;"></div>
+              <div style="height:2px; background:#c4c0d8; border-radius:1px;"></div>
+              <div style="height:2px; background:#c4c0d8; border-radius:1px;"></div>
+            </div>
+            <div style="flex:1; background:#fffbeb; border-radius:4px; padding:3px; display:flex; flex-direction:column; gap:2px;">
+              <div style="height:2px; background:#f59e0b; border-radius:1px; width:70%;"></div>
+              <div style="height:2px; background:#fcd34d; border-radius:1px;"></div>
+              <div style="height:2px; background:#fcd34d; border-radius:1px;"></div>
+            </div>
+            <div style="flex:1; background:#f8f8fa; border-radius:4px; padding:3px; display:flex; flex-direction:column; gap:2px;">
+              <div style="height:2px; background:#9ca3af; border-radius:1px; width:50%;"></div>
+              <div style="height:2px; background:#d1d5db; border-radius:1px;"></div>
+              <div style="height:2px; background:#d1d5db; border-radius:1px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="crazy8-desc">Treemap fills 2/3 of the canvas, stacked widgets on the right. The map IS the dashboard — everything else is context.</p>
+  </div>
+
+  <!-- 05: Momentum Pipeline -->
+  <div class="crazy8-card" data-choice="5">
+    <div class="crazy8-header">
+      <span class="crazy8-num">05</span>
+      <span class="crazy8-title">Momentum Pipeline</span>
+    </div>
+    <div class="crazy8-thumb">
+      <div style="display:flex; flex-direction:column; gap:5px; height:100%;">
+        <!-- Header -->
+        <div style="height:5px; background:#e5e7eb; border-radius:3px;"></div>
+        <!-- Horizontal swimlanes -->
+        <div style="flex:1; display:flex; flex-direction:column; gap:3px;">
+          <!-- Lane 1: State -->
+          <div style="flex:1; background:#f8f8fa; border-radius:4px; display:flex; gap:3px; align-items:center; padding:4px; border-left:3px solid #9ca3af;">
+            <div style="font-size:0; width:20%; background:#e5e7eb; border-radius:2px; height:100%;"></div>
+            <div style="display:flex; gap:2px; flex:1;">
+              <div style="flex:1; background:#d1fae5; border-radius:3px; height:100%;"></div>
+              <div style="flex:1; background:#d1fae5; border-radius:3px; height:100%;"></div>
+              <div style="flex:1; background:#fee2e2; border-radius:3px; height:100%;"></div>
+              <div style="flex:1; background:#fef3c7; border-radius:3px; height:100%;"></div>
+            </div>
+          </div>
+          <!-- Lane 2: Signal (hero) -->
+          <div style="flex:2; background:#d1fae5; border-radius:4px; display:flex; gap:3px; align-items:center; padding:4px; border-left:3px solid #22c55e;">
+            <div style="width:20%; background:#bbf7d0; border-radius:3px; height:100%; display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; gap:1px; padding:2px;">
+              <div style="background:#22c55e; border-radius:2px;"></div>
+              <div style="background:#4ade80; border-radius:2px;"></div>
+              <div style="background:#fbbf24; border-radius:2px;"></div>
+              <div style="background:#f87171; border-radius:2px;"></div>
+            </div>
+            <div style="flex:1; background:#86efac; border-radius:3px; height:70%; display:flex; flex-direction:column; gap:2px; padding:3px;">
+              <div style="height:3px; background:#16a34a; border-radius:1px; width:70%;"></div>
+              <div style="height:2px; background:#86efac; border-radius:1px;"></div>
+              <div style="height:2px; background:#86efac; border-radius:1px;"></div>
+            </div>
+            <div style="flex:1; background:#bbf7d0; border-radius:3px; height:70%; display:flex; flex-direction:column; gap:2px; padding:3px;">
+              <div style="height:3px; background:#16a34a; border-radius:1px; width:60%;"></div>
+              <div style="height:2px; background:#86efac; border-radius:1px;"></div>
+              <div style="height:2px; background:#86efac; border-radius:1px;"></div>
+            </div>
+          </div>
+          <!-- Lane 3: Action -->
+          <div style="flex:1; background:#fffbeb; border-radius:4px; display:flex; gap:3px; align-items:center; padding:4px; border-left:3px solid #f59e0b;">
+            <div style="width:20%; background:#fef3c7; border-radius:2px; height:100%;"></div>
+            <div style="display:flex; gap:2px; flex:1;">
+              <div style="flex:1; background:#fef3c7; border-radius:3px; height:100%;"></div>
+              <div style="flex:1; background:#fef3c7; border-radius:3px; height:100%;"></div>
+              <div style="flex:1; background:#f0eeff; border-radius:3px; height:100%;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="crazy8-desc">Three horizontal swimlanes: State → Signal → Action. The signal lane is taller and is the hero. Read top-to-bottom like a decision chain.</p>
+  </div>
+
+  <!-- 06: Inverted Stream -->
+  <div class="crazy8-card" data-choice="6">
+    <div class="crazy8-header">
+      <span class="crazy8-num">06</span>
+      <span class="crazy8-title">Inverted Stream</span>
+    </div>
+    <div class="crazy8-thumb">
+      <div style="display:flex; flex-direction:column; gap:4px; height:100%;">
+        <!-- Pinned dashboard above -->
+        <div style="flex:1.2; background:#f8f8fa; border-radius:5px; padding:5px; display:flex; flex-direction:column; gap:3px;">
+          <!-- Macro strip -->
+          <div style="height:5px; display:flex; gap:2px;">
+            <div style="flex:1; background:#d1fae5; border-radius:1px;"></div>
+            <div style="flex:1; background:#d1fae5; border-radius:1px;"></div>
+            <div style="flex:1; background:#fee2e2; border-radius:1px;"></div>
+            <div style="flex:1; background:#fef3c7; border-radius:1px;"></div>
+            <div style="flex:1; background:#d1fae5; border-radius:1px;"></div>
+          </div>
+          <!-- Mini widgets row -->
+          <div style="flex:1; display:grid; grid-template-columns:1.5fr 1fr 1fr; gap:3px;">
+            <div style="background:#bbf7d0; border-radius:3px; padding:3px; display:grid; grid-template-columns:2fr 1fr; gap:1px;">
+              <div style="background:#22c55e; border-radius:2px;"></div>
+              <div style="display:flex; flex-direction:column; gap:1px;">
+                <div style="background:#4ade80; border-radius:1px; flex:1;"></div>
+                <div style="background:#f87171; border-radius:1px; flex:1;"></div>
+              </div>
+            </div>
+            <div style="background:#f0eeff; border-radius:3px; padding:3px; display:flex; flex-direction:column; gap:2px;">
+              <div style="height:2px; background:#8b7ec8; border-radius:1px; width:60%;"></div>
+              <div style="height:2px; background:#c4c0d8; border-radius:1px;"></div>
+              <div style="height:2px; background:#c4c0d8; border-radius:1px;"></div>
+            </div>
+            <div style="background:#fffbeb; border-radius:3px; padding:3px; display:flex; flex-direction:column; gap:2px;">
+              <div style="height:2px; background:#f59e0b; border-radius:1px; width:70%;"></div>
+              <div style="height:2px; background:#fcd34d; border-radius:1px;"></div>
+              <div style="height:2px; background:#fcd34d; border-radius:1px;"></div>
+            </div>
+          </div>
+        </div>
+        <!-- Divider -->
+        <div style="height:2px; background:#e5e7eb; border-radius:1px;"></div>
+        <!-- Condensed tweet stream below -->
+        <div style="flex:1; display:flex; flex-direction:column; gap:2px;">
+          <div style="height:8px; background:#fff; border-radius:3px; border:1px solid #e5e7eb; display:flex; gap:3px; align-items:center; padding:0 4px;">
+            <div style="width:6px; height:6px; border-radius:50%; background:#9ca3af;"></div>
+            <div style="flex:1; height:2px; background:#e5e7eb; border-radius:1px;"></div>
+            <div style="width:8px; height:4px; background:#d1fae5; border-radius:1px;"></div>
+          </div>
+          <div style="height:8px; background:#fff; border-radius:3px; border:1px solid #e5e7eb; display:flex; gap:3px; align-items:center; padding:0 4px;">
+            <div style="width:6px; height:6px; border-radius:50%; background:#9ca3af;"></div>
+            <div style="flex:1; height:2px; background:#e5e7eb; border-radius:1px;"></div>
+            <div style="width:8px; height:4px; background:#fee2e2; border-radius:1px;"></div>
+          </div>
+          <div style="height:8px; background:#fff; border-radius:3px; border:1px solid #e5e7eb; display:flex; gap:3px; align-items:center; padding:0 4px;">
+            <div style="width:6px; height:6px; border-radius:50%; background:#9ca3af;"></div>
+            <div style="flex:1; height:2px; background:#e5e7eb; border-radius:1px;"></div>
+            <div style="width:8px; height:4px; background:#d1fae5; border-radius:1px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="crazy8-desc">Dashboard panel pinned above a condensed tweet stream. Context above, evidence below. The stream remains but shrinks to a strip.</p>
+  </div>
+
+  <!-- 07: Concordance Split -->
+  <div class="crazy8-card" data-choice="7">
+    <div class="crazy8-header">
+      <span class="crazy8-num">07</span>
+      <span class="crazy8-title">Concordance Split</span>
+    </div>
+    <div class="crazy8-thumb">
+      <div style="display:flex; flex-direction:column; gap:4px; height:100%;">
+        <!-- Top row: macro + treemap -->
+        <div style="height:10px; display:flex; gap:3px;">
+          <div style="flex:1; background:#d1fae5; border-radius:2px;"></div>
+          <div style="flex:1; background:#d1fae5; border-radius:2px;"></div>
+          <div style="flex:1; background:#fee2e2; border-radius:2px;"></div>
+          <div style="flex:3; background:#bbf7d0; border-radius:3px; display:flex; gap:1px; padding:2px;">
+            <div style="background:#22c55e; flex:2; border-radius:1px;"></div>
+            <div style="background:#4ade80; flex:1; border-radius:1px;"></div>
+            <div style="background:#f87171; flex:1; border-radius:1px;"></div>
+          </div>
+        </div>
+        <!-- Main: left leaderboard + right split panel -->
+        <div style="flex:1; display:grid; grid-template-columns:1fr 2fr; gap:4px;">
+          <!-- Leaderboard -->
+          <div style="background:#f0eeff; border-radius:4px; padding:4px; display:flex; flex-direction:column; gap:2px;">
+            <div style="height:2px; background:#8b7ec8; border-radius:1px; width:60%;"></div>
+            <div style="height:6px; background:#ede9fe; border-radius:2px; display:flex; align-items:center; padding:0 3px; gap:2px;">
+              <div style="width:4px; height:3px; background:#22c55e; border-radius:1px;"></div>
+              <div style="flex:1; height:2px; background:#c4c0d8; border-radius:1px;"></div>
+            </div>
+            <div style="height:6px; background:#ede9fe; border-radius:2px; display:flex; align-items:center; padding:0 3px; gap:2px;">
+              <div style="width:4px; height:3px; background:#f59e0b; border-radius:1px;"></div>
+              <div style="flex:1; height:2px; background:#c4c0d8; border-radius:1px;"></div>
+            </div>
+            <div style="height:6px; background:#ede9fe; border-radius:2px; display:flex; align-items:center; padding:0 3px; gap:2px;">
+              <div style="width:4px; height:3px; background:#f87171; border-radius:1px;"></div>
+              <div style="flex:1; height:2px; background:#c4c0d8; border-radius:1px;"></div>
+            </div>
+          </div>
+          <!-- Concordance / Divergence split panel -->
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:3px;">
+            <!-- Concordance -->
+            <div style="background:#d1fae5; border-radius:4px; padding:3px; display:flex; flex-direction:column; gap:2px;">
+              <div style="height:2px; background:#22c55e; border-radius:1px; width:70%;"></div>
+              <div style="height:5px; background:#86efac; border-radius:2px;"></div>
+              <div style="height:5px; background:#86efac; border-radius:2px;"></div>
+              <div style="height:5px; background:#86efac; border-radius:2px;"></div>
+            </div>
+            <!-- Divergence -->
+            <div style="background:#fff7ed; border-radius:4px; padding:3px; display:flex; flex-direction:column; gap:2px;">
+              <div style="height:2px; background:#f59e0b; border-radius:1px; width:70%;"></div>
+              <div style="height:5px; background:#fed7aa; border-radius:2px;"></div>
+              <div style="height:5px; background:#fed7aa; border-radius:2px;"></div>
+              <div style="height:5px; background:#fed7aa; border-radius:2px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="crazy8-desc">The concordance/divergence split IS the hero. Validators on the left (chatter + price agree), contrarian setups on the right. Signals mapped to action.</p>
+  </div>
+
+  <!-- 08: Focus Tabs -->
+  <div class="crazy8-card" data-choice="8">
+    <div class="crazy8-header">
+      <span class="crazy8-num">08</span>
+      <span class="crazy8-title">Focus Tabs</span>
+    </div>
+    <div class="crazy8-thumb">
+      <div style="display:flex; flex-direction:column; gap:4px; height:100%;">
+        <!-- Tab bar -->
+        <div style="height:8px; display:flex; gap:2px; align-items:flex-end;">
+          <div style="width:20px; height:8px; background:#8b7ec8; border-radius:2px 2px 0 0;"></div>
+          <div style="width:20px; height:6px; background:#e5e7eb; border-radius:2px 2px 0 0;"></div>
+          <div style="width:20px; height:6px; background:#e5e7eb; border-radius:2px 2px 0 0;"></div>
+          <div style="width:20px; height:6px; background:#e5e7eb; border-radius:2px 2px 0 0;"></div>
+          <div style="flex:1;"></div>
+          <!-- Icon strip -->
+          <div style="display:flex; gap:2px; align-items:center;">
+            <div style="width:6px; height:6px; border-radius:1px; background:#d1d5db;"></div>
+            <div style="width:6px; height:6px; border-radius:1px; background:#d1d5db;"></div>
+            <div style="width:6px; height:6px; border-radius:1px; background:#d1d5db;"></div>
+          </div>
+        </div>
+        <!-- Active widget: Mention Heat -->
+        <div style="flex:1; background:#d1fae5; border-radius:5px; padding:6px; display:grid; grid-template-columns:3fr 2fr 2fr 1fr; grid-template-rows:2fr 1fr 1fr; gap:2px;">
+          <div style="background:#22c55e; border-radius:3px; grid-row:1/4;"></div>
+          <div style="background:#4ade80; border-radius:2px; grid-column:2/5;"></div>
+          <div style="background:#fbbf24; border-radius:2px;"></div>
+          <div style="background:#f87171; border-radius:2px;"></div>
+          <div style="background:#4ade80; border-radius:2px;"></div>
+          <div style="background:#22c55e; border-radius:2px;"></div>
+          <div style="background:#fbbf24; border-radius:2px;"></div>
+          <div style="background:#4ade80; border-radius:2px;"></div>
+        </div>
+        <!-- Collapsed widget icons below -->
+        <div style="height:10px; display:flex; gap:3px;">
+          <div style="flex:1; background:#f0eeff; border-radius:3px;"></div>
+          <div style="flex:1; background:#fffbeb; border-radius:3px;"></div>
+          <div style="flex:1; background:#f8f8fa; border-radius:3px;"></div>
+          <div style="flex:1; background:#f8f8fa; border-radius:3px;"></div>
+        </div>
+      </div>
+    </div>
+    <p class="crazy8-desc">Tab-switched focus mode. One widget fills the view at a time. Others collapse to an icon strip. Zero distraction, maximum depth on the selected signal.</p>
+  </div>
+
+</div>
+
+</body>
+</html>
