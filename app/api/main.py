@@ -127,6 +127,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="X Stream API", lifespan=lifespan)
 
+from .overview import router as overview_router  # noqa: E402
+
+app.include_router(overview_router)
+
 
 @app.get("/api/posts")
 async def list_posts(
