@@ -37,7 +37,7 @@ export function VolumeBaselineWidget({ assetKind }: Props) {
 
   const visible = data.slice(0, 10)
   const overflow = data.length - 10
-  const maxMultiplier = Math.max(...data.map(d => d.volume_multiplier))
+  const maxMultiplier = Math.max(...data.map(d => d.volume_multiplier)) || 1
 
   return (
     <div className="bg-zinc-900 rounded-2xl p-4 flex flex-col gap-3">
