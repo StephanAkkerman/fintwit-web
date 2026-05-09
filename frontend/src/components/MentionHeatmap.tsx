@@ -57,7 +57,7 @@ function CustomCell(props: CellProps) {
         width={width}
         height={height}
         fill={sentimentFill(avg_sentiment_24h)}
-        stroke={priceBorder(price_direction as number | null)}
+        stroke={priceBorder(price_direction)}
         strokeWidth={2}
         rx={4}
       />
@@ -78,10 +78,18 @@ function CustomCell(props: CellProps) {
 }
 
 export function MentionHeatmap({ assetKind, minMentions, onTickerClick }: Props) {
-  const { data, loading } = useMentionHeat(assetKind, minMentions ?? 50)
+  const { data, loading, error } = useMentionHeat(assetKind, minMentions ?? 50)
 
   if (loading) {
     return <div className="h-[200px] bg-zinc-900 rounded-2xl animate-pulse" />
+  }
+
+  if (error) {
+    return (
+      <div className="h-[200px] bg-zinc-900 rounded-2xl flex items-center justify-center text-zinc-500 text-sm">
+        Failed to load mention data.
+      </div>
+    )
   }
 
   if (data.length === 0) {
@@ -99,7 +107,10 @@ export function MentionHeatmap({ assetKind, minMentions, onTickerClick }: Props)
         <Treemap
           data={data as unknown as Record<string, unknown>[]}
           dataKey="mentions_24h"
-          content={<CustomCell onTickerClick={onTickerClick} />}
+          content={(props: unknown) => {
+            const p = props as CellProps
+            return <CustomCell {...p} onTickerClick={onTickerClick} />
+          }}
         />
       </ResponsiveContainer>
     </div>
