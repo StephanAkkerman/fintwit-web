@@ -21,7 +21,7 @@ interface Props {
   updatedAt?: string | null
 }
 
-export default function AssetFilterTabs({ active, onChange, updatedAt }: Props) {
+export function AssetFilterTabs({ active, onChange, updatedAt }: Props) {
   return (
     <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800 bg-zinc-900">
       <div className="flex gap-1">

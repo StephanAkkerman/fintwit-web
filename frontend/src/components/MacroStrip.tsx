@@ -38,7 +38,7 @@ function MacroTicker({ item }: { item: MacroTickerItem }) {
   )
 }
 
-export default function MacroStrip() {
+export function MacroStrip() {
   const { data, loading } = useMacroStrip()
   return (
     <div className="w-full bg-zinc-950 border-b border-zinc-800 overflow-x-auto">
