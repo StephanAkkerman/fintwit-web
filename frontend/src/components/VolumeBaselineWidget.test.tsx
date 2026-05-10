@@ -48,18 +48,18 @@ describe('VolumeBaselineWidget', () => {
     mockUseVolumeBaseline.mockReturnValue({ data: items, loading: false, error: false })
     render(<VolumeBaselineWidget assetKind="EQUITY" />)
 
-    // Header
-    expect(screen.getByText('Volume Spike')).toBeTruthy()
+    // Header (title changed to "Unusually loud")
+    expect(screen.getByText('Unusually loud')).toBeTruthy()
 
-    // Tickers
-    expect(screen.getByText('TKR0')).toBeTruthy()
-    expect(screen.getByText('TKR1')).toBeTruthy()
-    expect(screen.getByText('TKR2')).toBeTruthy()
+    // Tickers now rendered with $ prefix
+    expect(screen.getByText('$TKR0')).toBeTruthy()
+    expect(screen.getByText('$TKR1')).toBeTruthy()
+    expect(screen.getByText('$TKR2')).toBeTruthy()
 
-    // Multiplier labels: +9.4×, +10.4×, +11.4×
-    expect(screen.getByText('+9.4×')).toBeTruthy()
-    expect(screen.getByText('+10.4×')).toBeTruthy()
-    expect(screen.getByText('+11.4×')).toBeTruthy()
+    // Multiplier labels: 9.4×, 10.4×, 11.4×
+    expect(screen.getByText('9.4×')).toBeTruthy()
+    expect(screen.getByText('10.4×')).toBeTruthy()
+    expect(screen.getByText('11.4×')).toBeTruthy()
   })
 
   it('truncates to 10 rows and shows "+N more" when data has >10 items', () => {
@@ -68,9 +68,9 @@ describe('VolumeBaselineWidget', () => {
     render(<VolumeBaselineWidget assetKind="all" />)
 
     // Only first 10 tickers should be visible
-    expect(screen.getByText('TKR0')).toBeTruthy()
-    expect(screen.getByText('TKR9')).toBeTruthy()
-    expect(screen.queryByText('TKR10')).toBeNull()
+    expect(screen.getByText('$TKR0')).toBeTruthy()
+    expect(screen.getByText('$TKR9')).toBeTruthy()
+    expect(screen.queryByText('$TKR10')).toBeNull()
 
     // "+3 more" truncation label
     expect(screen.getByText('+3 more')).toBeTruthy()

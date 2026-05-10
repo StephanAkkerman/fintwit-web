@@ -6,7 +6,10 @@ vi.mock('./MacroStrip', () => ({ MacroStrip: () => <div data-testid="macro-strip
 vi.mock('./AssetFilterTabs', () => ({
   AssetFilterTabs: ({ active }: { active: string }) => <div data-testid="filter-tabs" data-active={active} />
 }))
-vi.mock('./MentionHeatmap', () => ({ MentionHeatmap: () => <div data-testid="mention-heatmap" /> }))
+vi.mock('./MentionHeatmap', () => ({
+  MentionHeatmap: () => <div data-testid="mention-heatmap" />,
+  MENTION_WINDOWS: [24, 48, 168] as const,
+}))
 vi.mock('./SentimentShiftWidget', () => ({ SentimentShiftWidget: () => <div data-testid="sentiment-shift" /> }))
 vi.mock('./VolumeBaselineWidget', () => ({ VolumeBaselineWidget: () => <div data-testid="volume-baseline" /> }))
 vi.mock('./HiddenGemWidget', () => ({ HiddenGemWidget: () => <div data-testid="hidden-gem" /> }))

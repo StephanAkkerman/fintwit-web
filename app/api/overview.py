@@ -83,25 +83,40 @@ async def macro_strip():
 @router.get("/mention-heat")
 async def mention_heat(
     asset_kind: str = Query(default="all"),
-    min_mentions: int = Query(default=50, ge=1),
+    window_hours: int = Query(default=24, ge=1, le=168),
 ):
     from . import main as _main
-    return await get_mention_heat(_main.Session, asset_kind=asset_kind, min_mentions=min_mentions)
+    return await get_mention_heat(_main.Session, asset_kind=asset_kind, window_hours=window_hours)
 
 
 @router.get("/sentiment-shift")
-async def sentiment_shift(asset_kind: str = Query(default="all")):
+async def sentiment_shift(
+    asset_kind: str = Query(default="all"),
+    window_hours: int = Query(default=24, ge=1, le=168),
+):
     from . import main as _main
-    return await get_sentiment_shift(_main.Session, asset_kind=asset_kind)
+    return await get_sentiment_shift(
+        _main.Session, asset_kind=asset_kind, window_hours=window_hours
+    )
 
 
 @router.get("/volume-baseline")
-async def volume_baseline(asset_kind: str = Query(default="all")):
+async def volume_baseline(
+    asset_kind: str = Query(default="all"),
+    window_hours: int = Query(default=24, ge=1, le=168),
+):
     from . import main as _main
-    return await get_volume_baseline(_main.Session, asset_kind=asset_kind)
+    return await get_volume_baseline(
+        _main.Session, asset_kind=asset_kind, window_hours=window_hours
+    )
 
 
 @router.get("/hidden-gems")
-async def hidden_gems(asset_kind: str = Query(default="all")):
+async def hidden_gems(
+    asset_kind: str = Query(default="all"),
+    window_hours: int = Query(default=24, ge=1, le=168),
+):
     from . import main as _main
-    return await get_hidden_gems(_main.Session, asset_kind=asset_kind)
+    return await get_hidden_gems(
+        _main.Session, asset_kind=asset_kind, window_hours=window_hours
+    )

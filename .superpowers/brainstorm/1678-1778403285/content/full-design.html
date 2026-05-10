@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Full Dashboard Design</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #09090b; color: #e4e4e7; font-family: system-ui, -apple-system, sans-serif; padding: 20px; }
+
+h2 { font-size: 18px; font-weight: 700; color: #f4f4f5; margin-bottom: 4px; }
+.page-subtitle { color: #52525b; font-size: 12px; margin-bottom: 24px; font-family: monospace; }
+.section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: #52525b; margin-bottom: 8px; margin-top: 24px; border-bottom: 1px solid #27272a; padding-bottom: 6px; }
+
+/* ── shared card ── */
+.card { background: #09090b; border: 1px solid #27272a; border-radius: 10px; padding: 14px; }
+.card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.card-title { font-size: 13px; font-weight: 600; color: #f4f4f5; }
+.card-meta { font-size: 10px; color: #52525b; font-family: monospace; }
+
+/* ── 1. Dashboard header ── */
+.dash-header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.dash-title-group h3 { font-size: 18px; font-weight: 700; color: #f4f4f5; }
+.dash-title-group p { font-size: 10px; color: #52525b; font-family: monospace; margin-top: 2px; }
+.layout-switcher { margin-left: auto; display: flex; gap: 2px; background: #18181b; border: 1px solid #27272a; border-radius: 8px; padding: 3px; }
+.layout-btn { padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; color: #71717a; cursor: pointer; }
+.layout-btn.active { background: #f4f4f5; color: #09090b; }
+.scope-tabs { display: flex; gap: 2px; background: #18181b; border: 1px solid #27272a; border-radius: 8px; padding: 3px; }
+.scope-btn { padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; color: #71717a; }
+.scope-btn.active { background: #f4f4f5; color: #09090b; }
+.window-tabs { display: flex; gap: 2px; background: #18181b; border: 1px solid #27272a; border-radius: 8px; padding: 3px; }
+.win-btn { padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; color: #71717a; }
+.win-btn.active { background: #27272a; color: #e4e4e7; }
+
+/* ── 2. MacroStrip ── */
+.macro-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; }
+.macro-cell { background: #18181b; border: 1px solid #27272a; border-radius: 8px; padding: 8px 10px; }
+.macro-top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 3px; }
+.macro-sym { font-size: 9px; color: #52525b; font-family: monospace; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.macro-chg { font-size: 10px; font-family: monospace; font-weight: 600; }
+.macro-bottom { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.macro-val { font-size: 13px; font-weight: 700; font-family: monospace; color: #f4f4f5; }
+
+/* ── 3. MentionHeatmap (CSS grid treemap) ── */
+.heat-outer { }
+.heat-grid { display: grid; grid-template-columns: repeat(8, minmax(0,1fr)); grid-template-rows: repeat(5, 52px); gap: 3px; }
+.hc { border-radius: 6px; padding: 5px 6px; display: flex; flex-direction: column; justify-content: space-between; cursor: pointer; border: 1.5px solid transparent; transition: filter .15s; }
+.hc:hover { filter: brightness(1.2); }
+.hc .sym { font-family: monospace; font-weight: 700; color: #f4f4f5; }
+.hc .pct { font-family: monospace; opacity: .85; }
+.heat-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; font-size: 10px; color: #52525b; font-family: monospace; }
+.legend-dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+/* ── 4. SentimentShift ── */
+.shift-row { display: grid; grid-template-columns: 60px 1fr 72px 56px; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid #18181b; }
+.shift-row:last-child { border-bottom: none; }
+.shift-ticker { font-family: monospace; font-size: 11px; color: #f4f4f5; font-weight: 600; }
+.shift-vals { font-family: monospace; font-size: 10px; color: #71717a; text-align: right; white-space: nowrap; }
+.shift-delta { font-family: monospace; font-size: 11px; font-weight: 700; text-align: right; }
+
+/* ── 5. VolumeBaseline ── */
+.vol-row { display: grid; grid-template-columns: 54px 1fr 44px; align-items: center; gap: 8px; margin-bottom: 8px; }
+.vol-row:last-child { margin-bottom: 0; }
+.vol-ticker { font-family: monospace; font-size: 11px; color: #f4f4f5; font-weight: 600; }
+.vol-bar-bg { position: relative; height: 22px; background: #18181b; border: 1px solid #27272a; border-radius: 4px; overflow: hidden; }
+.vol-bar-fill { position: absolute; inset-block: 0; left: 0; }
+.vol-bar-baseline { position: absolute; inset-block: 0; left: 0; background: rgba(63,63,70,.5); }
+.vol-bar-text { position: absolute; inset: 0; display: flex; align-items: center; padding: 0 7px; font-family: monospace; font-size: 10px; color: #f4f4f5; font-weight: 700; }
+.vol-mult { font-family: monospace; font-size: 12px; font-weight: 700; color: #f4f4f5; text-align: right; }
+
+/* ── 6. HiddenGems ── */
+.gem-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #18181b; }
+.gem-row:last-child { border-bottom: none; }
+.gem-ticker { font-family: monospace; font-size: 11px; color: #f4f4f5; font-weight: 600; }
+.gem-right { display: flex; align-items: center; gap: 6px; }
+.badge { font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; font-family: monospace; }
+.badge-new { background: #2e1065; color: #c4b5fd; }
+.badge-resurface { background: #082f49; color: #7dd3fc; }
+.gem-ago { font-family: monospace; font-size: 10px; color: #52525b; }
+
+/* ── layout grid ── */
+.main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+.col-right { display: flex; flex-direction: column; gap: 10px; }
+
+/* annotation overlay note */
+.note { font-size: 10px; color: #6366f1; font-family: monospace; margin-top: 4px; }
+
+svg.spark { display: block; }
+</style>
+</head>
+<body>
+
+<h2>Full Dashboard — Design Preview (Option A)</h2>
+<p class="page-subtitle">All 6 components after the redesign · zinc-950 base · zinc-800 borders · sentiment colors throughout</p>
+
+<!-- ── Dashboard header ── -->
+<div class="section-label">1 · Dashboard header — layout switcher + scope + window</div>
+<div class="dash-header">
+  <div class="dash-title-group">
+    <h3>All markets · overview</h3>
+    <p>updated 4m ago · sentiment from FinTwitBERT · 24h window</p>
+  </div>
+  <div class="scope-tabs">
+    <div class="scope-btn active">All</div>
+    <div class="scope-btn">Stocks</div>
+    <div class="scope-btn">Crypto</div>
+    <div class="scope-btn">Forex</div>
+  </div>
+  <div class="window-tabs">
+    <div class="win-btn active">24h</div>
+    <div class="win-btn">48h</div>
+    <div class="win-btn">7d</div>
+  </div>
+  <div class="layout-switcher">
+    <div class="layout-btn active">News</div>
+    <div class="layout-btn">Grid</div>
+    <div class="layout-btn">Stream</div>
+  </div>
+</div>
+<p class="note">↑ Scope + window stay where they are. Layout switcher added on the right.</p>
+
+<!-- ── MacroStrip ── -->
+<div class="section-label">2 · MacroStrip — grid layout (was: scrolling strip)</div>
+<div class="card" style="padding:12px">
+  <div class="macro-grid">
+    <!-- SPX -->
+    <div class="macro-cell">
+      <div class="macro-top"><span class="macro-sym">S&amp;P 500</span><span class="macro-chg" style="color:#34d399">+0.42%</span></div>
+      <div class="macro-bottom">
+        <span class="macro-val">5,238</span>
+        <svg width="48" height="18" viewBox="0 0 48 18" class="spark"><polyline points="0,15 8,13 16,11 24,12 32,9 40,6 48,4" fill="none" stroke="#34d399" stroke-width="1.5" stroke-linejoin="round"/><circle cx="48" cy="4" r="1.8" fill="#34d399"/></svg>
+      </div>
+    </div>
+    <!-- NDX -->
+    <div class="macro-cell">
+      <div class="macro-top"><span class="macro-sym">Nasdaq 100</span><span class="macro-chg" style="color:#34d399">+0.85%</span></div>
+      <div class="macro-bottom">
+        <span class="macro-val">18,412</span>
+        <svg width="48" height="18" viewBox="0 0 48 18" class="spark"><polyline points="0,16 8,14 16,12 24,11 32,8 40,6 48,3" fill="none" stroke="#34d399" stroke-width="1.5" stroke-linejoin="round"/><circle cx="48" cy="3" r="1.8" fill="#34d399"/></svg>
+      </div>
+    </div>
+    <!-- DXY -->
+    <div class="macro-cell">
+      <div class="macro-top"><span class="macro-sym">Dollar idx</span><span class="macro-chg" style="color:#fb7185">-0.42%</span></div>
+      <div class="macro-bottom">
+        <span class="macro-val">104.18</span>
+        <svg width="48" height="18" viewBox="0 0 48 18" class="spark"><polyline points="0,3 8,5 16,7 24,9 32,11 40,13 48,15" fill="none" stroke="#fb7185" stroke-width="1.5" stroke-linejoin="round"/><circle cx="48" cy="15" r="1.8" fill="#fb7185"/></svg>
+      </div>
+    </div>
+    <!-- VIX -->
+    <div class="macro-cell">
+      <div class="macro-top"><span class="macro-sym">Volatility</span><span class="macro-chg" style="color:#fb7185">-2.10%</span></div>
+      <div class="macro-bottom">
+        <span class="macro-val">13.24</span>
+        <svg width="48" height="18" viewBox="0 0 48 18" class="spark"><polyline points="0,4 8,5 16,7 24,9 32,11 40,13 48,15" fill="none" stroke="#fb7185" stroke-width="1.5" stroke-linejoin="round"/><circle cx="48" cy="15" r="1.8" fill="#fb7185"/></svg>
+      </div>
+    </div>
+    <!-- BTC -->
+    <div class="macro-cell">
+      <div class="macro-top"><span class="macro-sym">Bitcoin</span><span class="macro-chg" style="color:#34d399">+1.20%</span></div>
+      <div class="macro-bottom">
+        <span class="macro-val">67.4K</span>
+        <svg width="48" height="18" viewBox="0 0 48 18" class="spark"><polyline points="0,14 8,12 16,11 24,9 32,7 40,5 48,3" fill="none" stroke="#34d399" stroke-width="1.5" stroke-linejoin="round"/><circle cx="48" cy="3" r="1.8" fill="#34d399"/></svg>
+      </div>
+    </div>
+    <!-- GOLD -->
+    <div class="macro-cell">
+      <div class="macro-top"><span class="macro-sym">Gold ETF</span><span class="macro-chg" style="color:#34d399">+0.92%</span></div>
+      <div class="macro-bottom">
+        <span class="macro-val">218.42</span>
+        <svg width="48" height="18" viewBox="0 0 48 18" class="spark"><polyline points="0,13 8,12 16,10 24,9 32,8 40,6 48,4" fill="none" stroke="#34d399" stroke-width="1.5" stroke-linejoin="round"/><circle cx="48" cy="4" r="1.8" fill="#34d399"/></svg>
+      </div>
+    </div>
+  </div>
+</div>
+<p class="note">↑ Grid layout (was horizontal scroll). Sparkline + change% inside each tile.</p>
+
+<!-- ── Heatmap ── -->
+<div class="section-label">3 · MentionHeatmap — CSS grid treemap, sentiment backgrounds + price ring borders (replaces Recharts)</div>
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Mention heat</span>
+    <span class="card-meta">sized by mentions · background by sentiment · border by price Δ</span>
+  </div>
+  <div class="heat-grid">
+    <!-- rank 1: 4×4 -->
+    <div class="hc" style="grid-column:span 4;grid-row:span 3;background:rgba(5,150,105,.55);border-color:rgba(52,211,153,.7)">
+      <div><div class="sym" style="font-size:26px">$NVDA</div><div style="font-size:9px;color:#a7f3d0;opacity:.7;font-family:monospace">NVIDIA</div></div>
+      <div class="pct" style="font-size:13px;color:#a7f3d0">+2.34%</div>
+    </div>
+    <!-- rank 2: 4×2 -->
+    <div class="hc" style="grid-column:span 4;grid-row:span 2;background:rgba(225,29,72,.55);border-color:rgba(244,63,94,.7)">
+      <div class="sym" style="font-size:20px;color:#fecdd3">$TSLA</div>
+      <div class="pct" style="font-size:11px;color:#fecdd3">-3.81%</div>
+    </div>
+    <!-- rank 3: 2×2 -->
+    <div class="hc" style="grid-column:span 2;grid-row:span 2;background:rgba(16,185,129,.32);border-color:rgba(110,231,183,.4)">
+      <div class="sym" style="font-size:15px;color:#a7f3d0">$AAPL</div>
+      <div class="pct" style="font-size:10px;color:#a7f3d0">+0.42%</div>
+    </div>
+    <!-- rank 4: 2×2 -->
+    <div class="hc" style="grid-column:span 2;grid-row:span 2;background:rgba(5,150,105,.55);border-color:rgba(52,211,153,.7)">
+      <div class="sym" style="font-size:15px;color:#a7f3d0">$AMD</div>
+      <div class="pct" style="font-size:10px;color:#a7f3d0">+1.88%</div>
+    </div>
+    <!-- rank 5-12: 1×1 -->
+    <div class="hc" style="background:rgba(63,63,70,.55);border-color:rgba(82,82,91,.5)"><span class="sym" style="font-size:10px;color:#e4e4e7">$SPY</span></div>
+    <div class="hc" style="background:rgba(16,185,129,.32);border-color:rgba(110,231,183,.4)"><span class="sym" style="font-size:10px;color:#a7f3d0">$BTC</span></div>
+    <div class="hc" style="background:rgba(110,231,183,.18);border-color:rgba(110,231,183,.4)"><span class="sym" style="font-size:10px;color:#a7f3d0">$ETH</span></div>
+    <div class="hc" style="background:rgba(5,150,105,.55);border-color:rgba(52,211,153,.7)"><span class="sym" style="font-size:10px;color:#a7f3d0">$SOL</span></div>
+    <div class="hc" style="background:rgba(63,63,70,.55);border-color:rgba(82,82,91,.5)"><span class="sym" style="font-size:10px;color:#e4e4e7">$ARM</span></div>
+    <div class="hc" style="background:rgba(244,63,94,.32);border-color:rgba(253,164,175,.4)"><span class="sym" style="font-size:10px;color:#fda4af">$TSLA</span></div>
+    <div class="hc" style="background:rgba(16,185,129,.18);border-color:rgba(110,231,183,.4)"><span class="sym" style="font-size:10px;color:#a7f3d0">$META</span></div>
+    <div class="hc" style="background:rgba(225,29,72,.55);border-color:rgba(244,63,94,.7)"><span class="sym" style="font-size:10px;color:#fecdd3">$DOGE</span></div>
+  </div>
+  <div class="heat-legend">
+    <span><span class="legend-dot" style="background:rgba(225,29,72,.55)"></span> Bearish</span>
+    <span><span class="legend-dot" style="background:rgba(63,63,70,.55)"></span> Neutral</span>
+    <span><span class="legend-dot" style="background:rgba(5,150,105,.55)"></span> Bullish</span>
+    <span style="margin-left:8px"><span class="legend-dot" style="border:1.5px solid rgba(52,211,153,.7)"></span> Price up</span>
+    <span><span class="legend-dot" style="border:1.5px solid rgba(244,63,94,.7)"></span> Price down</span>
+  </div>
+</div>
+<p class="note">↑ Replaces Recharts Treemap. Top 12 tickers with CSS grid spans (fixed rank layout). Sentiment = background color. Price direction = border ring color.</p>
+
+<!-- ── Newspaper 2-col ── -->
+<div class="section-label">4+5+6 · Three widgets in "Newspaper" layout (2-col row)</div>
+<div class="main-grid" style="grid-template-columns:1fr 1fr 1fr">
+
+<!-- SentimentShift -->
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Sentiment shift</span>
+    <span class="card-meta">biggest swings</span>
+  </div>
+  <div class="shift-row">
+    <span class="shift-ticker">$NVDA</span>
+    <svg width="100%" height="22" viewBox="0 0 120 22" preserveAspectRatio="none">
+      <path d="M0,18 L20,15 L40,11 L60,8 L80,5 L100,3 L120,1" fill="none" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M0,18 L20,15 L40,11 L60,8 L80,5 L100,3 L120,1 L120,22 L0,22 Z" fill="rgba(52,211,153,0.10)"/>
+      <circle cx="120" cy="1" r="2" fill="#34d399"/>
+    </svg>
+    <span class="shift-vals">+0.20 → <span style="color:#e4e4e7">+0.62</span></span>
+    <span class="shift-delta" style="color:#34d399">▲ 0.42</span>
+  </div>
+  <div class="shift-row">
+    <span class="shift-ticker">$TSLA</span>
+    <svg width="100%" height="22" viewBox="0 0 120 22" preserveAspectRatio="none">
+      <path d="M0,4 L20,7 L40,11 L60,15 L80,18 L100,20 L120,21" fill="none" stroke="#fb7185" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M0,4 L20,7 L40,11 L60,15 L80,18 L100,20 L120,21 L120,22 L0,22 Z" fill="rgba(244,63,94,0.10)"/>
+      <circle cx="120" cy="21" r="2" fill="#fb7185"/>
+    </svg>
+    <span class="shift-vals">+0.10 → <span style="color:#e4e4e7">-0.48</span></span>
+    <span class="shift-delta" style="color:#fb7185">▼ 0.58</span>
+  </div>
+  <div class="shift-row">
+    <span class="shift-ticker">$SOL</span>
+    <svg width="100%" height="22" viewBox="0 0 120 22" preserveAspectRatio="none">
+      <path d="M0,16 L20,13 L40,10 L60,7 L80,5 L100,3 L120,1" fill="none" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M0,16 L20,13 L40,10 L60,7 L80,5 L100,3 L120,1 L120,22 L0,22 Z" fill="rgba(52,211,153,0.10)"/>
+      <circle cx="120" cy="1" r="2" fill="#34d399"/>
+    </svg>
+    <span class="shift-vals">+0.30 → <span style="color:#e4e4e7">+0.71</span></span>
+    <span class="shift-delta" style="color:#34d399">▲ 0.41</span>
+  </div>
+  <div class="shift-row">
+    <span class="shift-ticker">$AVAX</span>
+    <svg width="100%" height="22" viewBox="0 0 120 22" preserveAspectRatio="none">
+      <path d="M0,5 L20,8 L40,12 L60,16 L80,18 L100,19 L120,20" fill="none" stroke="#fb7185" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M0,5 L20,8 L40,12 L60,16 L80,18 L100,19 L120,20 L120,22 L0,22 Z" fill="rgba(244,63,94,0.10)"/>
+      <circle cx="120" cy="20" r="2" fill="#fb7185"/>
+    </svg>
+    <span class="shift-vals">+0.10 → <span style="color:#e4e4e7">-0.18</span></span>
+    <span class="shift-delta" style="color:#fb7185">▼ 0.28</span>
+  </div>
+</div>
+
+<!-- VolumeBaseline -->
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Unusually loud</span>
+    <span class="card-meta">today vs 7-day avg</span>
+  </div>
+  <div class="vol-row">
+    <span class="vol-ticker">$ARM</span>
+    <div class="vol-bar-bg">
+      <div class="vol-bar-fill" style="width:90%;background:rgba(16,185,129,.6)"></div>
+      <div class="vol-bar-baseline" style="width:14%"></div>
+      <div class="vol-bar-text">89 <span style="opacity:.5;font-weight:400"> / 14</span></div>
+    </div>
+    <span class="vol-mult">6.4×</span>
+  </div>
+  <div class="vol-row">
+    <span class="vol-ticker">$AVGO</span>
+    <div class="vol-bar-bg">
+      <div class="vol-bar-fill" style="width:72%;background:rgba(16,185,129,.6)"></div>
+      <div class="vol-bar-baseline" style="width:9%"></div>
+      <div class="vol-bar-text">28 <span style="opacity:.5;font-weight:400"> / 8</span></div>
+    </div>
+    <span class="vol-mult">3.5×</span>
+  </div>
+  <div class="vol-row">
+    <span class="vol-ticker">$WIF</span>
+    <div class="vol-bar-bg">
+      <div class="vol-bar-fill" style="width:62%;background:rgba(16,185,129,.6)"></div>
+      <div class="vol-bar-baseline" style="width:6%"></div>
+      <div class="vol-bar-text">38 <span style="opacity:.5;font-weight:400"> / 6</span></div>
+    </div>
+    <span class="vol-mult">6.3×</span>
+  </div>
+  <div class="vol-row">
+    <span class="vol-ticker">$COIN</span>
+    <div class="vol-bar-bg">
+      <div class="vol-bar-fill" style="width:55%;background:rgba(16,185,129,.6)"></div>
+      <div class="vol-bar-baseline" style="width:12%"></div>
+      <div class="vol-bar-text">54 <span style="opacity:.5;font-weight:400"> / 12</span></div>
+    </div>
+    <span class="vol-mult">4.5×</span>
+  </div>
+</div>
+
+<!-- HiddenGems -->
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Hidden gems</span>
+    <span class="card-meta">low-volume tickers gaining traction</span>
+  </div>
+  <div class="gem-row">
+    <span class="gem-ticker">$PLTR</span>
+    <div class="gem-right">
+      <span class="badge badge-new">✦ new</span>
+      <span class="gem-ago">first time</span>
+    </div>
+  </div>
+  <div class="gem-row">
+    <span class="gem-ticker">$IONQ</span>
+    <div class="gem-right">
+      <span class="badge badge-new">✦ new</span>
+      <span class="gem-ago">first time</span>
+    </div>
+  </div>
+  <div class="gem-row">
+    <span class="gem-ticker">$GME</span>
+    <div class="gem-right">
+      <span class="badge badge-resurface">↩ resurface</span>
+      <span class="gem-ago">14d ago</span>
+    </div>
+  </div>
+  <div class="gem-row">
+    <span class="gem-ticker">$BBBY</span>
+    <div class="gem-right">
+      <span class="badge badge-resurface">↩ resurface</span>
+      <span class="gem-ago">7d ago</span>
+    </div>
+  </div>
+</div>
+
+</div>
+<p class="note">↑ Note: SentimentShift uses a 2-point sparkline (prev → current) since the backend only exposes two values. HiddenGems matches card style — same zinc-950/border treatment, monospace badges.</p>
+
+<div style="margin-top:32px;padding:14px;border:1px solid #27272a;border-radius:8px;background:#18181b">
+  <div style="font-size:11px;font-weight:700;color:#6366f1;margin-bottom:8px;font-family:monospace">FILES CHANGED</div>
+  <div style="font-size:11px;color:#a1a1aa;font-family:monospace;line-height:2">
+    OverviewDashboard.tsx — add layout switcher state + newspaper/grid/stream grid layout<br>
+    MacroStrip.tsx — scroll strip → 6-col grid, tighter tile styling<br>
+    MentionHeatmap.tsx — Recharts Treemap → CSS grid, sentiment bg + price ring borders<br>
+    SentimentShiftWidget.tsx — Bar component → SVG sparkline, prev→current text<br>
+    VolumeBaselineWidget.tsx — simple bar → labeled bar with mentions/baseline text inside<br>
+    HiddenGemWidget.tsx — apply new card style, tighten badge + row styling<br>
+    AssetFilterTabs.tsx — minor: match new button style (rounded-lg, tighter)<br>
+  </div>
+</div>
+
+</body>
+</html>

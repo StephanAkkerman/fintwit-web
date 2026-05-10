@@ -432,7 +432,7 @@ export interface MacroTickerItem {
 
 export interface MentionHeatCell {
   ticker: string;
-  mentions_24h: number;
+  mentions: number;
   avg_sentiment_24h: number; // -1 to 1
   sentiment_label_24h: SentimentLabel;
   asset_kind: string;
@@ -442,6 +442,9 @@ export interface MentionHeatCell {
 export interface SentimentShiftItem {
   ticker: string;
   mentions_24h: number;
+  avg_sentiment_24h: number;
+  avg_sentiment_prev: number;
+  delta: number;
   sentiment_label_24h: SentimentLabel;
   sentiment_label_prev: SentimentLabel;
   asset_kind: string;

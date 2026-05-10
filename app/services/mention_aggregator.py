@@ -20,53 +20,66 @@ def _score_to_label(score: float | None) -> str:
     return "NEUTRAL"
 
 
+# Appended after an existing HAVING clause. References ae.value which is
+# produced by the per-function LEFT JOIN on json_each(t.assets) matched by symbol.
+#
+# The ticker-classifier emits `kind` in mixed forms — e.g. "crypto" (lowercase
+# from its resolve path) and "CRYPTOCURRENCY" (Yahoo quoteType) for crypto;
+# "EQUITY" / "ETF" / "INDEX" / "FUTURE" / "COMMODITY" for stock-like; "forex"
+# (lowercase) for FX. Match case-insensitively and group equity-like kinds.
 _KIND_FILTER = {
-    "CRYPTO": "AND MAX(json_extract(t.assets, '$[0].kind')) = 'CRYPTO'",
-    "EQUITY": "AND MAX(json_extract(t.assets, '$[0].kind')) = 'EQUITY'",
-    "FOREX":  "AND MAX(json_extract(t.assets, '$[0].kind')) = 'FOREX'",
+    "CRYPTO": (
+        "AND UPPER(MAX(json_extract(ae.value, '$.kind'))) "
+        "IN ('CRYPTO', 'CRYPTOCURRENCY')"
+    ),
+    "EQUITY": (
+        "AND UPPER(MAX(json_extract(ae.value, '$.kind'))) "
+        "IN ('EQUITY', 'ETF', 'INDEX', 'FUTURE', 'COMMODITY', 'MUTUALFUND')"
+    ),
+    "FOREX": "AND UPPER(MAX(json_extract(ae.value, '$.kind'))) = 'FOREX'",
 }
 
 
 async def get_mention_heat(
     Session: async_sessionmaker,
     asset_kind: str = "all",
-    min_mentions: int = 50,
+    window_hours: int = 24,
+    limit: int = 50,
 ) -> list[dict]:
     now = _now()
-    cutoff_7d  = now - timedelta(days=7)
-    cutoff_24h = now - timedelta(hours=24)
+    cutoff = now - timedelta(hours=window_hours)
     kind_clause = _KIND_FILTER.get(asset_kind.upper(), "")
 
     sql = text(f"""
         SELECT
             j.value AS ticker,
-            CAST(SUM(CASE WHEN t.created_at >= :c24 THEN 1 ELSE 0 END) AS INTEGER) AS mentions_24h,
-            AVG(CASE WHEN t.created_at >= :c24 THEN t.sentiment_score ELSE NULL END) AS avg_sentiment_24h,
-            MAX(json_extract(t.assets, '$[0].kind')) AS asset_kind,
-            AVG(CASE WHEN t.created_at >= :c24
-                     THEN json_extract(t.assets, '$[0].financials.change_percent')
-                     ELSE NULL END) AS price_direction
+            CAST(COUNT(*) AS INTEGER) AS mentions,
+            AVG(t.sentiment_score) AS avg_sentiment_24h,
+            MAX(json_extract(ae.value, '$.kind')) AS asset_kind,
+            AVG(json_extract(ae.value, '$.financials.change_percent')) AS price_direction
         FROM tweets t, json_each(t.tickers) j
-        WHERE t.created_at >= :c7d
+        LEFT JOIN json_each(t.assets) ae
+               ON json_extract(ae.value, '$.symbol') = j.value
+        WHERE t.created_at >= :cutoff
           AND t.tickers IS NOT NULL AND t.tickers != '[]'
         GROUP BY j.value
-        HAVING SUM(CASE WHEN t.created_at >= :c24 THEN 1 ELSE 0 END) >= :min_m
+        HAVING 1=1
         {kind_clause}
-        ORDER BY mentions_24h DESC
-        LIMIT 100
+        ORDER BY mentions DESC
+        LIMIT :limit
     """)
 
     async with Session() as s:
-        result = await s.execute(sql, {"c7d": cutoff_7d, "c24": cutoff_24h, "min_m": min_mentions})
+        result = await s.execute(sql, {"cutoff": cutoff, "limit": limit})
         rows = result.mappings().all()
 
     return [
         {
             "ticker": r["ticker"],
-            "mentions_24h": r["mentions_24h"],
+            "mentions": r["mentions"],
             "avg_sentiment_24h": r["avg_sentiment_24h"] or 0.0,
             "sentiment_label_24h": _score_to_label(r["avg_sentiment_24h"]),
-            "asset_kind": r["asset_kind"] or "EQUITY",
+            "asset_kind": (r["asset_kind"] or "EQUITY").upper(),
             "price_direction": r["price_direction"],
         }
         for r in rows
@@ -76,101 +89,128 @@ async def get_mention_heat(
 async def get_sentiment_shift(
     Session: async_sessionmaker,
     asset_kind: str = "all",
+    window_hours: int = 24,
+    limit: int = 10,
 ) -> list[dict]:
+    """Rank tickers by absolute change in average sentiment between the active
+    window and the prior baseline. Returns the top `limit` movers, no
+    categorical-label-change filter — sentiment scores can cluster on one side
+    of zero (e.g. probability outputs), so a strict label flip would hide real
+    movement.
+
+    The "prior" baseline is everything in the lookback span before c_now (not
+    a strict equal-length window), so the widget still produces results when
+    there are gaps in the prior equal-length slice but earlier history exists.
+    """
     now = _now()
-    cutoff_7d  = now - timedelta(days=7)
-    cutoff_48h = now - timedelta(hours=48)
-    cutoff_24h = now - timedelta(hours=24)
+    cutoff_now  = now - timedelta(hours=window_hours)
+    cutoff_span = now - timedelta(hours=max(window_hours * 2, 24 * 7))
     kind_clause = _KIND_FILTER.get(asset_kind.upper(), "")
 
     sql = text(f"""
         SELECT
             j.value AS ticker,
-            CAST(SUM(CASE WHEN t.created_at >= :c24 THEN 1 ELSE 0 END) AS INTEGER) AS mentions_24h,
-            AVG(CASE WHEN t.created_at >= :c24 THEN t.sentiment_score ELSE NULL END) AS avg_24h,
-            AVG(CASE WHEN t.created_at >= :c48 AND t.created_at < :c24
-                     THEN t.sentiment_score ELSE NULL END) AS avg_prev,
-            MAX(json_extract(t.assets, '$[0].kind')) AS asset_kind
+            CAST(SUM(CASE WHEN t.created_at >= :c_now THEN 1 ELSE 0 END) AS INTEGER) AS mentions_now,
+            AVG(CASE WHEN t.created_at >= :c_now THEN t.sentiment_score ELSE NULL END) AS avg_now,
+            AVG(CASE WHEN t.created_at <  :c_now THEN t.sentiment_score ELSE NULL END) AS avg_prev,
+            MAX(json_extract(ae.value, '$.kind')) AS asset_kind
         FROM tweets t, json_each(t.tickers) j
-        WHERE t.created_at >= :c7d
+        LEFT JOIN json_each(t.assets) ae
+               ON json_extract(ae.value, '$.symbol') = j.value
+        WHERE t.created_at >= :c_span
           AND t.tickers IS NOT NULL AND t.tickers != '[]'
         GROUP BY j.value
-        HAVING SUM(CASE WHEN t.created_at >= :c24 THEN 1 ELSE 0 END) > 0
-          AND AVG(CASE WHEN t.created_at >= :c48 AND t.created_at < :c24
-                       THEN t.sentiment_score ELSE NULL END) IS NOT NULL
+        HAVING SUM(CASE WHEN t.created_at >= :c_now THEN 1 ELSE 0 END) > 0
+          AND AVG(CASE WHEN t.created_at >= :c_now THEN t.sentiment_score ELSE NULL END) IS NOT NULL
+          AND AVG(CASE WHEN t.created_at <  :c_now THEN t.sentiment_score ELSE NULL END) IS NOT NULL
         {kind_clause}
     """)
 
     async with Session() as s:
-        result = await s.execute(sql, {"c7d": cutoff_7d, "c48": cutoff_48h, "c24": cutoff_24h})
+        result = await s.execute(
+            sql,
+            {"c_span": cutoff_span, "c_now": cutoff_now},
+        )
         rows = result.mappings().all()
-
-    _score = {"BULL": 1, "NEUTRAL": 0, "BEAR": -1}
-
-    def swing(label_now: str, label_prev: str) -> int:
-        return abs(_score.get(label_now, 0) - _score.get(label_prev, 0))
 
     items = []
     for r in rows:
-        label_24h = _score_to_label(r["avg_24h"])
-        label_prev = _score_to_label(r["avg_prev"])
-        if swing(label_24h, label_prev) == 0:
-            continue
+        avg_now = r["avg_now"]
+        avg_prev = r["avg_prev"]
+        delta = avg_now - avg_prev
         items.append({
             "ticker": r["ticker"],
-            "mentions_24h": r["mentions_24h"],
-            "avg_sentiment_24h": r["avg_24h"] or 0.0,
-            "sentiment_label_24h": label_24h,
-            "sentiment_label_prev": label_prev,
-            "asset_kind": r["asset_kind"] or "EQUITY",
+            "mentions_24h": r["mentions_now"],
+            "avg_sentiment_24h": avg_now,
+            "avg_sentiment_prev": avg_prev,
+            "delta": delta,
+            "sentiment_label_24h": _score_to_label(avg_now),
+            "sentiment_label_prev": _score_to_label(avg_prev),
+            "asset_kind": (r["asset_kind"] or "EQUITY").upper(),
         })
 
-    items.sort(key=lambda x: swing(x["sentiment_label_24h"], x["sentiment_label_prev"]), reverse=True)
-    return items[:10]
+    items.sort(key=lambda x: abs(x["delta"]), reverse=True)
+    return items[:limit]
 
 
 async def get_volume_baseline(
     Session: async_sessionmaker,
     asset_kind: str = "all",
     threshold: float = 1.5,
+    window_hours: int = 24,
 ) -> list[dict]:
     now = _now()
-    cutoff_7d  = now - timedelta(days=7)
-    cutoff_24h = now - timedelta(hours=24)
+    # Baseline span = 7d, but never shorter than the active window itself.
+    baseline_hours = max(24 * 7, window_hours)
+    cutoff_span = now - timedelta(hours=baseline_hours)
+    cutoff_now = now - timedelta(hours=window_hours)
+    # Number of `window_hours`-sized buckets in the baseline span; used to
+    # express the baseline as the *expected* mentions per active window.
+    buckets = baseline_hours / float(window_hours)
     kind_clause = _KIND_FILTER.get(asset_kind.upper(), "")
 
     sql = text(f"""
         SELECT
             j.value AS ticker,
-            CAST(SUM(CASE WHEN t.created_at >= :c24 THEN 1 ELSE 0 END) AS INTEGER) AS mentions_24h,
-            COUNT(*) / 7.0 AS baseline_7d_avg,
+            CAST(SUM(CASE WHEN t.created_at >= :c_now THEN 1 ELSE 0 END) AS INTEGER) AS mentions_now,
+            COUNT(*) / :buckets AS baseline_avg,
             CASE WHEN COUNT(*) > 0
-                 THEN SUM(CASE WHEN t.created_at >= :c24 THEN 1.0 ELSE 0 END) / (COUNT(*) / 7.0)
+                 THEN SUM(CASE WHEN t.created_at >= :c_now THEN 1.0 ELSE 0 END) / (COUNT(*) / :buckets)
                  ELSE NULL END AS volume_multiplier,
-            MAX(json_extract(t.assets, '$[0].kind')) AS asset_kind
+            MAX(json_extract(ae.value, '$.kind')) AS asset_kind
         FROM tweets t, json_each(t.tickers) j
-        WHERE t.created_at >= :c7d
+        LEFT JOIN json_each(t.assets) ae
+               ON json_extract(ae.value, '$.symbol') = j.value
+        WHERE t.created_at >= :c_span
           AND t.tickers IS NOT NULL AND t.tickers != '[]'
         GROUP BY j.value
-        HAVING SUM(CASE WHEN t.created_at >= :c24 THEN 1 ELSE 0 END) > 5
-          AND (COUNT(*) / 7.0) > 0
-          AND SUM(CASE WHEN t.created_at >= :c24 THEN 1.0 ELSE 0 END) / (COUNT(*) / 7.0) > :thr
+        HAVING SUM(CASE WHEN t.created_at >= :c_now THEN 1 ELSE 0 END) > 5
+          AND (COUNT(*) / :buckets) > 0
+          AND SUM(CASE WHEN t.created_at >= :c_now THEN 1.0 ELSE 0 END) / (COUNT(*) / :buckets) > :thr
         {kind_clause}
         ORDER BY volume_multiplier DESC
         LIMIT 10
     """)
 
     async with Session() as s:
-        result = await s.execute(sql, {"c7d": cutoff_7d, "c24": cutoff_24h, "thr": threshold})
+        result = await s.execute(
+            sql,
+            {
+                "c_span": cutoff_span,
+                "c_now": cutoff_now,
+                "thr": threshold,
+                "buckets": buckets,
+            },
+        )
         rows = result.mappings().all()
 
     return [
         {
             "ticker": r["ticker"],
-            "mentions_24h": r["mentions_24h"],
-            "baseline_7d_avg": r["baseline_7d_avg"],
+            "mentions_24h": r["mentions_now"],
+            "baseline_7d_avg": r["baseline_avg"],
             "volume_multiplier": r["volume_multiplier"],
-            "asset_kind": r["asset_kind"] or "EQUITY",
+            "asset_kind": (r["asset_kind"] or "EQUITY").upper(),
         }
         for r in rows
     ]
@@ -179,29 +219,45 @@ async def get_volume_baseline(
 async def get_hidden_gems(
     Session: async_sessionmaker,
     asset_kind: str = "all",
+    window_hours: int = 24,
 ) -> list[dict]:
     now = _now()
-    cutoff_7d  = now - timedelta(days=7)
-    cutoff_24h = now - timedelta(hours=24)
-    kind_clause = _KIND_FILTER.get(asset_kind.upper(), "")
+    cutoff_now = now - timedelta(hours=window_hours)
+    # "Resurfacing" means the prior occurrence is at least one full lookback
+    # window further back than the active window — and never less than 7 days.
+    cutoff_resurface = now - timedelta(hours=max(window_hours * 7, 24 * 7))
+
+    _kind_upper = asset_kind.upper()
+    if _kind_upper == "CRYPTO":
+        kind_filter = "AND UPPER(a.asset_kind) IN ('CRYPTO', 'CRYPTOCURRENCY')"
+    elif _kind_upper == "EQUITY":
+        kind_filter = (
+            "AND UPPER(a.asset_kind) IN ('EQUITY', 'ETF', 'INDEX', "
+            "'FUTURE', 'COMMODITY', 'MUTUALFUND')"
+        )
+    elif _kind_upper == "FOREX":
+        kind_filter = "AND UPPER(a.asset_kind) = 'FOREX'"
+    else:
+        kind_filter = ""
 
     sql = text(f"""
         WITH active AS (
             SELECT
                 j.value AS ticker,
-                CAST(COUNT(*) AS INTEGER) AS mentions_24h,
-                MAX(json_extract(t.assets, '$[0].kind')) AS asset_kind
+                CAST(COUNT(*) AS INTEGER) AS mentions_now,
+                MAX(json_extract(ae.value, '$.kind')) AS asset_kind
             FROM tweets t, json_each(t.tickers) j
-            WHERE t.created_at >= :c24
+            LEFT JOIN json_each(t.assets) ae
+                   ON json_extract(ae.value, '$.symbol') = j.value
+            WHERE t.created_at >= :c_now
               AND t.tickers IS NOT NULL AND t.tickers != '[]'
             GROUP BY j.value
-            {kind_clause}
         ),
         history AS (
             SELECT
                 j.value AS ticker,
                 MIN(t.created_at) AS first_seen,
-                MAX(CASE WHEN t.created_at < :c24 THEN t.created_at ELSE NULL END)
+                MAX(CASE WHEN t.created_at < :c_now THEN t.created_at ELSE NULL END)
                     AS last_seen_before_window
             FROM tweets t, json_each(t.tickers) j
             WHERE t.tickers IS NOT NULL AND t.tickers != '[]'
@@ -209,13 +265,14 @@ async def get_hidden_gems(
         )
         SELECT
             a.ticker,
-            a.mentions_24h,
+            a.mentions_now,
             a.asset_kind,
             h.first_seen,
             h.last_seen_before_window,
             CASE
-                WHEN h.first_seen >= :c24 THEN 'new'
-                WHEN h.last_seen_before_window IS NULL OR h.last_seen_before_window < :c7d
+                WHEN h.first_seen >= :c_now THEN 'new'
+                WHEN h.last_seen_before_window IS NULL
+                     OR h.last_seen_before_window < :c_resurface
                      THEN 'resurfacing'
                 ELSE NULL
             END AS gem_subtype,
@@ -229,19 +286,22 @@ async def get_hidden_gems(
         FROM active a
         JOIN history h ON a.ticker = h.ticker
         WHERE gem_subtype IS NOT NULL
-        ORDER BY a.mentions_24h DESC
+          {kind_filter}
+        ORDER BY a.mentions_now DESC
         LIMIT 20
     """)
 
     async with Session() as s:
-        result = await s.execute(sql, {"c24": cutoff_24h, "c7d": cutoff_7d})
+        result = await s.execute(
+            sql, {"c_now": cutoff_now, "c_resurface": cutoff_resurface}
+        )
         rows = result.mappings().all()
 
     return [
         {
             "ticker": r["ticker"],
-            "mentions_24h": r["mentions_24h"],
-            "asset_kind": r["asset_kind"] or "EQUITY",
+            "mentions_24h": r["mentions_now"],
+            "asset_kind": (r["asset_kind"] or "EQUITY").upper(),
             "gem_subtype": r["gem_subtype"],
             "days_since_last": r["days_since_last"],
             "first_seen": str(r["first_seen"]) if r["first_seen"] else None,

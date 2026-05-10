@@ -13,7 +13,7 @@ const mockUseMentionHeat = vi.mocked(useMentionHeat)
 const sampleCells: MentionHeatCell[] = [
   {
     ticker: 'AAPL',
-    mentions_24h: 120,
+    mentions: 120,
     avg_sentiment_24h: 0.4,
     sentiment_label_24h: 'BULL',
     asset_kind: 'EQUITY',
@@ -21,7 +21,7 @@ const sampleCells: MentionHeatCell[] = [
   },
   {
     ticker: 'BTC',
-    mentions_24h: 80,
+    mentions: 80,
     avg_sentiment_24h: -0.2,
     sentiment_label_24h: 'BEAR',
     asset_kind: 'CRYPTO',
@@ -44,14 +44,20 @@ describe('MentionHeatmap', () => {
   it('shows empty state when data is empty and loading is false', () => {
     mockUseMentionHeat.mockReturnValue({ data: [], loading: false, error: false })
     render(<MentionHeatmap assetKind="all" />)
-    expect(screen.getByText(/No tickers with enough mentions/i)).toBeTruthy()
+    expect(screen.getByText(/No tickers in the last/i)).toBeTruthy()
   })
 
   it('renders without crashing when data has cells', () => {
     mockUseMentionHeat.mockReturnValue({ data: sampleCells, loading: false, error: false })
     render(<MentionHeatmap assetKind="EQUITY" />)
-    // The outer container should be present
-    const container = document.querySelector('.w-full.bg-zinc-900')
+    const container = document.querySelector('[data-testid="mention-heatmap-container"]')
     expect(container).not.toBeNull()
+  })
+
+  it('shows mention count for each ticker', () => {
+    mockUseMentionHeat.mockReturnValue({ data: sampleCells, loading: false, error: false })
+    render(<MentionHeatmap assetKind="EQUITY" />)
+    expect(screen.getByText('120')).toBeTruthy()
+    expect(screen.getByText('80')).toBeTruthy()
   })
 })

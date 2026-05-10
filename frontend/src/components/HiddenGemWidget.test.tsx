@@ -62,8 +62,8 @@ describe('HiddenGemWidget', () => {
     mockUseHiddenGems.mockReturnValue({ data: items, loading: false, error: false })
     render(<HiddenGemWidget assetKind="EQUITY" />)
 
-    expect(screen.getByText('Hidden Gems')).toBeTruthy()
-    expect(screen.getByText('AAPL')).toBeTruthy()
+    expect(screen.getByText('Hidden gems')).toBeTruthy()
+    expect(screen.getByText('$AAPL')).toBeTruthy()
     expect(screen.getByText('✦ new')).toBeTruthy()
     expect(screen.getByText('first time')).toBeTruthy()
   })
@@ -73,7 +73,7 @@ describe('HiddenGemWidget', () => {
     mockUseHiddenGems.mockReturnValue({ data: items, loading: false, error: false })
     render(<HiddenGemWidget assetKind="CRYPTO" />)
 
-    expect(screen.getByText('BTC')).toBeTruthy()
+    expect(screen.getByText('$BTC')).toBeTruthy()
     expect(screen.getByText('↩ resurface')).toBeTruthy()
     expect(screen.getByText('14d ago')).toBeTruthy()
   })
@@ -83,9 +83,9 @@ describe('HiddenGemWidget', () => {
     mockUseHiddenGems.mockReturnValue({ data: items, loading: false, error: false })
     render(<HiddenGemWidget assetKind="all" />)
 
-    expect(screen.getByText('TKR0')).toBeTruthy()
-    expect(screen.getByText('TKR9')).toBeTruthy()
-    expect(screen.queryByText('TKR10')).toBeNull()
+    expect(screen.getByText('$TKR0')).toBeTruthy()
+    expect(screen.getByText('$TKR9')).toBeTruthy()
+    expect(screen.queryByText('$TKR10')).toBeNull()
     expect(screen.getByText('+3 more')).toBeTruthy()
   })
 })
