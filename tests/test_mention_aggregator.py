@@ -52,7 +52,7 @@ async def test_mention_heat_counts(Session):
         _tweet(3, ["AAPL"], "BEAR", -0.7, 2, "EQUITY"),
     ])
 
-    rows = await get_mention_heat(Session, min_mentions=1)
+    rows = await get_mention_heat(Session, window_hours=24, min_mentions=1)
     btc = next(r for r in rows if r["ticker"] == "BTC")
 
     assert btc["mentions"] == 2
@@ -68,7 +68,7 @@ async def test_mention_heat_avg_sentiment(Session):
         _tweet(2, ["BTC"], "BULL", 0.4, 2, "CRYPTO"),
     ])
 
-    rows = await get_mention_heat(Session, min_mentions=1)
+    rows = await get_mention_heat(Session, window_hours=24, min_mentions=1)
     btc = next(r for r in rows if r["ticker"] == "BTC")
 
     assert abs(btc["avg_sentiment_24h"] - 0.6) < 0.01
@@ -143,7 +143,7 @@ async def test_hidden_gems_detects_resurfacing(Session):
     assert gem["days_since_last"] is not None and gem["days_since_last"] >= 9
 
 
-# ── New: price direction tests (will FAIL until Task 2 is implemented) ─────
+# ── Price direction tests ────────────────────────────────────────────────────
 
 async def test_price_direction_rising(Session):
     """24h window: price up 10% → price_direction ≈ +10."""
@@ -151,14 +151,14 @@ async def test_price_direction_rising(Session):
 
     await _insert(Session, [
         # Outside 24h window but closest to the 24h cutoff → price_then
-        _tweet(10, ["BTC"], "BULL", 0.5, 25, kind="CRYPTO", price=100.0),
+        _tweet(10, ["BTCX"], "BULL", 0.5, 25, kind="CRYPTO", price=100.0),
         # Inside 24h window, most recent → price_now
-        _tweet(11, ["BTC"], "BULL", 0.5,  1, kind="CRYPTO", price=110.0),
+        _tweet(11, ["BTCX"], "BULL", 0.5,  1, kind="CRYPTO", price=110.0),
     ])
 
     rows = await get_mention_heat(Session, window_hours=24)
-    btc = next(r for r in rows if r["ticker"] == "BTC")
-    assert btc["price_direction"] == pytest.approx(10.0, abs=0.5)
+    btcx = next(r for r in rows if r["ticker"] == "BTCX")
+    assert btcx["price_direction"] == pytest.approx(10.0, abs=0.5)
 
 
 async def test_price_direction_falling(Session):
@@ -166,13 +166,13 @@ async def test_price_direction_falling(Session):
     from app.services.mention_aggregator import get_mention_heat
 
     await _insert(Session, [
-        _tweet(20, ["ETH"], "BEAR", -0.5, 25, kind="CRYPTO", price=200.0),
-        _tweet(21, ["ETH"], "BEAR", -0.5,  1, kind="CRYPTO", price=180.0),
+        _tweet(20, ["ETHX"], "BEAR", -0.5, 25, kind="CRYPTO", price=200.0),
+        _tweet(21, ["ETHX"], "BEAR", -0.5,  1, kind="CRYPTO", price=180.0),
     ])
 
     rows = await get_mention_heat(Session, window_hours=24)
-    eth = next(r for r in rows if r["ticker"] == "ETH")
-    assert eth["price_direction"] == pytest.approx(-10.0, abs=0.5)
+    ethx = next(r for r in rows if r["ticker"] == "ETHX")
+    assert ethx["price_direction"] == pytest.approx(-10.0, abs=0.5)
 
 
 async def test_price_direction_null_without_price(Session):
@@ -180,11 +180,12 @@ async def test_price_direction_null_without_price(Session):
     from app.services.mention_aggregator import get_mention_heat
 
     await _insert(Session, [
-        _tweet(30, ["NOPX"], "NEUTRAL", 0.0, 1),  # no price kwarg → no price in assets
+        _tweet(30, ["NO_PRICE"], "NEUTRAL", 0.0, 25),  # outside window, no price
+        _tweet(31, ["NO_PRICE"], "NEUTRAL", 0.0,  1),  # inside window, no price
     ])
 
     rows = await get_mention_heat(Session, window_hours=24)
-    item = next((r for r in rows if r["ticker"] == "NOPX"), None)
+    item = next((r for r in rows if r["ticker"] == "NO_PRICE"), None)
     assert item is not None
     assert item["price_direction"] is None
 
@@ -195,9 +196,9 @@ async def test_price_direction_7d_window(Session):
 
     await _insert(Session, [
         # ~7d ago (170h) — outside 168h window, closest to cutoff → price_then
-        _tweet(40, ["SPY"], "BULL", 0.5, 170, price=400.0),
+        _tweet(40, ["SPY"], "BULL", 0.5, 170, kind="EQUITY", price=400.0),
         # 1h ago — inside 168h window, most recent → price_now
-        _tweet(41, ["SPY"], "BULL", 0.5,   1, price=440.0),
+        _tweet(41, ["SPY"], "BULL", 0.5,   1, kind="EQUITY", price=440.0),
     ])
 
     rows = await get_mention_heat(Session, window_hours=168)
