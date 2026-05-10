@@ -47,6 +47,18 @@ async def get_mention_heat(
     limit: int = 50,
     min_mentions: int = 1,
 ) -> list[dict]:
+    """Return the top-mentioned tickers in the last ``window_hours`` hours.
+
+    ``price_direction`` is the point-to-point % return over the window:
+    ``(most_recent_price - nearest_to_cutoff_price) / nearest_to_cutoff_price * 100``.
+
+    Both price CTEs search all tweets with no time restriction so that sparse
+    data still produces a price estimate. A side-effect: when a ticker has no
+    pre-window tweets, ``price_at_start`` falls back to the earliest in-window
+    tweet, making ``price_direction`` reflect an intra-window range rather than
+    a window-anchored return. This is acceptable; the alternative is returning
+    NULL, which would hide tickers that have only been tracked recently.
+    """
     now = _now()
     cutoff = now - timedelta(hours=window_hours)
     kind_clause = _KIND_FILTER.get(asset_kind.upper(), "")
@@ -109,7 +121,7 @@ async def get_mention_heat(
                 ELSE NULL
             END AS price_direction
         FROM mentions m
-        LEFT JOIN (SELECT ticker, price FROM price_recent  WHERE rn = 1) pr ON pr.ticker = m.ticker
+        LEFT JOIN (SELECT ticker, price FROM price_recent WHERE rn = 1) pr ON pr.ticker = m.ticker
         LEFT JOIN (SELECT ticker, price FROM price_at_start WHERE rn = 1) ps ON ps.ticker = m.ticker
         ORDER BY m.mentions DESC
         LIMIT :limit
