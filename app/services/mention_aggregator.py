@@ -45,32 +45,82 @@ async def get_mention_heat(
     asset_kind: str = "all",
     window_hours: int = 24,
     limit: int = 50,
+    min_mentions: int = 1,
 ) -> list[dict]:
     now = _now()
     cutoff = now - timedelta(hours=window_hours)
     kind_clause = _KIND_FILTER.get(asset_kind.upper(), "")
 
     sql = text(f"""
+        WITH
+        price_recent AS (
+            SELECT
+                j.value AS ticker,
+                json_extract(ae.value, '$.financials.price') AS price,
+                ROW_NUMBER() OVER (
+                    PARTITION BY j.value
+                    ORDER BY t.created_at DESC
+                ) AS rn
+            FROM tweets t, json_each(t.tickers) j
+            LEFT JOIN json_each(t.assets) ae
+                   ON json_extract(ae.value, '$.symbol') = j.value
+            WHERE json_extract(ae.value, '$.financials.price') IS NOT NULL
+              AND t.tickers IS NOT NULL AND t.tickers != '[]'
+        ),
+        price_at_start AS (
+            SELECT
+                j.value AS ticker,
+                json_extract(ae.value, '$.financials.price') AS price,
+                ROW_NUMBER() OVER (
+                    PARTITION BY j.value
+                    ORDER BY ABS(julianday(t.created_at) - julianday(:cutoff))
+                ) AS rn
+            FROM tweets t, json_each(t.tickers) j
+            LEFT JOIN json_each(t.assets) ae
+                   ON json_extract(ae.value, '$.symbol') = j.value
+            WHERE json_extract(ae.value, '$.financials.price') IS NOT NULL
+              AND t.tickers IS NOT NULL AND t.tickers != '[]'
+        ),
+        mentions AS (
+            SELECT
+                j.value AS ticker,
+                CAST(COUNT(*) AS INTEGER) AS mentions,
+                AVG(t.sentiment_score) AS avg_sentiment_24h,
+                MAX(json_extract(ae.value, '$.kind')) AS asset_kind
+            FROM tweets t, json_each(t.tickers) j
+            LEFT JOIN json_each(t.assets) ae
+                   ON json_extract(ae.value, '$.symbol') = j.value
+            WHERE t.created_at >= :cutoff
+              AND t.tickers IS NOT NULL AND t.tickers != '[]'
+            GROUP BY j.value
+            HAVING COUNT(*) >= :min_mentions
+            {kind_clause}
+        )
         SELECT
-            j.value AS ticker,
-            CAST(COUNT(*) AS INTEGER) AS mentions,
-            AVG(t.sentiment_score) AS avg_sentiment_24h,
-            MAX(json_extract(ae.value, '$.kind')) AS asset_kind,
-            AVG(json_extract(ae.value, '$.financials.change_percent')) AS price_direction
-        FROM tweets t, json_each(t.tickers) j
-        LEFT JOIN json_each(t.assets) ae
-               ON json_extract(ae.value, '$.symbol') = j.value
-        WHERE t.created_at >= :cutoff
-          AND t.tickers IS NOT NULL AND t.tickers != '[]'
-        GROUP BY j.value
-        HAVING 1=1
-        {kind_clause}
-        ORDER BY mentions DESC
+            m.ticker,
+            m.mentions,
+            m.avg_sentiment_24h,
+            m.asset_kind,
+            CASE
+                WHEN pr.price IS NOT NULL
+                 AND ps.price IS NOT NULL
+                 AND ps.price != 0
+                THEN (pr.price - ps.price) / ps.price * 100.0
+                ELSE NULL
+            END AS price_direction
+        FROM mentions m
+        LEFT JOIN (SELECT ticker, price FROM price_recent  WHERE rn = 1) pr ON pr.ticker = m.ticker
+        LEFT JOIN (SELECT ticker, price FROM price_at_start WHERE rn = 1) ps ON ps.ticker = m.ticker
+        ORDER BY m.mentions DESC
         LIMIT :limit
     """)
 
     async with Session() as s:
-        result = await s.execute(sql, {"cutoff": cutoff, "limit": limit})
+        result = await s.execute(sql, {
+            "cutoff": cutoff,
+            "limit": limit,
+            "min_mentions": min_mentions,
+        })
         rows = result.mappings().all()
 
     return [
