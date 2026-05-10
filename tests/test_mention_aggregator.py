@@ -83,7 +83,7 @@ async def test_mention_heat_min_mentions_filter(Session):
         _tweet(3, ["TINY"], "BULL", 0.5, 1),
     ])
 
-    rows = await get_mention_heat(Session, min_mentions=2)
+    rows = await get_mention_heat(Session, window_hours=24, min_mentions=2)
     tickers = [r["ticker"] for r in rows]
     assert "BIG" in tickers
     assert "TINY" not in tickers
