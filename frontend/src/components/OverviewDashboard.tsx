@@ -7,8 +7,6 @@ import { SentimentShiftWidget } from './SentimentShiftWidget'
 import { VolumeBaselineWidget } from './VolumeBaselineWidget'
 import { HiddenGemWidget } from './HiddenGemWidget'
 
-type Layout = 'newspaper' | 'grid' | 'stream'
-
 const SCOPE_LABEL: Record<AssetKind, string> = {
   all:    'All markets',
   EQUITY: 'Stocks',
@@ -25,19 +23,8 @@ interface Props {
 }
 
 export function OverviewDashboard({ onTickerClick }: Props) {
-  const [assetKind, setAssetKind]   = useState<AssetKind>('all')
+  const [assetKind, setAssetKind]     = useState<AssetKind>('all')
   const [windowHours, setWindowHours] = useState<MentionWindowHours>(MENTION_WINDOWS[0])
-  const [layout, setLayout]         = useState<Layout>('newspaper')
-
-  const heatHeight = layout === 'newspaper' ? 320 : layout === 'grid' ? 280 : 220
-
-  const widgets = (
-    <>
-      <SentimentShiftWidget assetKind={assetKind} windowHours={windowHours} />
-      <VolumeBaselineWidget assetKind={assetKind} windowHours={windowHours} />
-      <HiddenGemWidget assetKind={assetKind} windowHours={windowHours} />
-    </>
-  )
 
   return (
     <div className="flex flex-col gap-3">
@@ -75,75 +62,20 @@ export function OverviewDashboard({ onTickerClick }: Props) {
             </button>
           ))}
         </div>
-
-        {/* Layout switcher */}
-        <div className="flex items-center gap-1 rounded-lg border border-zinc-800 bg-zinc-900 p-0.5">
-          {([['newspaper', 'News'], ['grid', 'Grid'], ['stream', 'Stream']] as const).map(([k, l]) => (
-            <button
-              key={k}
-              onClick={() => setLayout(k)}
-              className={
-                'rounded-md px-2 py-1 text-[11px] font-semibold transition-colors ' +
-                (layout === k
-                  ? 'bg-zinc-100 text-zinc-900'
-                  : 'text-zinc-300 hover:bg-zinc-800')
-              }
-            >
-              {l}
-            </button>
-          ))}
-        </div>
       </div>
 
-      {/* Newspaper: full-width heat → 3-col widgets */}
-      {layout === 'newspaper' && (
-        <>
-          <MentionHeatmap
-            assetKind={assetKind}
-            windowHours={windowHours}
-            onWindowChange={setWindowHours}
-            onTickerClick={onTickerClick}
-            height={heatHeight}
-          />
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {widgets}
-          </div>
-        </>
-      )}
-
-      {/* Grid: heat left (7) + stacked widgets right (5) */}
-      {layout === 'grid' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
-          <div className="lg:col-span-7">
-            <MentionHeatmap
-              assetKind={assetKind}
-              windowHours={windowHours}
-              onWindowChange={setWindowHours}
-              onTickerClick={onTickerClick}
-              height={heatHeight}
-            />
-          </div>
-          <div className="lg:col-span-5 flex flex-col gap-3">
-            {widgets}
-          </div>
-        </div>
-      )}
-
-      {/* Stream: compact heat → 3-col widgets */}
-      {layout === 'stream' && (
-        <>
-          <MentionHeatmap
-            assetKind={assetKind}
-            windowHours={windowHours}
-            onWindowChange={setWindowHours}
-            onTickerClick={onTickerClick}
-            height={heatHeight}
-          />
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {widgets}
-          </div>
-        </>
-      )}
+      <MentionHeatmap
+        assetKind={assetKind}
+        windowHours={windowHours}
+        onWindowChange={setWindowHours}
+        onTickerClick={onTickerClick}
+        height={320}
+      />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <SentimentShiftWidget assetKind={assetKind} windowHours={windowHours} />
+        <VolumeBaselineWidget assetKind={assetKind} windowHours={windowHours} />
+        <HiddenGemWidget assetKind={assetKind} windowHours={windowHours} />
+      </div>
     </div>
   )
 }
