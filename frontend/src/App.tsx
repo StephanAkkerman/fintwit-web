@@ -559,7 +559,11 @@ export default function App() {
             )}
 
             {route === 'home' && (
-              <OverviewDashboard onTickerClick={onTickerSelect} />
+              <OverviewDashboard
+                onTickerClick={onTickerSelect}
+                userFilter={userFilter}
+                subscriberOnly={subscriberOnlyFilter}
+              />
             )}
 
             {route === 'crypto' && (

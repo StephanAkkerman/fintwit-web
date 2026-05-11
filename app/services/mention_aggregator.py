@@ -40,12 +40,37 @@ _KIND_FILTER = {
 }
 
 
+def _user_clause(user_screen_name: str | None) -> str:
+    if not user_screen_name:
+        return ""
+    return (
+        "AND ("
+        "  LOWER(t.user_screen_name) LIKE :user_name_pat"
+        "  OR LOWER(t.user_name) LIKE :user_name_pat"
+        "  OR LOWER(json_extract(t.quoted_tweet, '$.user_screen_name')) LIKE :user_name_pat"
+        ")"
+    )
+
+
+def _subscriber_clause(subscriber_only: bool) -> str:
+    if not subscriber_only:
+        return ""
+    return (
+        "AND ("
+        "  t.is_subscriber_only = 1"
+        "  OR json_extract(t.quoted_tweet, '$.is_subscriber_only') = 1"
+        ")"
+    )
+
+
 async def get_mention_heat(
     Session: async_sessionmaker,
     asset_kind: str = "all",
     window_hours: int = 24,
     limit: int = 50,
     min_mentions: int = 1,
+    user_screen_name: str | None = None,
+    subscriber_only: bool = False,
 ) -> list[dict]:
     """Return the top-mentioned tickers in the last ``window_hours`` hours.
 
@@ -62,6 +87,8 @@ async def get_mention_heat(
     now = _now()
     cutoff = now - timedelta(hours=window_hours)
     kind_clause = _KIND_FILTER.get(asset_kind.upper(), "")
+    user_c = _user_clause(user_screen_name)
+    sub_c = _subscriber_clause(subscriber_only)
 
     sql = text(f"""
         WITH
@@ -104,6 +131,8 @@ async def get_mention_heat(
                    ON json_extract(ae.value, '$.symbol') = j.value
             WHERE t.created_at >= :cutoff
               AND t.tickers IS NOT NULL AND t.tickers != '[]'
+              {user_c}
+              {sub_c}
             GROUP BY j.value
             HAVING COUNT(*) >= :min_mentions
             {kind_clause}
@@ -127,12 +156,12 @@ async def get_mention_heat(
         LIMIT :limit
     """)
 
+    params: dict = {"cutoff": cutoff, "limit": limit, "min_mentions": min_mentions}
+    if user_screen_name:
+        params["user_name_pat"] = f"%{user_screen_name.lower()}%"
+
     async with Session() as s:
-        result = await s.execute(sql, {
-            "cutoff": cutoff,
-            "limit": limit,
-            "min_mentions": min_mentions,
-        })
+        result = await s.execute(sql, params)
         rows = result.mappings().all()
 
     return [
@@ -153,6 +182,8 @@ async def get_sentiment_shift(
     asset_kind: str = "all",
     window_hours: int = 24,
     limit: int = 10,
+    user_screen_name: str | None = None,
+    subscriber_only: bool = False,
 ) -> list[dict]:
     """Rank tickers by absolute change in average sentiment between the active
     window and the prior baseline. Returns the top `limit` movers, no
@@ -168,6 +199,8 @@ async def get_sentiment_shift(
     cutoff_now  = now - timedelta(hours=window_hours)
     cutoff_span = now - timedelta(hours=max(window_hours * 2, 24 * 7))
     kind_clause = _KIND_FILTER.get(asset_kind.upper(), "")
+    user_c = _user_clause(user_screen_name)
+    sub_c = _subscriber_clause(subscriber_only)
 
     sql = text(f"""
         SELECT
@@ -181,6 +214,8 @@ async def get_sentiment_shift(
                ON json_extract(ae.value, '$.symbol') = j.value
         WHERE t.created_at >= :c_span
           AND t.tickers IS NOT NULL AND t.tickers != '[]'
+          {user_c}
+          {sub_c}
         GROUP BY j.value
         HAVING SUM(CASE WHEN t.created_at >= :c_now THEN 1 ELSE 0 END) > 0
           AND AVG(CASE WHEN t.created_at >= :c_now THEN t.sentiment_score ELSE NULL END) IS NOT NULL
@@ -188,11 +223,12 @@ async def get_sentiment_shift(
         {kind_clause}
     """)
 
+    params: dict = {"c_span": cutoff_span, "c_now": cutoff_now}
+    if user_screen_name:
+        params["user_name_pat"] = f"%{user_screen_name.lower()}%"
+
     async with Session() as s:
-        result = await s.execute(
-            sql,
-            {"c_span": cutoff_span, "c_now": cutoff_now},
-        )
+        result = await s.execute(sql, params)
         rows = result.mappings().all()
 
     items = []
@@ -220,6 +256,8 @@ async def get_volume_baseline(
     asset_kind: str = "all",
     threshold: float = 1.5,
     window_hours: int = 24,
+    user_screen_name: str | None = None,
+    subscriber_only: bool = False,
 ) -> list[dict]:
     now = _now()
     # Baseline span = 7d, but never shorter than the active window itself.
@@ -230,6 +268,8 @@ async def get_volume_baseline(
     # express the baseline as the *expected* mentions per active window.
     buckets = baseline_hours / float(window_hours)
     kind_clause = _KIND_FILTER.get(asset_kind.upper(), "")
+    user_c = _user_clause(user_screen_name)
+    sub_c = _subscriber_clause(subscriber_only)
 
     sql = text(f"""
         SELECT
@@ -245,6 +285,8 @@ async def get_volume_baseline(
                ON json_extract(ae.value, '$.symbol') = j.value
         WHERE t.created_at >= :c_span
           AND t.tickers IS NOT NULL AND t.tickers != '[]'
+          {user_c}
+          {sub_c}
         GROUP BY j.value
         HAVING SUM(CASE WHEN t.created_at >= :c_now THEN 1 ELSE 0 END) > 5
           AND (COUNT(*) / :buckets) > 0
@@ -254,16 +296,17 @@ async def get_volume_baseline(
         LIMIT 10
     """)
 
+    params: dict = {
+        "c_span": cutoff_span,
+        "c_now": cutoff_now,
+        "thr": threshold,
+        "buckets": buckets,
+    }
+    if user_screen_name:
+        params["user_name_pat"] = f"%{user_screen_name.lower()}%"
+
     async with Session() as s:
-        result = await s.execute(
-            sql,
-            {
-                "c_span": cutoff_span,
-                "c_now": cutoff_now,
-                "thr": threshold,
-                "buckets": buckets,
-            },
-        )
+        result = await s.execute(sql, params)
         rows = result.mappings().all()
 
     return [
@@ -282,6 +325,8 @@ async def get_hidden_gems(
     Session: async_sessionmaker,
     asset_kind: str = "all",
     window_hours: int = 24,
+    user_screen_name: str | None = None,
+    subscriber_only: bool = False,
 ) -> list[dict]:
     now = _now()
     cutoff_now = now - timedelta(hours=window_hours)
@@ -302,6 +347,9 @@ async def get_hidden_gems(
     else:
         kind_filter = ""
 
+    user_c = _user_clause(user_screen_name)
+    sub_c = _subscriber_clause(subscriber_only)
+
     sql = text(f"""
         WITH active AS (
             SELECT
@@ -313,6 +361,8 @@ async def get_hidden_gems(
                    ON json_extract(ae.value, '$.symbol') = j.value
             WHERE t.created_at >= :c_now
               AND t.tickers IS NOT NULL AND t.tickers != '[]'
+              {user_c}
+              {sub_c}
             GROUP BY j.value
         ),
         history AS (
@@ -323,6 +373,8 @@ async def get_hidden_gems(
                     AS last_seen_before_window
             FROM tweets t, json_each(t.tickers) j
             WHERE t.tickers IS NOT NULL AND t.tickers != '[]'
+              {user_c}
+              {sub_c}
             GROUP BY j.value
         )
         SELECT
@@ -353,10 +405,12 @@ async def get_hidden_gems(
         LIMIT 20
     """)
 
+    params: dict = {"c_now": cutoff_now, "c_resurface": cutoff_resurface}
+    if user_screen_name:
+        params["user_name_pat"] = f"%{user_screen_name.lower()}%"
+
     async with Session() as s:
-        result = await s.execute(
-            sql, {"c_now": cutoff_now, "c_resurface": cutoff_resurface}
-        )
+        result = await s.execute(sql, params)
         rows = result.mappings().all()
 
     return [

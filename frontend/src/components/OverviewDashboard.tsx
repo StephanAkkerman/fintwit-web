@@ -20,9 +20,11 @@ function windowLabel(h: MentionWindowHours): string {
 
 interface Props {
   onTickerClick?: (ticker: string) => void
+  userFilter?: string | null
+  subscriberOnly?: boolean
 }
 
-export function OverviewDashboard({ onTickerClick }: Props) {
+export function OverviewDashboard({ onTickerClick, userFilter = null, subscriberOnly = false }: Props) {
   const [assetKind, setAssetKind]     = useState<AssetKind>('all')
   const [windowHours, setWindowHours] = useState<MentionWindowHours>(MENTION_WINDOWS[0])
 
@@ -70,11 +72,13 @@ export function OverviewDashboard({ onTickerClick }: Props) {
         onWindowChange={setWindowHours}
         onTickerClick={onTickerClick}
         height={320}
+        userFilter={userFilter}
+        subscriberOnly={subscriberOnly}
       />
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <SentimentShiftWidget assetKind={assetKind} windowHours={windowHours} />
-        <VolumeBaselineWidget assetKind={assetKind} windowHours={windowHours} />
-        <HiddenGemWidget assetKind={assetKind} windowHours={windowHours} />
+        <SentimentShiftWidget assetKind={assetKind} windowHours={windowHours} userFilter={userFilter} subscriberOnly={subscriberOnly} />
+        <VolumeBaselineWidget assetKind={assetKind} windowHours={windowHours} userFilter={userFilter} subscriberOnly={subscriberOnly} />
+        <HiddenGemWidget assetKind={assetKind} windowHours={windowHours} userFilter={userFilter} subscriberOnly={subscriberOnly} />
       </div>
     </div>
   )

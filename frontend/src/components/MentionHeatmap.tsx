@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useMentionHeat } from '../hooks/useMentionHeat'
 import type { AssetKind, MentionHeatCell } from '../types'
 
@@ -9,21 +10,74 @@ function windowLabel(h: MentionWindowHours): string {
   return `${h / 24}d`
 }
 
-// Top-12 cell grid spans (8 cols × 5 rows = 40 cells total)
-const HEAT_LAYOUT: Array<{ col: string; row: string }> = [
-  { col: 'span 4', row: 'span 4' }, // rank 1: 16 cells
-  { col: 'span 4', row: 'span 2' }, // rank 2:  8 cells
-  { col: 'span 2', row: 'span 2' }, // rank 3:  4 cells
-  { col: 'span 2', row: 'span 2' }, // rank 4:  4 cells
-  { col: 'span 1', row: 'span 1' }, // ranks 5–12: 1 cell each
-  { col: 'span 1', row: 'span 1' },
-  { col: 'span 1', row: 'span 1' },
-  { col: 'span 1', row: 'span 1' },
-  { col: 'span 1', row: 'span 1' },
-  { col: 'span 1', row: 'span 1' },
-  { col: 'span 1', row: 'span 1' },
-  { col: 'span 1', row: 'span 1' },
-]
+interface LayoutItem {
+  colStart: number
+  rowStart: number
+  size: number
+}
+
+// Gap-free heatmap layout using 6 columns (LCM of 1, 2, 3).
+//
+// Items are assigned sizes 1–3 based on mention share. Items are grouped by
+// size (3 → 2 → 1). Within each group, only complete rows are placed
+// (6/size items per row). Any leftover items that can't fill a complete row
+// are demoted to the next smaller size and merged into that group, preserving
+// relative mention-count order. This guarantees every row is fully packed
+// with same-height tiles — no gaps, no orphans.
+function computeLayout(
+  data: MentionHeatCell[],
+  maxItems = 20,
+): { cells: MentionHeatCell[]; layouts: LayoutItem[] } {
+  const COLS = 6
+  const items = data.slice(0, maxItems)
+  if (items.length === 0) return { cells: [], layouts: [] }
+
+  const maxMentions = items[0].mentions
+  type Sized = { cell: MentionHeatCell; size: number }
+
+  const sized: Sized[] = items.map(d => ({
+    cell: d,
+    size: Math.max(1, Math.min(3, Math.round(Math.sqrt(d.mentions / maxMentions) * 3))),
+  }))
+
+  const result: Array<{ cell: MentionHeatCell; item: LayoutItem }> = []
+  let curGridRow = 1
+
+  function placeGroup(group: Sized[], size: number): Sized[] {
+    if (size < 1 || group.length === 0) return []
+    const perRow = Math.floor(COLS / size)
+    const completeRows = Math.floor(group.length / perRow)
+    const toPlace = completeRows * perRow
+
+    for (let i = 0; i < toPlace; i++) {
+      result.push({
+        cell: group[i].cell,
+        item: {
+          colStart: (i % perRow) * size + 1,
+          rowStart: curGridRow + Math.floor(i / perRow) * size,
+          size,
+        },
+      })
+    }
+    curGridRow += completeRows * size
+    return group.slice(toPlace).map(x => ({ ...x, size: size - 1 }))
+  }
+
+  const group3 = sized.filter(x => x.size === 3)
+  const group2 = sized.filter(x => x.size === 2)
+  const group1 = sized.filter(x => x.size === 1)
+
+  const overflow3 = placeGroup(group3, 3)
+  const merged2 = [...group2, ...overflow3].sort((a, b) => b.cell.mentions - a.cell.mentions)
+  const overflow2 = placeGroup(merged2, 2)
+  const merged1 = [...group1, ...overflow2].sort((a, b) => b.cell.mentions - a.cell.mentions)
+  placeGroup(merged1, 1)
+
+  return {
+    cells: result.map(r => r.cell),
+    layouts: result.map(r => r.item),
+  }
+}
 
 function sentimentBg(s: number): string {
   if (s <= -0.5) return 'rgba(225,29,72,0.55)'
@@ -54,20 +108,18 @@ function priceRingColor(p: number | null): string {
 
 interface CellProps {
   cell: MentionHeatCell
-  rank: number
-  rowHeight: number
+  layout: LayoutItem
   onTickerClick?: (ticker: string) => void
 }
 
-function HeatCell({ cell, rank, rowHeight, onTickerClick }: CellProps) {
-  const layout = HEAT_LAYOUT[rank] ?? { col: 'span 1', row: 'span 1' }
-  const isHuge = rank === 0
-  const isBig  = rank < 4
+function HeatCell({ cell, layout, onTickerClick }: CellProps) {
+  const { colStart, rowStart, size } = layout
+
   const s = cell.avg_sentiment_24h ?? 0
 
-  const tickerSize = isHuge ? 'text-3xl' : isBig ? 'text-xl' : 'text-[11px]'
-  const pctSize    = isHuge ? 'text-sm'  : isBig ? 'text-[10px]' : 'text-[9px]'
-  const cntSize    = isHuge ? 'text-xs'  : isBig ? 'text-[10px]' : 'text-[9px]'
+  const tickerSize = size === 3 ? 'text-2xl' : size === 2 ? 'text-base' : 'text-[11px]'
+  const pctSize    = size === 3 ? 'text-sm'  : 'text-[9px]'
+  const cntSize    = size === 3 ? 'text-xs'  : 'text-[9px]'
 
   const pricePct = cell.price_direction != null
     ? (cell.price_direction > 0 ? '+' : '') + cell.price_direction.toFixed(1) + '%'
@@ -78,8 +130,8 @@ function HeatCell({ cell, rank, rowHeight, onTickerClick }: CellProps) {
       onClick={() => onTickerClick?.(cell.ticker)}
       className="rounded-lg p-1.5 text-left flex flex-col justify-between hover:brightness-125 transition-[filter] focus:outline-none focus:ring-1 focus:ring-zinc-300"
       style={{
-        gridColumn: layout.col,
-        gridRow: layout.row,
+        gridColumn: `${colStart} / span ${size}`,
+        gridRow: `${rowStart} / span ${size}`,
         background: sentimentBg(s),
         color: sentimentFg(s),
         border: `1.5px solid ${priceRingColor(cell.price_direction)}`,
@@ -87,12 +139,9 @@ function HeatCell({ cell, rank, rowHeight, onTickerClick }: CellProps) {
     >
       <div>
         <span className={`font-mono font-bold tracking-tight ${tickerSize}`}>${cell.ticker}</span>
-        {isHuge && (
-          <div className="font-mono text-[10px] opacity-60 truncate mt-0.5">{cell.ticker}</div>
-        )}
       </div>
       <div className="flex items-end justify-between gap-1">
-        {isBig && pricePct && (
+        {size >= 2 && pricePct && (
           <span className={`font-mono font-semibold ${pctSize}`}>{pricePct}</span>
         )}
         <span className={`font-mono opacity-60 ml-auto ${cntSize}`}>{cell.mentions}</span>
@@ -107,6 +156,8 @@ interface Props {
   onWindowChange?: (next: MentionWindowHours) => void
   onTickerClick?: (ticker: string) => void
   height?: number
+  userFilter?: string | null
+  subscriberOnly?: boolean
 }
 
 export function MentionHeatmap({
@@ -115,11 +166,20 @@ export function MentionHeatmap({
   onWindowChange,
   onTickerClick,
   height = 300,
+  userFilter = null,
+  subscriberOnly = false,
 }: Props) {
-  const { data, loading, error } = useMentionHeat(assetKind, windowHours)
+  const { data, loading, error } = useMentionHeat(assetKind, windowHours, userFilter, subscriberOnly)
 
   const currentIdx = MENTION_WINDOWS.indexOf(windowHours)
   const canWiden   = onWindowChange != null && currentIdx < MENTION_WINDOWS.length - 1
+
+  const sorted = useMemo(
+    () => data.slice().sort((a, b) => b.mentions - a.mentions),
+    [data]
+  )
+  const { cells, layouts } = useMemo(() => computeLayout(sorted, 20), [sorted])
+  const rowHeight = Math.floor(height / 5)
 
   if (loading) {
     return <div className="rounded-xl border border-zinc-800 bg-zinc-950 h-[200px] animate-pulse" />
@@ -149,9 +209,6 @@ export function MentionHeatmap({
     )
   }
 
-  const top12 = data.slice().sort((a, b) => b.mentions - a.mentions).slice(0, 12)
-  const rowHeight = Math.floor(height / 5)
-
   return (
     <div data-testid="mention-heatmap-container" className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
       <div className="flex items-center mb-3">
@@ -163,16 +220,15 @@ export function MentionHeatmap({
       <div
         className="grid gap-1.5"
         style={{
-          gridTemplateColumns: 'repeat(8, minmax(0,1fr))',
-          gridTemplateRows: `repeat(5, ${rowHeight}px)`,
+          gridTemplateColumns: 'repeat(6, minmax(0,1fr))',
+          gridAutoRows: `${rowHeight}px`,
         }}
       >
-        {top12.map((cell, i) => (
+        {cells.map((cell, i) => (
           <HeatCell
             key={cell.ticker}
             cell={cell}
-            rank={i}
-            rowHeight={rowHeight}
+            layout={layouts[i]}
             onTickerClick={onTickerClick}
           />
         ))}

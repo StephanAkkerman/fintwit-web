@@ -4,6 +4,8 @@ import type { AssetKind } from '../types'
 interface Props {
   assetKind: AssetKind
   windowHours?: number
+  userFilter?: string | null
+  subscriberOnly?: boolean
 }
 
 interface GemBadgeProps {
@@ -25,8 +27,8 @@ function GemBadge({ subtype }: GemBadgeProps) {
   )
 }
 
-export function HiddenGemWidget({ assetKind, windowHours = 24 }: Props) {
-  const { data, loading, error } = useHiddenGems(assetKind, windowHours)
+export function HiddenGemWidget({ assetKind, windowHours = 24, userFilter = null, subscriberOnly = false }: Props) {
+  const { data, loading, error } = useHiddenGems(assetKind, windowHours, userFilter, subscriberOnly)
 
   if (loading) {
     return (

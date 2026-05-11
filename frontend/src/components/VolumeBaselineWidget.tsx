@@ -4,6 +4,8 @@ import { useVolumeBaseline } from '../hooks/useVolumeBaseline'
 interface Props {
   assetKind: AssetKind
   windowHours?: number
+  userFilter?: string | null
+  subscriberOnly?: boolean
 }
 
 function sentimentBarColor(sentiment?: number): string {
@@ -13,8 +15,8 @@ function sentimentBarColor(sentiment?: number): string {
   return 'rgba(161,161,170,0.6)'
 }
 
-export function VolumeBaselineWidget({ assetKind, windowHours = 24 }: Props) {
-  const { data, loading, error } = useVolumeBaseline(assetKind, windowHours)
+export function VolumeBaselineWidget({ assetKind, windowHours = 24, userFilter = null, subscriberOnly = false }: Props) {
+  const { data, loading, error } = useVolumeBaseline(assetKind, windowHours, userFilter, subscriberOnly)
 
   if (loading) {
     return (

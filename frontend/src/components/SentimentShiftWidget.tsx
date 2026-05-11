@@ -4,6 +4,8 @@ import { useSentimentShift } from '../hooks/useSentimentShift'
 interface Props {
   assetKind: AssetKind
   windowHours?: number
+  userFilter?: string | null
+  subscriberOnly?: boolean
 }
 
 function deltaTone(delta: number): { color: string; arrow: string } {
@@ -62,8 +64,8 @@ function Row({ item }: { item: SentimentShiftItem }) {
   )
 }
 
-export function SentimentShiftWidget({ assetKind, windowHours = 24 }: Props) {
-  const { data, loading, error } = useSentimentShift(assetKind, windowHours)
+export function SentimentShiftWidget({ assetKind, windowHours = 24, userFilter = null, subscriberOnly = false }: Props) {
+  const { data, loading, error } = useSentimentShift(assetKind, windowHours, userFilter, subscriberOnly)
 
   if (loading) {
     return (

@@ -84,19 +84,33 @@ async def macro_strip():
 async def mention_heat(
     asset_kind: str = Query(default="all"),
     window_hours: int = Query(default=24, ge=1, le=168),
+    user_screen_name: str | None = Query(default=None),
+    subscriber_only: bool = Query(default=False),
 ):
     from . import main as _main
-    return await get_mention_heat(_main.Session, asset_kind=asset_kind, window_hours=window_hours)
+    return await get_mention_heat(
+        _main.Session,
+        asset_kind=asset_kind,
+        window_hours=window_hours,
+        user_screen_name=user_screen_name or None,
+        subscriber_only=subscriber_only,
+    )
 
 
 @router.get("/sentiment-shift")
 async def sentiment_shift(
     asset_kind: str = Query(default="all"),
     window_hours: int = Query(default=24, ge=1, le=168),
+    user_screen_name: str | None = Query(default=None),
+    subscriber_only: bool = Query(default=False),
 ):
     from . import main as _main
     return await get_sentiment_shift(
-        _main.Session, asset_kind=asset_kind, window_hours=window_hours
+        _main.Session,
+        asset_kind=asset_kind,
+        window_hours=window_hours,
+        user_screen_name=user_screen_name or None,
+        subscriber_only=subscriber_only,
     )
 
 
@@ -104,10 +118,16 @@ async def sentiment_shift(
 async def volume_baseline(
     asset_kind: str = Query(default="all"),
     window_hours: int = Query(default=24, ge=1, le=168),
+    user_screen_name: str | None = Query(default=None),
+    subscriber_only: bool = Query(default=False),
 ):
     from . import main as _main
     return await get_volume_baseline(
-        _main.Session, asset_kind=asset_kind, window_hours=window_hours
+        _main.Session,
+        asset_kind=asset_kind,
+        window_hours=window_hours,
+        user_screen_name=user_screen_name or None,
+        subscriber_only=subscriber_only,
     )
 
 
@@ -115,8 +135,14 @@ async def volume_baseline(
 async def hidden_gems(
     asset_kind: str = Query(default="all"),
     window_hours: int = Query(default=24, ge=1, le=168),
+    user_screen_name: str | None = Query(default=None),
+    subscriber_only: bool = Query(default=False),
 ):
     from . import main as _main
     return await get_hidden_gems(
-        _main.Session, asset_kind=asset_kind, window_hours=window_hours
+        _main.Session,
+        asset_kind=asset_kind,
+        window_hours=window_hours,
+        user_screen_name=user_screen_name or None,
+        subscriber_only=subscriber_only,
     )
