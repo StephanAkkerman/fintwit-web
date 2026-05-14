@@ -48,12 +48,14 @@ export function VolumeBaselineWidget({ assetKind, windowHours = 24, userFilter =
   const visible = data.slice(0, 10)
   const overflow = data.length - 10
   const maxMultiplier = Math.max(...data.map(d => d.volume_multiplier)) || 1
+  const baselineDays = Math.max(7, Math.round((4 * windowHours) / 24))
+  const activeLabel = windowHours <= 24 ? 'today' : windowHours <= 48 ? 'last 48h' : 'this week'
 
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4 flex flex-col gap-0">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-[13px] font-semibold text-zinc-100">Unusually loud</h2>
-        <span className="text-[10px] text-zinc-500 font-mono">today vs 7-day avg</span>
+        <span className="text-[10px] text-zinc-500 font-mono">{activeLabel} vs {baselineDays}d avg</span>
       </div>
       <div className="flex flex-col gap-2">
         {visible.map(item => {
