@@ -49,7 +49,7 @@ export function VolumeBaselineWidget({ assetKind, windowHours = 24, userFilter =
   const overflow = data.length - 10
   const maxMultiplier = Math.max(...data.map(d => d.volume_multiplier)) || 1
   const baselineDays = Math.max(7, Math.round((4 * windowHours) / 24))
-  const activeLabel = windowHours <= 24 ? 'today' : windowHours <= 48 ? 'last 48h' : 'this week'
+  const activeLabel = windowHours <= 24 ? 'today' : windowHours === 168 ? 'this week' : `last ${windowHours}h`
 
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4 flex flex-col gap-0">
