@@ -121,7 +121,7 @@ async def test_list_posts_limit_too_high_returns_422(async_client):
     with patch("app.api.main.REPO") as mock_repo:
         mock_repo.latest = AsyncMock(return_value=[])
         response = await async_client.get(
-            "/api/posts?limit=201", headers={"X-API-Key": "test-api-key"}
+            "/api/posts?limit=2001", headers={"X-API-Key": "test-api-key"}
         )
     assert response.status_code == 422
 
