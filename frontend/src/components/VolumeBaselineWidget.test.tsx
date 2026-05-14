@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, cleanup } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { VolumeBaselineWidget } from './VolumeBaselineWidget'
 import type { VolumeBaselineItem } from '../types'
@@ -74,5 +74,26 @@ describe('VolumeBaselineWidget', () => {
 
     // "+3 more" truncation label
     expect(screen.getByText('+3 more')).toBeTruthy()
+  })
+
+  it('displays dynamic subtitle based on windowHours value', () => {
+    const mockData = { data: makeSample(1), loading: false, error: false }
+    mockUseVolumeBaseline.mockReturnValue(mockData)
+
+    // Test 24h window
+    render(<VolumeBaselineWidget assetKind="all" windowHours={24} />)
+    expect(screen.getByText('today vs 7d avg')).toBeTruthy()
+    cleanup()
+
+    // Test 48h window
+    mockUseVolumeBaseline.mockReturnValue(mockData)
+    render(<VolumeBaselineWidget assetKind="all" windowHours={48} />)
+    expect(screen.getByText('last 48h vs 8d avg')).toBeTruthy()
+    cleanup()
+
+    // Test 168h window
+    mockUseVolumeBaseline.mockReturnValue(mockData)
+    render(<VolumeBaselineWidget assetKind="all" windowHours={168} />)
+    expect(screen.getByText('this week vs 28d avg')).toBeTruthy()
   })
 })
