@@ -260,8 +260,9 @@ async def get_volume_baseline(
     subscriber_only: bool = False,
 ) -> list[dict]:
     now = _now()
-    # Baseline span = 7d, but never shorter than the active window itself.
-    baseline_hours = max(24 * 7, window_hours)
+    # Baseline span = 4× the active window, floored at 7d.
+    # This ensures spikes are detectable even when window_hours = 168 (7d).
+    baseline_hours = max(24 * 7, 4 * window_hours)
     cutoff_span = now - timedelta(hours=baseline_hours)
     cutoff_now = now - timedelta(hours=window_hours)
     # Number of `window_hours`-sized buckets in the baseline span; used to

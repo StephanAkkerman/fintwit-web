@@ -205,3 +205,23 @@ async def test_price_direction_7d_window(Session):
     spy = next((r for r in rows if r["ticker"] == "SPY"), None)
     assert spy is not None
     assert spy["price_direction"] == pytest.approx(10.0, abs=0.5)
+
+
+async def test_volume_baseline_7d_window_detects_spike(Session):
+    """With window_hours=168, baseline = 28d, so spikes within the week still register."""
+    from app.services.mention_aggregator import get_volume_baseline
+
+    # 7 tweets in the last 7d (active window) — enough to clear the >5 filter
+    active = [_tweet(i, ["SPIKE"], "NEUTRAL", 0.0, hours_ago)
+              for i, hours_ago in enumerate([10, 30, 50, 70, 90, 110, 130], start=1)]
+    # 2 tweets in the prior 21 days (within 28d baseline, outside 7d window)
+    historical = [
+        _tweet(20, ["SPIKE"], "NEUTRAL", 0.0, 200),
+        _tweet(21, ["SPIKE"], "NEUTRAL", 0.0, 400),
+    ]
+    await _insert(Session, active + historical)
+
+    rows = await get_volume_baseline(Session, window_hours=168, threshold=1.5)
+    spike = next((r for r in rows if r["ticker"] == "SPIKE"), None)
+    assert spike is not None, "Expected SPIKE to appear; widget was empty at 7d window"
+    assert spike["volume_multiplier"] > 1.5
