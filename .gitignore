@@ -7,6 +7,9 @@ logs/
 models/
 data.db-journal
 *tfvars
+.superpowers
+.designkit
+.claude
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
