@@ -1,6 +1,6 @@
 # Migration Status
 
-Last updated: 2026-05-05
+Last updated: 2026-05-27
 
 ## Backend: Implemented
 
@@ -25,6 +25,7 @@ Last updated: 2026-05-05
 - Operational backfill command for historical tweet sentiment (`python -m app.runtime.backfill_sentiment`).
 - SSE broadcasting (`/api/stream`) and engagement update handling for tweet updates.
 - Service-backed endpoints for Fear & Greed, treemap, StockTwits, SPY heatmap, and trending crypto.
+- Signa service client coverage expanded for `/api/v1/signal`, `/api/v1/quote/{ticker}`, `/api/v1/history/{ticker}`, `/api/v1/enhanced-signal`, `/api/v1/signal-index`, `/api/v1/scan`, and `/api/v1/me` (with retained legacy analysis helper for compatibility).
 - Additional market-microstructure endpoints now available: Binance gainers/losers (`/api/binance/gainers-losers`) and Nasdaq stock halts (`/api/stock-halts`).
 - Options migration slice: market options overview endpoint (`/api/options/overview`) now available, powered by Nasdaq most-active option-chain data for major US underlyings.
 - Stream/runtime options-intent classification now tags tweets with `is_options_tweet` and structured `options_context` (contracts/side/score) for options-focused filtering and UI routing.
