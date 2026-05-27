@@ -118,3 +118,98 @@ def test_signa_client_returns_none_on_request_error(monkeypatch: pytest.MonkeyPa
 
     client = SignaClient(api_key="test-key")
     assert client.get_me() is None
+
+
+def test_signa_client_cache_hit_skips_second_network_call(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    calls: list[dict[str, Any]] = []
+
+    def _fake_get(url: str, **kwargs: Any) -> _FakeResponse:
+        calls.append({"url": url, **kwargs})
+        return _FakeResponse(200, {"ok": True, "value": len(calls)})
+
+    monkeypatch.setattr("app.services.signa.requests.get", _fake_get)
+
+    now = {"value": 1000.0}
+    client = SignaClient(
+        api_key="test-key", cache_ttl_seconds=60, time_fn=lambda: now["value"]
+    )
+
+    first = client.get_quote("aapl")
+    second = client.get_quote("aapl")
+
+    assert first == second
+    assert len(calls) == 1
+
+
+def test_signa_client_cache_ttl_expiry_refetches(monkeypatch: pytest.MonkeyPatch):
+    calls: list[dict[str, Any]] = []
+
+    def _fake_get(url: str, **kwargs: Any) -> _FakeResponse:
+        calls.append({"url": url, **kwargs})
+        return _FakeResponse(200, {"ok": True, "value": len(calls)})
+
+    monkeypatch.setattr("app.services.signa.requests.get", _fake_get)
+
+    now = {"value": 2000.0}
+    client = SignaClient(
+        api_key="test-key", cache_ttl_seconds=10, time_fn=lambda: now["value"]
+    )
+
+    first = client.get_quote("aapl")
+    now["value"] += 11
+    second = client.get_quote("aapl")
+
+    assert first != second
+    assert len(calls) == 2
+
+
+def test_signa_client_enforces_per_minute_limit(monkeypatch: pytest.MonkeyPatch):
+    calls: list[dict[str, Any]] = []
+
+    def _fake_get(url: str, **kwargs: Any) -> _FakeResponse:
+        calls.append({"url": url, **kwargs})
+        return _FakeResponse(200, {"ok": True})
+
+    monkeypatch.setattr("app.services.signa.requests.get", _fake_get)
+
+    now = {"value": 3000.0}
+    client = SignaClient(
+        api_key="test-key",
+        cache_ttl_seconds=0,
+        per_minute_limit=2,
+        per_day_limit=1000,
+        time_fn=lambda: now["value"],
+    )
+
+    assert client.get_quote("aapl") is not None
+    assert client.get_quote("msft") is not None
+    assert client.get_quote("nvda") is None
+    assert len(calls) == 2
+
+
+def test_signa_client_enforces_per_day_limit(monkeypatch: pytest.MonkeyPatch):
+    calls: list[dict[str, Any]] = []
+
+    def _fake_get(url: str, **kwargs: Any) -> _FakeResponse:
+        calls.append({"url": url, **kwargs})
+        return _FakeResponse(200, {"ok": True})
+
+    monkeypatch.setattr("app.services.signa.requests.get", _fake_get)
+
+    now = {"value": 4000.0}
+    client = SignaClient(
+        api_key="test-key",
+        cache_ttl_seconds=0,
+        per_minute_limit=100,
+        per_day_limit=2,
+        time_fn=lambda: now["value"],
+    )
+
+    assert client.get_quote("aapl") is not None
+    now["value"] += 61
+    assert client.get_quote("msft") is not None
+    now["value"] += 61
+    assert client.get_quote("nvda") is None
+    assert len(calls) == 2
