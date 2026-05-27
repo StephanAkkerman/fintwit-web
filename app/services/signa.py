@@ -173,6 +173,25 @@ class SignaClient:
 
         Observed response shape includes keys like: ok, symbol, timeframe,
         timeframe_input, cached, engine, engine_coverage, signa, data, meta.
+
+        Observed example (abridged):
+        {
+            "ok": True,
+            "symbol": "AAPL",
+            "timeframe": "1D",
+            "cached": False,
+            "engine": "v2",
+            "signa": "Bullish",
+            "data": {
+                "score": 74,
+                "trend": "up",
+                "confidence": 0.81,
+            },
+            "meta": {
+                "timestamp": "2026-05-...Z",
+                "latency_ms": 120,
+            },
+        }
         """
         symbol = _normalize_ticker(ticker)
         if not symbol:
@@ -184,6 +203,21 @@ class SignaClient:
 
         Observed response shape includes keys like: ok, symbol, cached, price,
         open, high, low, close, volume, change, changePercent, timestamp, meta.
+
+        Observed example (abridged):
+        {
+            "ok": True,
+            "symbol": "AAPL",
+            "price": 214.08,
+            "open": 212.10,
+            "high": 215.50,
+            "low": 211.90,
+            "close": 214.08,
+            "volume": 52344211,
+            "change": 1.98,
+            "changePercent": 0.93,
+            "timestamp": "2026-05-...Z",
+        }
         """
         symbol = _normalize_ticker(ticker)
         if not symbol:
@@ -195,6 +229,19 @@ class SignaClient:
 
         Observed response shape includes keys like: ok, symbol, timeframe, count,
         cached, candles, meta. candles items use ohlcv fields t/o/h/l/c/v.
+
+        Observed example (abridged):
+        {
+            "ok": True,
+            "symbol": "AAPL",
+            "timeframe": "1D",
+            "count": 5,
+            "cached": True,
+            "candles": [
+                {"t": 1716163200, "o": 189.1, "h": 191.7, "l": 188.9, "c": 191.2, "v": 51234123},
+                {"t": 1716249600, "o": 191.2, "h": 192.3, "l": 189.8, "c": 190.4, "v": 48911220},
+            ],
+        }
         """
         symbol = _normalize_ticker(ticker)
         if not symbol:
@@ -207,6 +254,24 @@ class SignaClient:
         Observed response shape includes keys like: ok, symbol, timeframe,
         cached, enhanced, signa, enhanced_score, trade, prediction_markets,
         news, quote, timestamp.
+
+        Observed example (abridged):
+        {
+            "ok": True,
+            "symbol": "AAPL",
+            "timeframe": "1D",
+            "enhanced": "Bullish",
+            "signa": "Bullish",
+            "enhanced_score": 82,
+            "trade": {
+                "entry": 213.4,
+                "stop": 208.0,
+                "target": 221.0,
+            },
+            "prediction_markets": [],
+            "news": [],
+            "quote": {"price": 214.08},
+        }
         """
         symbol = _normalize_ticker(ticker)
         if not symbol:
@@ -219,6 +284,23 @@ class SignaClient:
         Observed response shape includes keys like: ok, cached, universe,
         symbolCount, coveredCount, uncoveredCount, timestamp, value,
         sentiment, components, topSignals, data_source, meta.
+
+        Observed example (abridged):
+        {
+            "ok": True,
+            "cached": True,
+            "universe": "stocks",
+            "symbolCount": 500,
+            "coveredCount": 462,
+            "value": 61,
+            "sentiment": "risk-on",
+            "components": {
+                "momentum": 64,
+                "breadth": 58,
+                "volatility": 55,
+            },
+            "topSignals": ["NVDA", "AAPL", "MSFT"],
+        }
         """
         return self._request("/api/v1/signal-index")
 
@@ -232,6 +314,29 @@ class SignaClient:
         Observed response shape includes keys: ok, results, meta.
         results entries include fields like symbol, score, tier, bias,
         confidence, stage, triggers, price, change24h, rsi.
+
+        Observed example (abridged):
+        {
+            "ok": True,
+            "results": [
+                {
+                    "symbol": "AAPL",
+                    "score": 83,
+                    "tier": "A",
+                    "bias": "bullish",
+                    "confidence": 0.84,
+                    "stage": "continuation",
+                    "triggers": ["breakout", "relative_strength"],
+                    "price": 214.08,
+                    "change24h": 0.93,
+                    "rsi": 62.1,
+                }
+            ],
+            "meta": {
+                "count": 1,
+                "filters": {"direction": "bullish", "min_score": 80, "sym": "AAPL"},
+            },
+        }
         """
         clean_filters = {k: v for k, v in filters.items() if v is not None}
         return self._request("/api/v1/scan", params=clean_filters)
@@ -241,6 +346,21 @@ class SignaClient:
 
         Observed response shape includes keys: ok, user_id, plan, api, scopes,
         entitlements, meta. api includes daily/minute limits and usage counters.
+
+        Observed example (abridged):
+        {
+            "ok": True,
+            "user_id": "...",
+            "plan": "pro",
+            "api": {
+                "calls_remaining": 1000,
+                "daily_limit": 1000,
+                "hourly_limit": 60,
+                "rate_limit": "60/min, 1000/day",
+            },
+            "scopes": ["signal", "quote", "scan"],
+            "entitlements": ["enhanced_signal"],
+        }
         """
         return self._request("/api/v1/me")
 
