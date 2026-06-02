@@ -38,9 +38,6 @@ beforeEach(() => {
     if (url.includes('/api/binance/gainers-losers')) {
       return Promise.resolve({ ok: true, json: async () => ({ gainers: [], losers: [] }) } as Response)
     }
-    if (url.includes('/api/nfts/trending')) {
-      return Promise.resolve({ ok: true, json: async () => [] } as Response)
-    }
     if (url.includes('/api/treemap')) {
       return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)
     }
@@ -287,9 +284,6 @@ describe('App', () => {
       if (url.includes('/api/binance/gainers-losers')) {
         return Promise.resolve({ ok: true, json: async () => ({ gainers: [], losers: [] }) } as Response)
       }
-      if (url.includes('/api/nfts/trending')) {
-        return Promise.resolve({ ok: true, json: async () => [] } as Response)
-      }
       if (url.includes('/api/treemap')) {
         return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)
       }
@@ -378,17 +372,6 @@ describe('App', () => {
       expect(screen.getByText(/current window: last 168h/i)).toBeInTheDocument()
       expect(screen.getByText('Fetched tweets: 3')).toBeInTheDocument()
     })
-  })
-
-  it('shows nft section widget when navigating to /nfts', async () => {
-    render(<App />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Open /nfts' }))
-
-    await waitFor(() =>
-      expect(screen.getByRole('heading', { name: /trending nfts/i })).toBeInTheDocument()
-    )
-    expect(window.location.pathname).toBe('/nfts')
   })
 
   it('shows debug admin panel when navigating to /admin', async () => {
@@ -842,9 +825,6 @@ describe('App', () => {
       }
       if (url.includes('/api/binance/gainers-losers')) {
         return Promise.resolve({ ok: true, json: async () => ({ gainers: [], losers: [] }) } as Response)
-      }
-      if (url.includes('/api/nfts/trending')) {
-        return Promise.resolve({ ok: true, json: async () => [] } as Response)
       }
       if (url.includes('/api/treemap')) {
         return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)

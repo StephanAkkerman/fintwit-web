@@ -11,7 +11,7 @@
 ## 1. Project Overview
 
 **Goal:** Migrate `fintwit-bot` (a Discord-based financial scraper and aggregator) to `fintwit-web` (a full-stack web application).
-The application aggregates, analyzes, and streams financial data (Crypto, Stocks, Forex, NFTs, and Financial Twitter) into a unified dashboard.
+The application aggregates, analyzes, and streams financial data (Crypto, Stocks, Forex, and Financial Twitter) into a unified dashboard.
 
 **Tech Stack:**
 
@@ -114,7 +114,7 @@ frontend/src/
 ### 4.3 UI/UX Design Guidelines (TailwindCSS)
 
 * **Theme:** Maintain a sleek, dark-mode friendly aesthetic (`dark:bg-black`, `dark:text-zinc-100`).
-* **Dashboards:** Replace Discord channels with categorized dashboard routes (e.g., `/crypto`, `/stocks`, `/nfts`, `/portfolio`).
+* **Dashboards:** Replace Discord channels with categorized dashboard routes (e.g., `/crypto`, `/stocks`, `/portfolio`).
 * **Visualizing Data:** * Replace matplotlib-generated images (e.g., `rainbow_chart.png`, `liquidations.png`) with interactive frontend charting libraries where possible (e.g., `Recharts`, `Chart.js`, or `TradingView Lightweight Charts`).
 * If server-side rendering of charts is still preferred for complex plots (like the SPY heatmap or Yield curve), serve them as static images or base64 strings from FastAPI endpoints.
 

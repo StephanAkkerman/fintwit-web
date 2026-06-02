@@ -10,7 +10,7 @@ import app.services.yahoo as yahoo_service
 from app.services.coingecko import get_crypto_info
 from app.services.events_service import get_economic_events
 from app.services.market_hours_service import get_stock_market_hours
-from app.services.nft_service import get_trending_nfts
+
 from app.services.options_service import get_options_overview
 from app.services.reddit_service import get_reddit_hot_posts, is_valid_subreddit_name
 from app.services.yahoo import get_stock_info
@@ -693,53 +693,6 @@ async def test_get_reddit_hot_posts_falls_back_to_httpx_when_asyncpraw_none():
 
     assert posts is not None
     assert posts[0]["id"] == "fallback1"
-
-
-# ---------------------------------------------------------------------------
-# NFTs – get_trending_nfts
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_get_trending_nfts_success_parses_fields():
-    payload = {
-        "nfts": [
-            {
-                "id": "doodles-official",
-                "name": "Doodles",
-                "symbol": "DOODLES",
-                "thumb": "https://example.com/doodles.png",
-                "native_currency_symbol": "eth",
-                "floor_price_in_native_currency": 1.2345,
-                "floor_price_24h_percentage_change": -3.21,
-            }
-        ]
-    }
-
-    client = AsyncMock()
-    client.get = AsyncMock(return_value=_httpx_response(200, payload))
-
-    result = await get_trending_nfts(client, limit=5)
-
-    assert result is not None
-    assert len(result) == 1
-    assert result[0]["id"] == "doodles-official"
-    assert result[0]["name"] == "Doodles"
-    assert result[0]["symbol"] == "DOODLES"
-    assert result[0]["floor_price"] == pytest.approx(1.2345)
-    assert result[0]["floor_currency"] == "ETH"
-    assert result[0]["floor_change_24h"] == pytest.approx(-3.21)
-    assert result[0]["website"] == "https://www.coingecko.com/en/nft/doodles-official"
-
-
-@pytest.mark.asyncio
-async def test_get_trending_nfts_http_error_returns_none():
-    client = AsyncMock()
-    client.get = AsyncMock(return_value=_httpx_response(503, {}))
-
-    result = await get_trending_nfts(client)
-
-    assert result is None
 
 
 # ---------------------------------------------------------------------------

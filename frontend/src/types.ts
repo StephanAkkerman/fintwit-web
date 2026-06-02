@@ -283,17 +283,6 @@ export type RedditPost = {
   image_urls: string[];
 };
 
-export type NftTrendingItem = {
-  id: string | null;
-  name: string;
-  symbol: string | null;
-  thumb: string | null;
-  floor_price: number | null;
-  floor_currency: string | null;
-  floor_change_24h: number | null;
-  website: string | null;
-};
-
 export type StockMarketHoursItem = {
   exchange: string;
   session: string;

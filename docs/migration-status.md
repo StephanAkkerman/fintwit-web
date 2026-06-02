@@ -30,7 +30,6 @@ Last updated: 2026-05-27
 - Options migration slice: market options overview endpoint (`/api/options/overview`) now available, powered by Nasdaq most-active option-chain data for major US underlyings.
 - Stream/runtime options-intent classification now tags tweets with `is_options_tweet` and structured `options_context` (contracts/side/score) for options-focused filtering and UI routing.
 - Options tweet delivery now supports backend feed filtering (`options_only=true`) on both `/api/posts` and `/api/stream` for route-level isolation.
-- NFT migration slice: CoinGecko trending NFTs endpoint (`/api/nfts/trending`) now available.
 - Stock migration slice: market session endpoint (`/api/stocks/market-hours`) now available with pre-market/after-hours state mapping for major exchanges.
 - Stock market-hours endpoint now derives schedules from `exchange_calendars` and includes explicit closed-session context (`closure_reason`, `is_holiday`, optional `holiday_name`) so holiday closures can be distinguished from weekends.
 - Events migration slice: Investing economic calendar endpoint (`/api/events/economic`) now available for high-impact US and Euro-zone events.
@@ -77,7 +76,6 @@ Last updated: 2026-05-27
   - `/crypto` crypto widgets,
   - `/stocks` stock widgets,
   - `/forex` macro/forex widgets,
-  - `/nfts` NFT momentum widget,
   - `/portfolio` portfolio management.
 - Crypto and stock routes support chart-focused tweet ordering:
   - Latest,
@@ -87,7 +85,6 @@ Last updated: 2026-05-27
 - Tweet cards display separate sentiment badges for the main post and quoted post using backend metadata.
 - Portfolio route includes add/list/toggle/delete workflows and summary cards (positions, market value, cost basis, unrealized PnL).
 - Home route includes a WallStreetBets radar widget with latest Reddit post momentum signals.
-- NFTs route includes a CoinGecko-based trending collections widget with floor price and 24h floor change.
 - Stocks route now includes a market-hours banner showing major exchange session state (open/pre-market/after-hours/closed) with explicit holiday closure labels when applicable.
 - Crypto route now includes a Binance movers widget (top gainers/losers).
 - Stocks route now includes a Nasdaq trading halts widget.
@@ -117,7 +114,6 @@ Last updated: 2026-05-27
 - Debug admin panel: `/api/debug/tweet` -> `DebugAdminPanel` (`/admin`).
 - Portfolio panel: `/api/portfolio/positions` + `/api/portfolio/summary` -> `PortfolioPanel` (`/portfolio`).
 - WallStreetBets panel: `/api/reddit/wsb` -> `RedditWsbWidget` (`/`).
-- NFTs panel: `/api/nfts/trending` -> `NftTrendingWidget` (`/nfts`).
 - Stock market-hours banner: `/api/stocks/market-hours` -> `StockMarketHoursBanner` (`/stocks`).
 - Economic events panel: `/api/events/economic` -> `EconomicEventsWidget` (`/forex`).
 - Macro snapshot panel: `/api/forex/macro` -> `ForexMacroWidget` (`/forex`).
@@ -128,4 +124,4 @@ Last updated: 2026-05-27
 
 ## Suggested Next Connections
 
-- Continue legacy feature migration from `fintwit-bot` domains not yet ported (forex, options volume/SPACs/short-interest slices, NFTs).
+- Continue legacy feature migration from `fintwit-bot` domains not yet ported (forex, options volume/SPACs/short-interest slices).
