@@ -582,9 +582,12 @@ async def ibkr_positions(_=Depends(api_key_dep)):
 async def ibkr_trades(
     limit: int = Query(50, ge=1, le=200),
     before_id: int | None = Query(default=None),
+    min_value: float = Query(100.0, ge=0),
     _=Depends(api_key_dep),
 ):
-    return await IBKR_REPO.list_trades(limit=limit, before_id=before_id)
+    return await IBKR_REPO.list_trades(
+        limit=limit, before_id=before_id, min_value=min_value
+    )
 
 
 @app.get("/api/ibkr/account")
