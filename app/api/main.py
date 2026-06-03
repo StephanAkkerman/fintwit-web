@@ -33,7 +33,6 @@ from ..services.ibkr import IbkrGateway
 from ..services.macro_market import get_macro_snapshot
 from ..services.market_hours_service import get_stock_market_hours
 from ..services.nasdaq_service import get_halt_data
-from ..services.nft_service import get_trending_nfts
 from ..services.options_service import get_options_overview
 from ..services.reddit_service import get_reddit_hot_posts, is_valid_subreddit_name
 from ..services.stocktwits_service import get_stocktwits_data
@@ -603,14 +602,3 @@ async def trending_crypto(_=Depends(api_key_dep)):
     return data
 
 
-@app.get("/api/nfts/trending")
-async def trending_nfts(
-    request: Request,
-    limit: int = Query(10, ge=1, le=30),
-    _=Depends(api_key_dep),
-):
-    client: httpx.AsyncClient = request.app.state.http_client
-    data = await get_trending_nfts(client, limit=limit)
-    if data is None:
-        raise HTTPException(status_code=503, detail="Service Unavailable")
-    return data

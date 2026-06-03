@@ -5,7 +5,7 @@ import { hasChartSignal } from '../utils/tweetSignals'
 type TickerMentionsPanelProps = {
   tweets: Tweet[]
   scopeLabel: string
-  route: 'home' | 'crypto' | 'stocks' | 'forex' | 'portfolio' | 'options' | 'nfts' | 'admin'
+  route: 'home' | 'crypto' | 'stocks' | 'forex' | 'portfolio' | 'options' | 'admin'
   selectedUser?: string | null
   onTickerSelect?: (ticker: string) => void
 }

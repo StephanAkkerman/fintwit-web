@@ -5,7 +5,6 @@ import EconomicEventsWidget from './components/EconomicEventsWidget'
 import ForexMacroWidget from './components/ForexMacroWidget'
 import { OverviewDashboard } from './components/OverviewDashboard'
 import IbkrPanel from './components/IbkrPanel'
-import NftTrendingWidget from './components/NftTrendingWidget'
 import OptionsOverviewWidget from './components/OptionsOverviewWidget'
 import SpyHeatmapWidget from './components/SpyHeatmapWidget'
 import StockHaltsWidget from './components/StockHaltsWidget'
@@ -21,7 +20,7 @@ import type { Tweet } from './types'
 import { hasChartSignal } from './utils/tweetSignals'
 
 type FilterKey = 'all' | 'crypto' | 'stock' | 'forex'
-type RouteKey = 'home' | 'crypto' | 'stocks' | 'forex' | 'options' | 'nfts' | 'portfolio' | 'admin'
+type RouteKey = 'home' | 'crypto' | 'stocks' | 'forex' | 'options' | 'portfolio' | 'admin'
 type ChartSortMode = 'latest' | 'charts-first' | 'charts-only'
 type LookbackWindow = 24 | 48 | 168
 
@@ -37,7 +36,6 @@ const SECTIONS: Array<{ key: RouteKey; label: string; path: string; subtitle: st
   { key: 'stocks', label: 'Stocks', path: '/stocks', subtitle: 'Equity sentiment and SPY map' },
   { key: 'forex', label: 'Forex', path: '/forex', subtitle: 'Macro events and FX sentiment' },
   { key: 'options', label: 'Options', path: '/options', subtitle: 'Flow activity and put/call balance' },
-  { key: 'nfts', label: 'NFTs', path: '/nfts', subtitle: 'Collection momentum and floor-price pulse' },
   { key: 'portfolio', label: 'Portfolio', path: '/portfolio', subtitle: 'IBKR stock positions and PnL' },
   { key: 'admin', label: 'Admin', path: '/admin', subtitle: 'Debug tweet injection and verification' },
 ]
@@ -47,7 +45,6 @@ function routeFromPath(pathname: string): RouteKey {
   if (pathname.startsWith('/stocks')) return 'stocks'
   if (pathname.startsWith('/forex')) return 'forex'
   if (pathname.startsWith('/options')) return 'options'
-  if (pathname.startsWith('/nfts')) return 'nfts'
   if (pathname.startsWith('/portfolio')) return 'portfolio'
   if (pathname.startsWith('/admin')) return 'admin'
   return 'home'
@@ -58,7 +55,6 @@ function pathFromRoute(route: RouteKey): string {
   if (route === 'stocks') return '/stocks'
   if (route === 'forex') return '/forex'
   if (route === 'options') return '/options'
-  if (route === 'nfts') return '/nfts'
   if (route === 'portfolio') return '/portfolio'
   if (route === 'admin') return '/admin'
   return '/'
@@ -375,10 +371,6 @@ export default function App() {
                   ? `Showing tweets for your ${portfolioSymbols.size} position${portfolioSymbols.size === 1 ? '' : 's'}: ${[...portfolioSymbols].join(', ')}`
                   : 'Timeline will filter to your IBKR positions once connected.'}
               </p>
-            ) : route === 'nfts' ? (
-              <p className="mt-4 px-2 text-xs text-zinc-500">
-                NFTs route highlights trending collections and floor-price momentum from CoinGecko.
-              </p>
             ) : (
               <p className="mt-4 px-2 text-xs text-zinc-500">
                 Use this route to inject a debug tweet via `/api/debug/tweet` and verify timeline behavior.
@@ -591,8 +583,6 @@ export default function App() {
             )}
 
             {route === 'options' && <OptionsOverviewWidget />}
-
-            {route === 'nfts' && <NftTrendingWidget />}
 
             {route === 'portfolio' && (
               <IbkrPanel

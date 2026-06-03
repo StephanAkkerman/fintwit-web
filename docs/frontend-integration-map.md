@@ -10,7 +10,7 @@ Infrastructure wiring note:
 
 Route-level sections:
 
-- All non-admin routes (`/`, `/crypto`, `/stocks`, `/forex`, `/options`, `/nfts`, `/portfolio`)
+- All non-admin routes (`/`, `/crypto`, `/stocks`, `/forex`, `/options`, `/portfolio`)
   - `TickerMentionsPanel`
   - Uses currently loaded timeline tweets for in-place mention analytics (top symbols, share, chart-linked density, active authors).
   - Analytics are reactive to route scope and sidebar user filtering.
@@ -48,10 +48,6 @@ Route-level sections:
   - `OptionsOverviewWidget`
   - Nasdaq-based options activity summary (calls/puts totals, put-call ratio, most-active contracts)
   - Tweet timeline sourced from options-only tweet feed (`/api/posts?...&options_only=true` + `/api/stream?options_only=true`)
-
-- `/nfts`
-  - `NftTrendingWidget`
-  - CoinGecko trending NFT collections with floor-price pulse
 
 - `/portfolio`
   - `PortfolioPanel`
@@ -102,10 +98,6 @@ Route-level sections:
 - `BinanceGainersLosersWidget` + `useBinanceGainersLosers`
   - Fetches: `/api/binance/gainers-losers`
   - Purpose: short-horizon crypto momentum panel with top gainers and losers from Binance USDT pairs.
-
-- `NftTrendingWidget` + `useTrendingNfts`
-  - Fetches: `/api/nfts/trending?limit=...`
-  - Purpose: NFT collection momentum table with floor price and 24h floor change.
 
 - `MarketOverview` + `useMarketAssets` + `AssetBadge`
   - Fetches: `/api/posts` + `/api/stream` (derived live assets)
