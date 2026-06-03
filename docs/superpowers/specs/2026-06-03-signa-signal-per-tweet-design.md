@@ -8,7 +8,9 @@
 Surface the Signa `get_signal` verdict on each tweet's asset card, alongside the
 existing TradingView technical analysis (TA). At the same time, convert the Signa
 service client from blocking `requests` calls to non-blocking `aiohttp` so it does
-not stall the async enrichment pipeline.
+not stall the async enrichment pipeline. Both the new Signa signal and the existing
+TradingView TA recommendation are color-coded by direction (green = bullish/buy,
+red = bearish/sell, grey = neutral) so direction is readable at a glance.
 
 ## Background
 
@@ -103,11 +105,22 @@ No DB migration or Pydantic schema change — `financials` is stored as a JSON b
   };
   ```
   Add `signa?: AssetSignaSignal | null;` to `AssetFinancials`.
+- **Shared direction colors:** add a small helper (e.g.
+  `frontend/src/utils/directionColor.ts`) mapping a direction to Tailwind classes:
+  green for bullish/buy, red for bearish/sell, grey for neutral. Both the Signa and
+  TradingView components use it so the color language is identical.
+  - Bullish: `text-emerald-600 dark:text-emerald-400`
+  - Bearish: `text-rose-600 dark:text-rose-400`
+  - Neutral: `text-zinc-500 dark:text-zinc-400`
 - New `frontend/src/components/SignaSignal.tsx`: renders a single compact row
-  (returns `null` when no signal). Label is color-coded — Bullish → emerald,
-  Bearish → rose, otherwise zinc — followed by score (e.g. `74`) and confidence
-  (e.g. `81%`). Styling matches the `TradingViewAnalysis` rows so the two stack
-  cleanly.
+  (returns `null` when no signal). Label is color-coded via the shared helper —
+  green / red / grey — followed by score (e.g. `74`) and confidence (e.g. `81%`).
+  Styling matches the `TradingViewAnalysis` rows so the two stack cleanly.
+- **Color-code the existing TradingView TA** (`TradingViewAnalysis.tsx`): the
+  recommendation text is currently plain. Map it to a direction via the shared
+  helper so direction is readable at a glance — `Strong Buy`/`Buy` → green,
+  `Strong Sell`/`Sell` → red, `Neutral` (and anything else) → grey. Apply the color
+  to the recommendation label per timeframe row.
 - Render `<SignaSignal signal={financials?.signa} />` directly after
   `<TradingViewAnalysis>` in both `TweetCard.tsx` and `AssetBadge.tsx`.
 
@@ -121,7 +134,9 @@ No DB migration or Pydantic schema change — `financials` is stored as a JSON b
 - Extend `tests/test_enricher.py` to assert `financials["signa"]` is attached for an
   equity-kind asset and absent for a crypto asset (with `get_signa_signal` patched).
 - Frontend: add `SignaSignal` render test, and assert `TweetCard` shows the signal
-  label when an asset carries `financials.signa`.
+  label when an asset carries `financials.signa`. Add an assertion that the
+  `TradingViewAnalysis` recommendation carries the expected direction color class
+  (green for Buy, red for Sell, grey for Neutral).
 
 ## Error handling
 
