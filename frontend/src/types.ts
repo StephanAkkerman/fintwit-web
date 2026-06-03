@@ -138,6 +138,24 @@ export type Tweet = {
   assets?: Asset[];
 };
 
+export type SignaBestTrade = {
+  source?: string | null;
+  symbol: string;
+  direction?: 'BULLISH' | 'BEARISH' | string | null;
+  grade?: string | null;
+  alert_tier?: number | null;
+  composite_score?: number | null;
+  confidence?: number | null; // 0–1
+  model_count?: number | null;
+  regime?: string | null;
+  categories?: string[];
+  reason?: string | null;
+  key_drivers?: string[];
+  model_ids?: string[];
+  generated_at?: string | null;
+  website?: string | null;
+};
+
 export type TreemapCoin = {
   n: string; // name
   s: string; // symbol

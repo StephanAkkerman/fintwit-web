@@ -6,6 +6,7 @@ import ForexMacroWidget from './components/ForexMacroWidget'
 import { OverviewDashboard } from './components/OverviewDashboard'
 import IbkrPanel from './components/IbkrPanel'
 import OptionsOverviewWidget from './components/OptionsOverviewWidget'
+import SignaBestTradesWidget from './components/SignaBestTradesWidget'
 import SpyHeatmapWidget from './components/SpyHeatmapWidget'
 import StockHaltsWidget from './components/StockHaltsWidget'
 import StockMarketHoursBanner from './components/StockMarketHoursBanner'
@@ -20,7 +21,7 @@ import type { Tweet } from './types'
 import { hasChartSignal } from './utils/tweetSignals'
 
 type FilterKey = 'all' | 'crypto' | 'stock' | 'forex'
-type RouteKey = 'home' | 'crypto' | 'stocks' | 'forex' | 'options' | 'portfolio' | 'admin'
+type RouteKey = 'home' | 'crypto' | 'stocks' | 'forex' | 'options' | 'signa' | 'portfolio' | 'admin'
 type ChartSortMode = 'latest' | 'charts-first' | 'charts-only'
 type LookbackWindow = 24 | 48 | 168
 
@@ -36,6 +37,7 @@ const SECTIONS: Array<{ key: RouteKey; label: string; path: string; subtitle: st
   { key: 'stocks', label: 'Stocks', path: '/stocks', subtitle: 'Equity sentiment and SPY map' },
   { key: 'forex', label: 'Forex', path: '/forex', subtitle: 'Macro events and FX sentiment' },
   { key: 'options', label: 'Options', path: '/options', subtitle: 'Flow activity and put/call balance' },
+  { key: 'signa', label: 'Signa', path: '/signa', subtitle: 'Ranked best-trade signals from getsigna.ai' },
   { key: 'portfolio', label: 'Portfolio', path: '/portfolio', subtitle: 'IBKR stock positions and PnL' },
   { key: 'admin', label: 'Admin', path: '/admin', subtitle: 'Debug tweet injection and verification' },
 ]
@@ -45,6 +47,7 @@ function routeFromPath(pathname: string): RouteKey {
   if (pathname.startsWith('/stocks')) return 'stocks'
   if (pathname.startsWith('/forex')) return 'forex'
   if (pathname.startsWith('/options')) return 'options'
+  if (pathname.startsWith('/signa')) return 'signa'
   if (pathname.startsWith('/portfolio')) return 'portfolio'
   if (pathname.startsWith('/admin')) return 'admin'
   return 'home'
@@ -55,6 +58,7 @@ function pathFromRoute(route: RouteKey): string {
   if (route === 'stocks') return '/stocks'
   if (route === 'forex') return '/forex'
   if (route === 'options') return '/options'
+  if (route === 'signa') return '/signa'
   if (route === 'portfolio') return '/portfolio'
   if (route === 'admin') return '/admin'
   return '/'
@@ -540,7 +544,7 @@ export default function App() {
               <p className="text-sm text-zinc-500">{activeSection.subtitle}</p>
             </header>
 
-            {route !== 'admin' && (
+            {route !== 'admin' && route !== 'signa' && (
               <TickerMentionsPanel
                 tweets={scopedTweets}
                 scopeLabel={activeSection.label}
@@ -584,6 +588,8 @@ export default function App() {
 
             {route === 'options' && <OptionsOverviewWidget />}
 
+            {route === 'signa' && <SignaBestTradesWidget />}
+
             {route === 'portfolio' && (
               <IbkrPanel
                 status={ibkrStatus}
@@ -598,25 +604,29 @@ export default function App() {
 
             {route === 'admin' && <DebugAdminPanel />}
 
-            {displayedTweets.map((t) => (
-              <TweetCard key={t.id} t={t} onTickerSelect={onTickerSelect} onUserSelect={onUserSelect} />
-            ))}
-            {hasMore && (
-              <div className="flex justify-center py-2">
-                <button
-                  type="button"
-                  onClick={() => void loadOlder()}
-                  disabled={isLoadingOlder}
-                  className="rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
-                >
-                  {isLoadingOlder ? 'Loading older tweets...' : 'Load older tweets'}
-                </button>
-              </div>
-            )}
-            {displayedTweets.length === 0 && (
-              <div className="rounded-2xl border border-dashed border-zinc-300 bg-white/70 p-5 text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-400">
-                No tweets in this filter yet.
-              </div>
+            {route !== 'signa' && (
+              <>
+                {displayedTweets.map((t) => (
+                  <TweetCard key={t.id} t={t} onTickerSelect={onTickerSelect} onUserSelect={onUserSelect} />
+                ))}
+                {hasMore && (
+                  <div className="flex justify-center py-2">
+                    <button
+                      type="button"
+                      onClick={() => void loadOlder()}
+                      disabled={isLoadingOlder}
+                      className="rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                    >
+                      {isLoadingOlder ? 'Loading older tweets...' : 'Load older tweets'}
+                    </button>
+                  </div>
+                )}
+                {displayedTweets.length === 0 && (
+                  <div className="rounded-2xl border border-dashed border-zinc-300 bg-white/70 p-5 text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-400">
+                    No tweets in this filter yet.
+                  </div>
+                )}
+              </>
             )}
           </section>
         </div>

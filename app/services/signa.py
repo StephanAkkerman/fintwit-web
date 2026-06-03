@@ -375,6 +375,59 @@ class SignaClient:
             return None
         return await self._request("/api/v1/analysis", params={"ticker": symbol})
 
+    async def get_best_trades(
+        self, *, limit: int = 250, scored: bool = True
+    ) -> dict[str, Any] | list[Any] | None:
+        """GET /api/signals/run — the "best trades" ranked signals feed.
+
+        Undocumented endpoint backing the getsigna.ai dashboard route
+        ``/dashboard/best-trades``. Unlike the ``/api/v1/*`` endpoints it
+        requires **no API key / no auth** — it is publicly accessible. Premium
+        tier-3 signals are gated server-side (the response carries
+        ``tier3_gated: true``) but tier 1/2 signals are returned in full.
+
+        Parameters
+        ----------
+        limit : int
+            Maximum number of signals to return (server honours this exactly).
+        scored : bool
+            When ``True`` the API returns the ranked ``signals`` array. When
+            ``False`` it returns only a ``count`` with no signal payload, so the
+            default of ``True`` is almost always what you want.
+
+        Observed response shape:
+        {
+            "signals": [
+                {
+                    "id": "00e018a4-3eaa-4dca-8843-f229537b80cc",
+                    "ticker": "SBUX",
+                    "direction": "BULLISH",          # or "BEARISH"
+                    "alert_tier": 2,                  # 1 or 2 (tier 3 gated)
+                    "composite_score": 98,
+                    "confidence": 0.58,
+                    "model_count": 2,
+                    "model_ids": ["bollinger-band", "low-vol-factor"],
+                    "model_names": [],
+                    "categories": [],
+                    "category_diversity": 0,
+                    "regime": "TRANSITIONAL",
+                    "regime_multiplier": 1,
+                    "suggested_size_pct": 0,
+                    "conflict_detected": false,
+                    "risks": [],
+                    "reason": "Strong consensus: 100% bullish; ...",
+                    "key_drivers": ["Strong consensus: 100% bullish", ...],
+                    "grade": "A",                     # A, B, ...
+                    "generated_at": "2026-06-03T19:06:04.375+00:00",
+                }
+            ],
+            "count": 98,
+            "tier3_gated": true,
+        }
+        """
+        params = {"scored": "true" if scored else "false", "limit": int(limit)}
+        return await self._request("/api/signals/run", params=params)
+
 
 _default_client = SignaClient()
 
@@ -429,6 +482,67 @@ async def get_signa_signal(ticker: str) -> dict[str, Any] | None:
     }
 
 
+async def get_signa_best_trades(
+    limit: int = 250, scored: bool = True
+) -> list[dict[str, Any]]:
+    """Fetch and normalize the Signa "best trades" ranked signals feed.
+
+    Wraps :meth:`SignaClient.get_best_trades` and flattens each raw signal into
+    a compact, frontend-friendly dict. Returns an empty list when the request
+    fails or carries no usable signals (never ``None``).
+
+    Returns
+    -------
+    list of dict
+        Each entry: ``{"source", "symbol", "direction", "grade", "alert_tier",
+        "composite_score", "confidence", "regime", "reason", "key_drivers",
+        "model_ids", "generated_at", "website"}``.
+    """
+    payload = await _default_client.get_best_trades(limit=limit, scored=scored)
+    if not isinstance(payload, dict):
+        return []
+
+    signals = payload.get("signals")
+    if not isinstance(signals, list):
+        return []
+
+    results: list[dict[str, Any]] = []
+    for item in signals:
+        if not isinstance(item, dict):
+            continue
+        symbol = _normalize_ticker(item.get("ticker"))
+        if not symbol:
+            continue
+
+        direction = item.get("direction")
+        key_drivers = item.get("key_drivers")
+        model_ids = item.get("model_ids")
+        categories = item.get("categories")
+
+        results.append(
+            {
+                "source": "signa",
+                "symbol": symbol,
+                "direction": (
+                    direction.upper() if isinstance(direction, str) else None
+                ),
+                "grade": item.get("grade"),
+                "alert_tier": item.get("alert_tier"),
+                "composite_score": _coerce_optional_float(item.get("composite_score")),
+                "confidence": _coerce_optional_float(item.get("confidence")),
+                "model_count": item.get("model_count"),
+                "regime": item.get("regime"),
+                "categories": categories if isinstance(categories, list) else [],
+                "reason": item.get("reason"),
+                "key_drivers": key_drivers if isinstance(key_drivers, list) else [],
+                "model_ids": model_ids if isinstance(model_ids, list) else [],
+                "generated_at": item.get("generated_at"),
+                "website": f"{_default_client.base_url}/dashboard/best-trades",
+            }
+        )
+    return results
+
+
 async def signal_request(ticker: str) -> dict[str, Any] | list[Any] | None:
     return await _default_client.get_signal(ticker)
 
@@ -459,3 +573,25 @@ async def me_request() -> dict[str, Any] | list[Any] | None:
 
 async def analysis_request(ticker: str) -> dict[str, Any] | list[Any] | None:
     return await _default_client.get_analysis(ticker)
+
+
+async def signals_run_request(
+    limit: int = 250, scored: bool = True
+) -> dict[str, Any] | list[Any] | None:
+    return await _default_client.get_best_trades(limit=limit, scored=scored)
+
+
+if __name__ == "__main__":
+    import asyncio
+
+    async def main():
+        trades = await get_signa_best_trades(limit=5)
+        print(f"Best trades ({len(trades)}):")
+        for trade in trades:
+            print(
+                f"  {trade['symbol']:<6} {trade['direction']:<8} "
+                f"grade={trade['grade']} score={trade['composite_score']} "
+                f"conf={trade['confidence']}"
+            )
+
+    asyncio.run(main())
