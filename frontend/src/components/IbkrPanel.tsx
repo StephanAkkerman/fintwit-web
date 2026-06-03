@@ -199,7 +199,7 @@ function TradesTable({ trades }: { trades: IbkrTrade[] }) {
           </tr>
         </thead>
         <tbody className="divide-y divide-zinc-800">
-          {filtered.map((t) => {
+          {trades.map((t) => {
             const isBuy = t.side === 'BOT'
             return (
               <tr key={t.id} className="text-zinc-200">
