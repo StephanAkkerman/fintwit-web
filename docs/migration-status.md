@@ -1,6 +1,6 @@
 # Migration Status
 
-Last updated: 2026-05-27
+Last updated: 2026-06-03
 
 ## Backend: Implemented
 
@@ -15,6 +15,7 @@ Last updated: 2026-05-27
 - Quote source marker: enriched financial payload now includes `source` so frontend can display the provider used (`yahoo`, `coingecko`, `tradingview`).
 - Yahoo quote enrichment now prefers the latest session trade as `price` and also exposes `last_close` for pre-market/after-hours cards.
 - TradingView technical analysis summaries (4H and 1D) are now attached to enriched tweet asset financial payloads under `technical_analysis` for ticker widgets.
+- Signa signal verdicts are now attached to enriched tweet asset financial payloads under `signa` (verdict label, score, trend, confidence) for equity-like kinds only (`EQUITY`, `ETF`, `INDEX`, `FUTURE`).
 - Asset noise reduction: unsupported/unknown classifier kinds are now excluded from tweet `assets`, so non-financial hashtags (for example topic tags) are not rendered as unknown ticker assets.
 - Asset extraction signal tightening: enrichment now uses cashtags/tickers only (not hashtags) so topic hashtags (for example `#OOTT`, `#Tankers`) do not generate asset cards.
 - Equity asset enrichment now includes optional `sector` and `industry` metadata (for example `AAPL`/`NVDA` tagged as technology) sourced from classifier metadata.
@@ -25,7 +26,7 @@ Last updated: 2026-05-27
 - Operational backfill command for historical tweet sentiment (`python -m app.runtime.backfill_sentiment`).
 - SSE broadcasting (`/api/stream`) and engagement update handling for tweet updates.
 - Service-backed endpoints for Fear & Greed, treemap, StockTwits, SPY heatmap, and trending crypto.
-- Signa service client coverage expanded for `/api/v1/signal`, `/api/v1/quote/{ticker}`, `/api/v1/history/{ticker}`, `/api/v1/enhanced-signal`, `/api/v1/signal-index`, `/api/v1/scan`, and `/api/v1/me` (with retained legacy analysis helper for compatibility).
+- Signa service client coverage expanded for `/api/v1/signal`, `/api/v1/quote/{ticker}`, `/api/v1/history/{ticker}`, `/api/v1/enhanced-signal`, `/api/v1/signal-index`, `/api/v1/scan`, and `/api/v1/me` (with retained legacy analysis helper for compatibility). The client is now fully async (`aiohttp`, non-blocking) with an `asyncio` cache/quota guard, and exposes a `get_signa_signal()` helper for enrichment.
 - Additional market-microstructure endpoints now available: Binance gainers/losers (`/api/binance/gainers-losers`) and Nasdaq stock halts (`/api/stock-halts`).
 - Options migration slice: market options overview endpoint (`/api/options/overview`) now available, powered by Nasdaq most-active option-chain data for major US underlyings.
 - Stream/runtime options-intent classification now tags tweets with `is_options_tweet` and structured `options_context` (contracts/side/score) for options-focused filtering and UI routing.

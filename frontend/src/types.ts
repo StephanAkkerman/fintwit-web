@@ -19,6 +19,17 @@ export type AssetTechnicalAnalysis = {
   one_d?: AssetTradingViewSummary | null;
 };
 
+export type AssetSignaSignal = {
+  source?: string | null;
+  symbol?: string | null;
+  signal: string;
+  score?: number | null;
+  trend?: string | null;
+  confidence?: number | null;
+  timeframe?: string | null;
+  website?: string | null;
+};
+
 export type AssetFinancials = {
   price?: number | null;
   last_close?: number | null;
@@ -27,6 +38,7 @@ export type AssetFinancials = {
   website?: string | null;
   source?: string | null;
   technical_analysis?: AssetTechnicalAnalysis | null;
+  signa?: AssetSignaSignal | null;
 };
 
 export type AssetCompanyProfile = {

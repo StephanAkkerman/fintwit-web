@@ -1,4 +1,5 @@
 import type { Asset } from '../types'
+import SignaSignal from './SignaSignal'
 import TradingViewAnalysis from './TradingViewAnalysis'
 
 export default function AssetBadge({ asset }: { asset: Asset }) {
@@ -10,7 +11,7 @@ export default function AssetBadge({ asset }: { asset: Asset }) {
     )
   }
 
-  const { price, last_close, change_percent, website, technical_analysis } = asset.financials
+  const { price, last_close, change_percent, website, technical_analysis, signa } = asset.financials
   const isPositive = change_percent >= 0
   const changeColor = isPositive ? 'text-green-500' : 'text-red-500'
   const changeSign = isPositive ? '+' : ''
@@ -45,6 +46,7 @@ export default function AssetBadge({ asset }: { asset: Asset }) {
         </div>
       </div>
       <TradingViewAnalysis analysis={technical_analysis} />
+      <SignaSignal signal={signa} className="mt-1.5" />
     </a>
   )
 }

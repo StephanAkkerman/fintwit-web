@@ -6,12 +6,15 @@ from typing import Dict, List
 from ticker_classifier.classifier import TickerClassifier
 
 from ..services.coingecko import get_crypto_info
+from ..services.signa import get_signa_signal
 from ..services.tradingview_ta_service import get_tradingview_ta_summary
 from ..services.yahoo import get_stock_info
 
 logger = logging.getLogger(__name__)
 
 _YAHOO_PRICED_KINDS = {"EQUITY", "ETF", "INDEX", "FUTURE", "FOREX", "COMMODITY"}
+# Signa's signal universe is stock-focused; only fetch for equity-like kinds.
+_SIGNA_KINDS = {"EQUITY", "ETF", "INDEX", "FUTURE"}
 _FOREX_CODES = {
     "USD",
     "EUR",
@@ -86,6 +89,10 @@ def _is_crypto_kind(kind: object) -> bool:
 
 def _should_use_yahoo(kind: object) -> bool:
     return _normalize_kind(kind) in _YAHOO_PRICED_KINDS
+
+
+def _should_use_signa(kind: object) -> bool:
+    return _normalize_kind(kind) in _SIGNA_KINDS
 
 
 def _is_supported_kind(kind: object) -> bool:
@@ -277,8 +284,20 @@ class AssetEnricher:
 
         technical_analysis = await asyncio.gather(*ta_tasks, return_exceptions=True)
 
+        # Fetch Signa signals concurrently for equity-like assets only.
+        signa_tasks = []
+        for entry in classified:
+            if _should_use_signa(entry["kind"]):
+                signa_tasks.append(get_signa_signal(entry["symbol"]))
+            else:
+                signa_tasks.append(self._dummy_info())
+
+        signa_signals = await asyncio.gather(*signa_tasks, return_exceptions=True)
+
         # Attach fresh financials to the result
-        for entry, fin, ta in zip(classified, financials, technical_analysis):
+        for entry, fin, ta, signa in zip(
+            classified, financials, technical_analysis, signa_signals
+        ):
             if isinstance(fin, BaseException):
                 logger.debug("[enricher] %s financials error: %r", entry["symbol"], fin)
                 entry["financials"] = None
@@ -286,6 +305,8 @@ class AssetEnricher:
                 financial_payload = dict(fin) if isinstance(fin, dict) else fin
                 if isinstance(financial_payload, dict) and isinstance(ta, dict):
                     financial_payload["technical_analysis"] = ta
+                if isinstance(financial_payload, dict) and isinstance(signa, dict):
+                    financial_payload["signa"] = signa
                 entry["financials"] = financial_payload
                 logger.debug(
                     "[enricher] %s (%s) financials: %s",

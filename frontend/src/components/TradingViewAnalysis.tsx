@@ -1,4 +1,5 @@
 import type { AssetTechnicalAnalysis } from '../types'
+import { directionTextClass } from '../utils/directionColor'
 
 function formatCounts(value: number, label: string): string {
   return `${value} ${label}`
@@ -39,7 +40,9 @@ export default function TradingViewAnalysis({
             <span className="shrink-0 rounded-full bg-zinc-200 px-1.5 py-0.5 font-semibold uppercase tracking-wide text-[9px] text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300">
               {label}
             </span>
-            <span className="truncate font-semibold">{formatRecommendation(item.recommendation)}</span>
+            <span className={`truncate font-semibold ${directionTextClass(item.recommendation)}`}>
+              {formatRecommendation(item.recommendation)}
+            </span>
           </div>
           <span className="shrink-0 text-zinc-500 dark:text-zinc-400">
             {formatCounts(item.buy, 'buy')} · {formatCounts(item.neutral, 'neutral')} ·{' '}

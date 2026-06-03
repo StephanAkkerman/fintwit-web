@@ -1,11 +1,11 @@
+import asyncio
 import logging
 import os
-import threading
 import time
 from collections import deque
 from typing import Any, Callable
 
-import requests
+import aiohttp
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ class SignaClient:
         ] = {}
         self._minute_requests: deque[float] = deque()
         self._day_requests: deque[float] = deque()
-        self._lock = threading.Lock()
+        self._lock = asyncio.Lock()
 
     @staticmethod
     def _make_params_key(params: dict[str, Any] | None) -> tuple[tuple[str, str], ...]:
@@ -66,7 +66,7 @@ class SignaClient:
             return tuple()
         return tuple(sorted((str(key), str(value)) for key, value in params.items()))
 
-    def _get_cached(
+    async def _get_cached(
         self,
         endpoint: str,
         params: dict[str, Any] | None,
@@ -77,7 +77,7 @@ class SignaClient:
         cache_key = (endpoint, self._make_params_key(params))
         now = self._time_fn()
 
-        with self._lock:
+        async with self._lock:
             item = self._cache.get(cache_key)
             if item is None:
                 return None
@@ -89,7 +89,7 @@ class SignaClient:
 
             return payload
 
-    def _set_cache(
+    async def _set_cache(
         self,
         endpoint: str,
         params: dict[str, Any] | None,
@@ -99,15 +99,15 @@ class SignaClient:
             return
 
         cache_key = (endpoint, self._make_params_key(params))
-        with self._lock:
+        async with self._lock:
             self._cache[cache_key] = (self._time_fn(), payload)
 
-    def _consume_rate_budget(self) -> bool:
+    async def _consume_rate_budget(self) -> bool:
         now = self._time_fn()
         minute_cutoff = now - 60
         day_cutoff = now - 86400
 
-        with self._lock:
+        async with self._lock:
             while self._minute_requests and self._minute_requests[0] <= minute_cutoff:
                 self._minute_requests.popleft()
             while self._day_requests and self._day_requests[0] <= day_cutoff:
@@ -123,17 +123,17 @@ class SignaClient:
 
         return True
 
-    def _request(
+    async def _request(
         self,
         endpoint: str,
         *,
         params: dict[str, Any] | None = None,
     ) -> dict[str, Any] | list[Any] | None:
-        cached = self._get_cached(endpoint, params)
+        cached = await self._get_cached(endpoint, params)
         if cached is not None:
             return cached
 
-        if not self._consume_rate_budget():
+        if not await self._consume_rate_budget():
             logger.warning(
                 "[signa] local rate limit reached endpoint=%s minute_limit=%s day_limit=%s",
                 endpoint,
@@ -143,32 +143,34 @@ class SignaClient:
             return None
 
         url = f"{self.base_url}{endpoint}"
+        timeout = aiohttp.ClientTimeout(total=self.timeout_seconds)
 
         try:
-            response = requests.get(
-                url,
-                headers=self.headers,
-                params=params,
-                timeout=self.timeout_seconds,
-            )
-            response.raise_for_status()
-            payload = response.json()
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(
+                    url, headers=self.headers, params=params
+                ) as response:
+                    response.raise_for_status()
+                    payload = await response.json()
+
             if isinstance(payload, (dict, list)):
-                self._set_cache(endpoint, params, payload)
+                await self._set_cache(endpoint, params, payload)
                 return payload
 
             logger.warning("[signa] unexpected payload type endpoint=%s", endpoint)
             return None
-        except requests.RequestException as exc:
+        except aiohttp.ClientError as exc:
             logger.warning("[signa] request failed endpoint=%s error=%r", endpoint, exc)
             return None
-        except ValueError as exc:
+        except (ValueError, asyncio.TimeoutError) as exc:
             logger.warning(
-                "[signa] non-json response endpoint=%s error=%r", endpoint, exc
+                "[signa] non-json or timed-out response endpoint=%s error=%r",
+                endpoint,
+                exc,
             )
             return None
 
-    def get_signal(self, ticker: str) -> dict[str, Any] | list[Any] | None:
+    async def get_signal(self, ticker: str) -> dict[str, Any] | list[Any] | None:
         """GET /api/v1/signal?sym={ticker}.
 
         Observed response shape includes keys like: ok, symbol, timeframe,
@@ -196,9 +198,9 @@ class SignaClient:
         symbol = _normalize_ticker(ticker)
         if not symbol:
             return None
-        return self._request("/api/v1/signal", params={"sym": symbol})
+        return await self._request("/api/v1/signal", params={"sym": symbol})
 
-    def get_quote(self, ticker: str) -> dict[str, Any] | list[Any] | None:
+    async def get_quote(self, ticker: str) -> dict[str, Any] | list[Any] | None:
         """GET /api/v1/quote/{ticker}.
 
         Observed response shape includes keys like: ok, symbol, cached, price,
@@ -222,9 +224,9 @@ class SignaClient:
         symbol = _normalize_ticker(ticker)
         if not symbol:
             return None
-        return self._request(f"/api/v1/quote/{symbol}")
+        return await self._request(f"/api/v1/quote/{symbol}")
 
-    def get_history(self, ticker: str) -> dict[str, Any] | list[Any] | None:
+    async def get_history(self, ticker: str) -> dict[str, Any] | list[Any] | None:
         """GET /api/v1/history/{ticker}.
 
         Observed response shape includes keys like: ok, symbol, timeframe, count,
@@ -246,9 +248,11 @@ class SignaClient:
         symbol = _normalize_ticker(ticker)
         if not symbol:
             return None
-        return self._request(f"/api/v1/history/{symbol}")
+        return await self._request(f"/api/v1/history/{symbol}")
 
-    def get_enhanced_signal(self, ticker: str) -> dict[str, Any] | list[Any] | None:
+    async def get_enhanced_signal(
+        self, ticker: str
+    ) -> dict[str, Any] | list[Any] | None:
         """GET /api/v1/enhanced-signal?sym={ticker}.
 
         Observed response shape includes keys like: ok, symbol, timeframe,
@@ -276,9 +280,9 @@ class SignaClient:
         symbol = _normalize_ticker(ticker)
         if not symbol:
             return None
-        return self._request("/api/v1/enhanced-signal", params={"sym": symbol})
+        return await self._request("/api/v1/enhanced-signal", params={"sym": symbol})
 
-    def get_signal_index(self) -> dict[str, Any] | list[Any] | None:
+    async def get_signal_index(self) -> dict[str, Any] | list[Any] | None:
         """GET /api/v1/signal-index.
 
         Observed response shape includes keys like: ok, cached, universe,
@@ -302,9 +306,9 @@ class SignaClient:
             "topSignals": ["NVDA", "AAPL", "MSFT"],
         }
         """
-        return self._request("/api/v1/signal-index")
+        return await self._request("/api/v1/signal-index")
 
-    def scan(self, **filters: Any) -> dict[str, Any] | list[Any] | None:
+    async def scan(self, **filters: Any) -> dict[str, Any] | list[Any] | None:
         """GET /api/v1/scan with screener query params.
 
         Working examples observed:
@@ -339,9 +343,9 @@ class SignaClient:
         }
         """
         clean_filters = {k: v for k, v in filters.items() if v is not None}
-        return self._request("/api/v1/scan", params=clean_filters)
+        return await self._request("/api/v1/scan", params=clean_filters)
 
-    def get_me(self) -> dict[str, Any] | list[Any] | None:
+    async def get_me(self) -> dict[str, Any] | list[Any] | None:
         """GET /api/v1/me.
 
         Observed response shape includes keys: ok, user_id, plan, api, scopes,
@@ -362,46 +366,96 @@ class SignaClient:
             "entitlements": ["enhanced_signal"],
         }
         """
-        return self._request("/api/v1/me")
+        return await self._request("/api/v1/me")
 
-    def get_analysis(self, ticker: str) -> dict[str, Any] | list[Any] | None:
+    async def get_analysis(self, ticker: str) -> dict[str, Any] | list[Any] | None:
         """Legacy helper retained for backwards compatibility."""
         symbol = _normalize_ticker(ticker)
         if not symbol:
             return None
-        return self._request("/api/v1/analysis", params={"ticker": symbol})
+        return await self._request("/api/v1/analysis", params={"ticker": symbol})
 
 
 _default_client = SignaClient()
 
 
-def signal_request(ticker: str) -> dict[str, Any] | list[Any] | None:
-    return _default_client.get_signal(ticker)
+def _coerce_optional_float(value: Any) -> float | None:
+    try:
+        if value is None:
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
-def quote_request(ticker: str) -> dict[str, Any] | list[Any] | None:
-    return _default_client.get_quote(ticker)
+async def get_signa_signal(ticker: str) -> dict[str, Any] | None:
+    """Fetch and normalize the Signa signal for a single ticker.
+
+    Mirrors ``get_tradingview_ta_summary``: returns a compact dict suitable for
+    the frontend, or ``None`` when no usable signal is available.
+
+    Returns
+    -------
+    dict or None
+        ``{"source", "symbol", "signal", "score", "trend", "confidence",
+        "timeframe", "website"}`` where ``signal`` is the Signa verdict
+        (e.g. ``"Bullish"``). ``None`` when the ticker is empty, the request
+        fails, or the payload carries no verdict label.
+    """
+    symbol = _normalize_ticker(ticker)
+    if not symbol:
+        return None
+
+    payload = await _default_client.get_signal(symbol)
+    if not isinstance(payload, dict):
+        return None
+
+    label = payload.get("signa")
+    if not isinstance(label, str) or not label.strip():
+        return None
+
+    data = payload.get("data")
+    data = data if isinstance(data, dict) else {}
+
+    return {
+        "source": "signa",
+        "symbol": str(payload.get("symbol") or symbol).upper(),
+        "signal": label.strip(),
+        "score": _coerce_optional_float(data.get("score")),
+        "trend": data.get("trend"),
+        "confidence": _coerce_optional_float(data.get("confidence")),
+        "timeframe": payload.get("timeframe"),
+        "website": f"{_default_client.base_url}/?sym={symbol}",
+    }
 
 
-def history_request(ticker: str) -> dict[str, Any] | list[Any] | None:
-    return _default_client.get_history(ticker)
+async def signal_request(ticker: str) -> dict[str, Any] | list[Any] | None:
+    return await _default_client.get_signal(ticker)
 
 
-def enhanced_signal_request(ticker: str) -> dict[str, Any] | list[Any] | None:
-    return _default_client.get_enhanced_signal(ticker)
+async def quote_request(ticker: str) -> dict[str, Any] | list[Any] | None:
+    return await _default_client.get_quote(ticker)
 
 
-def signal_index_request() -> dict[str, Any] | list[Any] | None:
-    return _default_client.get_signal_index()
+async def history_request(ticker: str) -> dict[str, Any] | list[Any] | None:
+    return await _default_client.get_history(ticker)
 
 
-def scan_request(**filters: Any) -> dict[str, Any] | list[Any] | None:
-    return _default_client.scan(**filters)
+async def enhanced_signal_request(ticker: str) -> dict[str, Any] | list[Any] | None:
+    return await _default_client.get_enhanced_signal(ticker)
 
 
-def me_request() -> dict[str, Any] | list[Any] | None:
-    return _default_client.get_me()
+async def signal_index_request() -> dict[str, Any] | list[Any] | None:
+    return await _default_client.get_signal_index()
 
 
-def analysis_request(ticker: str) -> dict[str, Any] | list[Any] | None:
-    return _default_client.get_analysis(ticker)
+async def scan_request(**filters: Any) -> dict[str, Any] | list[Any] | None:
+    return await _default_client.scan(**filters)
+
+
+async def me_request() -> dict[str, Any] | list[Any] | None:
+    return await _default_client.get_me()
+
+
+async def analysis_request(ticker: str) -> dict[str, Any] | list[Any] | None:
+    return await _default_client.get_analysis(ticker)
