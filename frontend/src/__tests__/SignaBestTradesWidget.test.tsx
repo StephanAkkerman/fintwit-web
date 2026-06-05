@@ -19,7 +19,7 @@ const SIGNALS: SignaBestTrade[] = [
     key_drivers: ['driver one'],
     model_ids: ['macd-signal'],
     generated_at: new Date(Date.now() - 17 * 60_000).toISOString(),
-    website: 'https://app.getsigna.ai/dashboard/best-trades',
+    website: 'https://app.getsigna.ai/chart?sym=LOWER',
   },
   {
     source: 'signa',
@@ -36,7 +36,7 @@ const SIGNALS: SignaBestTrade[] = [
     key_drivers: ['Strong consensus', 'Minervini 8/8'],
     model_ids: ['stage-scanner'],
     generated_at: new Date(Date.now() - 17 * 60_000).toISOString(),
-    website: 'https://app.getsigna.ai/dashboard/best-trades',
+    website: 'https://app.getsigna.ai/chart?sym=TOPPICK',
   },
 ]
 

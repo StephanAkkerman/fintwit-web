@@ -18,7 +18,7 @@ const SIGNALS: SignaLiveSignal[] = [
     score: 80,
     tier: 1,
     created_at: new Date(Date.now() - 9 * 60_000).toISOString(),
-    website: 'https://app.getsigna.ai/?sym=WEAK',
+    website: 'https://app.getsigna.ai/chart?sym=WEAK',
   },
   {
     source: 'signa',
@@ -35,7 +35,7 @@ const SIGNALS: SignaLiveSignal[] = [
     score: 98,
     tier: 1,
     created_at: new Date(Date.now() - 3 * 60_000).toISOString(),
-    website: 'https://app.getsigna.ai/?sym=TOPPICK',
+    website: 'https://app.getsigna.ai/chart?sym=TOPPICK',
   },
 ]
 
