@@ -156,6 +156,30 @@ export type SignaBestTrade = {
   website?: string | null;
 };
 
+export type SignaLiveSignal = {
+  source?: string | null;
+  id?: string | null;
+  symbol: string;
+  signal?: string | null; // BUY / SELL / SHORT (directional only)
+  direction?: 'BULLISH' | 'BEARISH' | string | null;
+  model_id?: string | null;
+  model_name?: string | null;
+  model_source?: string | null;
+  category?: string | null;
+  confidence?: number | null; // 0–1
+  reason?: string | null;
+  entry_price?: number | null;
+  stop_level?: number | null;
+  target_price?: number | null;
+  position_size_pct?: number | null;
+  grade?: string | null;
+  tier?: number | null;
+  score?: number | null;
+  conflict_detected?: boolean | null;
+  created_at?: string | null;
+  website?: string | null;
+};
+
 export type TreemapCoin = {
   n: string; // name
   s: string; // symbol

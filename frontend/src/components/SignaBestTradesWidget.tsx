@@ -1,56 +1,11 @@
 import { useMemo, useState } from 'react'
 import { useSignaBestTrades } from '../hooks/useSignaBestTrades'
 import type { SignaBestTrade } from '../types'
-import { classifyDirection, directionTextClass } from '../utils/directionColor'
+import { directionTextClass } from '../utils/directionColor'
+import { absoluteTime, directionArrow, gradeClasses, relativeTime } from '../utils/signaFormat'
 
 const TIMEFRAME_LABEL = 'Daily (1D) · 20–60 trading days'
 const SOURCE_LABEL = 'Signa Signal Engine · scored_signals'
-
-function directionArrow(direction: string | null | undefined): string {
-  const kind = classifyDirection(direction)
-  if (kind === 'bullish') return '▲'
-  if (kind === 'bearish') return '▼'
-  return '◆'
-}
-
-function gradeClasses(grade: string | null | undefined): string {
-  switch ((grade ?? '').toUpperCase()) {
-    case 'A':
-      return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
-    case 'B':
-      return 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300'
-    case 'C':
-      return 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
-    default:
-      return 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'
-  }
-}
-
-function relativeTime(iso: string | null | undefined): string {
-  if (!iso) return ''
-  const then = new Date(iso).getTime()
-  if (Number.isNaN(then)) return ''
-  const diffMs = Date.now() - then
-  const mins = Math.round(diffMs / 60000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.round(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.round(hours / 24)
-  return `${days}d ago`
-}
-
-function absoluteTime(iso: string | null | undefined): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  return d.toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
-}
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (

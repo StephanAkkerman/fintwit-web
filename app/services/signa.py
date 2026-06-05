@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import re
 import time
 from collections import deque
 from typing import Any, Callable
@@ -45,12 +46,12 @@ class SignaClient:
         self.cache_ttl_seconds = cache_ttl_seconds
         self.per_minute_limit = per_minute_limit
         self.per_day_limit = per_day_limit
-        self.api_key = api_key or os.getenv("SIGNA_KEY")
+        # Resolve the key lazily per request (see ``_resolve_api_key``) rather
+        # than freezing it here: the module-level ``_default_client`` is built
+        # at import time, which can run *before* ``load_dotenv`` populates the
+        # environment, leaving a constructor-time ``os.getenv`` call empty.
+        self._api_key_override = api_key
         self._time_fn = time_fn or time.time
-
-        self.headers: dict[str, str] = {}
-        if self.api_key:
-            self.headers["Authorization"] = f"Bearer {self.api_key}"
 
         self._cache: dict[
             tuple[str, tuple[tuple[str, str], ...]],
@@ -59,6 +60,23 @@ class SignaClient:
         self._minute_requests: deque[float] = deque()
         self._day_requests: deque[float] = deque()
         self._lock = asyncio.Lock()
+
+    def _resolve_api_key(self) -> str | None:
+        """Return the explicit override or the current ``SIGNA_KEY`` env value.
+
+        Read lazily so a key loaded into the environment after this client was
+        constructed (e.g. via ``load_dotenv``) is still picked up.
+        """
+        return self._api_key_override or os.getenv("SIGNA_KEY")
+
+    @property
+    def api_key(self) -> str | None:
+        return self._resolve_api_key()
+
+    @property
+    def headers(self) -> dict[str, str]:
+        key = self._resolve_api_key()
+        return {"Authorization": f"Bearer {key}"} if key else {}
 
     @staticmethod
     def _make_params_key(params: dict[str, Any] | None) -> tuple[tuple[str, str], ...]:
@@ -428,6 +446,56 @@ class SignaClient:
         params = {"scored": "true" if scored else "false", "limit": int(limit)}
         return await self._request("/api/signals/run", params=params)
 
+    async def get_feed(self, *, limit: int = 1500) -> dict[str, Any] | list[Any] | None:
+        """GET /api/signals/feed — the raw, per-model *live* signals feed.
+
+        Sibling of ``get_best_trades`` (``/api/signals/run``) and, like it,
+        requires **no API key / no auth**. Where ``/run`` returns the nightly
+        multi-model *consensus*, ``/feed`` returns every individual model's
+        latest call, refreshed throughout the day (hence ``is_live`` / a poll
+        timer on the frontend).
+
+        Parameters
+        ----------
+        limit : int
+            Maximum number of raw signals to return (server honours this).
+
+        Observed response shape:
+        {
+            "signals": [
+                {
+                    "id": "66f21725-1010-45cf-9ec9-0b4729348425",
+                    "ticker": "MNA",
+                    "signal": "BUY",          # BUY/SELL/SHORT/AVOID/HOLD/WATCH
+                    "model_id": "merger-arbitrage",
+                    "model_name": "MergerArbitrageAgent",
+                    "model_source": "Mitchell & Pulvino (2001) + ...",
+                    "category": "fundamental",
+                    "confidence": 0.78,        # 0-1
+                    "reason": "Merger arbitrage: ...",
+                    "entry_price": 36.3,
+                    "stop_level": null,
+                    "target_price": null,
+                    "position_size_pct": 0.08,
+                    "metadata": {...},
+                    "is_live": true,
+                    "created_at": "2026-06-05T04:03:07.287922+00:00",
+                    "conflict_detected": false,
+                    "grade": "A",              # may be null
+                    "tier": 1,                 # may be null
+                    "score": 98,               # may be null
+                }
+            ],
+            "type": "raw",
+            "count": 200,
+            "date": "2026-06-05",
+            "latest_signal_at": "2026-06-05T04:03:07.381466+00:00",
+            "generated_at": "2026-06-05T07:13:59.341Z",
+        }
+        """
+        params = {"limit": int(limit)}
+        return await self._request("/api/signals/feed", params=params)
+
 
 _default_client = SignaClient()
 
@@ -441,17 +509,70 @@ def _coerce_optional_float(value: Any) -> float | None:
         return None
 
 
+# Mirrors the frontend ``classifyDirection`` (utils/directionColor.ts) so the
+# live-feed colours match: BUY/LONG -> bullish, SELL/SHORT -> bearish, and
+# AVOID/HOLD/WATCH (and anything else) fall through to non-directional.
+_BULLISH_LABEL = re.compile(r"(bull|buy|\bup\b|\blong\b|positive)")
+_BEARISH_LABEL = re.compile(r"(bear|sell|\bdown\b|\bshort\b|negative)")
+
+
+def _classify_direction(label: Any) -> str | None:
+    """Map a Signa signal label to ``"BULLISH"``/``"BEARISH"``.
+
+    Returns ``None`` for non-directional labels (AVOID/HOLD/WATCH), which the
+    live feed drops as noise.
+    """
+    text = label.strip().lower() if isinstance(label, str) else ""
+    if not text:
+        return None
+    if _BULLISH_LABEL.search(text):
+        return "BULLISH"
+    if _BEARISH_LABEL.search(text):
+        return "BEARISH"
+    return None
+
+
+def _normalize_confidence(value: Any) -> float | None:
+    """Coerce Signa confidence to a 0–1 float.
+
+    Signa reports confidence as a 0–100 integer (e.g. ``92``); the frontend
+    renders it as ``confidence * 100``, so scale it down here.
+    """
+    confidence = _coerce_optional_float(value)
+    if confidence is None:
+        return None
+    if confidence > 1:
+        confidence = confidence / 100.0
+    return confidence
+
+
 async def get_signa_signal(ticker: str) -> dict[str, Any] | None:
     """Fetch and normalize the Signa signal for a single ticker.
 
     Mirrors ``get_tradingview_ta_summary``: returns a compact dict suitable for
     the frontend, or ``None`` when no usable signal is available.
 
+    The ``/api/v1/signal`` payload carries the verdict in an ``engine`` block
+    (the nightly multi-model consensus that matches the in-app Action Card),
+    with an intraday ``data`` block as a fallback. The top-level ``signa`` key
+    is a *nested object* (grade/conviction/action), not the verdict label.
+
+    Observed shape (abridged)::
+
+        {
+            "symbol": "AAPL",
+            "timeframe": "1d",
+            "engine": {"direction": "BULLISH", "score": 98,
+                       "confidence": 92, "grade": "A"},
+            "data": {"direction": "WAIT", "bias": "bullish",
+                     "confidence": 55, "stage": 2},
+        }
+
     Returns
     -------
     dict or None
         ``{"source", "symbol", "signal", "score", "trend", "confidence",
-        "timeframe", "website"}`` where ``signal`` is the Signa verdict
+        "grade", "timeframe", "website"}`` where ``signal`` is the verdict
         (e.g. ``"Bullish"``). ``None`` when the ticker is empty, the request
         fails, or the payload carries no verdict label.
     """
@@ -463,20 +584,33 @@ async def get_signa_signal(ticker: str) -> dict[str, Any] | None:
     if not isinstance(payload, dict):
         return None
 
-    label = payload.get("signa")
+    engine = payload.get("engine")
+    engine = engine if isinstance(engine, dict) else {}
+    data = payload.get("data")
+    data = data if isinstance(data, dict) else {}
+
+    # Verdict: prefer the nightly engine consensus, fall back to intraday bias.
+    label = engine.get("direction") or data.get("bias") or data.get("direction")
     if not isinstance(label, str) or not label.strip():
         return None
 
-    data = payload.get("data")
-    data = data if isinstance(data, dict) else {}
+    score = _coerce_optional_float(engine.get("score"))
+    if score is None:
+        score = _coerce_optional_float(data.get("score"))
+
+    confidence = _normalize_confidence(engine.get("confidence"))
+    if confidence is None:
+        confidence = _normalize_confidence(data.get("confidence"))
 
     return {
         "source": "signa",
         "symbol": str(payload.get("symbol") or symbol).upper(),
-        "signal": label.strip(),
-        "score": _coerce_optional_float(data.get("score")),
-        "trend": data.get("trend"),
-        "confidence": _coerce_optional_float(data.get("confidence")),
+        # "BULLISH" -> "Bullish" so it reads like the TradingView TA verdicts.
+        "signal": label.strip().title(),
+        "score": score,
+        "trend": data.get("bias") or engine.get("direction"),
+        "confidence": confidence,
+        "grade": engine.get("grade"),
         "timeframe": payload.get("timeframe"),
         "website": f"{_default_client.base_url}/?sym={symbol}",
     }
@@ -543,6 +677,80 @@ async def get_signa_best_trades(
     return results
 
 
+async def get_signa_live_feed(limit: int = 1500) -> list[dict[str, Any]]:
+    """Fetch and normalize the Signa raw, per-model *live* signals feed.
+
+    Wraps :meth:`SignaClient.get_feed` and flattens each raw signal into a
+    compact, frontend-friendly dict. Only *directional* signals are kept —
+    BUY/SELL/SHORT (anything :func:`_classify_direction` reads as
+    bullish/bearish); non-directional AVOID/HOLD/WATCH entries are dropped as
+    noise. Returns an empty list when the request fails or carries no usable
+    signals (never ``None``).
+
+    The list is returned unsorted; the frontend ranks it with the same
+    comparator as the best-trades widget (score -> confidence -> tier).
+
+    Returns
+    -------
+    list of dict
+        Each entry: ``{"source", "id", "symbol", "signal", "direction",
+        "model_id", "model_name", "model_source", "category", "confidence",
+        "reason", "entry_price", "stop_level", "target_price",
+        "position_size_pct", "grade", "tier", "score", "conflict_detected",
+        "created_at", "website"}``.
+    """
+    payload = await _default_client.get_feed(limit=limit)
+    if not isinstance(payload, dict):
+        return []
+
+    signals = payload.get("signals")
+    if not isinstance(signals, list):
+        return []
+
+    results: list[dict[str, Any]] = []
+    for item in signals:
+        if not isinstance(item, dict):
+            continue
+        symbol = _normalize_ticker(item.get("ticker"))
+        if not symbol:
+            continue
+
+        label = item.get("signal")
+        direction = _classify_direction(label)
+        if direction is None:
+            # Drop non-directional noise (AVOID/HOLD/WATCH).
+            continue
+
+        results.append(
+            {
+                "source": "signa",
+                "id": item.get("id"),
+                "symbol": symbol,
+                "signal": label.strip().upper() if isinstance(label, str) else None,
+                "direction": direction,
+                "model_id": item.get("model_id"),
+                "model_name": item.get("model_name"),
+                "model_source": item.get("model_source"),
+                "category": item.get("category"),
+                "confidence": _coerce_optional_float(item.get("confidence")),
+                "reason": item.get("reason"),
+                "entry_price": _coerce_optional_float(item.get("entry_price")),
+                "stop_level": _coerce_optional_float(item.get("stop_level")),
+                "target_price": _coerce_optional_float(item.get("target_price")),
+                "position_size_pct": _coerce_optional_float(
+                    item.get("position_size_pct")
+                ),
+                "grade": item.get("grade"),
+                "tier": item.get("tier"),
+                "score": _coerce_optional_float(item.get("score")),
+                "conflict_detected": bool(item.get("conflict_detected")),
+                "created_at": item.get("created_at"),
+                "website": f"{_default_client.base_url}/?sym={symbol}",
+            }
+        )
+    return results
+
+
 async def signal_request(ticker: str) -> dict[str, Any] | list[Any] | None:
     return await _default_client.get_signal(ticker)
 
@@ -581,6 +789,12 @@ async def signals_run_request(
     return await _default_client.get_best_trades(limit=limit, scored=scored)
 
 
+async def signals_feed_request(
+    limit: int = 1500,
+) -> dict[str, Any] | list[Any] | None:
+    return await _default_client.get_feed(limit=limit)
+
+
 if __name__ == "__main__":
     import asyncio
 
@@ -592,6 +806,15 @@ if __name__ == "__main__":
                 f"  {trade['symbol']:<6} {trade['direction']:<8} "
                 f"grade={trade['grade']} score={trade['composite_score']} "
                 f"conf={trade['confidence']}"
+            )
+
+        feed = await get_signa_live_feed(limit=200)
+        print(f"\nLive feed — directional only ({len(feed)}):")
+        for sig in feed[:10]:
+            print(
+                f"  {sig['symbol']:<6} {str(sig['signal']):<6} {sig['direction']:<8} "
+                f"score={sig['score']} conf={sig['confidence']} "
+                f"model={sig['model_name']}"
             )
 
     asyncio.run(main())

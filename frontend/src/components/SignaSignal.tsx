@@ -13,10 +13,11 @@ export default function SignaSignal({
   }
 
   const colorClass = directionTextClass(signal.signal)
+  const timeframe = signal.timeframe?.trim() ? signal.timeframe.trim().toUpperCase() : null
 
   const stats: string[] = []
   if (typeof signal.score === 'number') {
-    stats.push(`score ${Math.round(signal.score)}`)
+    stats.push(`${Math.round(signal.score)}/100`)
   }
   if (typeof signal.confidence === 'number') {
     stats.push(`${Math.round(signal.confidence * 100)}% conf`)
@@ -30,6 +31,11 @@ export default function SignaSignal({
             Signa
           </span>
           <span className={`truncate font-semibold ${colorClass}`}>{signal.signal}</span>
+          {timeframe && (
+            <span className="shrink-0 rounded bg-zinc-200/70 px-1 py-0.5 font-semibold uppercase tracking-wide text-[9px] text-zinc-500 dark:bg-zinc-700/70 dark:text-zinc-400">
+              {timeframe}
+            </span>
+          )}
         </div>
         {stats.length > 0 && (
           <span className="shrink-0 text-zinc-500 dark:text-zinc-400">{stats.join(' · ')}</span>

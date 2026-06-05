@@ -35,7 +35,7 @@ from ..services.market_hours_service import get_stock_market_hours
 from ..services.nasdaq_service import get_halt_data
 from ..services.options_service import get_options_overview
 from ..services.reddit_service import get_reddit_hot_posts, is_valid_subreddit_name
-from ..services.signa import get_signa_best_trades
+from ..services.signa import get_signa_best_trades, get_signa_live_feed
 from ..services.stocktwits_service import get_stocktwits_data
 from ..services.unusual_whales import get_spy_heatmap
 from ..services.yahoo import get_stock_info
@@ -612,3 +612,11 @@ async def signa_best_trades(
     return await get_signa_best_trades(limit=limit)
 
 
+@app.get("/api/signa/live-feed")
+async def signa_live_feed(
+    limit: int = Query(1500, ge=1, le=15000),
+    _=Depends(api_key_dep),
+):
+    # Public getsigna.ai raw per-model live feed; only directional
+    # (BUY/SELL/SHORT) signals are returned — AVOID/HOLD/WATCH are dropped.
+    return await get_signa_live_feed(limit=limit)
