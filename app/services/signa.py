@@ -612,7 +612,7 @@ async def get_signa_signal(ticker: str) -> dict[str, Any] | None:
         "confidence": confidence,
         "grade": engine.get("grade"),
         "timeframe": payload.get("timeframe"),
-        "website": f"{_default_client.base_url}/chart?sym={symbol}",
+        "website": f"{_default_client.base_url}/?sym={symbol}",
     }
 
 
@@ -671,7 +671,7 @@ async def get_signa_best_trades(
                 "key_drivers": key_drivers if isinstance(key_drivers, list) else [],
                 "model_ids": model_ids if isinstance(model_ids, list) else [],
                 "generated_at": item.get("generated_at"),
-                "website": f"{_default_client.base_url}/chart?sym={symbol}",
+                "website": f"{_default_client.base_url}/?sym={symbol}",
             }
         )
     return results
@@ -745,7 +745,7 @@ async def get_signa_live_feed(limit: int = 1500) -> list[dict[str, Any]]:
                 "score": _coerce_optional_float(item.get("score")),
                 "conflict_detected": bool(item.get("conflict_detected")),
                 "created_at": item.get("created_at"),
-                "website": f"{_default_client.base_url}/chart?sym={symbol}",
+                "website": f"{_default_client.base_url}/?sym={symbol}",
             }
         )
     return results

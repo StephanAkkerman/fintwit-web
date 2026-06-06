@@ -250,6 +250,8 @@ async def options_overview(
 @app.get("/api/stocks/market-hours")
 async def stock_market_hours(_=Depends(api_key_dep)):
     data = await get_stock_market_hours()
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
     return data
 
 

@@ -70,7 +70,14 @@ async def test_get_macro_snapshot_builds_curves_and_fx_indices(monkeypatch):
         }
         return quotes.get(symbol)
 
+    async def fake_market_hours():
+        return [
+            {"exchange": "NYSE", "is_open": True, "session": "Open"},
+            {"exchange": "NASDAQ", "is_open": True, "session": "Open"},
+        ]
+
     monkeypatch.setattr(macro_market, "get_tradingview_quote", fake_quote)
+    monkeypatch.setattr(macro_market, "get_stock_market_hours", fake_market_hours)
     macro_market._reset_cache_for_tests()
 
     snapshot = await macro_market.get_macro_snapshot()
