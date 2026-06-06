@@ -7,9 +7,15 @@ from app.runtime.enricher import AssetEnricher
 
 @pytest.fixture(autouse=True)
 def _disable_tradingview_ta_by_default():
-    with patch(
-        "app.runtime.enricher.get_tradingview_ta_summary",
-        new=AsyncMock(return_value=None),
+    with (
+        patch(
+            "app.runtime.enricher.get_tradingview_ta_summary",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "app.runtime.enricher.get_signa_signal",
+            new=AsyncMock(return_value=None),
+        ),
     ):
         yield
 
@@ -78,6 +84,17 @@ CRYPTO_FINANCIALS = {
     "change_percent": 3.2,
     "volume": 25_000_000_000.0,
     "website": "https://www.coingecko.com/en/coins/bitcoin",
+}
+
+SIGNA_SIGNAL = {
+    "source": "signa",
+    "symbol": "AAPL",
+    "signal": "Bullish",
+    "score": 74.0,
+    "trend": "up",
+    "confidence": 0.81,
+    "timeframe": "1D",
+    "website": "https://app.getsigna.ai/?sym=AAPL",
 }
 
 
@@ -154,6 +171,44 @@ async def test_classify_equity_attaches_tradingview_ta_summary():
         result = await enricher.classify(["AAPL"])
 
     assert result[0]["financials"]["technical_analysis"] == TRADINGVIEW_TA
+
+
+@pytest.mark.asyncio
+async def test_classify_equity_attaches_signa_signal():
+    enricher = AssetEnricher()
+    mock_result = _mock_classifier_result(
+        "AAPL", "EQUITY", "Apple Inc.", 3_000_000_000_000
+    )
+    with (
+        patch.object(enricher._cls, "classify_async", return_value=[mock_result]),
+        patch("app.runtime.enricher.get_stock_info", return_value=STOCK_FINANCIALS),
+        patch(
+            "app.runtime.enricher.get_signa_signal",
+            new=AsyncMock(return_value=SIGNA_SIGNAL),
+        ) as mock_signa,
+    ):
+        result = await enricher.classify(["AAPL"])
+
+    mock_signa.assert_awaited_once_with("AAPL")
+    assert result[0]["financials"]["signa"] == SIGNA_SIGNAL
+
+
+@pytest.mark.asyncio
+async def test_classify_crypto_does_not_fetch_signa_signal():
+    enricher = AssetEnricher()
+    mock_result = _mock_classifier_result("BTC", "CRYPTO", "Bitcoin")
+    with (
+        patch.object(enricher._cls, "classify_async", return_value=[mock_result]),
+        patch("app.runtime.enricher.get_crypto_info", return_value=CRYPTO_FINANCIALS),
+        patch(
+            "app.runtime.enricher.get_signa_signal",
+            new=AsyncMock(return_value=SIGNA_SIGNAL),
+        ) as mock_signa,
+    ):
+        result = await enricher.classify(["BTC"])
+
+    mock_signa.assert_not_awaited()
+    assert "signa" not in result[0]["financials"]
 
 
 @pytest.mark.asyncio

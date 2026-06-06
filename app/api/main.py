@@ -35,6 +35,7 @@ from ..services.market_hours_service import get_stock_market_hours
 from ..services.nasdaq_service import get_halt_data
 from ..services.options_service import get_options_overview
 from ..services.reddit_service import get_reddit_hot_posts, is_valid_subreddit_name
+from ..services.signa import get_signa_best_trades, get_signa_live_feed
 from ..services.stocktwits_service import get_stocktwits_data
 from ..services.unusual_whales import get_spy_heatmap
 from ..services.yahoo import get_stock_info
@@ -249,6 +250,8 @@ async def options_overview(
 @app.get("/api/stocks/market-hours")
 async def stock_market_hours(_=Depends(api_key_dep)):
     data = await get_stock_market_hours()
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
     return data
 
 
@@ -581,9 +584,12 @@ async def ibkr_positions(_=Depends(api_key_dep)):
 async def ibkr_trades(
     limit: int = Query(50, ge=1, le=200),
     before_id: int | None = Query(default=None),
+    min_value: float = Query(100.0, ge=0),
     _=Depends(api_key_dep),
 ):
-    return await IBKR_REPO.list_trades(limit=limit, before_id=before_id)
+    return await IBKR_REPO.list_trades(
+        limit=limit, before_id=before_id, min_value=min_value
+    )
 
 
 @app.get("/api/ibkr/account")
@@ -602,3 +608,20 @@ async def trending_crypto(_=Depends(api_key_dep)):
     return data
 
 
+@app.get("/api/signa/best-trades")
+async def signa_best_trades(
+    limit: int = Query(100, ge=1, le=250),
+    _=Depends(api_key_dep),
+):
+    # Public getsigna.ai signals feed (tier 1/2; tier 3 is gated server-side).
+    return await get_signa_best_trades(limit=limit)
+
+
+@app.get("/api/signa/live-feed")
+async def signa_live_feed(
+    limit: int = Query(1500, ge=1, le=15000),
+    _=Depends(api_key_dep),
+):
+    # Public getsigna.ai raw per-model live feed; only directional
+    # (BUY/SELL/SHORT) signals are returned — AVOID/HOLD/WATCH are dropped.
+    return await get_signa_live_feed(limit=limit)

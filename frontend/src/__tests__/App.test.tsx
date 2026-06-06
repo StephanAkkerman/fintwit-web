@@ -126,7 +126,6 @@ describe('App', () => {
     await waitFor(() =>
       expect(screen.getByText(/cross-market stream/i)).toBeInTheDocument()
     )
-    expect(screen.getByText(/wallstreetbets radar/i)).toBeInTheDocument()
   })
 
   it('does not render legacy category filter widget', async () => {

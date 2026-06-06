@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Tweet } from '../types'
 import { hasChartSignal } from '../utils/tweetSignals'
+import SignaSignal from './SignaSignal'
 import TradingViewAnalysis from './TradingViewAnalysis'
 
 function fmt(n: number): string {
@@ -664,7 +665,8 @@ export default function TweetCard({
                     Last close {fmtPrice(financials!.last_close as number)}
                   </div>
                 )}
-                <TradingViewAnalysis analysis={financials?.technical_analysis} />
+                <TradingViewAnalysis analysis={financials?.technical_analysis} className="mt-1.5" />
+                <SignaSignal signal={financials?.signa} className="mt-1.5" />
               </div>
             )
           })}

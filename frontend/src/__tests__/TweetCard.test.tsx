@@ -613,6 +613,44 @@ describe('TweetCard', () => {
     expect(screen.getByText('Strong Buy')).toBeInTheDocument()
     expect(screen.getByText('10 buy · 8 neutral · 4 sell')).toBeInTheDocument()
     expect(screen.getByText('13 buy · 7 neutral · 2 sell')).toBeInTheDocument()
+    // Recommendations are color-coded green for buy verdicts.
+    expect(screen.getByText('Buy').className).toContain('emerald')
+    expect(screen.getByText('Strong Buy').className).toContain('emerald')
+  })
+
+  it('renders the signa signal when available on an asset', () => {
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          assets: [
+            {
+              symbol: 'AAPL',
+              kind: 'EQUITY',
+              financials: {
+                price: 185.12,
+                change_percent: 1.73,
+                signa: {
+                  source: 'signa',
+                  symbol: 'AAPL',
+                  signal: 'Bearish',
+                  score: 41,
+                  confidence: 0.66,
+                  timeframe: '1D',
+                },
+              },
+            },
+          ],
+        }}
+      />
+    )
+
+    expect(screen.getByText('Signa')).toBeInTheDocument()
+    const verdict = screen.getByText('Bearish')
+    expect(verdict).toBeInTheDocument()
+    expect(verdict.className).toContain('rose')
+    expect(screen.getByText(/41/)).toBeInTheDocument()
+    expect(screen.getByText(/66%/)).toBeInTheDocument()
   })
 
   it('renders media images when present', () => {

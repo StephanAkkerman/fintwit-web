@@ -19,6 +19,17 @@ export type AssetTechnicalAnalysis = {
   one_d?: AssetTradingViewSummary | null;
 };
 
+export type AssetSignaSignal = {
+  source?: string | null;
+  symbol?: string | null;
+  signal: string;
+  score?: number | null;
+  trend?: string | null;
+  confidence?: number | null;
+  timeframe?: string | null;
+  website?: string | null;
+};
+
 export type AssetFinancials = {
   price?: number | null;
   last_close?: number | null;
@@ -27,6 +38,7 @@ export type AssetFinancials = {
   website?: string | null;
   source?: string | null;
   technical_analysis?: AssetTechnicalAnalysis | null;
+  signa?: AssetSignaSignal | null;
 };
 
 export type AssetCompanyProfile = {
@@ -124,6 +136,48 @@ export type Tweet = {
   quoted_sentiment_score?: number | null;
   has_chart?: boolean | null;
   assets?: Asset[];
+};
+
+export type SignaBestTrade = {
+  source?: string | null;
+  symbol: string;
+  direction?: 'BULLISH' | 'BEARISH' | string | null;
+  grade?: string | null;
+  alert_tier?: number | null;
+  composite_score?: number | null;
+  confidence?: number | null; // 0–1
+  model_count?: number | null;
+  regime?: string | null;
+  categories?: string[];
+  reason?: string | null;
+  key_drivers?: string[];
+  model_ids?: string[];
+  generated_at?: string | null;
+  website?: string | null;
+};
+
+export type SignaLiveSignal = {
+  source?: string | null;
+  id?: string | null;
+  symbol: string;
+  signal?: string | null; // BUY / SELL / SHORT (directional only)
+  direction?: 'BULLISH' | 'BEARISH' | string | null;
+  model_id?: string | null;
+  model_name?: string | null;
+  model_source?: string | null;
+  category?: string | null;
+  confidence?: number | null; // 0–1
+  reason?: string | null;
+  entry_price?: number | null;
+  stop_level?: number | null;
+  target_price?: number | null;
+  position_size_pct?: number | null;
+  grade?: string | null;
+  tier?: number | null;
+  score?: number | null;
+  conflict_detected?: boolean | null;
+  created_at?: string | null;
+  website?: string | null;
 };
 
 export type TreemapCoin = {
