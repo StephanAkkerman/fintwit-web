@@ -322,11 +322,15 @@ class IbkrRepo:
         return len(trades)
 
     async def list_trades(
-        self, limit: int = 50, before_id: int | None = None
+        self,
+        limit: int = 50,
+        before_id: int | None = None,
+        min_value: float = 100.0,
     ) -> list[dict]:
         stmt = select(IbkrTradeRow)
         if before_id is not None:
             stmt = stmt.where(IbkrTradeRow.id < before_id)
+        stmt = stmt.where(IbkrTradeRow.quantity * IbkrTradeRow.price >= min_value)
         stmt = stmt.order_by(IbkrTradeRow.id.desc()).limit(limit)
         async with self.Session() as s:
             rows = (await s.execute(stmt)).scalars().all()
