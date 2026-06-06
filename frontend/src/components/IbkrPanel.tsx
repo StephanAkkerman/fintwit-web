@@ -179,9 +179,7 @@ function PositionsTable({ positions }: { positions: IbkrPosition[] }) {
 }
 
 function TradesTable({ trades }: { trades: IbkrTrade[] }) {
-  const filtered = trades.filter((t) => t.quantity * t.price >= 100)
-
-  if (filtered.length === 0) {
+  if (trades.length === 0) {
     return <p className="text-sm text-zinc-500">No executions today.</p>
   }
 
