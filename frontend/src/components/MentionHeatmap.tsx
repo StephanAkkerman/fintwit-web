@@ -47,7 +47,8 @@ function computeLayout(
     if (size < 1 || group.length === 0) return []
     const perRow = Math.floor(COLS / size)
     const completeRows = Math.floor(group.length / perRow)
-    const toPlace = completeRows * perRow
+    // Size-1 tiles are the minimum; place all of them even if they don't fill a complete row.
+    const toPlace = size === 1 ? group.length : completeRows * perRow
 
     for (let i = 0; i < toPlace; i++) {
       result.push({
