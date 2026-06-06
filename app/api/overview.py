@@ -20,13 +20,13 @@ logger = logging.getLogger(__name__)
 # ─── Macro strip ────────────────────────────────────────────────────────────
 
 _STRIP_TICKERS: list[tuple[str, str, str]] = [
-    ("SPX",  "TVC:SPX",           "index"),
-    ("NDX",  "IG:NASDAQ",         "index"),
-    ("BTC",  "BITSTAMP:BTCUSD",   "crypto"),
-    ("ETH",  "BITSTAMP:ETHUSD",   "crypto"),
-    ("DXY",  "TVC:DXY",           "forex"),
-    ("VIX",  "TVC:VIX",           "index"),
-    ("GOLD", "TVC:GOLD",          "index"),
+    ("SPX", "TVC:SPX", "index"),
+    ("NDX", "IG:NASDAQ", "index"),
+    ("BTC", "BITSTAMP:BTCUSD", "crypto"),
+    ("ETH", "BITSTAMP:ETHUSD", "crypto"),
+    ("DXY", "TVC:DXY", "forex"),
+    ("VIX", "TVC:VIX", "index"),
+    ("GOLD", "TVC:GOLD", "index"),
 ]
 
 _STRIP_CACHE_TTL = 300  # seconds
@@ -51,13 +51,15 @@ async def _build_strip() -> list[dict]:
                     "symbol": symbol,
                     "price": float(price),
                     "change_pct": float(result.get("change_percent") or 0.0),
-                    "sparkline": [],   # reserved for future intraday bars
+                    "sparkline": [],  # reserved for future intraday bars
                 }
             except Exception as exc:
                 logger.debug("[macro-strip] %s failed: %r", symbol, exc)
                 return None
 
-    results = await asyncio.gather(*[_fetch(l, s, h) for l, s, h in _STRIP_TICKERS])
+    results = await asyncio.gather(
+        *[_fetch(label, symbol, hint) for label, symbol, hint in _STRIP_TICKERS]
+    )
     return [r for r in results if r is not None]
 
 
@@ -75,6 +77,7 @@ async def _get_strip() -> list[dict]:
 
 # ─── Endpoints ──────────────────────────────────────────────────────────────
 
+
 @router.get("/macro-strip")
 async def macro_strip():
     return await _get_strip()
@@ -88,6 +91,7 @@ async def mention_heat(
     subscriber_only: bool = Query(default=False),
 ):
     from . import main as _main
+
     return await get_mention_heat(
         _main.Session,
         asset_kind=asset_kind,
@@ -105,6 +109,7 @@ async def sentiment_shift(
     subscriber_only: bool = Query(default=False),
 ):
     from . import main as _main
+
     return await get_sentiment_shift(
         _main.Session,
         asset_kind=asset_kind,
@@ -122,6 +127,7 @@ async def volume_baseline(
     subscriber_only: bool = Query(default=False),
 ):
     from . import main as _main
+
     return await get_volume_baseline(
         _main.Session,
         asset_kind=asset_kind,
@@ -139,6 +145,7 @@ async def hidden_gems(
     subscriber_only: bool = Query(default=False),
 ):
     from . import main as _main
+
     return await get_hidden_gems(
         _main.Session,
         asset_kind=asset_kind,

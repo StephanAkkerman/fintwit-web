@@ -365,7 +365,7 @@ async def test_stock_market_hours_returns_data(async_client):
 
     assert response.status_code == 200
     assert response.json()[0]["exchange"] == "NYSE"
-    mock_get.assert_awaited_once_with(app.state.http_client)
+    mock_get.assert_awaited_once_with()
 
 
 @pytest.mark.asyncio

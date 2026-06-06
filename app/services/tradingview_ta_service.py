@@ -25,6 +25,56 @@ _REQUEST_SEMAPHORE = asyncio.Semaphore(4)
 _cache: dict[tuple[str, str], tuple[float, Optional[dict[str, Any]]]] = {}
 _cache_lock = asyncio.Lock()
 
+# TradingView's scanner API throttles aggressively (HTTP 429). Retry a few
+# times with exponential backoff before giving up on a symbol.
+_RATE_LIMIT_MAX_ATTEMPTS = 3
+_RATE_LIMIT_BASE_DELAY_SECONDS = 2.0
+
+
+class _RateLimitedError(Exception):
+    """Raised when TradingView keeps returning 429 after exhausting retries."""
+
+
+def _is_rate_limited(exc: Exception) -> bool:
+    return "429" in str(exc)
+
+
+def _get_analysis_with_backoff(
+    handler: Any,
+    ticker: str,
+    *,
+    sleep=time.sleep,
+) -> Any:
+    """Call ``handler.get_analysis()``, retrying on HTTP 429 with backoff.
+
+    Non-rate-limit errors propagate immediately. If the rate limit persists
+    past ``_RATE_LIMIT_MAX_ATTEMPTS``, raises :class:`_RateLimitedError`.
+    """
+    delay = _RATE_LIMIT_BASE_DELAY_SECONDS
+    for attempt in range(1, _RATE_LIMIT_MAX_ATTEMPTS + 1):
+        try:
+            return handler.get_analysis()
+        except Exception as exc:
+            if not _is_rate_limited(exc):
+                raise
+            if attempt >= _RATE_LIMIT_MAX_ATTEMPTS:
+                logger.warning(
+                    "[tradingview-ta] rate limit hit on %s — giving up after %d attempts",
+                    ticker,
+                    attempt,
+                )
+                raise _RateLimitedError(str(exc)) from exc
+            logger.warning(
+                "[tradingview-ta] rate limit hit on %s — backing off for %.1fs "
+                "(attempt %d/%d)",
+                ticker,
+                delay,
+                attempt,
+                _RATE_LIMIT_MAX_ATTEMPTS,
+            )
+            sleep(delay)
+            delay *= 2
+
 
 def _normalize_symbol(symbol: str) -> str:
     value = (symbol or "").strip().upper()
@@ -235,9 +285,13 @@ def _fetch_analysis_sync(
                 interval=interval,
                 timeout=5,
             )
-            analysis = handler.get_analysis()
+            analysis = _get_analysis_with_backoff(handler, context["symbol"])
             if analysis and getattr(analysis, "summary", None):
                 analyses[key] = _format_summary(analysis.summary, key)
+        except _RateLimitedError:
+            # Still throttled after retries — don't hammer the remaining
+            # intervals for this symbol; return whatever we already have.
+            break
         except Exception as exc:
             logger.debug(
                 "[tradingview-ta] analysis failed for %s/%s: %r",

@@ -1,214 +1,152 @@
-"""Market hours service using the exchange_calendars package.
+"""Market hours service using Yahoo Finance quote API."""
 
-No external HTTP calls — all session state is derived from the published
-exchange schedules bundled with exchange_calendars.
-"""
-
-import asyncio
 import logging
+import time
 from datetime import datetime, timezone
-from datetime import time as dt_time
-from zoneinfo import ZoneInfo
+from typing import Optional
 
-import exchange_calendars as xcals
-import pandas as pd
+import httpx
 
 logger = logging.getLogger(__name__)
 
-# (display_name, exchange_calendars MIC code, IANA timezone)
-_EXCHANGES: list[tuple[str, str, str]] = [
-    ("NYSE", "XNYS", "America/New_York"),
-    ("NASDAQ", "XNAS", "America/New_York"),
-    ("LSE", "XLON", "Europe/London"),
-    ("JPX", "XTKS", "Asia/Tokyo"),
-    ("HKEX", "XHKG", "Asia/Hong_Kong"),
+_CACHE_TTL_SECONDS = 300
+
+# (display_name, Yahoo Finance symbol)
+_EXCHANGES: list[tuple[str, str]] = [
+    ("NYSE", "SPY"),
+    ("NASDAQ", "QQQ"),
+    ("LSE", "^FTSE"),
+    ("JPX", "^N225"),
+    ("HKEX", "^HSI"),
 ]
 
-# Exchanges with extended (pre-market / after-hours) sessions.
-# All times are LOCAL exchange time.
-_EXTENDED: dict[str, dict[str, dt_time]] = {
-    "XNYS": {"pre_start": dt_time(4, 0), "post_end": dt_time(20, 0)},
-    "XNAS": {"pre_start": dt_time(4, 0), "post_end": dt_time(20, 0)},
+_EXCHANGE_ORDER = [name for name, _ in _EXCHANGES]
+_SYMBOLS = ",".join(sym for _, sym in _EXCHANGES)
+
+_YAHOO_URL = "https://query1.finance.yahoo.com/v7/finance/quote"
+
+# Map Yahoo's fullExchangeName to our display names.
+_FULL_NAME_TO_EXCHANGE: dict[str, str] = {
+    "NYSE Arca": "NYSE",
+    "NYSE": "NYSE",
+    "NasdaqGS": "NASDAQ",
+    "NasdaqGM": "NASDAQ",
+    "Nasdaq": "NASDAQ",
+    "NASDAQ": "NASDAQ",
+    "FTSE": "LSE",
+    "LSE": "LSE",
+    "London": "LSE",
+    "Tokyo": "JPX",
+    "OSE.Ax": "JPX",
+    "HKSE": "HKEX",
+    "Hong Kong": "HKEX",
 }
 
+_STATE_TO_SESSION: dict[str, str] = {
+    "PRE": "Pre-market",
+    "PREPRE": "Pre-market",
+    "REGULAR": "Open",
+    "POST": "After-hours",
+    "POSTPOST": "After-hours",
+}
 
-def _holiday_name_from_calendar(cal, session_date: pd.Timestamp) -> str | None:
-    """Return holiday name for a non-session date when available."""
-    regular_holidays = getattr(cal, "regular_holidays", None)
-    if regular_holidays is not None:
-        try:
-            names = regular_holidays.holidays(
-                start=session_date, end=session_date, return_name=True
-            )
-            if hasattr(names, "empty") and not names.empty:
-                if hasattr(names, "iloc"):
-                    return str(names.iloc[0])
-                return str(names[0])
-        except Exception:
-            logger.debug("Could not read regular holiday names", exc_info=True)
+_OPEN_STATES: frozenset[str] = frozenset({"PRE", "PREPRE", "REGULAR", "POST", "POSTPOST"})
 
-    for holiday_date in getattr(cal, "adhoc_holidays", []) or []:
-        try:
-            if pd.Timestamp(holiday_date).date() == pd.Timestamp(session_date).date():
-                return "Ad-hoc market holiday"
-        except Exception:
-            continue
-
-    return None
+_cache: tuple[float, list[dict]] | None = None
 
 
-def _closed_context(cal, local_now: datetime, session_date: pd.Timestamp) -> dict:
-    """Describe why an exchange is closed, if known."""
-    if cal.is_session(session_date):
-        return {
-            "closure_reason": None,
-            "is_holiday": False,
-            "holiday_name": None,
-        }
+def _reset_cache_for_tests() -> None:
+    global _cache
+    _cache = None
 
-    if local_now.weekday() >= 5:
-        return {
-            "closure_reason": "weekend",
-            "is_holiday": False,
-            "holiday_name": None,
-        }
 
-    holiday_name = _holiday_name_from_calendar(cal, session_date)
+def _build_row(exchange: str, item: dict) -> dict:
+    market_state = item.get("marketState", "")
+    reg_time = item.get("regularMarketTime")
+    as_of = (
+        datetime.fromtimestamp(reg_time, tz=timezone.utc).isoformat()
+        if reg_time
+        else datetime.now(timezone.utc).isoformat()
+    )
     return {
-        "closure_reason": "holiday",
-        "is_holiday": True,
-        "holiday_name": holiday_name,
+        "exchange": exchange,
+        "symbol": item.get("symbol", ""),
+        "session": _STATE_TO_SESSION.get(market_state, "Closed"),
+        "is_open": market_state in _OPEN_STATES,
+        "market_state": market_state,
+        "as_of": as_of,
+        "timezone": item.get("exchangeTimezoneName", ""),
+        "exchange_name": item.get("fullExchangeName", ""),
     }
 
 
-def _session_info(cal_id: str, tz_name: str, now_utc: pd.Timestamp) -> dict:
-    """Return session state dict for one exchange."""
+def _build_unknown_row(exchange: str) -> dict:
+    return {
+        "exchange": exchange,
+        "symbol": "",
+        "session": "Unknown",
+        "is_open": False,
+        "market_state": "UNKNOWN",
+        "as_of": datetime.now(timezone.utc).isoformat(),
+        "timezone": "",
+        "exchange_name": "",
+    }
+
+
+async def get_stock_market_hours(
+    client: Optional[httpx.AsyncClient] = None,
+) -> Optional[list[dict]]:
+    """Return current session state for major exchanges via Yahoo Finance.
+
+    Accepts an optional httpx client; creates one internally when omitted.
+    Results are cached for ``_CACHE_TTL_SECONDS`` seconds. Stale cache is
+    returned on HTTP errors (rate-limit / server errors) so the UI degrades
+    gracefully.
+    """
+    global _cache
+
+    # Serve from cache while still fresh.
+    if _cache is not None:
+        ts, cached_rows = _cache
+        if time.time() - ts < _CACHE_TTL_SECONDS:
+            return cached_rows
+
+    own_client = client is None
+    if own_client:
+        client = httpx.AsyncClient()
+
     try:
-        cal = xcals.get_calendar(cal_id)
-        tz = ZoneInfo(tz_name)
-        local_now = now_utc.to_pydatetime().astimezone(tz)
-        local_date = local_now.date()
-        local_time = local_now.time()
-        today_ts = pd.Timestamp(local_date)
+        response = await client.get(
+            _YAHOO_URL,
+            params={"symbols": _SYMBOLS},
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=10.0,
+        )
 
-        # ── Regular session ──────────────────────────────────────────────────
-        if cal.is_open_at_time(now_utc):
-            return {
-                "session": "Open",
-                "is_open": True,
-                "next_open": None,
-                "next_close": cal.next_close(now_utc).isoformat(),
-                "closure_reason": None,
-                "is_holiday": False,
-                "holiday_name": None,
-            }
+        if response.status_code != 200:
+            # Return stale cache (any age) rather than None when available.
+            return _cache[1] if _cache is not None else None
 
-        # ── Extended hours (pre-market / after-hours) ─────────────────────
-        ext = _EXTENDED.get(cal_id)
-        if ext:
-            if cal.is_session(today_ts):
-                open_local = (
-                    cal.session_open(today_ts).to_pydatetime().astimezone(tz).time()
-                )
-                close_local = (
-                    cal.session_close(today_ts).to_pydatetime().astimezone(tz).time()
-                )
+        payload = response.json()
+        results = (payload.get("quoteResponse") or {}).get("result") or []
 
-                if ext["pre_start"] <= local_time < open_local:
-                    close_dt = datetime.combine(local_date, open_local).replace(
-                        tzinfo=tz
-                    )
-                    return {
-                        "session": "Pre-market",
-                        "is_open": True,
-                        "next_open": None,
-                        "next_close": close_dt.isoformat(),
-                        "closure_reason": None,
-                        "is_holiday": False,
-                        "holiday_name": None,
-                    }
+        by_exchange: dict[str, dict] = {}
+        for item in results:
+            exchange = _FULL_NAME_TO_EXCHANGE.get(item.get("fullExchangeName", ""))
+            if exchange:
+                by_exchange[exchange] = _build_row(exchange, item)
 
-                if close_local <= local_time < ext["post_end"]:
-                    close_dt = datetime.combine(
-                        local_date, ext["post_end"]
-                    ).replace(tzinfo=tz)
-                    return {
-                        "session": "After-hours",
-                        "is_open": True,
-                        "next_open": None,
-                        "next_close": close_dt.isoformat(),
-                        "closure_reason": None,
-                        "is_holiday": False,
-                        "holiday_name": None,
-                    }
+        rows = [
+            by_exchange[ex] if ex in by_exchange else _build_unknown_row(ex)
+            for ex in _EXCHANGE_ORDER
+        ]
 
-        # ── Closed ────────────────────────────────────────────────────────────
-        next_regular_open = cal.next_open(now_utc)
-        closed_context = _closed_context(cal, local_now, today_ts)
-
-        # For extended-hours exchanges show pre-market start as next open
-        if ext:
-            tz = ZoneInfo(tz_name)
-            next_open_local = next_regular_open.to_pydatetime().astimezone(tz)
-            pre_start_dt = datetime.combine(
-                next_open_local.date(), ext["pre_start"]
-            ).replace(tzinfo=tz)
-            now_aware = local_now
-            if pre_start_dt > now_aware:
-                return {
-                    "session": "Closed",
-                    "is_open": False,
-                    "next_open": pre_start_dt.isoformat(),
-                    "next_close": None,
-                    **closed_context,
-                }
-
-        return {
-            "session": "Closed",
-            "is_open": False,
-            "next_open": next_regular_open.isoformat(),
-            "next_close": None,
-            **closed_context,
-        }
+        _cache = (time.time(), rows)
+        return rows
 
     except Exception as exc:
-        logger.warning("exchange_calendars error for %s: %s", cal_id, exc)
-        return {
-            "session": "Unknown",
-            "is_open": False,
-            "next_open": None,
-            "next_close": None,
-            "closure_reason": None,
-            "is_holiday": False,
-            "holiday_name": None,
-        }
-
-
-def _build_market_hours() -> list[dict]:
-    now = pd.Timestamp.now(tz="UTC")
-    as_of = datetime.now(timezone.utc).isoformat()
-
-    results: list[dict] = []
-    for name, cal_id, tz_name in _EXCHANGES:
-        info = _session_info(cal_id, tz_name, now)
-        results.append({"exchange": name, "timezone": tz_name, "as_of": as_of, **info})
-    return results
-
-
-async def get_stock_market_hours() -> list[dict]:
-    """Return current session state for major exchanges.
-
-    Runs the synchronous exchange_calendars calls in a thread so the async
-    event loop is not blocked during calendar initialisation.
-    """
-    return await asyncio.to_thread(_build_market_hours)
-
-
-if __name__ == "__main__":
-
-    async def main() -> None:
-        rows = await get_stock_market_hours()
-        for row in rows:
-            print(row)
-
-    asyncio.run(main())
+        logger.warning("[market_hours] request failed: %r", exc)
+        return _cache[1] if _cache is not None else None
+    finally:
+        if own_client:
+            await client.aclose()
