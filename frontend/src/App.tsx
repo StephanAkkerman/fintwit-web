@@ -17,6 +17,7 @@ import TrendingCryptoWidget from './components/TrendingCryptoWidget'
 import TweetCard from './components/TweetCard'
 import { useIbkr } from './hooks/useIbkr'
 import { useTweets } from './hooks/useTweets'
+import { useMentionFrequency } from './hooks/useMentionFrequency'
 import type { Tweet } from './types'
 import { hasChartSignal } from './utils/tweetSignals'
 
@@ -261,6 +262,8 @@ export default function App() {
 
     return scoped
   }, [scopedTweets, tickerFilter, route, chartSortMode])
+
+  const mentionLookup = useMentionFrequency(displayedTweets)
 
   const onTickerSelect = (ticker: string) => {
     setTickerInput(ticker)
@@ -607,7 +610,13 @@ export default function App() {
             {route !== 'signa' && (
               <>
                 {displayedTweets.map((t) => (
-                  <TweetCard key={t.id} t={t} onTickerSelect={onTickerSelect} onUserSelect={onUserSelect} />
+                  <TweetCard
+                    key={t.id}
+                    t={t}
+                    onTickerSelect={onTickerSelect}
+                    onUserSelect={onUserSelect}
+                    mentionLookup={mentionLookup}
+                  />
                 ))}
                 {hasMore && (
                   <div className="flex justify-center py-2">

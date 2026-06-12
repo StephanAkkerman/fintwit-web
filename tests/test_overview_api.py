@@ -41,6 +41,22 @@ def test_hidden_gems_returns_list(client):
     assert isinstance(resp.json(), list)
 
 
+def test_mention_frequency_returns_scopes(client):
+    resp = client.post(
+        "/api/overview/mention-frequency",
+        json={"requests": [{"author": "someone", "tickers": ["NVDA"]}]},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "personal" in body and "global" in body
+
+
+def test_mention_frequency_empty(client):
+    resp = client.post("/api/overview/mention-frequency", json={"requests": []})
+    assert resp.status_code == 200
+    assert resp.json() == {"personal": {}, "global": {}}
+
+
 def test_macro_strip_returns_list(client):
     mock_quote = {"price": 5000.0, "change_percent": 0.5}
     with patch("app.api.overview.get_tradingview_quote",

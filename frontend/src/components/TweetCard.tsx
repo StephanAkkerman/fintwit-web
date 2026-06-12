@@ -3,6 +3,8 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Tweet } from '../types'
 import { hasChartSignal } from '../utils/tweetSignals'
+import type { MentionLookup } from '../hooks/useMentionFrequency'
+import AssetMentions from './AssetMentions'
 import SignaSignal from './SignaSignal'
 import TradingViewAnalysis from './TradingViewAnalysis'
 
@@ -272,10 +274,12 @@ export default function TweetCard({
   t,
   onTickerSelect,
   onUserSelect,
+  mentionLookup,
 }: {
   t: Tweet
   onTickerSelect?: (ticker: string) => void
   onUserSelect?: (user: string) => void
+  mentionLookup?: MentionLookup
 }) {
   const [lightboxImage, setLightboxImage] = useState<{ url: string; alt: string } | null>(null)
 
@@ -667,6 +671,13 @@ export default function TweetCard({
                 )}
                 <TradingViewAnalysis analysis={financials?.technical_analysis} className="mt-1.5" />
                 <SignaSignal signal={financials?.signa} className="mt-1.5" />
+                {mentionLookup && t.user_screen_name && (
+                  <AssetMentions
+                    author={t.user_screen_name}
+                    ticker={asset.symbol.toUpperCase()}
+                    lookup={mentionLookup}
+                  />
+                )}
               </div>
             )
           })}

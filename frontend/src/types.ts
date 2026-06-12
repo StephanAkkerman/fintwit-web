@@ -501,6 +501,44 @@ export interface VolumeBaselineItem {
   asset_kind: string;
 }
 
+export type MentionSignal =
+  | 'new'
+  | 'resurfacing'
+  | 'top'
+  | 'hot'
+  | 'rising'
+  | 'falling'
+  | 'neutral';
+
+export type MentionStance = 'bullish' | 'bearish' | 'mixed' | null;
+
+export interface TickerScopeStat {
+  mentions: number;
+  prev_mentions: number;
+  signal: MentionSignal;
+  pct_change: number | null;
+  rank: number | null;
+  days_since_last: number | null;
+  first_ever: boolean;
+  stance: MentionStance;
+  stance_bull: number;
+  stance_bear: number;
+  stance_total: number;
+  stance_flipped: boolean;
+  notable: boolean;
+}
+
+export interface MentionFrequency {
+  personal: TickerScopeStat | null;
+  global: TickerScopeStat | null;
+}
+
+/** Response shape of POST /api/overview/mention-frequency. */
+export interface MentionFrequencyResponse {
+  personal: Record<string, Record<string, TickerScopeStat>>;
+  global: Record<string, TickerScopeStat>;
+}
+
 export interface HiddenGemItem {
   ticker: string;
   mentions_24h: number;

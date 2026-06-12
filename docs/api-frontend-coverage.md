@@ -1,6 +1,6 @@
 # API and Frontend Coverage Matrix
 
-Last updated: 2026-05-05
+Last updated: 2026-06-12
 
 ## Authentication
 
@@ -33,6 +33,7 @@ Last updated: 2026-05-05
 | `/api/portfolio/positions/{position_id}` | DELETE | SQLite via `PortfolioRepo.delete_position` | `{ ok: true }` on delete | Connected via `usePortfolio` / `PortfolioPanel` |
 | `/api/portfolio/summary` | GET | SQLite positions + Yahoo Finance (`get_stock_info`) | Live valuation totals and per-position unrealized PnL | Connected via `usePortfolio` / `PortfolioPanel` |
 | `/api/debug/tweet` | POST | Internal debug helper + enrichment | Injected tweet payload persisted + broadcast, including options-intent classification fields (`is_options_tweet`, `options_context`) | Connected via `DebugAdminPanel` (`/admin`) |
+| `/api/overview/mention-frequency` | POST | SQLite via `mention_aggregator.get_mention_frequency` (json_each over `tweets`) | Batch per-(author, ticker) mention-frequency stats over a 30d window in two scopes — `personal` (the tweet author) and `global` (all users). Body: `{ requests: [{ author, tickers[] }] }` (max 300 authors). Each `TickerScopeStat` carries `mentions`, `prev_mentions`, a primary `signal` (`new`/`resurfacing`/`top`/`hot`/`rising`/`falling`/`neutral`), `rank`, `pct_change`, `days_since_last`, sentiment `stance` (+`stance_flipped`), and a `notable` flag. | Connected via `useMentionFrequency` → `AssetMentions` inside each `TweetCard` asset card |
 
 ## Enrichment Data Flow (Indirect APIs)
 
@@ -98,6 +99,7 @@ For equities/ETFs, `tweet.assets[*].company_profile` may include curated finance
   - `useTweets` now requests `/api/posts` with `since_hours=24` by default, so timeline and analytics are anchored to the last 24h of loaded tweets.
   - Sidebar lookback controls can switch `since_hours` between `24`, `48`, and `168` to compare response/load behavior while keeping route/user filters intact.
   - `useTweets` exposes load-impact stats (`lastLoadDurationMs`, `lastLoadedCount`, `tweets.length`) that are surfaced in the sidebar for quick performance comparison across windows.
+  - `useMentionFrequency` derives `{ author, tickers }` from the displayed tweets, batches them into one `POST /api/overview/mention-frequency`, caches per `author|ticker` with a 5-minute TTL, and feeds a `lookup` into each `TweetCard`. `AssetMentions` renders inside each resolved asset card (next to price/TA/Signa) and only when that ticker's personal or global stat is `notable`: an `@<author>` line and an `all` line, each with a signal emoji (`🆕`/`🥇`/`🔥`/`📈`/`📉`), a stance emoji (`🐂`/`🐻`/`🔀`), a 30d count, an inline trend `%`, and a detail tooltip. Tickers without a resolved asset card show no mention stats.
 
 - Crypto route widgets rely on:
   - `/api/trending-crypto` for top searched coin context,

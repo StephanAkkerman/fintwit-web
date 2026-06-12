@@ -5,9 +5,11 @@ import logging
 import time
 
 from fastapi import APIRouter, Query
+from pydantic import BaseModel, Field
 
 from ..services.mention_aggregator import (
     get_hidden_gems,
+    get_mention_frequency,
     get_mention_heat,
     get_sentiment_shift,
     get_volume_baseline,
@@ -134,6 +136,28 @@ async def volume_baseline(
         window_hours=window_hours,
         user_screen_name=user_screen_name or None,
         subscriber_only=subscriber_only,
+    )
+
+
+class MentionFrequencyRequestItem(BaseModel):
+    author: str
+    tickers: list[str] = Field(default_factory=list)
+
+
+class MentionFrequencyRequest(BaseModel):
+    # Cap the batch so a malformed/huge feed can't trigger an unbounded scan.
+    requests: list[MentionFrequencyRequestItem] = Field(
+        default_factory=list, max_length=300
+    )
+
+
+@router.post("/mention-frequency")
+async def mention_frequency(payload: MentionFrequencyRequest):
+    from . import main as _main
+
+    return await get_mention_frequency(
+        _main.Session,
+        requests=[r.model_dump() for r in payload.requests],
     )
 
 
