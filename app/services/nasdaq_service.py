@@ -105,25 +105,35 @@ async def get_halt_data(client: httpx.AsyncClient) -> list[dict] | None:
         logger.exception(f"Error parsing Nasdaq halt data: {e}")
         return None
 
+_HALT_PAGE = "https://www.nasdaqtrader.com/trader.aspx?id=tradehalts"
+_HALT_RPC = "https://www.nasdaqtrader.com/RPCHandler.axd"
+_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+
+
 async def fetch_halt_data(client: httpx.AsyncClient) -> dict | None:
-    headers = {
-        "Content-Type": "application/json",
-        "Origin": "https://www.nasdaqtrader.com",
-        "Referer": "https://www.nasdaqtrader.com/trader.aspx?id=tradehalts",
-        "Sec-Ch-Ua": '"Not.A/Brand";v="8", "Chromium";v="114", "Google Chrome";v="114"',
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
-    }
-    req_data = {
-        "id": 3,
-        "method": "BL_TradeHalt.GetTradeHalts",
-        "params": "[]",
-        "version": "1.1",
-    }
-
-    url = "https://www.nasdaqtrader.com/RPCHandler.axd"
-
     try:
-        response = await client.post(url, headers=headers, json=req_data)
+        # Incapsula bot-protection requires a prior page visit to set session
+        # cookies before the XHR endpoint will respond with JSON.
+        await client.get(
+            _HALT_PAGE,
+            headers={
+                "User-Agent": _UA,
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+            },
+        )
+        response = await client.post(
+            _HALT_RPC,
+            headers={
+                "Content-Type": "application/json",
+                "Origin": "https://www.nasdaqtrader.com",
+                "Referer": _HALT_PAGE,
+                "X-Requested-With": "XMLHttpRequest",
+                "Accept": "application/json, text/javascript, */*; q=0.01",
+                "User-Agent": _UA,
+            },
+            json={"id": 3, "method": "BL_TradeHalt.GetTradeHalts", "params": "[]", "version": "1.1"},
+        )
         response.raise_for_status()
         return response.json()
     except (httpx.RequestError, httpx.HTTPStatusError, ValueError) as e:

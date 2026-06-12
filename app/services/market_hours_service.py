@@ -1,57 +1,31 @@
-"""Market hours service using Yahoo Finance quote API."""
+"""Market hours service using exchange_calendars (offline, no external API)."""
 
 import logging
 import time
-from datetime import datetime, timezone
-from typing import Optional
 
-import httpx
+import exchange_calendars as xcals
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-_CACHE_TTL_SECONDS = 300
+_CACHE_TTL_SECONDS = 60
 
-# (display_name, Yahoo Finance symbol)
-_EXCHANGES: list[tuple[str, str]] = [
-    ("NYSE", "SPY"),
-    ("NASDAQ", "QQQ"),
-    ("LSE", "^FTSE"),
-    ("JPX", "^N225"),
-    ("HKEX", "^HSI"),
+# (display_name, xcals_calendar_name, local_timezone, has_us_extended_hours)
+_EXCHANGES: list[tuple[str, str, str, bool]] = [
+    ("NYSE", "XNYS", "America/New_York", True),
+    ("NASDAQ", "XNAS", "America/New_York", True),
+    ("LSE", "XLON", "Europe/London", False),
+    ("JPX", "XTKS", "Asia/Tokyo", False),
+    ("HKEX", "XHKG", "Asia/Hong_Kong", False),
 ]
 
-_EXCHANGE_ORDER = [name for name, _ in _EXCHANGES]
-_SYMBOLS = ",".join(sym for _, sym in _EXCHANGES)
+# US extended-hours windows as (hour, minute) tuples in Eastern Time
+_US_PRE_MARKET_START = (4, 0)
+_US_PRE_MARKET_END = (9, 30)
+_US_AFTER_HOURS_START = (16, 0)
+_US_AFTER_HOURS_END = (20, 0)
 
-_YAHOO_URL = "https://query1.finance.yahoo.com/v7/finance/quote"
-
-# Map Yahoo's fullExchangeName to our display names.
-_FULL_NAME_TO_EXCHANGE: dict[str, str] = {
-    "NYSE Arca": "NYSE",
-    "NYSE": "NYSE",
-    "NasdaqGS": "NASDAQ",
-    "NasdaqGM": "NASDAQ",
-    "Nasdaq": "NASDAQ",
-    "NASDAQ": "NASDAQ",
-    "FTSE": "LSE",
-    "LSE": "LSE",
-    "London": "LSE",
-    "Tokyo": "JPX",
-    "OSE.Ax": "JPX",
-    "HKSE": "HKEX",
-    "Hong Kong": "HKEX",
-}
-
-_STATE_TO_SESSION: dict[str, str] = {
-    "PRE": "Pre-market",
-    "PREPRE": "Pre-market",
-    "REGULAR": "Open",
-    "POST": "After-hours",
-    "POSTPOST": "After-hours",
-}
-
-_OPEN_STATES: frozenset[str] = frozenset({"PRE", "PREPRE", "REGULAR", "POST", "POSTPOST"})
-
+_calendars: dict[str, xcals.ExchangeCalendar] = {}
 _cache: tuple[float, list[dict]] | None = None
 
 
@@ -60,93 +34,116 @@ def _reset_cache_for_tests() -> None:
     _cache = None
 
 
-def _build_row(exchange: str, item: dict) -> dict:
-    market_state = item.get("marketState", "")
-    reg_time = item.get("regularMarketTime")
-    as_of = (
-        datetime.fromtimestamp(reg_time, tz=timezone.utc).isoformat()
-        if reg_time
-        else datetime.now(timezone.utc).isoformat()
-    )
-    return {
-        "exchange": exchange,
-        "symbol": item.get("symbol", ""),
-        "session": _STATE_TO_SESSION.get(market_state, "Closed"),
-        "is_open": market_state in _OPEN_STATES,
-        "market_state": market_state,
-        "as_of": as_of,
-        "timezone": item.get("exchangeTimezoneName", ""),
-        "exchange_name": item.get("fullExchangeName", ""),
-    }
+def _now_utc() -> pd.Timestamp:
+    return pd.Timestamp.now(tz="UTC")
 
 
-def _build_unknown_row(exchange: str) -> dict:
+def _get_calendar(name: str) -> xcals.ExchangeCalendar:
+    if name not in _calendars:
+        _calendars[name] = xcals.get_calendar(name)
+    return _calendars[name]
+
+
+def _ts_to_iso(ts: pd.Timestamp | None) -> str | None:
+    if ts is None:
+        return None
+    return ts.isoformat()
+
+
+def _build_row(display: str, xcals_name: str, tz_name: str, is_us: bool) -> dict:
+    cal = _get_calendar(xcals_name)
+    now = _now_utc()
+
+    try:
+        is_regular_open = cal.is_open_on_minute(now)
+    except Exception:
+        is_regular_open = False
+
+    session = "Closed"
+    is_open = False
+
+    if is_regular_open:
+        session = "Open"
+        is_open = True
+    elif is_us:
+        local = now.tz_convert(tz_name)
+        h, m = local.hour, local.minute
+
+        in_pre = _US_PRE_MARKET_START <= (h, m) < _US_PRE_MARKET_END
+        in_ah = _US_AFTER_HOURS_START <= (h, m) < _US_AFTER_HOURS_END
+
+        if in_pre or in_ah:
+            try:
+                today_is_session = cal.is_session(str(local.date()))
+            except Exception:
+                today_is_session = False
+
+            if in_pre and today_is_session:
+                session = "Pre-market"
+                is_open = True
+            elif in_ah and today_is_session:
+                session = "After-hours"
+                is_open = True
+
+    next_open: pd.Timestamp | None = None
+    next_close: pd.Timestamp | None = None
+
+    try:
+        if is_regular_open:
+            current_session = cal.minute_to_session(now)
+            next_close = cal.session_close(current_session)
+        else:
+            next_open = cal.next_open(now)
+    except Exception as exc:
+        logger.debug("[market_hours] next event error for %s: %r", display, exc)
+
+    closure_reason: str | None = None
+    is_holiday = False
+
+    if session == "Closed":
+        local_dt = now.tz_convert(tz_name)
+        if local_dt.day_of_week >= 5:  # Saturday=5, Sunday=6
+            closure_reason = "weekend"
+        else:
+            try:
+                if not cal.is_session(str(local_dt.date())):
+                    closure_reason = "holiday"
+                    is_holiday = True
+            except Exception:
+                pass
+
     return {
-        "exchange": exchange,
-        "symbol": "",
-        "session": "Unknown",
-        "is_open": False,
-        "market_state": "UNKNOWN",
-        "as_of": datetime.now(timezone.utc).isoformat(),
-        "timezone": "",
-        "exchange_name": "",
+        "exchange": display,
+        "session": session,
+        "is_open": is_open,
+        "as_of": now.isoformat(),
+        "timezone": tz_name,
+        "next_open": _ts_to_iso(next_open),
+        "next_close": _ts_to_iso(next_close),
+        "closure_reason": closure_reason,
+        "is_holiday": is_holiday,
+        "holiday_name": None,
     }
 
 
 async def get_stock_market_hours(
-    client: Optional[httpx.AsyncClient] = None,
-) -> Optional[list[dict]]:
-    """Return current session state for major exchanges via Yahoo Finance.
-
-    Accepts an optional httpx client; creates one internally when omitted.
-    Results are cached for ``_CACHE_TTL_SECONDS`` seconds. Stale cache is
-    returned on HTTP errors (rate-limit / server errors) so the UI degrades
-    gracefully.
-    """
+    client=None,  # unused; kept for backward compatibility
+) -> list[dict] | None:
+    """Return current session state for major exchanges using exchange_calendars."""
     global _cache
 
-    # Serve from cache while still fresh.
     if _cache is not None:
         ts, cached_rows = _cache
         if time.time() - ts < _CACHE_TTL_SECONDS:
             return cached_rows
 
-    own_client = client is None
-    if own_client:
-        client = httpx.AsyncClient()
-
     try:
-        response = await client.get(
-            _YAHOO_URL,
-            params={"symbols": _SYMBOLS},
-            headers={"User-Agent": "Mozilla/5.0"},
-            timeout=10.0,
-        )
-
-        if response.status_code != 200:
-            # Return stale cache (any age) rather than None when available.
-            return _cache[1] if _cache is not None else None
-
-        payload = response.json()
-        results = (payload.get("quoteResponse") or {}).get("result") or []
-
-        by_exchange: dict[str, dict] = {}
-        for item in results:
-            exchange = _FULL_NAME_TO_EXCHANGE.get(item.get("fullExchangeName", ""))
-            if exchange:
-                by_exchange[exchange] = _build_row(exchange, item)
-
         rows = [
-            by_exchange[ex] if ex in by_exchange else _build_unknown_row(ex)
-            for ex in _EXCHANGE_ORDER
+            _build_row(display, xcals_name, tz_name, is_us)
+            for display, xcals_name, tz_name, is_us in _EXCHANGES
         ]
-
         _cache = (time.time(), rows)
         return rows
-
     except Exception as exc:
-        logger.warning("[market_hours] request failed: %r", exc)
+        logger.warning("[market_hours] failed to compute: %r", exc)
         return _cache[1] if _cache is not None else None
-    finally:
-        if own_client:
-            await client.aclose()

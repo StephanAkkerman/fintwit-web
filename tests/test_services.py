@@ -696,126 +696,128 @@ async def test_get_reddit_hot_posts_falls_back_to_httpx_when_asyncpraw_none():
 
 
 # ---------------------------------------------------------------------------
-# Market Hours – get_stock_market_hours
+# Market Hours – get_stock_market_hours (offline via exchange_calendars)
 # ---------------------------------------------------------------------------
 
+# 2026-06-12 is a Friday (regular NYSE/NASDAQ session)
+# 2026-06-14 is a Saturday (weekend)
+# NYSE regular hours: 9:30 AM–4:00 PM ET = 13:30–20:00 UTC
+# NYSE pre-market:    4:00–9:30 AM ET   = 08:00–13:30 UTC
+# NYSE after-hours:   4:00–8:00 PM ET   = 20:00–00:00 UTC
+
+import pandas as pd
+
 
 @pytest.mark.asyncio
-async def test_get_stock_market_hours_maps_sessions():
-    payload = {
-        "quoteResponse": {
-            "result": [
-                {
-                    "symbol": "SPY",
-                    "marketState": "PRE",
-                    "regularMarketTime": 1712746800,
-                    "exchangeTimezoneName": "America/New_York",
-                    "fullExchangeName": "NYSE Arca",
-                },
-                {
-                    "symbol": "QQQ",
-                    "marketState": "POST",
-                    "regularMarketTime": 1712746800,
-                    "exchangeTimezoneName": "America/New_York",
-                    "fullExchangeName": "NASDAQ",
-                },
-                {
-                    "symbol": "^FTSE",
-                    "marketState": "REGULAR",
-                    "regularMarketTime": 1712746800,
-                    "exchangeTimezoneName": "Europe/London",
-                    "fullExchangeName": "FTSE",
-                },
-            ]
-        }
-    }
+async def test_get_stock_market_hours_returns_five_exchanges():
+    result = await get_stock_market_hours()
+    assert result is not None
+    assert len(result) == 5
+    assert {r["exchange"] for r in result} == {"NYSE", "NASDAQ", "LSE", "JPX", "HKEX"}
 
-    client = AsyncMock()
-    client.get = AsyncMock(return_value=_httpx_response(200, payload))
 
-    result = await get_stock_market_hours(client)
+@pytest.mark.asyncio
+async def test_get_stock_market_hours_row_structure():
+    result = await get_stock_market_hours()
+    assert result is not None
+    valid_sessions = {"Open", "Pre-market", "After-hours", "Closed"}
+    for row in result:
+        assert "exchange" in row
+        assert "session" in row
+        assert "is_open" in row
+        assert "timezone" in row
+        assert "next_open" in row
+        assert "next_close" in row
+        assert row["session"] in valid_sessions
+        assert isinstance(row["is_open"], bool)
+
+
+@pytest.mark.asyncio
+async def test_get_stock_market_hours_nyse_regular_session():
+    # 2026-06-12 15:00 UTC = 11:00 AM ET (regular session)
+    mock_ts = pd.Timestamp("2026-06-12 15:00:00", tz="UTC")
+    with patch.object(market_hours_service, "_now_utc", return_value=mock_ts):
+        market_hours_service._reset_cache_for_tests()
+        result = await get_stock_market_hours()
 
     assert result is not None
-    by_exchange = {row["exchange"]: row for row in result}
-    assert by_exchange["NYSE"]["session"] == "Pre-market"
-    assert by_exchange["NYSE"]["is_open"] is True
-    assert by_exchange["NASDAQ"]["session"] == "After-hours"
-    assert by_exchange["NASDAQ"]["is_open"] is True
-    assert by_exchange["LSE"]["session"] == "Open"
-    assert by_exchange["LSE"]["is_open"] is True
-    assert by_exchange["JPX"]["session"] == "Unknown"
-    assert by_exchange["HKEX"]["session"] == "Unknown"
+    nyse = next(r for r in result if r["exchange"] == "NYSE")
+    assert nyse["session"] == "Open"
+    assert nyse["is_open"] is True
+    assert nyse["next_close"] is not None
+    assert nyse["next_open"] is None
 
 
 @pytest.mark.asyncio
-async def test_get_stock_market_hours_http_error_returns_none():
-    client = AsyncMock()
-    client.get = AsyncMock(return_value=_httpx_response(503, {}))
+async def test_get_stock_market_hours_nyse_pre_market():
+    # 2026-06-12 10:00 UTC = 6:00 AM ET (pre-market window: 4:00–9:30 AM)
+    mock_ts = pd.Timestamp("2026-06-12 10:00:00", tz="UTC")
+    with patch.object(market_hours_service, "_now_utc", return_value=mock_ts):
+        market_hours_service._reset_cache_for_tests()
+        result = await get_stock_market_hours()
 
-    result = await get_stock_market_hours(client)
-
-    assert result is None
-
-
-@pytest.mark.asyncio
-async def test_get_stock_market_hours_uses_cache_for_subsequent_calls():
-    payload = {
-        "quoteResponse": {
-            "result": [
-                {
-                    "symbol": "SPY",
-                    "marketState": "REGULAR",
-                    "regularMarketTime": 1712746800,
-                    "exchangeTimezoneName": "America/New_York",
-                    "fullExchangeName": "NYSE Arca",
-                }
-            ]
-        }
-    }
-
-    client = AsyncMock()
-    client.get = AsyncMock(return_value=_httpx_response(200, payload))
-
-    first = await get_stock_market_hours(client)
-    second = await get_stock_market_hours(client)
-
-    assert first is not None
-    assert second is not None
-    assert client.get.call_count == 1
+    assert result is not None
+    nyse = next(r for r in result if r["exchange"] == "NYSE")
+    assert nyse["session"] == "Pre-market"
+    assert nyse["is_open"] is True
+    assert nyse["next_open"] is not None
+    assert nyse["next_close"] is None
 
 
 @pytest.mark.asyncio
-async def test_get_stock_market_hours_uses_stale_cache_when_rate_limited():
-    payload = {
-        "quoteResponse": {
-            "result": [
-                {
-                    "symbol": "SPY",
-                    "marketState": "PRE",
-                    "regularMarketTime": 1712746800,
-                    "exchangeTimezoneName": "America/New_York",
-                    "fullExchangeName": "NYSE Arca",
-                }
-            ]
-        }
-    }
+async def test_get_stock_market_hours_nyse_after_hours():
+    # 2026-06-12 21:00 UTC = 5:00 PM ET (after-hours window: 4:00–8:00 PM)
+    mock_ts = pd.Timestamp("2026-06-12 21:00:00", tz="UTC")
+    with patch.object(market_hours_service, "_now_utc", return_value=mock_ts):
+        market_hours_service._reset_cache_for_tests()
+        result = await get_stock_market_hours()
 
-    client = AsyncMock()
-    client.get = AsyncMock(
-        side_effect=[
-            _httpx_response(200, payload),
-            _httpx_response(429, {}),
-        ]
-    )
+    assert result is not None
+    nyse = next(r for r in result if r["exchange"] == "NYSE")
+    assert nyse["session"] == "After-hours"
+    assert nyse["is_open"] is True
+    assert nyse["next_open"] is not None
+    assert nyse["next_close"] is None
 
-    with patch.object(market_hours_service, "_CACHE_TTL_SECONDS", 0):
-        first = await get_stock_market_hours(client)
-        second = await get_stock_market_hours(client)
+
+@pytest.mark.asyncio
+async def test_get_stock_market_hours_weekend_closure():
+    # 2026-06-14 15:00 UTC = Saturday
+    mock_ts = pd.Timestamp("2026-06-14 15:00:00", tz="UTC")
+    with patch.object(market_hours_service, "_now_utc", return_value=mock_ts):
+        market_hours_service._reset_cache_for_tests()
+        result = await get_stock_market_hours()
+
+    assert result is not None
+    nyse = next(r for r in result if r["exchange"] == "NYSE")
+    assert nyse["session"] == "Closed"
+    assert nyse["is_open"] is False
+    assert nyse["closure_reason"] == "weekend"
+    assert nyse["next_open"] is not None
+
+
+@pytest.mark.asyncio
+async def test_get_stock_market_hours_caching():
+    mock_ts = pd.Timestamp("2026-06-12 15:00:00", tz="UTC")
+    call_count = 0
+    original_build = market_hours_service._build_row
+
+    def counting_build(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        return original_build(*args, **kwargs)
+
+    with patch.object(market_hours_service, "_now_utc", return_value=mock_ts):
+        market_hours_service._reset_cache_for_tests()
+        with patch.object(market_hours_service, "_build_row", side_effect=counting_build):
+            first = await get_stock_market_hours()
+            second = await get_stock_market_hours()
 
     assert first is not None
     assert second is not None
     assert first == second
-    assert client.get.call_count == 2
+    # _build_row called 5 times (one per exchange) only on the first call
+    assert call_count == 5
 
 
 def test_is_valid_subreddit_name():
