@@ -71,8 +71,10 @@ async def get_halt_data(client: httpx.AsyncClient) -> list[dict] | None:
             issue_symbol = row_data.get("Issue Symbol")
 
             # Combine columns into one singular datetime column
+            # Halt times may include milliseconds (e.g. "14:51:23.056") — strip them.
+            halt_time_clean = halt_time.split(".")[0]
             try:
-                dt_str = f"{halt_date} {halt_time}"
+                dt_str = f"{halt_date} {halt_time_clean}"
                 dt = datetime.datetime.strptime(dt_str, "%m/%d/%Y %H:%M:%S")
                 dt_eastern = dt.replace(tzinfo=tz.gettz("US/Eastern"))
                 time_str = dt_eastern.strftime("%H:%M:%S")
