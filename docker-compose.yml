@@ -2,7 +2,7 @@ services:
   ibgateway:
     # https://github.com/gnzsnz/ib-gateway-docker — supports ARM64 (Raspberry Pi)
     # Replace with ghcr.io/gnzsnz/ib-gateway:stable for a pinned release
-    image: ghcr.io/gnzsnz/ib-gateway:latest
+    image: ghcr.io/gnzsnz/ib-gateway:stable
     container_name: fintwit-ibgateway
     restart: unless-stopped
     environment:
@@ -14,12 +14,12 @@ services:
       # Headless-friendly defaults for API reliability.
       TWS_ACCEPT_INCOMING: ${TWS_ACCEPT_INCOMING:-accept}
       TWS_SETTINGS_PATH: ${TWS_SETTINGS_PATH:-/home/ibgateway/tws_settings}
-      TWOFA_TIMEOUT_ACTION: ${TWOFA_TIMEOUT_ACTION:-restart}
-      RELOGIN_AFTER_TWOFA_TIMEOUT: ${RELOGIN_AFTER_TWOFA_TIMEOUT:-yes}
+      TWOFA_TIMEOUT_ACTION: ${TWOFA_TIMEOUT_ACTION:-exit}
+      RELOGIN_AFTER_TWOFA_TIMEOUT: ${RELOGIN_AFTER_TWOFA_TIMEOUT:-no}
       AUTO_RESTART_TIME: ${AUTO_RESTART_TIME:-11:45 PM}
       VNC_SERVER_PASSWORD: ${VNC_SERVER_PASSWORD:-changeme}
     volumes:
-      - ibgateway-settings:${TWS_SETTINGS_PATH:-/home/ibgateway/tws_settings}
+      - ./ibgateway-settings:${TWS_SETTINGS_PATH:-/home/ibgateway/tws_settings}
     ports:
       - "127.0.0.1:4001:4003" # TWS API (live; socat)
       - "127.0.0.1:4002:4004" # TWS API (paper; socat)
@@ -70,5 +70,3 @@ services:
       - frontend
     restart: unless-stopped
 
-volumes:
-  ibgateway-settings:

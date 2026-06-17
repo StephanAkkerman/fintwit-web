@@ -2,6 +2,7 @@ curl.txt
 *.db
 node_modules/
 /state
+/ibgateway-settings
 package-lock.json
 logs/
 models/
