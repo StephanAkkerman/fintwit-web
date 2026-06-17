@@ -4,7 +4,7 @@ from collections import OrderedDict
 from typing import Dict, List
 
 from ticker_classifier.classifier import TickerClassifier
-from ticker_price_data import get_crypto_info, get_stock_info
+from ticker_price_data import price_from_classification
 
 from ..services.signa import get_signa_signal
 from ..services.tradingview_ta_service import get_tradingview_ta_summary
@@ -247,25 +247,10 @@ class AssetEnricher:
             "[enricher] classified: %s", [(e["symbol"], e["kind"]) for e in classified]
         )
 
-        # Fetch volatile financial data concurrently for all classified symbols
-        tasks = []
-        for entry in classified:
-            kind = entry["kind"]
-            symbol = entry["symbol"]
-            lookup_symbol = (entry.get("yahoo_lookup") or symbol or "").upper()
-
-            if _is_crypto_kind(kind):
-                tasks.append(get_crypto_info(symbol))
-            elif _should_use_yahoo(kind):
-                tasks.append(get_stock_info(lookup_symbol))
-            else:
-                logger.debug(
-                    "[enricher] %s has unhandled kind %r — skipping financials",
-                    symbol,
-                    kind,
-                )
-                tasks.append(self._dummy_info())
-
+        # Fetch volatile financial data concurrently. Price routing (crypto ->
+        # CoinGecko, else -> Yahoo via yahoo_lookup) is delegated to
+        # ticker-price-data so it stays a single source of truth.
+        tasks = [price_from_classification(entry) for entry in classified]
         financials = await asyncio.gather(*tasks, return_exceptions=True)
 
         ta_tasks = []
