@@ -4,11 +4,10 @@ from collections import OrderedDict
 from typing import Dict, List
 
 from ticker_classifier.classifier import TickerClassifier
+from ticker_price_data import get_crypto_info, get_stock_info
 
-from ..services.coingecko import get_crypto_info
 from ..services.signa import get_signa_signal
 from ..services.tradingview_ta_service import get_tradingview_ta_summary
-from ..services.yahoo import get_stock_info
 
 logger = logging.getLogger(__name__)
 

@@ -4,10 +4,7 @@ import time
 from datetime import datetime, timezone
 from typing import Optional
 
-try:
-    from .tradingview_quote import get_tradingview_quote
-except ImportError:  # pragma: no cover - allows direct script execution
-    from app.services.tradingview_quote import get_tradingview_quote
+from ticker_price_data import get_tradingview_quote
 
 try:
     from .market_hours_service import get_stock_market_hours
