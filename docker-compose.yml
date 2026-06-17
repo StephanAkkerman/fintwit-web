@@ -14,8 +14,8 @@ services:
       # Headless-friendly defaults for API reliability.
       TWS_ACCEPT_INCOMING: ${TWS_ACCEPT_INCOMING:-accept}
       TWS_SETTINGS_PATH: ${TWS_SETTINGS_PATH:-/home/ibgateway/tws_settings}
-      TWOFA_TIMEOUT_ACTION: ${TWOFA_TIMEOUT_ACTION:-exit}
-      RELOGIN_AFTER_TWOFA_TIMEOUT: ${RELOGIN_AFTER_TWOFA_TIMEOUT:-no}
+      TWOFA_TIMEOUT_ACTION: ${TWOFA_TIMEOUT_ACTION:-restart}
+      RELOGIN_AFTER_TWOFA_TIMEOUT: ${RELOGIN_AFTER_TWOFA_TIMEOUT:-yes}
       AUTO_RESTART_TIME: ${AUTO_RESTART_TIME:-11:45 PM}
       VNC_SERVER_PASSWORD: ${VNC_SERVER_PASSWORD:-changeme}
     volumes:
@@ -69,4 +69,3 @@ services:
     depends_on:
       - frontend
     restart: unless-stopped
-
