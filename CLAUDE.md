@@ -49,10 +49,16 @@ The legacy source is at `e:/GitHub/fintwit-bot/`. Key directories:
 | API | `app/api/` | FastAPI routers — REST and SSE streams, API key auth via `X-API-Key` |
 | Runtime | `app/runtime/` | Background workers, in-memory ring buffer (`state.py`, cap 2000), SSE broadcaster (`broadcast.py`), tweet enricher |
 | Infra | `app/infra/` | SQLAlchemy ORM models (`db.py`), `TweetRepo` CRUD (`repos.py`), schema evolution |
-| Services | `app/services/` | External API clients (Yahoo Finance, CoinGecko, etc.) |
+| Services | `app/services/` | External API clients (StockTwits, options, events, market hours, etc.) |
 | ML | `app/ml/` | Model wrappers — load once at lifespan startup |
 
-**Data flow:** Lifespan starts DB + `run_stream()` → polls X/Twitter via `xtimeline` (auth from `curl.txt`) → enriches with `ticker-classifier` + live prices → upserts to SQLite → broadcasts to SSE subscribers.
+**Ticker pricing** (Yahoo / CoinGecko / TradingView quotes) lives in the external
+[`ticker-price-data`](https://github.com/StephanAkkerman/ticker-price-data) package — import
+`get_stock_info`, `get_crypto_info`, `get_tradingview_quote`, or the unified `get_price` from
+`ticker_price_data`. It was extracted from `app/services/` so the pricing pipeline can be
+reused across repos; do not re-add local `yahoo.py`/`coingecko.py` modules.
+
+**Data flow:** Lifespan starts DB + `run_stream()` → polls X/Twitter via `xtimeline` (auth from `curl.txt`) → enriches with `ticker-classifier` + live prices (`ticker-price-data`) → upserts to SQLite → broadcasts to SSE subscribers.
 
 **Database:** SQLite at `./data.db`; override with `DB_URL` env var. PostgreSQL also supported.
 

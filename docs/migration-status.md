@@ -1,8 +1,10 @@
 # Migration Status
 
-Last updated: 2026-06-03
+Last updated: 2026-06-17
 
 ## Backend: Implemented
+
+- Ticker pricing extracted to the external [`ticker-price-data`](https://github.com/StephanAkkerman/ticker-price-data) package (Yahoo/CoinGecko/TradingView + unified `get_price`). The old `app/services/{yahoo,coingecko,tradingview_quote,tradingview_stream}.py` modules were removed; consumers import from `ticker_price_data`. CoinGecko now uses the website `search_v2` endpoint to avoid public-API rate limits.
 
 - FastAPI app lifecycle with DB init and background tweet stream worker.
 - API key dependency (`X-API-Key`) on all `/api/*` endpoints when `API_KEY` env var is set.

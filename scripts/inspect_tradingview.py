@@ -20,7 +20,7 @@ except Exception:
     SymbolMarkets = None
 
 try:
-    from app.services.tradingview_stream import RealTimePool
+    from ticker_price_data import RealTimePool
 except Exception:
     RealTimePool = None
 

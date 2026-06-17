@@ -6,6 +6,7 @@ import time
 
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
+from ticker_price_data import get_tradingview_quote
 
 from ..services.mention_aggregator import (
     get_hidden_gems,
@@ -14,7 +15,6 @@ from ..services.mention_aggregator import (
     get_sentiment_shift,
     get_volume_baseline,
 )
-from ..services.tradingview_quote import get_tradingview_quote
 
 router = APIRouter(prefix="/api/overview", tags=["overview"])
 logger = logging.getLogger(__name__)

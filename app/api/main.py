@@ -14,6 +14,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import async_sessionmaker
+from ticker_price_data import get_stock_info
 
 from ..infra.db import create_engine, init_db
 from ..infra.repos import IbkrRepo, PortfolioRepo, TweetRepo
@@ -38,7 +39,6 @@ from ..services.reddit_service import get_reddit_hot_posts, is_valid_subreddit_n
 from ..services.signa import get_signa_best_trades, get_signa_live_feed
 from ..services.stocktwits_service import get_stocktwits_data
 from ..services.unusual_whales import get_spy_heatmap
-from ..services.yahoo import get_stock_info
 
 with suppress(Exception):
     from dotenv import load_dotenv
