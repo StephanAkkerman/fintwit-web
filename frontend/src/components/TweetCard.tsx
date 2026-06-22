@@ -606,7 +606,6 @@ export default function TweetCard({
               typeof asset.name === 'string' && asset.name.trim().length > 0 ? asset.name : ticker
             const typeLabel = formatAssetKind(asset.kind)
             const hasPrice = typeof financials?.price === 'number'
-            const hasLastClose = typeof financials?.last_close === 'number'
             const hasChange = typeof financials?.change_percent === 'number'
             const change = hasChange ? (financials?.change_percent as number) : 0
             const changeClass =
@@ -615,6 +614,21 @@ export default function TweetCard({
                 : change < 0
                   ? 'text-rose-600 dark:text-rose-400'
                   : 'text-zinc-500 dark:text-zinc-400'
+            const session = financials?.session ?? null
+            const hasExtended =
+              typeof financials?.extended_price === 'number' &&
+              typeof financials?.extended_change_percent === 'number' &&
+              session !== 'regular'
+            const extPrice = hasExtended ? (financials!.extended_price as number) : 0
+            const extChange = hasExtended ? (financials!.extended_change_percent as number) : 0
+            const extChangeClass =
+              extChange > 0
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : extChange < 0
+                  ? 'text-rose-600 dark:text-rose-400'
+                  : 'text-zinc-500 dark:text-zinc-400'
+            const sessionEmoji = session === 'pre-market' ? '🌅' : session === 'after-hours' ? '🌙' : null
+            const sessionLabel = session === 'pre-market' ? 'Pre-Market' : session === 'after-hours' ? 'After Hours' : null
 
             return (
               <div
@@ -664,9 +678,18 @@ export default function TweetCard({
                     {hasChange ? fmtChangePercent(change) : 'N/A'}
                   </span>
                 </div>
-                {hasLastClose && (
-                  <div className="mt-0.5 text-[10px] text-zinc-500 dark:text-zinc-400">
-                    Last close {fmtPrice(financials!.last_close as number)}
+                {hasExtended && sessionLabel && (
+                  <div className="mt-0.5 flex items-center justify-between gap-1 text-[11px]">
+                    <span className="flex items-center gap-1 text-zinc-500 dark:text-zinc-400">
+                      <span>{sessionEmoji}</span>
+                      <span>{sessionLabel}</span>
+                      <span className="font-medium text-zinc-700 dark:text-zinc-300">
+                        {fmtPrice(extPrice)}
+                      </span>
+                    </span>
+                    <span className={`font-semibold ${extChangeClass}`}>
+                      {fmtChangePercent(extChange)}
+                    </span>
                   </div>
                 )}
                 <TradingViewAnalysis analysis={financials?.technical_analysis} className="mt-1.5" />

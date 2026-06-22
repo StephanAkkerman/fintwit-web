@@ -14,7 +14,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import async_sessionmaker
-from ticker_price_data import get_stock_info
+from ticker_price_data import close_shared_pool, get_stock_info
 
 from ..infra.db import create_engine, init_db
 from ..infra.repos import IbkrRepo, PortfolioRepo, TweetRepo
@@ -123,6 +123,7 @@ async def lifespan(app: FastAPI):
             if app.state.ibkr_gateway is not None:
                 app.state.ibkr_gateway.stop()
         await app.state.http_client.aclose()
+        close_shared_pool()
 
 
 app = FastAPI(title="X Stream API", lifespan=lifespan)

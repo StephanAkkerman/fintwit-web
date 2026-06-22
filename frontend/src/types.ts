@@ -32,11 +32,13 @@ export type AssetSignaSignal = {
 
 export type AssetFinancials = {
   price?: number | null;
-  last_close?: number | null;
   change_percent?: number | null;
   volume?: number | null;
   website?: string | null;
   source?: string | null;
+  session?: 'regular' | 'pre-market' | 'after-hours' | 'closed' | string | null;
+  extended_price?: number | null;
+  extended_change_percent?: number | null;
   technical_analysis?: AssetTechnicalAnalysis | null;
   signa?: AssetSignaSignal | null;
 };

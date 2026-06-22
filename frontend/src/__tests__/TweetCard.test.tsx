@@ -544,7 +544,7 @@ describe('TweetCard', () => {
     expect(priceLink).toHaveAttribute('href', 'https://finance.yahoo.com/quote/AAPL')
   })
 
-  it('shows last close when available on an asset', () => {
+  it('shows after-hours price and change when session is after-hours', () => {
     render(
       <TweetCard
         t={{
@@ -554,9 +554,11 @@ describe('TweetCard', () => {
               symbol: 'AAPL',
               kind: 'EQUITY',
               financials: {
-                price: 276.83,
-                last_close: 280.25,
-                change_percent: -1.22,
+                price: 185.12,
+                change_percent: 1.22,
+                session: 'after-hours',
+                extended_price: 184.80,
+                extended_change_percent: -0.17,
                 website: 'https://finance.yahoo.com/quote/AAPL',
               },
             },
@@ -565,7 +567,37 @@ describe('TweetCard', () => {
       />
     )
 
-    expect(screen.getByText(/Last close\s+\$280[.,]25/)).toBeInTheDocument()
+    expect(screen.getByText('🌙')).toBeInTheDocument()
+    expect(screen.getByText('After Hours')).toBeInTheDocument()
+    expect(screen.getByText(/\$184[.,]80/)).toBeInTheDocument()
+  })
+
+  it('shows pre-market price and change when session is pre-market', () => {
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          assets: [
+            {
+              symbol: 'AAPL',
+              kind: 'EQUITY',
+              financials: {
+                price: 185.12,
+                change_percent: 1.22,
+                session: 'pre-market',
+                extended_price: 186.40,
+                extended_change_percent: 0.69,
+                website: 'https://finance.yahoo.com/quote/AAPL',
+              },
+            },
+          ],
+        }}
+      />
+    )
+
+    expect(screen.getByText('🌅')).toBeInTheDocument()
+    expect(screen.getByText('Pre-Market')).toBeInTheDocument()
+    expect(screen.getByText(/\$186[.,]40/)).toBeInTheDocument()
   })
 
   it('renders tradingview technical analysis when available', () => {

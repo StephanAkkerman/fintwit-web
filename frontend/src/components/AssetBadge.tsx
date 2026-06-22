@@ -11,7 +11,7 @@ export default function AssetBadge({ asset }: { asset: Asset }) {
     )
   }
 
-  const { price, last_close, change_percent, website, technical_analysis, signa } = asset.financials
+  const { price, change_percent, website, technical_analysis, signa } = asset.financials
   const isPositive = change_percent >= 0
   const changeColor = isPositive ? 'text-green-500' : 'text-red-500'
   const changeSign = isPositive ? '+' : ''
@@ -38,11 +38,7 @@ export default function AssetBadge({ asset }: { asset: Asset }) {
             {changeSign}
             {change_percent.toFixed(2)}%
           </span>
-          {typeof last_close === 'number' && (
-            <span className="text-[9px] text-zinc-500 dark:text-zinc-400">
-              Last close ${last_close.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
-            </span>
-          )}
+
         </div>
       </div>
       <TradingViewAnalysis analysis={technical_analysis} />

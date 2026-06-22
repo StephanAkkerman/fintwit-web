@@ -94,13 +94,9 @@ def _normalize_symbol(symbol: str) -> str:
 async def _quote(
     symbol: str, asset_hint: str, prefer_realtime: bool = True
 ) -> Optional[dict]:
-    try:
-        return await get_tradingview_quote(
-            symbol, asset_hint=asset_hint, prefer_realtime=prefer_realtime
-        )
-    except TypeError:
-        # Backward compatibility for monkeypatched/stubbed quote callables in tests.
-        return await get_tradingview_quote(symbol, asset_hint=asset_hint)
+    return await get_tradingview_quote(
+        symbol, asset_hint=asset_hint, prefer_realtime=prefer_realtime
+    )
 
 
 async def _fetch_curve_points(label: str, bonds: list[tuple[str, str]]) -> dict:
