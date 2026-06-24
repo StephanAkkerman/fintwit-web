@@ -550,3 +550,38 @@ export interface HiddenGemItem {
   last_seen: string | null;
   asset_kind: string;
 }
+
+export type ExtendedHoursFuture = {
+  label: string
+  symbol: string
+  price: number
+  change_pct: number
+}
+
+export type ExtendedHoursEtf = {
+  symbol: string
+  price: number
+  extended_price: number | null
+  extended_change_pct: number | null
+}
+
+export type ExtendedHoursTopTicker = {
+  ticker: string
+  mentions: number
+  sentiment: 'BULL' | 'BEAR' | 'NEUTRAL' | string
+}
+
+export type ExtendedHoursTweetStats = {
+  total_mentions: number
+  top_tickers: ExtendedHoursTopTicker[]
+  sentiment_distribution: { BULL: number; BEAR: number; NEUTRAL: number }
+}
+
+export type ExtendedHoursSnapshot = {
+  session: 'pre-market' | 'after-hours' | 'regular' | 'closed' | string
+  window_start: string
+  window_end: string
+  futures: ExtendedHoursFuture[]
+  etfs: ExtendedHoursEtf[]
+  tweet_stats: ExtendedHoursTweetStats
+}
