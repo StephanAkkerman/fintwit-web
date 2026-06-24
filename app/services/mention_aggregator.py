@@ -432,6 +432,57 @@ async def get_hidden_gems(
     ]
 
 
+async def get_extended_hours_stats(
+    Session: async_sessionmaker,
+    since_dt: datetime,
+    until_dt: datetime,
+    top_n: int = 10,
+) -> dict:
+    """Aggregate tweet-ticker mentions in a fixed window for the extended-hours panel."""
+    sql = text("""
+        SELECT
+            j.value AS ticker,
+            CAST(COUNT(*) AS INTEGER) AS mentions,
+            SUM(CASE WHEN t.sentiment_score >  0.1 THEN 1 ELSE 0 END) AS bull_count,
+            SUM(CASE WHEN t.sentiment_score < -0.1 THEN 1 ELSE 0 END) AS bear_count
+        FROM tweets t, json_each(t.tickers) j
+        WHERE t.created_at >= :since_dt
+          AND t.created_at <  :until_dt
+          AND t.tickers IS NOT NULL AND t.tickers != '[]'
+        GROUP BY j.value
+        ORDER BY mentions DESC
+    """)
+
+    async with Session() as s:
+        result = await s.execute(sql, {"since_dt": since_dt, "until_dt": until_dt})
+        rows = result.mappings().all()
+
+    total_bull = sum(int(r["bull_count"] or 0) for r in rows)
+    total_bear = sum(int(r["bear_count"] or 0) for r in rows)
+    total_mentions = sum(int(r["mentions"]) for r in rows)
+
+    top_tickers = []
+    for r in rows[:top_n]:
+        bull = int(r["bull_count"] or 0)
+        bear = int(r["bear_count"] or 0)
+        sentiment = "BULL" if bull > bear else ("BEAR" if bear > bull else "NEUTRAL")
+        top_tickers.append({
+            "ticker": r["ticker"],
+            "mentions": int(r["mentions"]),
+            "sentiment": sentiment,
+        })
+
+    return {
+        "total_mentions": total_mentions,
+        "top_tickers": top_tickers,
+        "sentiment_distribution": {
+            "BULL": total_bull,
+            "BEAR": total_bear,
+            "NEUTRAL": total_mentions - total_bull - total_bear,
+        },
+    }
+
+
 # ─── Per-tweet mention frequency (personal + global) ──────────────────────────
 #
 # Powers the "Mentions" strip on each tweet card. For every (author, ticker)
