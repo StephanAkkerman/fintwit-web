@@ -63,6 +63,12 @@ beforeEach(() => {
         } as Response
       )
     }
+    if (url.includes('/api/stocks/market-movers')) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ session_type: 'pre-market', gainers: [], losers: [] }),
+      } as Response)
+    }
     if (url.includes('/api/stocks/market-hours')) {
       return Promise.resolve({ ok: true, json: async () => [] } as Response)
     }
