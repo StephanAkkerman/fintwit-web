@@ -343,8 +343,6 @@ async def test_get_reddit_hot_posts_falls_back_to_httpx_when_asyncpraw_none():
 # NYSE pre-market:    4:00–9:30 AM ET   = 08:00–13:30 UTC
 # NYSE after-hours:   4:00–8:00 PM ET   = 20:00–00:00 UTC
 
-import pandas as pd
-
 
 @pytest.mark.asyncio
 async def test_get_stock_market_hours_returns_five_exchanges():
@@ -447,7 +445,9 @@ async def test_get_stock_market_hours_caching():
 
     with patch.object(market_hours_service, "_now_utc", return_value=mock_ts):
         market_hours_service._reset_cache_for_tests()
-        with patch.object(market_hours_service, "_build_row", side_effect=counting_build):
+        with patch.object(
+            market_hours_service, "_build_row", side_effect=counting_build
+        ):
             first = await get_stock_market_hours()
             second = await get_stock_market_hours()
 

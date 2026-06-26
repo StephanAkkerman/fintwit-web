@@ -1,7 +1,5 @@
 """Tests for extended_hours_service window logic and snapshot shape."""
-import asyncio
 import pytest
-from datetime import datetime
 
 pytestmark = pytest.mark.asyncio
 
