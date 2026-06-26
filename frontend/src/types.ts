@@ -585,3 +585,19 @@ export type ExtendedHoursSnapshot = {
   etfs: ExtendedHoursEtf[]
   tweet_stats: ExtendedHoursTweetStats
 }
+
+export type MarketMover = {
+  symbol: string
+  name: string
+  price: number
+  extended_price: number
+  change_pct: number
+  volume: number
+  market_cap: number
+}
+
+export type MarketMoversSnapshot = {
+  session_type: 'pre-market' | 'after-hours' | string
+  gainers: MarketMover[]
+  losers: MarketMover[]
+}
