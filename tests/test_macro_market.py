@@ -5,7 +5,7 @@ import app.services.macro_market as macro_market
 
 @pytest.mark.asyncio
 async def test_get_macro_snapshot_builds_curves_and_fx_indices(monkeypatch):
-    async def fake_quote(symbol: str, asset_hint: str | None = None):
+    async def fake_quote(symbol: str, asset_hint: str | None = None, prefer_realtime: bool = True):
         quotes = {
             "CRYPTOCAP:TOTAL": {
                 "price": 2450000000000,
