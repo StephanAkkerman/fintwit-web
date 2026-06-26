@@ -40,6 +40,7 @@ from ..services.signa import get_signa_best_trades, get_signa_live_feed
 from ..services.stocktwits_service import get_stocktwits_data
 from ..services.unusual_whales import get_spy_heatmap
 from ..services.extended_hours_service import get_snapshot as get_extended_hours_snapshot
+from ..services.market_movers_service import get_market_movers
 
 with suppress(Exception):
     from dotenv import load_dotenv
@@ -260,6 +261,14 @@ async def stock_market_hours(_=Depends(api_key_dep)):
 @app.get("/api/stocks/extended-hours")
 async def stocks_extended_hours(_=Depends(api_key_dep)):
     data = await get_extended_hours_snapshot(Session)
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
+
+
+@app.get("/api/stocks/market-movers")
+async def stocks_market_movers(_=Depends(api_key_dep)):
+    data = await get_market_movers()
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data
