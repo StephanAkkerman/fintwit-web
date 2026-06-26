@@ -33,6 +33,7 @@ async def test_get_market_movers_shape(monkeypatch):
 
     assert result is not None
     assert result["session_type"] in ("pre-market", "after-hours")
+    assert result["stale"] is False
     assert len(result["gainers"]) == 10
     assert len(result["losers"]) == 10
     for key in ("symbol", "name", "price", "extended_price", "change_pct", "volume", "market_cap"):
@@ -69,3 +70,30 @@ async def test_get_market_movers_returns_none_when_fetch_fails(monkeypatch):
     result = await svc.get_market_movers()
 
     assert result is None
+
+
+async def test_get_market_movers_returns_stale_on_failure_with_warm_cache(monkeypatch):
+    import time as time_module
+    monkeypatch.setattr(svc, "_cache", None)
+
+    async def fake_fetch_success(prefix: str) -> tuple[list, list]:
+        return FAKE_GAINERS, FAKE_LOSERS
+
+    monkeypatch.setattr(svc, "_fetch_movers", fake_fetch_success)
+    fresh = await svc.get_market_movers()
+    assert fresh is not None
+    assert fresh["stale"] is False
+
+    # Expire the cache
+    current_prefix = svc._current_prefix()
+    monkeypatch.setattr(svc, "_cache", (time_module.time() - 400, current_prefix, fresh))
+
+    async def fake_fetch_fail(prefix: str) -> tuple[list, list]:
+        raise RuntimeError("scanner down")
+
+    monkeypatch.setattr(svc, "_fetch_movers", fake_fetch_fail)
+
+    stale = await svc.get_market_movers()
+    assert stale is not None
+    assert stale["stale"] is True
+    assert stale["gainers"] == fresh["gainers"]

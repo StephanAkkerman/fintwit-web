@@ -600,4 +600,5 @@ export type MarketMoversSnapshot = {
   session_type: 'pre-market' | 'after-hours' | string
   gainers: MarketMover[]
   losers: MarketMover[]
+  stale?: boolean
 }

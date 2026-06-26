@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 _ET = ZoneInfo("America/New_York")
 _SCANNER_URL = "https://scanner.tradingview.com/america/scan"
 _CACHE_TTL = 300  # seconds
-_cache: tuple[float, dict] | None = None
+_cache: tuple[float, str, dict] | None = None
 _lock = asyncio.Lock()
 
 
@@ -86,26 +86,30 @@ async def _fetch_movers(prefix: str) -> tuple[list, list]:
 async def get_market_movers() -> dict | None:
     global _cache
     async with _lock:
-        if _cache is not None:
-            ts, payload = _cache
-            if time.time() - ts < _CACHE_TTL:
-                return payload
-
         prefix = _current_prefix()
         session_type = "after-hours" if prefix == "postmarket" else "pre-market"
+
+        if _cache is not None:
+            ts, cached_prefix, payload = _cache
+            if cached_prefix == prefix and time.time() - ts < _CACHE_TTL:
+                return payload
 
         try:
             gainers, losers = await _fetch_movers(prefix)
         except Exception:
             logger.exception("Failed to fetch market movers from TradingView scanner")
+            if _cache is not None:
+                _, _, stale_payload = _cache
+                return {**stale_payload, "stale": True}
             return None
 
         payload = {
             "session_type": session_type,
             "gainers": gainers,
             "losers": losers,
+            "stale": False,
         }
-        _cache = (time.time(), payload)
+        _cache = (time.time(), prefix, payload)
         return payload
 
 

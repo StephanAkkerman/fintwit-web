@@ -92,6 +92,9 @@ export default function MarketMoversPanel() {
         <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
           {isPreMarket ? 'Pre-market Movers' : 'After-hours Movers'}
         </span>
+        {data.stale === true && (
+          <span className="text-xs text-amber-500 dark:text-amber-400">⚠ Stale</span>
+        )}
       </div>
       <div className="flex gap-6">
         <MoversTable
