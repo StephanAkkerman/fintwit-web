@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import BinanceGainersLosersWidget from './components/BinanceGainersLosersWidget'
 import DebugAdminPanel from './components/DebugAdminPanel'
 import EconomicEventsWidget from './components/EconomicEventsWidget'
+import ExtendedHoursPanel from './components/ExtendedHoursPanel'
 import ForexMacroWidget from './components/ForexMacroWidget'
+import MarketMoversPanel from './components/MarketMoversPanel'
 import { OverviewDashboard } from './components/OverviewDashboard'
 import IbkrPanel from './components/IbkrPanel'
 import OptionsOverviewWidget from './components/OptionsOverviewWidget'
@@ -575,6 +577,8 @@ export default function App() {
 
             {route === 'stocks' && (
               <>
+                <MarketMoversPanel />
+                <ExtendedHoursPanel />
                 <StockMarketHoursBanner />
                 <StockHaltsWidget />
                 <StocktwitsWidget />

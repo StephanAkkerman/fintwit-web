@@ -225,3 +225,59 @@ async def test_volume_baseline_7d_window_detects_spike(Session):
     spike = next((r for r in rows if r["ticker"] == "SPIKE"), None)
     assert spike is not None, "Expected SPIKE to appear; widget was empty at 7d window"
     assert spike["volume_multiplier"] > 1.5
+
+
+async def test_extended_hours_stats_counts(Session):
+    from app.services.mention_aggregator import get_extended_hours_stats
+
+    now = _now()
+    await _insert(Session, [
+        _tweet(10, ["NVDA"], "BULL",  0.8,  1, "EQUITY"),  # in window
+        _tweet(11, ["NVDA"], "BULL",  0.9,  1, "EQUITY"),  # in window
+        _tweet(12, ["AAPL"], "BEAR", -0.5,  1, "EQUITY"),  # in window
+        _tweet(13, ["NVDA"], "BULL",  0.7, 10, "EQUITY"),  # outside window
+    ])
+    since = now - timedelta(hours=5)
+    until = now + timedelta(hours=1)
+
+    result = await get_extended_hours_stats(Session, since, until, top_n=10)
+
+    assert result["total_mentions"] == 3
+    assert result["top_tickers"][0]["ticker"] == "NVDA"
+    assert result["top_tickers"][0]["mentions"] == 2
+    assert result["top_tickers"][0]["sentiment"] == "BULL"
+    assert result["sentiment_distribution"]["BULL"] == 2
+    assert result["sentiment_distribution"]["BEAR"] == 1
+    assert result["sentiment_distribution"]["NEUTRAL"] == 0
+
+
+async def test_extended_hours_stats_empty_window(Session):
+    from app.services.mention_aggregator import get_extended_hours_stats
+
+    now = _now()
+    # Window is entirely in the future — no tweets match.
+    since = now + timedelta(hours=1)
+    until = now + timedelta(hours=6)
+
+    result = await get_extended_hours_stats(Session, since, until)
+
+    assert result["total_mentions"] == 0
+    assert result["top_tickers"] == []
+    assert result["sentiment_distribution"] == {"BULL": 0, "BEAR": 0, "NEUTRAL": 0}
+
+
+async def test_extended_hours_stats_top_n(Session):
+    from app.services.mention_aggregator import get_extended_hours_stats
+
+    now = _now()
+    # Insert 5 distinct tickers, 3 mentions each.
+    for i, ticker in enumerate(["A", "B", "C", "D", "E"]):
+        for j in range(3):
+            await _insert(Session, [_tweet(i * 10 + j, [ticker], "NEUTRAL", 0.0, 1)])
+
+    since = now - timedelta(hours=5)
+    until = now + timedelta(hours=1)
+
+    result = await get_extended_hours_stats(Session, since, until, top_n=3)
+
+    assert len(result["top_tickers"]) == 3

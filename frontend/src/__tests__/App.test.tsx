@@ -44,6 +44,31 @@ beforeEach(() => {
     if (url.includes('/api/stocktwits')) {
       return Promise.resolve({ ok: true, json: async () => [] } as Response)
     }
+    if (url.includes('/api/stocks/extended-hours')) {
+      return Promise.resolve(
+        {
+          ok: true,
+          json: async () => ({
+            session: 'regular',
+            window_start: '2026-06-25T04:00:00-04:00',
+            window_end: '2026-06-25T09:30:00-04:00',
+            futures: [],
+            etfs: [],
+            tweet_stats: {
+              total_mentions: 0,
+              top_tickers: [],
+              sentiment_distribution: { BULL: 0, BEAR: 0, NEUTRAL: 0 },
+            },
+          }),
+        } as Response
+      )
+    }
+    if (url.includes('/api/stocks/market-movers')) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ session_type: 'pre-market', gainers: [], losers: [] }),
+      } as Response)
+    }
     if (url.includes('/api/stocks/market-hours')) {
       return Promise.resolve({ ok: true, json: async () => [] } as Response)
     }
