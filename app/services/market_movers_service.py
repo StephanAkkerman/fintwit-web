@@ -46,6 +46,8 @@ def _build_payload(prefix: str, sort_order: str) -> dict:
 def _parse_rows(rows: list) -> list[dict]:
     result = []
     for item in rows:
+        if not isinstance(item, dict):
+            continue
         d = item.get("d", [])
         if len(d) < 7:
             continue
@@ -65,21 +67,21 @@ def _parse_rows(rows: list) -> list[dict]:
 
 
 async def _fetch_movers(prefix: str) -> tuple[list, list]:
-    async def _post(payload: dict) -> list:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                _SCANNER_URL,
-                json=payload,
-                timeout=aiohttp.ClientTimeout(total=10),
-            ) as r:
-                r.raise_for_status()
-                body = await r.json(content_type=None)
-                return body.get("data") or []
+    async def _post(session: aiohttp.ClientSession, payload: dict) -> list:
+        async with session.post(
+            _SCANNER_URL,
+            json=payload,
+            timeout=aiohttp.ClientTimeout(total=10),
+        ) as r:
+            r.raise_for_status()
+            body = await r.json(content_type=None)
+            return body.get("data") or []
 
-    gainers_raw, losers_raw = await asyncio.gather(
-        _post(_build_payload(prefix, "desc")),
-        _post(_build_payload(prefix, "asc")),
-    )
+    async with aiohttp.ClientSession() as session:
+        gainers_raw, losers_raw = await asyncio.gather(
+            _post(session, _build_payload(prefix, "desc")),
+            _post(session, _build_payload(prefix, "asc")),
+        )
     return _parse_rows(gainers_raw), _parse_rows(losers_raw)
 
 

@@ -10,9 +10,12 @@ export function useMarketMovers() {
 
   useEffect(() => {
     let cancelled = false
+    let currentController: AbortController | null = null
 
     const load = () => {
+      if (currentController) currentController.abort()
       const controller = new AbortController()
+      currentController = controller
 
       fetch('/api/stocks/market-movers', { signal: controller.signal })
         .then((res) => {
@@ -29,18 +32,16 @@ export function useMarketMovers() {
           setError(true)
         })
         .finally(() => {
-          if (!cancelled) setLoading(false)
+          if (!cancelled && currentController === controller) setLoading(false)
         })
-
-      return controller
     }
 
-    const controller = load()
-    const id = setInterval(() => load(), POLL_INTERVAL_MS)
+    load()
+    const id = setInterval(load, POLL_INTERVAL_MS)
 
     return () => {
       cancelled = true
-      controller.abort()
+      if (currentController) currentController.abort()
       clearInterval(id)
     }
   }, [])
