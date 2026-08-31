@@ -1,4 +1,5 @@
 import type { Asset } from '../types'
+import AssetFundamentals from './AssetFundamentals'
 import SignaSignal from './SignaSignal'
 import TradingViewAnalysis from './TradingViewAnalysis'
 
@@ -41,6 +42,7 @@ export default function AssetBadge({ asset }: { asset: Asset }) {
 
         </div>
       </div>
+      <AssetFundamentals asset={asset} />
       <TradingViewAnalysis analysis={technical_analysis} />
       <SignaSignal signal={signa} className="mt-1.5" />
     </a>

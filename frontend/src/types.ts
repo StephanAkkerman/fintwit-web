@@ -43,6 +43,22 @@ export type AssetFinancials = {
   signa?: AssetSignaSignal | null;
 };
 
+/**
+ * Slow-moving valuation/volume metrics from the classifier's Yahoo quote.
+ * Every field is optional: only what Yahoo actually reported is present, so a
+ * missing field means "unknown", never zero.
+ */
+export type AssetFundamentals = {
+  market_cap?: number | null;
+  forward_pe?: number | null;
+  trailing_pe?: number | null;
+  eps_forward?: number | null;
+  eps_trailing?: number | null;
+  avg_volume?: number | null; // 3-month average daily volume, in shares
+  avg_volume_10d?: number | null; // 10-day average daily volume, in shares
+  currency?: string | null;
+};
+
 export type AssetCompanyProfile = {
   industry_group?: string | null;
   country?: string | null;
@@ -60,6 +76,7 @@ export type Asset = {
   sector?: string | null;
   industry?: string | null;
   company_profile?: AssetCompanyProfile | null;
+  fundamentals?: AssetFundamentals | null;
   meta?: unknown;
   financials?: AssetFinancials | null;
 };

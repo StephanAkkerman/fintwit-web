@@ -22,6 +22,7 @@ Last updated: 2026-06-17
 - Asset extraction signal tightening: enrichment now uses cashtags/tickers only (not hashtags) so topic hashtags (for example `#OOTT`, `#Tankers`) do not generate asset cards.
 - Equity asset enrichment now includes optional `sector` and `industry` metadata (for example `AAPL`/`NVDA` tagged as technology) sourced from classifier metadata.
 - Equity/ETF asset enrichment now includes optional `company_profile` metadata (`industry_group`, `country`, `exchange`, `currency`, `website`, `market_cap_category`) from classifier metadata.
+- Asset enrichment now includes an optional `fundamentals` block (`market_cap`, `forward_pe`, `trailing_pe`, `eps_forward`, `eps_trailing`, `avg_volume`, `avg_volume_10d`, `currency`) extracted from the Yahoo quote `ticker-classifier` already fetches, so it adds no network calls. Market cap, forward P/E (falling back to trailing P/E), average volume and the industry/sector are now shown by default on tweet asset cards alongside the technical-analysis rows.
 - Crypto enrichment hardening: CoinGecko caching and Yahoo `-USD` fallback when CoinGecko returns rate-limit/transient failures.
 - FinTwitBERT sentiment classification for streamed tweets with separate main-post and quoted-post outputs (main: `sentiment_*`, quoted: `quoted_sentiment_*`).
 - Full nested quoted tweet payload passthrough (`quoted_tweet`) from xtimeline is now persisted and served via `/api/posts`/`/api/stream`.
@@ -114,6 +115,7 @@ Last updated: 2026-06-17
 - Options tweet intent metadata: `/api/posts` + `/api/stream` -> options route timeline filtering (`is_options_tweet`, `options_context`).
 - Market overview stream assets: `/api/posts` + `/api/stream` -> `MarketOverview`.
 - TradingView TA summaries: `/api/posts` + `/api/stream` -> `tweet.assets[*].financials.technical_analysis` -> `TweetCard` / `AssetBadge`.
+- Asset fundamentals: `/api/posts` + `/api/stream` -> `tweet.assets[*].fundamentals` -> `AssetFundamentals` in `TweetCard` / `AssetBadge`.
 - Ticker mention pulse: `/api/posts` + `/api/stream` -> `TickerMentionsPanel` (route-scoped + user-scoped mention analytics).
 - Debug admin panel: `/api/debug/tweet` -> `DebugAdminPanel` (`/admin`).
 - Portfolio panel: `/api/portfolio/positions` + `/api/portfolio/summary` -> `PortfolioPanel` (`/portfolio`).

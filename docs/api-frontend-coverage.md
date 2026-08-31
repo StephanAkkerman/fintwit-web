@@ -56,6 +56,7 @@ The enriched values are attached under `tweet.assets[*].financials` and consumed
 `tweet.assets[*].financials.technical_analysis` carries TradingView 4H/1D recommendation summaries for ticker widgets.
 `tweet.assets[*].financials.signa` carries the Signa signal verdict (`signal`, `score`, `trend`, `confidence`, `timeframe`) for equity-like kinds only (`EQUITY`, `ETF`, `INDEX`, `FUTURE`); the verdict is color-coded green/red/grey by direction in the UI.
 Static classification metadata under `tweet.assets[*]` may also include `sector` and `industry` for equities.
+`tweet.assets[*].fundamentals` carries slow-moving valuation/volume metrics read from the same Yahoo quote `ticker-classifier` uses to classify the symbol, so it costs no extra requests: `market_cap`, `forward_pe`, `trailing_pe`, `eps_forward`, `eps_trailing`, `avg_volume` (3-month daily average, in shares), `avg_volume_10d`, and `currency`. Only the fields Yahoo actually reported are present -- a missing field means unknown, never zero -- and non-positive ratios/volumes are dropped rather than rendered as `0`. Crypto assets carry a `market_cap` alone (from CoinGecko); indices, futures and forex pairs generally carry no fundamentals at all.
 Ambiguous symbols are disambiguated in enrichment with local overrides before cache/classifier fallback (for example `ETH` is forced to crypto, and `EURUSD`/`USOIL` map to Yahoo-compatible lookups).
 Unsupported classifier kinds (for example `UNKNOWN`) are excluded from `tweet.assets` so topic hashtags are less likely to appear as false asset cards.
 Asset enrichment is driven by cashtags/tickers; hashtags are still returned in tweet metadata but are not promoted to asset cards by themselves.
@@ -79,6 +80,7 @@ For equities/ETFs, `tweet.assets[*].company_profile` may include curated finance
   - `assets[].symbol` and `assets[].kind` for ticker and route-scoped filtering,
   - `user_name` and `user_screen_name` for user-based filtering from sidebar input and author click actions,
   - `is_subscriber_only` for the sidebar subscriber-only filter and exclusivity badges,
+  - `assets[].fundamentals` plus `assets[].sector`/`assets[].industry` for the `AssetFundamentals` strip shown by default in `TweetCard` and `AssetBadge` (market cap, forward P/E falling back to trailing P/E, 3-month average volume, and the industry with the sector kept in its tooltip),
   - `assets[].financials.technical_analysis` for TradingView 4H/1D summary rows in `TweetCard` and `AssetBadge` (recommendation color-coded by direction via `directionColor`),
   - `assets[].financials.signa` for the Signa signal row in `TweetCard` and `AssetBadge` (verdict color-coded green/red/grey via `directionColor`),
   - `assets[].financials.website` for price links,
