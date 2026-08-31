@@ -142,6 +142,7 @@ def _build_local_cache_entry(symbol: str, override: dict) -> dict:
         "sector": None,
         "industry": None,
         "company_profile": None,
+        "fundamentals": None,
         "meta": None,
         "yahoo_lookup": yahoo_lookup,
     }
@@ -211,6 +212,15 @@ class AssetEnricher:
                     if not isinstance(company_profile, dict):
                         company_profile = None
 
+                    fundamentals = getattr(r, "fundamentals", None)
+                    if not isinstance(fundamentals, dict):
+                        try:
+                            fundamentals = r.get("fundamentals")
+                        except Exception:
+                            fundamentals = None
+                    if not isinstance(fundamentals, dict):
+                        fundamentals = None
+
                     yahoo_lookup_value = getattr(r, "yahoo_lookup", None)
                     if not isinstance(yahoo_lookup_value, str):
                         try:
@@ -233,6 +243,7 @@ class AssetEnricher:
                         "sector": sector,
                         "industry": industry,
                         "company_profile": company_profile,
+                        "fundamentals": fundamentals,
                         "meta": meta,
                         "yahoo_lookup": yahoo_lookup,
                     }
