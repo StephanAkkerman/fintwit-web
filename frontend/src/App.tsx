@@ -8,6 +8,9 @@ import MarketMoversPanel from './components/MarketMoversPanel'
 import { OverviewDashboard } from './components/OverviewDashboard'
 import IbkrPanel from './components/IbkrPanel'
 import OptionsOverviewWidget from './components/OptionsOverviewWidget'
+import PortfolioAssetInsights from './components/PortfolioAssetInsights'
+import PortfolioPanel from './components/PortfolioPanel'
+import PortfolioValueChart from './components/PortfolioValueChart'
 import SignaSection from './components/SignaSection'
 import SpyHeatmapWidget from './components/SpyHeatmapWidget'
 import StockHaltsWidget from './components/StockHaltsWidget'
@@ -41,7 +44,7 @@ const SECTIONS: Array<{ key: RouteKey; label: string; path: string; subtitle: st
   { key: 'forex', label: 'Forex', path: '/forex', subtitle: 'Macro events and FX sentiment' },
   { key: 'options', label: 'Options', path: '/options', subtitle: 'Flow activity and put/call balance' },
   { key: 'signa', label: 'Signa', path: '/signa', subtitle: 'Best trades + live model signals from getsigna.ai' },
-  { key: 'portfolio', label: 'Portfolio', path: '/portfolio', subtitle: 'IBKR stock positions and PnL' },
+  { key: 'portfolio', label: 'Portfolio', path: '/portfolio', subtitle: 'Value over time, asset context and PnL' },
   { key: 'admin', label: 'Admin', path: '/admin', subtitle: 'Debug tweet injection and verification' },
 ]
 
@@ -598,15 +601,20 @@ export default function App() {
             {route === 'signa' && <SignaSection />}
 
             {route === 'portfolio' && (
-              <IbkrPanel
-                status={ibkrStatus}
-                positions={ibkrPositions}
-                trades={ibkrTrades}
-                account={ibkrAccount}
-                loading={ibkrLoading}
-                error={ibkrError}
-                reload={reloadIbkr}
-              />
+              <>
+                <PortfolioValueChart />
+                <PortfolioAssetInsights />
+                <IbkrPanel
+                  status={ibkrStatus}
+                  positions={ibkrPositions}
+                  trades={ibkrTrades}
+                  account={ibkrAccount}
+                  loading={ibkrLoading}
+                  error={ibkrError}
+                  reload={reloadIbkr}
+                />
+                <PortfolioPanel />
+              </>
             )}
 
             {route === 'admin' && <DebugAdminPanel />}

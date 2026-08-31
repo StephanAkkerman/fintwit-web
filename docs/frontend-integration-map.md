@@ -1,6 +1,6 @@
 # Frontend Integration Map
 
-Last updated: 2026-05-05
+Last updated: 2026-08-31
 
 ## Mounted in `App.tsx` Today
 
@@ -50,6 +50,12 @@ Route-level sections:
   - Tweet timeline sourced from options-only tweet feed (`/api/posts?...&options_only=true` + `/api/stream?options_only=true`)
 
 - `/portfolio`
+  - `PortfolioValueChart`
+  - Portfolio value over time with selectable ranges (1W/1M/3M/6M/YTD/1Y/5Y/MAX), cost-basis reference line, and a table view
+  - `PortfolioAssetInsights`
+  - Per-asset ATH/ATL distance, 52-week range position, and highlight badges (at/near/recently at an extreme)
+  - `IbkrPanel`
+  - Live IBKR account summary, open positions, and today's executions
   - `PortfolioPanel`
   - Add/list/toggle/delete IBKR-style stock positions
   - Summary cards backed by live valuation/PnL
@@ -139,6 +145,14 @@ Route-level sections:
   - Fetches: `/api/portfolio/positions` and `/api/portfolio/summary`
   - Mutates: `POST /api/portfolio/positions`, `PATCH /api/portfolio/positions/{position_id}`, `DELETE /api/portfolio/positions/{position_id}`
   - Purpose: manage IBKR stock positions and monitor live unrealized PnL.
+
+- `PortfolioValueChart` + `usePortfolioHistory`
+  - Fetches: `/api/portfolio/history?range=...` (polls every 5m; holds the previous render at reduced opacity while a new range loads)
+  - Purpose: show portfolio value over time against cost basis, labelling each point as a recorded snapshot, a price reconstruction, or the live quote.
+
+- `PortfolioAssetInsights` + `usePortfolioInsights`
+  - Fetches: `/api/portfolio/insights` (polls every 5m)
+  - Purpose: surface which holdings are at, near, or recently at an all-time high/low, plus their 52-week range position and weight.
 
 ## Not Yet Mounted
 

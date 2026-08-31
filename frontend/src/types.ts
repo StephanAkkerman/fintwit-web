@@ -326,6 +326,111 @@ export type PortfolioSummary = {
   positions: PortfolioSummaryPosition[];
 };
 
+export type PortfolioHoldingSource = 'auto' | 'manual' | 'ibkr';
+
+export type PortfolioHistoryRange = '1W' | '1M' | '3M' | '6M' | 'YTD' | '1Y' | '5Y' | 'MAX';
+
+export type PortfolioHistoryPoint = {
+  t: string;
+  value: number;
+  cost_basis: number;
+  pnl: number;
+  pnl_percent: number;
+  /** Where the point came from: a stored snapshot, price reconstruction, or the live quote. */
+  source: 'snapshot' | 'reconstructed' | 'live';
+};
+
+export type PortfolioHistory = {
+  source: PortfolioHoldingSource;
+  range: PortfolioHistoryRange;
+  available_ranges: PortfolioHistoryRange[];
+  holdings: string[];
+  totals?: PortfolioTotals;
+  points: PortfolioHistoryPoint[];
+  cost_basis: number;
+  start_value: number | null;
+  end_value: number | null;
+  change: number | null;
+  change_percent: number | null;
+  missing_symbols: string[];
+};
+
+export type PortfolioTotals = {
+  positions: number;
+  market_value: number;
+  cost_basis: number;
+  unrealized_pnl: number;
+  unrealized_pnl_percent: number;
+};
+
+export type PortfolioExtreme = {
+  value: number;
+  date: string;
+};
+
+export type PortfolioFlagTone = 'bullish' | 'bearish' | 'neutral';
+
+export type PortfolioAssetFlag = {
+  code:
+    | 'at_ath'
+    | 'near_ath'
+    | 'recent_ath'
+    | 'at_atl'
+    | 'near_atl'
+    | 'recent_atl'
+    | 'near_52w_high'
+    | 'near_52w_low';
+  label: string;
+  tone: PortfolioFlagTone;
+};
+
+export type PortfolioAssetStats = {
+  symbol: string;
+  price: number | null;
+  last_close: number | null;
+  history_start: string | null;
+  all_time_high: PortfolioExtreme | null;
+  all_time_low: PortfolioExtreme | null;
+  week_52_high: PortfolioExtreme | null;
+  week_52_low: PortfolioExtreme | null;
+  from_ath_percent: number | null;
+  from_atl_percent: number | null;
+  from_52w_high_percent: number | null;
+  from_52w_low_percent: number | null;
+  range_position_52w: number | null;
+  days_since_ath: number | null;
+  days_since_atl: number | null;
+  flags: PortfolioAssetFlag[];
+};
+
+export type PortfolioInsightPosition = {
+  symbol: string;
+  quantity: number;
+  avg_cost: number;
+  cost_basis: number;
+  currency: string;
+  market_price: number | null;
+  market_value: number;
+  unrealized_pnl: number;
+  unrealized_pnl_percent: number;
+  change_percent: number | null;
+  weight_percent: number;
+  website?: string | null;
+  stats: PortfolioAssetStats | null;
+};
+
+export type PortfolioHighlight = PortfolioAssetFlag & {
+  symbol: string;
+  weight_percent: number | null;
+};
+
+export type PortfolioInsights = {
+  source: PortfolioHoldingSource;
+  totals: PortfolioTotals;
+  positions: PortfolioInsightPosition[];
+  highlights: PortfolioHighlight[];
+};
+
 export type RedditPost = {
   id: string;
   subreddit: string;

@@ -44,6 +44,8 @@ services:
       # Keep this aligned with TRADING_MODE (live=4003, paper=4004).
       IBKR_PORT: ${IBKR_PORT:-4003}
       IBKR_SYNC_INTERVAL: "60"
+      # How often the portfolio value snapshot worker records total value.
+      PORTFOLIO_SNAPSHOT_INTERVAL: ${PORTFOLIO_SNAPSHOT_INTERVAL:-1800}
     volumes:
       - ./state:/app/state
       - ./logs:/app/logs

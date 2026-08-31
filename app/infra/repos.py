@@ -5,7 +5,13 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from .db import IbkrPositionRow, IbkrTradeRow, PortfolioPositionRow, TweetRow
+from .db import (
+    IbkrPositionRow,
+    IbkrTradeRow,
+    PortfolioPositionRow,
+    PortfolioSnapshotRow,
+    TweetRow,
+)
 
 _TWEET_COLUMNS = {c.name for c in TweetRow.__table__.c}
 
@@ -54,6 +60,20 @@ def _row_to_dict(r: TweetRow) -> dict:
         "is_options_tweet": r.is_options_tweet,
         "options_context": r.options_context,
         "assets": r.assets,
+    }
+
+
+def _snapshot_row_to_dict(r: PortfolioSnapshotRow) -> dict:
+    return {
+        "id": r.id,
+        "source": r.source,
+        "captured_at": _iso_utc(r.captured_at),
+        "market_value": float(r.market_value),
+        "cost_basis": float(r.cost_basis),
+        "unrealized_pnl": float(r.unrealized_pnl),
+        "unrealized_pnl_percent": float(r.unrealized_pnl_percent),
+        "positions": int(r.positions or 0),
+        "breakdown": r.breakdown,
     }
 
 
@@ -243,6 +263,69 @@ class PortfolioRepo:
                     )
                 )
         return bool(result.rowcount)
+
+
+    async def add_snapshot(self, payload: dict) -> dict:
+        """Persist a point-in-time portfolio valuation.
+
+        :param payload: Snapshot fields; ``captured_at`` defaults to now (UTC).
+        :return: The stored snapshot as a dict.
+        """
+        row = PortfolioSnapshotRow(
+            source=payload.get("source", "manual"),
+            captured_at=payload.get("captured_at") or datetime.now(timezone.utc),
+            market_value=float(payload.get("market_value", 0.0)),
+            cost_basis=float(payload.get("cost_basis", 0.0)),
+            unrealized_pnl=float(payload.get("unrealized_pnl", 0.0)),
+            unrealized_pnl_percent=float(payload.get("unrealized_pnl_percent", 0.0)),
+            positions=int(payload.get("positions", 0)),
+            breakdown=payload.get("breakdown"),
+        )
+        async with self.Session() as s:
+            async with s.begin():
+                s.add(row)
+            await s.refresh(row)
+        return _snapshot_row_to_dict(row)
+
+    async def list_snapshots(
+        self,
+        *,
+        source: str | None = None,
+        since: datetime | None = None,
+        limit: int = 2000,
+    ) -> list[dict]:
+        """Return snapshots oldest-first, optionally filtered by source/date.
+
+        :param source: Holdings source the snapshot was taken for.
+        :param since: Only snapshots captured at or after this moment.
+        :param limit: Maximum number of snapshots to return.
+        """
+        stmt = select(PortfolioSnapshotRow).order_by(
+            PortfolioSnapshotRow.captured_at.asc()
+        )
+        if source is not None:
+            stmt = stmt.where(PortfolioSnapshotRow.source == source)
+        if since is not None:
+            stmt = stmt.where(PortfolioSnapshotRow.captured_at >= since)
+        stmt = stmt.limit(limit)
+
+        async with self.Session() as s:
+            rows = (await s.execute(stmt)).scalars().all()
+        return [_snapshot_row_to_dict(r) for r in rows]
+
+    async def latest_snapshot(self, *, source: str | None = None) -> dict | None:
+        """Return the most recent snapshot, or ``None`` when none exist."""
+        stmt = (
+            select(PortfolioSnapshotRow)
+            .order_by(PortfolioSnapshotRow.captured_at.desc())
+            .limit(1)
+        )
+        if source is not None:
+            stmt = stmt.where(PortfolioSnapshotRow.source == source)
+
+        async with self.Session() as s:
+            row = (await s.execute(stmt)).scalars().first()
+        return _snapshot_row_to_dict(row) if row else None
 
 
 def _ibkr_position_to_dict(r: IbkrPositionRow) -> dict:
