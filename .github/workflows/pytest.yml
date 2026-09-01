@@ -32,4 +32,4 @@ jobs:
             # The floor sits just under today's number so it ratchets rather
             # than drifts; raise it when coverage genuinely improves.
             - name: Run pytest
-              run: python -m pytest --disable-warnings -q --cov=app --cov-report=term-missing:skip-covered --cov-fail-under=68
+              run: python -m pytest --disable-warnings -q --cov=app --cov-report=term-missing:skip-covered --cov-fail-under=71

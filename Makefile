@@ -19,7 +19,7 @@ check: check-backend check-frontend
 check-backend:
 	ruff check .
 	ruff format --check .
-	python -m pytest --disable-warnings -q --cov=app --cov-report=term-missing:skip-covered --cov-fail-under=68
+	python -m pytest --disable-warnings -q --cov=app --cov-report=term-missing:skip-covered --cov-fail-under=71
 
 # `cd` per line: make runs each recipe line in its own shell, and npx needs the
 # frontend as its working directory to find tsconfig.json.
