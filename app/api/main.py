@@ -54,7 +54,9 @@ from ..services.reddit_service import get_reddit_hot_posts, is_valid_subreddit_n
 from ..services.signa import get_signa_best_trades, get_signa_live_feed
 from ..services.stocktwits_service import get_stocktwits_data
 from ..services.unusual_whales import get_spy_heatmap
-from ..services.extended_hours_service import get_snapshot as get_extended_hours_snapshot
+from ..services.extended_hours_service import (
+    get_snapshot as get_extended_hours_snapshot,
+)
 from ..services.market_movers_service import get_market_movers
 
 with suppress(Exception):

@@ -6,15 +6,18 @@ from app.api.main import app
 
 import pytest_asyncio
 
+
 @pytest_asyncio.fixture
 async def async_client():
     from httpx import AsyncClient
+
     # Setup state that the lifespan context manager would normally provide
     app.state.http_client = AsyncClient()
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
     await app.state.http_client.aclose()
+
 
 MOCK_HTML_RESPONSE = """
 <html>
@@ -46,6 +49,7 @@ MOCK_HTML_RESPONSE = """
 </html>
 """
 
+
 @pytest.mark.asyncio
 async def test_get_stock_halts_success(async_client):
     today = datetime.datetime.now().strftime("%m/%d/%Y")
@@ -65,6 +69,7 @@ async def test_get_stock_halts_success(async_client):
         assert data[1]["Issue Symbol"] == "HALT"
         assert data[1]["Resumption Time"] == "?"
 
+
 @pytest.mark.asyncio
 async def test_get_stock_halts_error(async_client):
     mock_fetch = AsyncMock(return_value=None)
@@ -75,6 +80,7 @@ async def test_get_stock_halts_error(async_client):
         )
         assert response.status_code == 503
         assert response.json() == {"detail": "Service Unavailable"}
+
 
 @pytest.mark.asyncio
 async def test_get_stock_halts_unauthorized(async_client):

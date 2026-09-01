@@ -106,6 +106,4 @@ def test_backoff_logs_warning_on_rate_limit(caplog):
         ta._get_analysis_with_backoff(handler, "AAPL", sleep=sleep)
 
     messages = [r.getMessage() for r in caplog.records]
-    assert any(
-        "rate limit hit on AAPL" in m and "backing off" in m for m in messages
-    )
+    assert any("rate limit hit on AAPL" in m and "backing off" in m for m in messages)

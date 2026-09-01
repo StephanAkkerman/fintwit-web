@@ -1,4 +1,5 @@
 """Tests for GET /api/stocks/market-movers."""
+
 import pytest
 from unittest.mock import AsyncMock, patch
 from httpx import ASGITransport, AsyncClient
@@ -11,16 +12,24 @@ _MOCK_PAYLOAD = {
     "session_type": "pre-market",
     "gainers": [
         {
-            "symbol": "NVDA", "name": "NVIDIA Corp", "price": 900.0,
-            "extended_price": 910.0, "change_pct": 1.11,
-            "volume": 500_000, "market_cap": 2e12,
+            "symbol": "NVDA",
+            "name": "NVIDIA Corp",
+            "price": 900.0,
+            "extended_price": 910.0,
+            "change_pct": 1.11,
+            "volume": 500_000,
+            "market_cap": 2e12,
         }
     ],
     "losers": [
         {
-            "symbol": "TSLA", "name": "Tesla Inc", "price": 200.0,
-            "extended_price": 196.0, "change_pct": -2.0,
-            "volume": 300_000, "market_cap": 6e11,
+            "symbol": "TSLA",
+            "name": "Tesla Inc",
+            "price": 200.0,
+            "extended_price": 196.0,
+            "change_pct": -2.0,
+            "volume": 300_000,
+            "market_cap": 6e11,
         }
     ],
 }

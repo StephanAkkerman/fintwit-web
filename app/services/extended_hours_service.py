@@ -39,15 +39,15 @@ def _window_bounds(session: str) -> tuple[str, str, datetime, datetime]:
     today = now_et.date()
 
     if session == "pre-market":
-        start = datetime.combine(today, dt_time(4, 0),  tzinfo=_ET)
-        end   = datetime.combine(today, dt_time(9, 30), tzinfo=_ET)
+        start = datetime.combine(today, dt_time(4, 0), tzinfo=_ET)
+        end = datetime.combine(today, dt_time(9, 30), tzinfo=_ET)
     elif session == "after-hours":
         start = datetime.combine(today, dt_time(16, 0), tzinfo=_ET)
-        end   = datetime.combine(today, dt_time(20, 0), tzinfo=_ET)
+        end = datetime.combine(today, dt_time(20, 0), tzinfo=_ET)
     elif session == "regular":
         # Most-recently completed session before open: today's pre-market.
-        start = datetime.combine(today, dt_time(4, 0),  tzinfo=_ET)
-        end   = datetime.combine(today, dt_time(9, 30), tzinfo=_ET)
+        start = datetime.combine(today, dt_time(4, 0), tzinfo=_ET)
+        end = datetime.combine(today, dt_time(9, 30), tzinfo=_ET)
     else:
         # closed (overnight, weekend, holiday)
         # Before 4 PM: last completed after-hours was yesterday's.
@@ -55,10 +55,10 @@ def _window_bounds(session: str) -> tuple[str, str, datetime, datetime]:
         if now_et.hour < 16:
             yesterday = today - timedelta(days=1)
             start = datetime.combine(yesterday, dt_time(16, 0), tzinfo=_ET)
-            end   = datetime.combine(yesterday, dt_time(20, 0), tzinfo=_ET)
+            end = datetime.combine(yesterday, dt_time(20, 0), tzinfo=_ET)
         else:
             start = datetime.combine(today, dt_time(16, 0), tzinfo=_ET)
-            end   = datetime.combine(today, dt_time(20, 0), tzinfo=_ET)
+            end = datetime.combine(today, dt_time(20, 0), tzinfo=_ET)
 
     return (
         start.isoformat(),
@@ -107,12 +107,16 @@ async def _fetch_etfs() -> list[dict]:
                 if not isinstance(price, (int, float)):
                     return None
                 ext_price = result.get("extended_price")
-                ext_pct   = result.get("extended_change_percent")
+                ext_pct = result.get("extended_change_percent")
                 return {
                     "symbol": symbol,
                     "price": float(price),
-                    "extended_price":      float(ext_price) if ext_price is not None else None,
-                    "extended_change_pct": float(ext_pct)   if ext_pct   is not None else None,
+                    "extended_price": float(ext_price)
+                    if ext_price is not None
+                    else None,
+                    "extended_change_pct": float(ext_pct)
+                    if ext_pct is not None
+                    else None,
                 }
             except Exception as exc:
                 logger.debug("[extended-hours] ETF %s failed: %r", symbol, exc)
@@ -133,7 +137,9 @@ async def get_snapshot(Session: async_sessionmaker) -> dict | None:
 
         try:
             session = get_us_stock_session()
-            window_start_iso, window_end_iso, since_dt, until_dt = _window_bounds(session)
+            window_start_iso, window_end_iso, since_dt, until_dt = _window_bounds(
+                session
+            )
 
             futures, etfs, tweet_stats = await asyncio.gather(
                 _fetch_futures(),

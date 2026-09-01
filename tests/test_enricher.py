@@ -261,9 +261,7 @@ async def test_classify_dxy_uses_classifier_yahoo_lookup():
 @pytest.mark.asyncio
 async def test_classify_eurusd_pair_uses_local_forex_override():
     enricher = AssetEnricher()
-    with patch.object(
-        enricher._cls, "classify_async", return_value=[]
-    ) as mock_cls:
+    with patch.object(enricher._cls, "classify_async", return_value=[]) as mock_cls:
         result = await enricher.classify(["EURUSD"])
 
     mock_cls.assert_not_called()
@@ -277,9 +275,7 @@ async def test_classify_eurusd_pair_uses_local_forex_override():
 @pytest.mark.asyncio
 async def test_classify_usoil_uses_local_commodity_override():
     enricher = AssetEnricher()
-    with patch.object(
-        enricher._cls, "classify_async", return_value=[]
-    ) as mock_cls:
+    with patch.object(enricher._cls, "classify_async", return_value=[]) as mock_cls:
         result = await enricher.classify(["USOIL"])
 
     mock_cls.assert_not_called()
@@ -293,9 +289,7 @@ async def test_classify_usoil_uses_local_commodity_override():
 @pytest.mark.asyncio
 async def test_classify_nq_uses_local_future_override():
     enricher = AssetEnricher()
-    with patch.object(
-        enricher._cls, "classify_async", return_value=[]
-    ) as mock_cls:
+    with patch.object(enricher._cls, "classify_async", return_value=[]) as mock_cls:
         result = await enricher.classify(["NQ"])
 
     mock_cls.assert_not_called()
@@ -321,9 +315,7 @@ async def test_classify_ym_local_override_replaces_stale_cached_crypto():
         "yahoo_lookup": "YM-USD",
     }
 
-    with patch.object(
-        enricher._cls, "classify_async", return_value=[]
-    ) as mock_cls:
+    with patch.object(enricher._cls, "classify_async", return_value=[]) as mock_cls:
         result = await enricher.classify(["YM"])
 
     mock_cls.assert_not_called()
@@ -336,9 +328,7 @@ async def test_classify_ym_local_override_replaces_stale_cached_crypto():
 @pytest.mark.asyncio
 async def test_classify_eth_uses_local_crypto_override():
     enricher = AssetEnricher()
-    with patch.object(
-        enricher._cls, "classify_async", return_value=[]
-    ) as mock_cls:
+    with patch.object(enricher._cls, "classify_async", return_value=[]) as mock_cls:
         result = await enricher.classify(["ETH"])
 
     mock_cls.assert_not_called()
@@ -397,9 +387,7 @@ async def test_classify_excludes_unknown_but_keeps_supported_kinds():
     unknown = _mock_classifier_result("OOTT", "UNKNOWN")
     equity = _mock_classifier_result("AAPL", "EQUITY")
 
-    with patch.object(
-        enricher._cls, "classify_async", return_value=[unknown, equity]
-    ):
+    with patch.object(enricher._cls, "classify_async", return_value=[unknown, equity]):
         result = await enricher.classify(["OOTT", "AAPL"])
 
     assert len(result) == 1

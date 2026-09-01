@@ -3,6 +3,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 async def get_feargreed() -> dict | None:
     """
     Gets the last 2 Fear and Greed indices from the API.
@@ -23,14 +24,25 @@ async def get_feargreed() -> dict | None:
                 yesterday = int(data["data"][1]["value"])
 
                 change = round((today - yesterday) / yesterday * 100, 2)
-                change_str = f"+{change}% 📈" if change > 0 else (f"{change}% 📉" if change < 0 else f"{change}% ➖")
+                change_str = (
+                    f"+{change}% 📈"
+                    if change > 0
+                    else (f"{change}% 📉" if change < 0 else f"{change}% ➖")
+                )
 
                 return {
                     "value": today,
                     "change": change_str,
-                    "status": data["data"][0]["value_classification"]
+                    "status": data["data"][0]["value_classification"],
                 }
-        except (httpx.RequestError, httpx.HTTPStatusError, KeyError, IndexError, ValueError, ZeroDivisionError) as e:
+        except (
+            httpx.RequestError,
+            httpx.HTTPStatusError,
+            KeyError,
+            IndexError,
+            ValueError,
+            ZeroDivisionError,
+        ) as e:
             logger.warning(f"Could not fetch Fear & Greed index: {e}")
 
     return None

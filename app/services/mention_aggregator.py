@@ -466,11 +466,13 @@ async def get_extended_hours_stats(
         bull = int(r["bull_count"] or 0)
         bear = int(r["bear_count"] or 0)
         sentiment = "BULL" if bull > bear else ("BEAR" if bear > bull else "NEUTRAL")
-        top_tickers.append({
-            "ticker": r["ticker"],
-            "mentions": int(r["mentions"]),
-            "sentiment": sentiment,
-        })
+        top_tickers.append(
+            {
+                "ticker": r["ticker"],
+                "mentions": int(r["mentions"]),
+                "sentiment": sentiment,
+            }
+        )
 
     return {
         "total_mentions": total_mentions,

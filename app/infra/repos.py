@@ -264,7 +264,6 @@ class PortfolioRepo:
                 )
         return bool(result.rowcount)
 
-
     async def add_snapshot(self, payload: dict) -> dict:
         """Persist a point-in-time portfolio valuation.
 
