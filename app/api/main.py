@@ -29,6 +29,7 @@ from ..runtime.portfolio_snapshot import (
 )
 from ..runtime.portfolio_valuation import (
     build_asset_insights,
+    build_diversification,
     build_value_history,
     resolve_holdings,
     value_holdings,
@@ -642,12 +643,14 @@ async def portfolio_insights(
     source: str = Query(default="auto"),
     _=Depends(api_key_dep),
 ):
-    """Per-asset context for the overview: ATH/ATL distance and 52-week range."""
+    """Per-asset context and portfolio-level balance: ATH/ATL distance,
+    52-week range, sector allocation and holding/sector concentration."""
     resolved_source, holdings = await resolve_holdings(
         PORTFOLIO_REPO, IBKR_REPO, source
     )
 
     if not holdings:
+        empty_diversification = await build_diversification([])
         return {
             "source": resolved_source,
             "totals": {
@@ -659,10 +662,12 @@ async def portfolio_insights(
             },
             "positions": [],
             "highlights": [],
+            **empty_diversification,
         }
 
     valuation = await value_holdings(holdings)
     positions = await build_asset_insights(valuation["positions"])
+    diversification = await build_diversification(valuation["positions"])
 
     highlights = [
         {
@@ -681,6 +686,7 @@ async def portfolio_insights(
         "totals": valuation["totals"],
         "positions": positions,
         "highlights": highlights,
+        **diversification,
     }
 
 

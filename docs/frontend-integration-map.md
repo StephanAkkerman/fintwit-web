@@ -54,6 +54,8 @@ Route-level sections:
   - Portfolio value over time with selectable ranges (1W/1M/3M/6M/YTD/1Y/5Y/MAX), cost-basis reference line, and a table view
   - `PortfolioAssetInsights`
   - Per-asset ATH/ATL distance, 52-week range position, and highlight badges (at/near/recently at an extreme)
+  - `PortfolioDiversification`
+  - Sector allocation breakdown and a holding/sector concentration score (unrated/concentrated/moderate/diversified)
   - `IbkrPanel`
   - Live IBKR account summary, open positions, and today's executions
   - `PortfolioPanel`
@@ -153,6 +155,10 @@ Route-level sections:
 - `PortfolioAssetInsights` + `usePortfolioInsights`
   - Fetches: `/api/portfolio/insights` (polls every 5m)
   - Purpose: surface which holdings are at, near, or recently at an all-time high/low, plus their 52-week range position and weight.
+
+- `PortfolioDiversification` + `usePortfolioInsights`
+  - Fetches: `/api/portfolio/insights` (same hook/poll as `PortfolioAssetInsights`, no extra request)
+  - Purpose: group holdings into sectors (equities/ETFs via GICS sector, other asset kinds via category) and show a balance label plus largest holding/sector, backed by a Herfindahl-Hirschman concentration score at both the holding and sector level.
 
 ## Not Yet Mounted
 

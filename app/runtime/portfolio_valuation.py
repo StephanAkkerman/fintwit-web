@@ -10,7 +10,7 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
-from ticker_price_data import get_stock_info
+from ticker_price_data import get_shared_classifier, get_stock_info
 
 from ..infra.repos import IbkrRepo, PortfolioRepo
 from ..services.price_history_service import (
@@ -388,3 +388,170 @@ async def build_asset_insights(valued_positions: list[dict]) -> list[dict]:
 
     enriched.sort(key=lambda p: p.get("market_value") or 0.0, reverse=True)
     return enriched
+
+
+#: Sector shown for asset kinds ``ticker_classifier`` doesn't assign a GICS
+#: sector to. Equities/ETFs without a resolved sector fall through to
+#: "Unclassified" instead, since a sector lookup miss there is a data gap
+#: rather than the asset genuinely lacking one.
+_CATEGORY_SECTOR_FALLBACKS = {
+    "CRYPTO": "Crypto",
+    "FOREX": "Forex",
+    "INDEX": "Index & futures",
+    "FUTURE": "Index & futures",
+    "COMMODITY": "Commodities",
+    "MUTUALFUND": "Mutual funds",
+}
+
+
+def _sector_label(classification: dict | None) -> str:
+    """Best-effort grouping bucket for a classified symbol."""
+    if not classification:
+        return "Unclassified"
+
+    sector = classification.get("sector")
+    if sector:
+        return str(sector)
+
+    category = str(classification.get("category") or "").upper()
+    return _CATEGORY_SECTOR_FALLBACKS.get(category, "Unclassified")
+
+
+def _herfindahl(weights_percent: list[float]) -> float:
+    """Concentration index on a 0-1 scale, where 1.0 means a single item.
+
+    Sum of each share's squared weight (as a fraction of 1) — the standard
+    HHI used to gauge market/portfolio concentration.
+    """
+    return sum((weight / 100) ** 2 for weight in weights_percent if weight)
+
+
+def _diversification_label(
+    top_holding_weight: float | None,
+    top_sector_weight: float | None,
+    sector_count: int,
+) -> tuple[str, str]:
+    """Classify overall balance from the largest concentrations found.
+
+    :return: ``(label, tone)`` where ``tone`` mirrors the bullish/neutral/
+        bearish scale already used for asset flags, so the UI can reuse the
+        same colour treatment.
+    """
+    if top_holding_weight is None:
+        return "unrated", "neutral"
+
+    if (
+        sector_count <= 1
+        or top_holding_weight >= 40
+        or (top_sector_weight is not None and top_sector_weight >= 60)
+    ):
+        return "concentrated", "bearish"
+
+    if top_holding_weight >= 25 or (
+        top_sector_weight is not None and top_sector_weight >= 45
+    ):
+        return "moderate", "neutral"
+
+    return "diversified", "bullish"
+
+
+async def build_diversification(valued_positions: list[dict]) -> dict:
+    """Group holdings by sector and score how balanced the portfolio is.
+
+    Sector comes from ``ticker_classifier``: equities/ETFs report a GICS
+    sector when known, everything else (crypto, forex, indices, ...) falls
+    back to its asset category so every holding still lands in a bucket.
+
+    Concentration is scored with the Herfindahl-Hirschman index (HHI) at
+    both the holding and sector level — a single dominant position or
+    sector drags the label toward "concentrated" even if the share count is
+    high.
+
+    :param valued_positions: Positions from :func:`value_holdings`.
+    :return: ``{"sectors": [...], "diversification": {...}}``.
+    """
+    empty_diversification = {
+        "label": "unrated",
+        "tone": "neutral",
+        "holding_hhi": None,
+        "effective_holdings": None,
+        "sector_hhi": None,
+        "effective_sectors": None,
+        "top_holding": None,
+        "top_sector": None,
+    }
+
+    if not valued_positions:
+        return {"sectors": [], "diversification": empty_diversification}
+
+    classifier = get_shared_classifier()
+    symbols = [position["symbol"] for position in valued_positions]
+    try:
+        classifications = await classifier.classify_async(symbols)
+    except Exception:
+        logger.warning("[portfolio] sector classification failed", exc_info=True)
+        classifications = [None] * len(symbols)
+
+    groups: dict[str, dict] = {}
+    for position, classification in zip(valued_positions, classifications):
+        sector = _sector_label(classification)
+        group = groups.setdefault(
+            sector, {"sector": sector, "market_value": 0.0, "symbols": []}
+        )
+        group["market_value"] += position.get("market_value") or 0.0
+        group["symbols"].append(position["symbol"])
+
+    total_value = sum(
+        position.get("market_value") or 0.0 for position in valued_positions
+    )
+
+    sectors = []
+    for group in groups.values():
+        weight = group["market_value"] / total_value * 100 if total_value else 0.0
+        sectors.append(
+            {
+                "sector": group["sector"],
+                "market_value": group["market_value"],
+                "weight_percent": weight,
+                "symbols": sorted(group["symbols"]),
+            }
+        )
+    sectors.sort(key=lambda s: s["market_value"], reverse=True)
+
+    holding_hhi = _herfindahl(
+        [position.get("weight_percent") or 0.0 for position in valued_positions]
+    )
+    sector_hhi = _herfindahl([sector["weight_percent"] for sector in sectors])
+
+    top_holding_position = max(
+        valued_positions, key=lambda p: p.get("weight_percent") or 0.0
+    )
+    top_holding = {
+        "symbol": top_holding_position["symbol"],
+        "weight_percent": top_holding_position.get("weight_percent") or 0.0,
+    }
+    top_sector = (
+        {"sector": sectors[0]["sector"], "weight_percent": sectors[0]["weight_percent"]}
+        if sectors
+        else None
+    )
+
+    label, tone = _diversification_label(
+        top_holding["weight_percent"],
+        top_sector["weight_percent"] if top_sector else None,
+        len(sectors),
+    )
+
+    return {
+        "sectors": sectors,
+        "diversification": {
+            "label": label,
+            "tone": tone,
+            "holding_hhi": holding_hhi,
+            "effective_holdings": 1 / holding_hhi if holding_hhi else None,
+            "sector_hhi": sector_hhi,
+            "effective_sectors": 1 / sector_hhi if sector_hhi else None,
+            "top_holding": top_holding,
+            "top_sector": top_sector,
+        },
+    }

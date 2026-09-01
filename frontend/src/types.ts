@@ -441,11 +441,47 @@ export type PortfolioHighlight = PortfolioAssetFlag & {
   weight_percent: number | null;
 };
 
+export type PortfolioSector = {
+  sector: string;
+  market_value: number;
+  weight_percent: number;
+  symbols: string[];
+};
+
+export type PortfolioConcentration = {
+  symbol: string;
+  weight_percent: number;
+};
+
+export type PortfolioSectorConcentration = {
+  sector: string;
+  weight_percent: number;
+};
+
+export type PortfolioDiversificationLabel =
+  | 'unrated'
+  | 'concentrated'
+  | 'moderate'
+  | 'diversified';
+
+export type PortfolioDiversification = {
+  label: PortfolioDiversificationLabel;
+  tone: PortfolioFlagTone;
+  holding_hhi: number | null;
+  effective_holdings: number | null;
+  sector_hhi: number | null;
+  effective_sectors: number | null;
+  top_holding: PortfolioConcentration | null;
+  top_sector: PortfolioSectorConcentration | null;
+};
+
 export type PortfolioInsights = {
   source: PortfolioHoldingSource;
   totals: PortfolioTotals;
   positions: PortfolioInsightPosition[];
   highlights: PortfolioHighlight[];
+  sectors: PortfolioSector[];
+  diversification: PortfolioDiversification;
 };
 
 export type RedditPost = {
