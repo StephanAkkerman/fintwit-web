@@ -12,12 +12,8 @@ import ast
 import re
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:  # the project supports 3.10, where tomllib is not in the stdlib
-    import tomli as tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -39,8 +35,8 @@ def _normalize(name: str) -> str:
 
 def _parse(line: str) -> tuple[str, str] | None:
     line = line.split("#", 1)[0].strip()
-    # Drop any environment marker so `tomli; python_version < "3.11"` compares
-    # on its version specifier alone.
+    # Drop any environment marker so a conditional pin compares on its version
+    # specifier alone.
     line = line.split(";", 1)[0].strip()
     if not line or line.startswith("-"):
         return None

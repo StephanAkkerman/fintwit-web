@@ -133,5 +133,5 @@ When building a new feature, follow the 7-step order in `AGENTS.md`:
 
 - **Python:** Ruff + Black (line length 88), NumPy-style docstrings, isort with Black profile
 - **TypeScript:** strict mode, ESNext modules
-- Supported Python: 3.10–3.13
+- Supported Python: 3.11–3.13 (`xtimeline` requires >=3.11)
 

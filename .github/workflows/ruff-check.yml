@@ -12,11 +12,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Pinned: an unpinned linter silently changes what it enforces.
       - name: Lint
         uses: astral-sh/ruff-action@v3
         with:
+          version: "0.16.5"
           args: check
       - name: Check formatting
         uses: astral-sh/ruff-action@v3
         with:
+          version: "0.16.5"
           args: format --check

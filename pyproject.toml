@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "fintwit-web"
 version = "0.1.0"
 description = "Financial Twitter web application"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 
 # Everything needed to run `pytest`, and nothing else. Install with:
 #
@@ -38,7 +38,6 @@ test = [
     "sqlalchemy[asyncio]==2.0.49",
     "ticker-classifier",
     "ticker-price-data==0.1.3",
-    "tomli; python_version < '3.11'",
     "tradingview-scraper==0.4.20",
     "tradingview-ta==3.3.0",
     "xtimeline==0.1.6",
@@ -67,7 +66,18 @@ profile = "black"
 
 [tool.ruff]
 line-length = 88
-#select = ["I001"]
+# Also pinned: 0.16 added Markdown to the default discovery set, so the
+# formatter started rewriting Python code blocks inside docs/. Restrict it to
+# Python, as it was.
+include = ["*.py", "*.pyi", "**/pyproject.toml"]
+
+[tool.ruff.lint]
+# Pinned explicitly rather than inherited. Ruff's default rule set widened in
+# 0.16, which turned a clean tree into 188 findings without a line of code
+# changing — BLE001, UP045, B008 and friends. These four are the set this
+# codebase was written against and is clean against. Adopting the wider set is
+# worth doing, but as its own change rather than as a silent CI break.
+select = ["E4", "E7", "E9", "F"]
 
 [tool.ruff.lint.pydocstyle]
 # Use Google-style docstrings.
