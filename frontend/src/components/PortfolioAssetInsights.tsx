@@ -36,6 +36,14 @@ function percent(value: number | null | undefined, signed = true): string {
   return `${signed && value >= 0 ? '+' : ''}${value.toFixed(1)}%`
 }
 
+/** A gain above an all-time low set decades ago reads better as "542x" than
+ *  as "+54076.5%", which is both unreadable and wide enough to break the row. */
+function growth(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return '—'
+  if (value < 1000) return percent(value)
+  return `${Math.round(1 + value / 100).toLocaleString()}x`
+}
+
 function FlagBadge({ flag }: { flag: PortfolioAssetFlag }) {
   return (
     <span
@@ -75,7 +83,7 @@ function AssetRow({ position }: { position: PortfolioInsightPosition }) {
 
   return (
     <tr className="border-t border-zinc-100 align-top dark:border-zinc-900">
-      <td className="py-2">
+      <td className="py-2 pr-2">
         <div className="font-semibold text-zinc-900 dark:text-zinc-100">
           {position.symbol}
         </div>
@@ -83,14 +91,14 @@ function AssetRow({ position }: { position: PortfolioInsightPosition }) {
           {position.quantity} @ {money(position.avg_cost)}
         </div>
       </td>
-      <td className="py-2 text-right font-mono tabular-nums">
+      <td className="px-2 py-2 text-right font-mono tabular-nums">
         {money(position.market_price)}
       </td>
-      <td className="py-2 text-right font-mono tabular-nums">
+      <td className="px-2 py-2 text-right font-mono tabular-nums">
         {percent(position.weight_percent, false)}
       </td>
       <td
-        className={`py-2 text-right font-mono tabular-nums ${
+        className={`px-2 py-2 text-right font-mono tabular-nums ${
           position.unrealized_pnl >= 0
             ? 'text-emerald-600 dark:text-emerald-400'
             : 'text-rose-600 dark:text-rose-400'
@@ -99,7 +107,7 @@ function AssetRow({ position }: { position: PortfolioInsightPosition }) {
         {money(position.unrealized_pnl)}
         <div className="text-[11px]">{percent(position.unrealized_pnl_percent)}</div>
       </td>
-      <td className="py-2 text-right font-mono tabular-nums">
+      <td className="px-2 py-2 text-right font-mono tabular-nums">
         {stats ? percent(stats.from_ath_percent) : '—'}
         {stats?.all_time_high && (
           <div className="text-[10px] font-normal text-zinc-400">
@@ -107,16 +115,16 @@ function AssetRow({ position }: { position: PortfolioInsightPosition }) {
           </div>
         )}
       </td>
-      <td className="py-2 text-right font-mono tabular-nums">
-        {stats ? percent(stats.from_atl_percent) : '—'}
+      <td className="px-2 py-2 text-right font-mono tabular-nums">
+        {stats ? growth(stats.from_atl_percent) : '—'}
         {stats?.all_time_low && (
           <div className="text-[10px] font-normal text-zinc-400">
             {money(stats.all_time_low.value)} · {stats.all_time_low.date}
           </div>
         )}
       </td>
-      <td className="py-2">{stats ? <RangeBar stats={stats} /> : '—'}</td>
-      <td className="py-2">
+      <td className="px-2 py-2">{stats ? <RangeBar stats={stats} /> : '—'}</td>
+      <td className="px-2 py-2">
         <div className="flex flex-wrap justify-end gap-1">
           {(stats?.flags ?? []).map((flag) => (
             <FlagBadge key={flag.code} flag={flag} />
@@ -175,14 +183,14 @@ export default function PortfolioAssetInsights() {
             <table className="w-full text-left text-xs">
               <thead className="border-b border-zinc-200 text-zinc-500 dark:border-zinc-800">
                 <tr>
-                  <th className="py-2">Asset</th>
-                  <th className="py-2 text-right">Price</th>
-                  <th className="py-2 text-right">Weight</th>
-                  <th className="py-2 text-right">Unrealized</th>
-                  <th className="py-2 text-right">vs ATH</th>
-                  <th className="py-2 text-right">vs ATL</th>
-                  <th className="py-2">52-week range</th>
-                  <th className="py-2 text-right">Signals</th>
+                  <th className="py-2 pr-2">Asset</th>
+                  <th className="px-2 py-2 text-right">Price</th>
+                  <th className="px-2 py-2 text-right">Weight</th>
+                  <th className="px-2 py-2 text-right">Unrealized</th>
+                  <th className="px-2 py-2 text-right">vs ATH</th>
+                  <th className="px-2 py-2 text-right">vs ATL</th>
+                  <th className="px-2 py-2">52-week range</th>
+                  <th className="py-2 pl-2 text-right">Signals</th>
                 </tr>
               </thead>
               <tbody>

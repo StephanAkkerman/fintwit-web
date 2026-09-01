@@ -1,6 +1,6 @@
 # One definition of "done". `make check` runs exactly the gates CI runs, so a
 # green run here means a green run there.
-.PHONY: help install check check-backend check-frontend format test test-backend test-frontend
+.PHONY: help install check screenshot check-backend check-frontend format test test-backend test-frontend
 
 help:
 	@echo "make install         install backend test deps + frontend deps"
@@ -9,6 +9,7 @@ help:
 	@echo "make check-frontend  tsc --noEmit + vitest + vite build"
 	@echo "make test            tests only, no lint or build"
 	@echo "make format          apply ruff formatting"
+	@echo "make screenshot      capture /portfolio to artifacts/ (ROUTE=/x SCENARIO=empty)"
 
 install:
 	python -m pip install -e ".[test]"
@@ -30,6 +31,14 @@ check-frontend:
 
 format:
 	ruff format .
+
+# Renders a route with the API stubbed, so captures do not depend on live market
+# data or a running backend. Needs `pip install -e ".[dev]"`.
+ROUTE ?= /portfolio
+SCENARIO ?= loaded
+THEME ?= dark
+screenshot:
+	python scripts/screenshot_ui.py --route $(ROUTE) --scenario $(SCENARIO) --theme $(THEME)
 
 test: test-backend test-frontend
 

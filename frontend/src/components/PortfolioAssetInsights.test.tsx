@@ -104,8 +104,20 @@ describe('PortfolioAssetInsights', () => {
 
     const cells = within(row!)
     expect(cells.getByText('-1.0%')).toBeInTheDocument()
-    expect(cells.getByText('+1880.0%')).toBeInTheDocument()
+    // 1880% above the all-time low renders as a multiple, not a percentage.
+    expect(cells.getByText('20x')).toBeInTheDocument()
     expect(cells.getByText(/\$200\.00 · 2026-08-01/)).toBeInTheDocument()
+  })
+
+  it('keeps a modest gain above the all-time low as a percentage', () => {
+    const modest = {
+      ...AAPL,
+      stats: { ...AAPL.stats!, from_atl_percent: 42.5 },
+    }
+    mockState({ insights: { ...INSIGHTS, positions: [modest], highlights: [] } })
+    render(<PortfolioAssetInsights />)
+
+    expect(screen.getByText('+42.5%')).toBeInTheDocument()
   })
 
   it('summarises flagged assets as highlight badges', () => {

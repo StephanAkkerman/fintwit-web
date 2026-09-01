@@ -93,6 +93,21 @@ npm test           # vitest
 npm run build
 ```
 
+```bash
+# See the UI. Renders a route with /api/** stubbed, so a capture needs no
+# backend and does not depend on live market data (the upstreams are
+# unreachable from sandboxes and CI anyway).
+pip install -e ".[dev]"
+make screenshot                              # artifacts/portfolio-loaded-dark.png
+make screenshot ROUTE=/crypto SCENARIO=empty THEME=light
+```
+
+Fixtures live in `scripts/screenshot_ui.py`. Add a scenario there to render a
+state that is awkward to reach for real — an asset exactly at its all-time high,
+a holding whose price history failed to load. Object-shaped endpoints must be
+fixtured explicitly; the catch-all answers with a list, and a component reading
+a field off it throws during render.
+
 `make check` runs every one of these gates, exactly as CI does — prefer it
 over running them individually. `make install` sets the environment up; in a
 Claude Code on the web session `.claude/hooks/session-start.sh` has already

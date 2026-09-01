@@ -44,6 +44,13 @@ test = [
     "xtimeline==0.1.6",
 ]
 
+# Tooling for working on the app locally: running it and capturing the UI.
+# Separate from `test` so CI installs neither Playwright nor a browser.
+dev = [
+    "playwright",
+    "uvicorn==0.43.0",
+]
+
 [tool.setuptools.packages.find]
 include = ["app*"]
 
