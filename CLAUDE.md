@@ -82,7 +82,7 @@ reused across repos; do not re-add local `yahoo.py`/`coingecko.py` modules.
 pip install -e ".[test]"
 
 uvicorn app.api.main:app --port 7999 --reload   # needs `pip install -r requirements.txt`
-pytest --disable-warnings -q                    # no --maxfail: see every failure at once
+python -m pytest --disable-warnings -q             # no --maxfail: see every failure at once
 ruff check . && ruff format --check .           # CI runs both; drop --check to apply
 
 # Frontend (from /frontend)
@@ -93,7 +93,12 @@ npm test           # vitest
 npm run build
 ```
 
-`main` should be green on all four checks. If something fails before you have
+`make check` runs every one of these gates, exactly as CI does — prefer it
+over running them individually. `make install` sets the environment up; in a
+Claude Code on the web session `.claude/hooks/session-start.sh` has already
+done that for you.
+
+`main` should be green on all of these checks. If something fails before you have
 changed anything, say so rather than working around it — a red baseline makes
 it impossible to attribute the next failure.
 
