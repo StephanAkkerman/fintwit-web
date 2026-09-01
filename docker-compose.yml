@@ -1,3 +1,13 @@
+# Docker's default json-file driver keeps container logs forever. On the Pi
+# that fills the SD card: a single unreachable upstream can emit tens of
+# thousands of retry warnings a day (see ticker-price-data's TradingView
+# reconnect loop). Cap every service.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   ibgateway:
     # https://github.com/gnzsnz/ib-gateway-docker — supports ARM64 (Raspberry Pi)
@@ -5,6 +15,7 @@ services:
     image: ghcr.io/gnzsnz/ib-gateway:stable
     container_name: fintwit-ibgateway
     restart: unless-stopped
+    logging: *default-logging
     environment:
       TWS_USERID: ${TWS_USERID}
       TWS_PASSWORD: ${TWS_PASSWORD}
@@ -33,6 +44,7 @@ services:
         TORCH_VERSION: ${TORCH_VERSION:-2.8.0}
     container_name: fintwit-backend
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       - ibgateway
     environment:
@@ -61,6 +73,7 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+    logging: *default-logging
     ports:
       - "127.0.0.1:3000:80"
 
@@ -71,3 +84,4 @@ services:
     depends_on:
       - frontend
     restart: unless-stopped
+    logging: *default-logging
