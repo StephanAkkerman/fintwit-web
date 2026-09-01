@@ -11,7 +11,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Pinned: an unpinned linter silently changes what it enforces.
       - name: Lint
         uses: astral-sh/ruff-action@v3
