@@ -77,15 +77,24 @@ reused across repos; do not re-add local `yahoo.py`/`coingecko.py` modules.
 ## Development
 
 ```bash
-# Backend
-uvicorn app.api.main:app --port 7999 --reload
-pytest --maxfail=1 --disable-warnings -q
-ruff check . && ruff format .
+# Backend — one-time setup. Installs only what the tests need; the ML stack
+# (torch/transformers/timm) is excluded because app/ml imports it lazily.
+pip install -e ".[test]"
+
+uvicorn app.api.main:app --port 7999 --reload   # needs `pip install -r requirements.txt`
+pytest --disable-warnings -q                    # no --maxfail: see every failure at once
+ruff check . && ruff format --check .           # CI runs both; drop --check to apply
 
 # Frontend (from /frontend)
+npm ci
 npm run dev      # proxies /api/* to http://127.0.0.1:7999
+npm test         # vitest
 npm run build
 ```
+
+`main` should be green on all four checks. If something fails before you have
+changed anything, say so rather than working around it — a red baseline makes
+it impossible to attribute the next failure.
 
 ## Migration Workflow
 

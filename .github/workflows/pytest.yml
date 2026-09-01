@@ -18,11 +18,16 @@ jobs:
               with:
                   python-version: "3.11"
 
+            # The `test` extra is a deliberate subset of requirements.txt: it
+            # leaves out torch/transformers/timm, which app/ml imports lazily and
+            # no test touches. Installing them pulled ~2.5 GB of CUDA wheels and
+            # exhausted the runner's disk before pytest could start.
             - name: Install dependencies
               run: |
                   python -m pip install --upgrade pip
-                  pip install .
-                  pip install -r requirements.txt
+                  pip install -e ".[test]"
 
+            # No --maxfail: report every failure in one run rather than one per
+            # push, so a whole broken suite is visible at a glance.
             - name: Run pytest
-              run: pytest --maxfail=1 --disable-warnings -q
+              run: pytest --disable-warnings -q
