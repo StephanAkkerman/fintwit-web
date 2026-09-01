@@ -8,6 +8,7 @@ out of the test extra (installing it is what previously exhausted the CI
 runner's disk).
 """
 
+import ast
 import re
 import subprocess
 import sys
@@ -126,4 +127,72 @@ def test_lazy_ml_packages_are_absent_at_import_time():
     assert not leaked, (
         f"{leaked} was imported at module scope; keep ML imports inside the "
         "functions that use them so the test environment stays light"
+    )
+
+
+# Import names that differ from the distribution that provides them. Anything
+# not listed here is assumed to install under its own name (normalized).
+_MODULE_TO_DISTRIBUTION = {
+    "dateutil": "python-dateutil",
+    "dotenv": "dotenv",
+    "PIL": "pillow",
+    "xclient": "xtimeline",
+}
+
+# Imported by app/ but deliberately not declared: these ship with Python, or are
+# provided by the environment rather than the manifest.
+_NOT_DECLARED_ON_PURPOSE: set[str] = set()
+
+
+def _third_party_imports() -> dict[str, str]:
+    """Map every third-party module imported under app/ to where it is used.
+
+    Walks the AST rather than the import machinery, so the result does not
+    depend on which packages happen to be installed.
+    """
+    imports: dict[str, str] = {}
+
+    for path in sorted((ROOT / "app").rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                modules = [alias.name.split(".")[0] for alias in node.names]
+            elif isinstance(node, ast.ImportFrom):
+                # A non-zero level is a relative import — our own package.
+                modules = [] if node.level else [(node.module or "").split(".")[0]]
+            else:
+                continue
+
+            for module in modules:
+                if not module or module == "app" or module in sys.stdlib_module_names:
+                    continue
+                imports.setdefault(module, f"{path.relative_to(ROOT)}:{node.lineno}")
+
+    return imports
+
+
+def test_every_imported_package_is_declared():
+    """app/ must not rely on a transitive dependency for a direct import.
+
+    A package that arrives only because something else happens to depend on it
+    disappears the day that dependency drops it, and the failure surfaces at
+    runtime rather than at install time.
+    """
+    declared = _requirements().keys()
+
+    undeclared = {
+        module: where
+        for module, where in _third_party_imports().items()
+        if module not in _NOT_DECLARED_ON_PURPOSE
+        and _normalize(_MODULE_TO_DISTRIBUTION.get(module, module)) not in declared
+    }
+
+    assert not undeclared, (
+        "imported by app/ but missing from requirements.txt: "
+        + ", ".join(
+            f"{module} ({where})" for module, where in sorted(undeclared.items())
+        )
+        + ". Add the distribution that provides it, or map the import name in "
+        "_MODULE_TO_DISTRIBUTION if the two differ."
     )
