@@ -787,6 +787,64 @@ describe('TweetCard', () => {
     expect(screen.getByRole('dialog', { name: 'Image preview' })).toBeInTheDocument()
   })
 
+  it('shows a held badge for an asset currently in the portfolio', () => {
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          assets: [{ symbol: 'AAPL', kind: 'EQUITY', financials: { price: 185.12, change_percent: 1.73 } }],
+        }}
+        portfolioLookup={(symbol) => (symbol === 'AAPL' ? 'active' : null)}
+      />
+    )
+
+    expect(screen.getByLabelText('Currently in your portfolio')).toBeInTheDocument()
+    expect(screen.getByText('💼 Held')).toBeInTheDocument()
+  })
+
+  it('shows a recently-held badge for an asset closed out within the last 30 days', () => {
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          assets: [{ symbol: 'TSLA', kind: 'EQUITY', financials: { price: 250, change_percent: -0.5 } }],
+        }}
+        portfolioLookup={(symbol) => (symbol === 'TSLA' ? 'recent' : null)}
+      />
+    )
+
+    expect(screen.getByLabelText('Recently in your portfolio')).toBeInTheDocument()
+    expect(screen.getByText('🕓 Recently Held')).toBeInTheDocument()
+  })
+
+  it('does not show a portfolio badge when the ticker is not in the lookup', () => {
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          assets: [{ symbol: 'MSFT', kind: 'EQUITY', financials: { price: 420, change_percent: 0.2 } }],
+        }}
+        portfolioLookup={() => null}
+      />
+    )
+
+    expect(screen.queryByLabelText('Currently in your portfolio')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Recently in your portfolio')).not.toBeInTheDocument()
+  })
+
+  it('does not show a portfolio badge when no portfolioLookup is provided', () => {
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          assets: [{ symbol: 'MSFT', kind: 'EQUITY', financials: { price: 420, change_percent: 0.2 } }],
+        }}
+      />
+    )
+
+    expect(screen.queryByLabelText('Currently in your portfolio')).not.toBeInTheDocument()
+  })
+
   it('does not render media section when media array is empty', () => {
     const { container } = render(<TweetCard t={baseTweet} />)
     // Only avatar image should be present

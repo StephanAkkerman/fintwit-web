@@ -1,6 +1,6 @@
 # Migration Status
 
-Last updated: 2026-08-31
+Last updated: 2026-09-01
 
 ## Backend: Implemented
 
@@ -89,6 +89,7 @@ Last updated: 2026-08-31
   - Charts only.
 - Tweet cards display a small "Chart" badge only when backend chart classification marks `has_chart=true`.
 - Tweet cards display separate sentiment badges for the main post and quoted post using backend metadata.
+- Tweet card financial asset blocks display a portfolio-status badge (💼 Held / 🕓 Recently Held) when the ticker matches a current or recently-closed (within 30 days) portfolio position.
 - Portfolio route includes add/list/toggle/delete workflows and summary cards (positions, market value, cost basis, unrealized PnL).
 - Portfolio route now leads with a value-over-time area chart (`PortfolioValueChart`, Recharts) with selectable ranges (1W-MAX), a cost-basis reference line, hover tooltip, and a table view so no value is hover-only.
 - Portfolio route also shows per-asset context (`PortfolioAssetInsights`): distance from all-time high/low, 52-week range position, and highlight badges for assets at/near — or recently at — an ATH or ATL.
@@ -122,6 +123,7 @@ Last updated: 2026-08-31
 - Ticker mention pulse: `/api/posts` + `/api/stream` -> `TickerMentionsPanel` (route-scoped + user-scoped mention analytics).
 - Debug admin panel: `/api/debug/tweet` -> `DebugAdminPanel` (`/admin`).
 - Portfolio panel: `/api/portfolio/positions` + `/api/portfolio/summary` -> `PortfolioPanel` (`/portfolio`).
+- Portfolio ticker badges: `/api/portfolio/positions` -> `usePortfolioTickers` -> `TweetCard` financial asset blocks (all routes).
 - Portfolio value chart: `/api/portfolio/history` -> `usePortfolioHistory` -> `PortfolioValueChart` (`/portfolio`).
 - Portfolio asset context: `/api/portfolio/insights` -> `usePortfolioInsights` -> `PortfolioAssetInsights` (`/portfolio`).
 - WallStreetBets panel: `/api/reddit/wsb` -> `RedditWsbWidget` (`/`).

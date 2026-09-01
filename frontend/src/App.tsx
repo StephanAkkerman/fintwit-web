@@ -24,6 +24,7 @@ import TweetCard from './components/TweetCard'
 import { useIbkr } from './hooks/useIbkr'
 import { useTweets } from './hooks/useTweets'
 import { useMentionFrequency } from './hooks/useMentionFrequency'
+import { usePortfolioTickers } from './hooks/usePortfolioTickers'
 import type { Tweet } from './types'
 import { hasChartSignal } from './utils/tweetSignals'
 
@@ -270,6 +271,7 @@ export default function App() {
   }, [scopedTweets, tickerFilter, route, chartSortMode])
 
   const mentionLookup = useMentionFrequency(displayedTweets)
+  const portfolioLookup = usePortfolioTickers()
 
   const onTickerSelect = (ticker: string) => {
     setTickerInput(ticker)
@@ -677,6 +679,7 @@ export default function App() {
                       onTickerSelect={onTickerSelect}
                       onUserSelect={onUserSelect}
                       mentionLookup={mentionLookup}
+                      portfolioLookup={portfolioLookup}
                     />
                   </ErrorBoundary>
                 ))}

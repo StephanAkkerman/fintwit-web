@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm'
 import type { Tweet } from '../types'
 import { hasChartSignal } from '../utils/tweetSignals'
 import type { MentionLookup } from '../hooks/useMentionFrequency'
+import type { PortfolioTickerLookup, PortfolioTickerStatus } from '../hooks/usePortfolioTickers'
 import AssetFundamentals from './AssetFundamentals'
 import AssetMentions from './AssetMentions'
 import SignaSignal from './SignaSignal'
@@ -25,6 +26,33 @@ function fmtPrice(value: number): string {
 function fmtChangePercent(value: number): string {
   const sign = value > 0 ? '+' : ''
   return `${sign}${value.toFixed(2)}%`
+}
+
+const PORTFOLIO_BADGE: Record<PortfolioTickerStatus, { label: string; title: string; className: string }> = {
+  active: {
+    label: '💼 Held',
+    title: 'Currently in your portfolio',
+    className: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300',
+  },
+  recent: {
+    label: '🕓 Recently Held',
+    title: 'Recently in your portfolio',
+    className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
+  },
+}
+
+function PortfolioStatusBadge({ status }: { status: PortfolioTickerStatus | null }) {
+  if (!status) return null
+  const badge = PORTFOLIO_BADGE[status]
+  return (
+    <span
+      aria-label={badge.title}
+      title={badge.title}
+      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badge.className}`}
+    >
+      {badge.label}
+    </span>
+  )
 }
 
 function formatAssetKind(kind: string | null | undefined): string | null {
@@ -276,11 +304,13 @@ export default function TweetCard({
   onTickerSelect,
   onUserSelect,
   mentionLookup,
+  portfolioLookup,
 }: {
   t: Tweet
   onTickerSelect?: (ticker: string) => void
   onUserSelect?: (user: string) => void
   mentionLookup?: MentionLookup
+  portfolioLookup?: PortfolioTickerLookup
 }) {
   const [lightboxImage, setLightboxImage] = useState<{ url: string; alt: string } | null>(null)
 
@@ -630,6 +660,7 @@ export default function TweetCard({
                   : 'text-zinc-500 dark:text-zinc-400'
             const sessionEmoji = session === 'pre-market' ? '🌅' : session === 'after-hours' ? '🌙' : null
             const sessionLabel = session === 'pre-market' ? 'Pre-Market' : session === 'after-hours' ? 'After Hours' : null
+            const portfolioStatus = portfolioLookup?.(asset.symbol) ?? null
 
             return (
               <div
@@ -651,11 +682,14 @@ export default function TweetCard({
                       {ticker}
                     </div>
                   )}
-                  {typeLabel && (
-                    <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300">
-                      {typeLabel}
-                    </span>
-                  )}
+                  <div className="flex shrink-0 items-center gap-1">
+                    <PortfolioStatusBadge status={portfolioStatus} />
+                    {typeLabel && (
+                      <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300">
+                        {typeLabel}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="truncate text-[11px] text-zinc-500 dark:text-zinc-400">{fullName}</div>
