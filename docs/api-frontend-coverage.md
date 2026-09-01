@@ -80,7 +80,7 @@ For equities/ETFs, `tweet.assets[*].company_profile` may include curated finance
   - `assets[].symbol` and `assets[].kind` for ticker and route-scoped filtering,
   - `user_name` and `user_screen_name` for user-based filtering from sidebar input and author click actions,
   - `is_subscriber_only` for the sidebar subscriber-only filter and exclusivity badges,
-  - `assets[].fundamentals` plus `assets[].sector`/`assets[].industry` for the `AssetFundamentals` strip shown by default in `TweetCard` and `AssetBadge` (market cap, forward P/E falling back to trailing P/E, 3-month average volume, and the industry with the sector kept in its tooltip),
+  - `assets[].fundamentals` plus `assets[].sector`/`assets[].industry` for the `AssetFundamentals` strip shown by default in `TweetCard` and `AssetBadge` (market cap, forward P/E falling back to trailing P/E, 3-month average volume, and the industry with the sector kept in its tooltip), with the P/E colour-coded green/grey/red by valuation band via `scoreMetric`/`metricQualityTextClass` (`utils/metricQuality`), a generic three-band numeric scale reusable for other metrics,
   - `assets[].financials.technical_analysis` for TradingView 4H/1D summary rows in `TweetCard` and `AssetBadge` (recommendation color-coded by direction via `directionColor`),
   - `assets[].financials.signa` for the Signa signal row in `TweetCard` and `AssetBadge` (verdict color-coded green/red/grey via `directionColor`),
   - `assets[].financials.website` for price links,

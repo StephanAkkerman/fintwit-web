@@ -47,6 +47,47 @@ describe('AssetFundamentals', () => {
     )
   })
 
+  it('colours the forward P/E by valuation band', () => {
+    const withPE = (forward_pe: number) => ({
+      ...equity,
+      fundamentals: { ...equity.fundamentals, forward_pe },
+    })
+
+    const { rerender } = render(<AssetFundamentals asset={withPE(11)} />)
+    expect(screen.getByText('11.0').className).toContain('text-emerald-600')
+
+    rerender(<AssetFundamentals asset={withPE(22)} />)
+    expect(screen.getByText('22.0').className).toContain('text-zinc-500')
+
+    rerender(<AssetFundamentals asset={withPE(48)} />)
+    expect(screen.getByText('48.0').className).toContain('text-rose-600')
+  })
+
+  it('colours the trailing P/E fallback on the same scale', () => {
+    render(
+      <AssetFundamentals
+        asset={{
+          ...equity,
+          fundamentals: { ...equity.fundamentals, forward_pe: null, trailing_pe: 9.4 },
+        }}
+      />
+    )
+
+    expect(screen.getByText('P/E (TTM)')).toBeInTheDocument()
+    expect(screen.getByText('9.4').className).toContain('text-emerald-600')
+  })
+
+  it('leaves metrics with no good/bad reading uncoloured', () => {
+    render(<AssetFundamentals asset={equity} />)
+
+    for (const value of ['$3.40T', '215.0M']) {
+      const className = screen.getByText(value).className
+      expect(className).not.toContain('text-emerald-600')
+      expect(className).not.toContain('text-rose-600')
+      expect(className).not.toContain('text-zinc-500')
+    }
+  })
+
   it('falls back to trailing P/E when Yahoo reports no forward estimate', () => {
     render(
       <AssetFundamentals

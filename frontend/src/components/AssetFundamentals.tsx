@@ -1,11 +1,21 @@
 import type { Asset } from '../types'
+import type { MetricQuality, MetricScale } from '../utils/metricQuality'
+import { metricQualityTextClass, scoreMetric } from '../utils/metricQuality'
+
+/**
+ * Conventional generic P/E bands: cheap at or under 15x earnings, expensive at
+ * or over 30x. Deliberately sector-blind -- a high-growth name can read
+ * "expensive" without being a bad company -- so the colour is a valuation cue,
+ * not a verdict on the business.
+ */
+const PE_SCALE: MetricScale = { good: 15, bad: 30 }
 
 const TOOLTIPS = {
   marketCap: 'Market cap — share price × shares outstanding. The total value the market puts on the company.',
   forwardPE:
-    'Forward P/E — share price ÷ forecast earnings per share for the next 12 months. Lower means you pay less per unit of expected profit; it is omitted when analysts do not forecast a profit.',
+    'Forward P/E — share price ÷ forecast earnings per share for the next 12 months. Lower means you pay less per unit of expected profit; it is omitted when analysts do not forecast a profit. Green at or under 15x, red at or over 30x — a valuation cue only, and not adjusted for sector or growth.',
   trailingPE:
-    'P/E (TTM) — share price ÷ reported earnings per share over the trailing twelve months. Shown when no forward estimate is available.',
+    'P/E (TTM) — share price ÷ reported earnings per share over the trailing twelve months. Shown when no forward estimate is available. Coloured on the same 15x/30x scale as forward P/E.',
   avgVolume: 'Average daily volume over the last 3 months, in shares. Compare it against today’s volume to gauge unusual activity.',
 } as const
 
@@ -47,7 +57,18 @@ function isUsable(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0
 }
 
-type Metric = { key: string; label: string; value: string; tooltip: string }
+type Metric = {
+  key: string
+  label: string
+  value: string
+  tooltip: string
+  /**
+   * Omitted for metrics with no meaningful good/bad reading (market cap, average
+   * volume), which keep the strip's default text colour. A scored metric that
+   * lands between the bands is `neutral` and greys out, as intended.
+   */
+  quality?: MetricQuality
+}
 
 /**
  * Compact fundamentals strip shown under an asset's price, alongside the
@@ -94,6 +115,7 @@ export default function AssetFundamentals({
       label: 'Fwd P/E',
       value: fundamentals.forward_pe.toFixed(1),
       tooltip: TOOLTIPS.forwardPE,
+      quality: scoreMetric(fundamentals.forward_pe, PE_SCALE),
     })
   } else if (isUsable(fundamentals?.trailing_pe)) {
     metrics.push({
@@ -101,6 +123,7 @@ export default function AssetFundamentals({
       label: 'P/E (TTM)',
       value: fundamentals.trailing_pe.toFixed(1),
       tooltip: TOOLTIPS.trailingPE,
+      quality: scoreMetric(fundamentals.trailing_pe, PE_SCALE),
     })
   }
 
@@ -142,7 +165,13 @@ export default function AssetFundamentals({
               >
                 {metric.label}
               </span>
-              <span className="truncate font-semibold tabular-nums">{metric.value}</span>
+              <span
+                className={`truncate font-semibold tabular-nums ${
+                  metric.quality ? metricQualityTextClass(metric.quality) : ''
+                }`.trim()}
+              >
+                {metric.value}
+              </span>
             </div>
           ))}
         </div>
