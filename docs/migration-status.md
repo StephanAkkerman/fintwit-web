@@ -36,6 +36,7 @@ Last updated: 2026-09-01
 - Stream/runtime options-intent classification now tags tweets with `is_options_tweet` and structured `options_context` (contracts/side/score) for options-focused filtering and UI routing.
 - Options tweet delivery now supports backend feed filtering (`options_only=true`) on both `/api/posts` and `/api/stream` for route-level isolation.
 - Stock migration slice: market session endpoint (`/api/stocks/market-hours`) now available with pre-market/after-hours state mapping for major exchanges.
+- Stock migration slice: stock market Fear & Greed endpoint (`/api/stocks/fear-greed`) now available, sourced from feargreedmeter.com's undocumented `api2.mmeter.app/data/summary` backend. The response shape is not publicly documented, so `stock_fear_greed_service.py` tolerates a few plausible shapes and returns `503` when none match, with a short-lived cache so a transient upstream failure can still serve the last known reading.
 - Stock market-hours endpoint now derives schedules from `exchange_calendars` and includes explicit closed-session context (`closure_reason`, `is_holiday`, optional `holiday_name`) so holiday closures can be distinguished from weekends.
 - Events migration slice: Investing economic calendar endpoint (`/api/events/economic`) now available for high-impact US and Euro-zone events.
 - Forex/macro migration slice: TradingView-backed macro snapshot endpoint (`/api/forex/macro`) now exposes US/EU yield curves plus major FX index quotes for the `/forex` route.
@@ -97,6 +98,7 @@ Last updated: 2026-09-01
 - Stocks route now includes a market-hours banner showing major exchange session state (open/pre-market/after-hours/closed) with explicit holiday closure labels when applicable.
 - Crypto route now includes a Binance movers widget (top gainers/losers).
 - Stocks route now includes a Nasdaq trading halts widget.
+- Stocks route now includes a stock market Fear & Greed index card.
 - Options route now includes a market activity widget for calls, puts, put/call ratio, and most-active contracts.
 - Options route timeline now filters to tweets classified as options-intent (`is_options_tweet=true`) instead of generic stock-linked tweets.
 - Options route now consumes options-only REST/SSE feeds so only options-classified tweets are fetched and rendered there.
@@ -109,6 +111,7 @@ Last updated: 2026-09-01
 
 - Tweet stream data: `/api/posts` + `/api/stream` -> timeline cards, filters, and sentiment badges.
 - Fear & Greed widget: `/api/fear-greed` -> `FearGreedWidget`.
+- Stock Fear & Greed widget: `/api/stocks/fear-greed` -> `StockFearGreedWidget` (`/stocks`).
 - Treemap widget: `/api/treemap` -> `TreemapWidget`.
 - Trending crypto widget: `/api/trending-crypto` -> `TrendingCryptoWidget`.
 - StockTwits widget: `/api/stocktwits` -> `StocktwitsWidget`.

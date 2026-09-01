@@ -52,6 +52,7 @@ from ..services.price_history_service import (
 )
 from ..services.reddit_service import get_reddit_hot_posts, is_valid_subreddit_name
 from ..services.signa import get_signa_best_trades, get_signa_live_feed
+from ..services.stock_fear_greed_service import get_stock_feargreed
 from ..services.stocktwits_service import get_stocktwits_data
 from ..services.unusual_whales import get_spy_heatmap
 from ..services.extended_hours_service import (
@@ -271,6 +272,15 @@ async def options_overview(
         ]
 
     data = await get_options_overview(client, parsed_symbols)
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
+
+
+@app.get("/api/stocks/fear-greed")
+async def stock_fear_greed(request: Request, _=Depends(api_key_dep)):
+    client: httpx.AsyncClient = request.app.state.http_client
+    data = await get_stock_feargreed(client)
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data

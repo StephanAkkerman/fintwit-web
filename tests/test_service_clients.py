@@ -17,6 +17,7 @@ from app.services import (
     cmc,
     coin360_service,
     fear_greed_service,
+    stock_fear_greed_service,
     unusual_whales,
 )
 
@@ -239,6 +240,88 @@ async def test_binance_returns_none_for_a_non_list_response():
 async def test_binance_returns_none_on_http_error():
     async with _client(_responds([], status=418)) as client:
         assert await binance_service.get_gainers_losers(client) is None
+
+
+# ---------------------------------------------------------------------------
+# Stock Fear & Greed (feargreedmeter.com)
+#
+# Unlike the other fixtures in this file, this payload is NOT a recording of
+# a real response — api2.mmeter.app is unreachable from this sandbox/CI, so
+# the shape is a best-effort guess (see stock_fear_greed_service's module
+# docstring). These tests pin the parser's tolerant behavior rather than a
+# verified upstream contract.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _reset_stock_fear_greed_cache():
+    stock_fear_greed_service._reset_cache_for_tests()
+    yield
+    stock_fear_greed_service._reset_cache_for_tests()
+
+
+async def test_stock_fear_greed_parses_a_flat_payload():
+    payload = {"score": 54, "rating": "Neutral", "previous_close": 50}
+
+    async with _client(_responds(payload)) as client:
+        result = await stock_fear_greed_service.get_stock_feargreed(client)
+
+    assert result == {"value": 54, "status": "Neutral", "change": "+8.0% 📈"}
+
+
+async def test_stock_fear_greed_parses_a_nested_cnn_style_payload():
+    payload = {"fear_and_greed": {"value": 30, "rating": "Fear"}}
+
+    async with _client(_responds(payload)) as client:
+        result = await stock_fear_greed_service.get_stock_feargreed(client)
+
+    assert result == {"value": 30, "status": "Fear", "change": None}
+
+
+async def test_stock_fear_greed_derives_a_label_when_none_is_provided():
+    payload = {"score": 82}
+
+    async with _client(_responds(payload)) as client:
+        result = await stock_fear_greed_service.get_stock_feargreed(client)
+
+    assert result == {"value": 82, "status": "Extreme Greed", "change": None}
+
+
+async def test_stock_fear_greed_returns_none_for_an_unexpected_shape():
+    payload = {"unrelated": "data"}
+
+    async with _client(_responds(payload)) as client:
+        assert await stock_fear_greed_service.get_stock_feargreed(client) is None
+
+
+async def test_stock_fear_greed_returns_none_on_http_error():
+    async with _client(_responds({}, status=503)) as client:
+        assert await stock_fear_greed_service.get_stock_feargreed(client) is None
+
+
+async def test_stock_fear_greed_falls_back_to_a_stale_cache_on_a_later_failure():
+    stale = {"value": 40, "status": "Fear", "change": None}
+    stock_fear_greed_service._cache = (0.0, stale)  # far past the TTL
+
+    async with _client(_responds({}, status=500)) as client:
+        result = await stock_fear_greed_service.get_stock_feargreed(client)
+
+    assert result == stale
+
+
+async def test_stock_fear_greed_uses_a_fresh_cache_without_a_new_request():
+    payload = {"score": 40, "rating": "Fear"}
+
+    async with _client(_responds(payload)) as client:
+        first = await stock_fear_greed_service.get_stock_feargreed(client)
+
+    def _blow_up(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("should not re-fetch while the cache is fresh")
+
+    async with _client(_blow_up) as client:
+        second = await stock_fear_greed_service.get_stock_feargreed(client)
+
+    assert first == second == {"value": 40, "status": "Fear", "change": None}
 
 
 # ---------------------------------------------------------------------------

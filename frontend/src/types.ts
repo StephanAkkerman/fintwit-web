@@ -242,6 +242,12 @@ export type StockHaltItem = {
   'Resumption Time'?: string;
 };
 
+export type StockFearGreedData = {
+  value: number;
+  status: string;
+  change?: string | null;
+};
+
 export type OptionContractActivity = {
   symbol: string;
   contract_type: 'CALL' | 'PUT' | string;
