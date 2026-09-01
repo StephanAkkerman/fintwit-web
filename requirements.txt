@@ -14,7 +14,7 @@ uvicorn==0.43.0
 sqlalchemy[asyncio]==2.0.49
 aiosqlite<=0.17.0
 ticker-price-data==0.1.3
-pytest==9.0.2
+pytest==9.1.1
 pytest-asyncio==1.3.0
 httpx==0.28.1
 asyncpraw==7.8.1
