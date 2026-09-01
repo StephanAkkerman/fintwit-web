@@ -31,7 +31,7 @@ test = [
     "lxml==6.0.4",
     "pandas",
     "pydantic",
-    "pytest==9.0.2",
+    "pytest==9.1.1",
     "pytest-asyncio==1.3.0",
     "pytest-cov",
     "python-dateutil==2.9.0",
