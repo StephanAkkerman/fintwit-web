@@ -3,7 +3,10 @@ import SignaSignal from './SignaSignal'
 import TradingViewAnalysis from './TradingViewAnalysis'
 
 export default function AssetBadge({ asset }: { asset: Asset }) {
-  if (!asset.financials) {
+  // A priced card needs a price. Enrichment can attach `financials` without one
+  // (an upstream quote that failed), so fall back to the plain badge rather than
+  // rendering a card with an empty price slot.
+  if (!asset.financials || asset.financials.price == null) {
     return (
       <span className="px-2 py-1 rounded bg-zinc-100 dark:bg-zinc-800 text-xs font-medium text-zinc-700 dark:text-zinc-300">
         ${asset.symbol} {asset.name ? `(${asset.name})` : ''}
@@ -12,13 +15,13 @@ export default function AssetBadge({ asset }: { asset: Asset }) {
   }
 
   const { price, change_percent, website, technical_analysis, signa } = asset.financials
-  const isPositive = change_percent >= 0
+  const isPositive = (change_percent ?? 0) >= 0
   const changeColor = isPositive ? 'text-green-500' : 'text-red-500'
   const changeSign = isPositive ? '+' : ''
 
   return (
     <a
-      href={website}
+      href={website ?? undefined}
       target="_blank"
       rel="noreferrer"
       className="inline-flex flex-col gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
@@ -34,10 +37,12 @@ export default function AssetBadge({ asset }: { asset: Asset }) {
           <span className="font-mono">
             ${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
           </span>
-          <span className={`text-[10px] font-bold ${changeColor}`}>
-            {changeSign}
-            {change_percent.toFixed(2)}%
-          </span>
+          {change_percent != null && (
+            <span className={`text-[10px] font-bold ${changeColor}`}>
+              {changeSign}
+              {change_percent.toFixed(2)}%
+            </span>
+          )}
 
         </div>
       </div>

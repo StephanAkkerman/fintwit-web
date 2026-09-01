@@ -20,9 +20,11 @@ const baseSummary: PortfolioSummary = {
   positions: [
     {
       id: 1,
+      broker: 'IBKR',
       symbol: 'AAPL',
       quantity: 10,
       avg_cost: 100,
+      currency: 'USD',
       market_price: 120,
       market_value: 1200,
       cost_basis: 1000,

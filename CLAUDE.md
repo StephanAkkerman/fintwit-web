@@ -87,8 +87,9 @@ ruff check . && ruff format --check .           # CI runs both; drop --check to 
 
 # Frontend (from /frontend)
 npm ci
-npm run dev      # proxies /api/* to http://127.0.0.1:7999
-npm test         # vitest
+npm run dev        # proxies /api/* to http://127.0.0.1:7999
+npx tsc --noEmit   # vite build does NOT typecheck; CI runs this separately
+npm test           # vitest
 npm run build
 ```
 
