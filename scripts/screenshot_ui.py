@@ -304,6 +304,16 @@ def _empty_insights() -> dict:
 
 def fixtures_for(scenario: str) -> dict[str, object]:
     """Map a URL fragment to the JSON served for it."""
+    if scenario == "broken":
+        # The payload that used to blank the whole dashboard: `summary` comes
+        # back as a list, so `.totals.market_value` was read off it during
+        # render. The panel now guards that access, so this renders with the
+        # affected figures as N/A. It is a regression check on the degrade
+        # path, not a demonstration of ErrorBoundary — that is covered by
+        # ErrorBoundary.test.tsx, which is where a genuine throw is exercised.
+        healthy = fixtures_for("loaded")
+        return {**healthy, "/api/portfolio/summary": []}
+
     if scenario == "empty":
         return {
             "/api/portfolio/history": _empty_history(),
@@ -361,7 +371,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
     }
 
 
-SCENARIOS = ("loaded", "empty")
+SCENARIOS = ("loaded", "empty", "broken")
 
 
 # ---------------------------------------------------------------------------

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import BinanceGainersLosersWidget from './components/BinanceGainersLosersWidget'
 import DebugAdminPanel from './components/DebugAdminPanel'
 import EconomicEventsWidget from './components/EconomicEventsWidget'
+import ErrorBoundary from './components/ErrorBoundary'
 import ExtendedHoursPanel from './components/ExtendedHoursPanel'
 import ForexMacroWidget from './components/ForexMacroWidget'
 import MarketMoversPanel from './components/MarketMoversPanel'
@@ -553,82 +554,131 @@ export default function App() {
             </header>
 
             {route !== 'admin' && route !== 'signa' && (
-              <TickerMentionsPanel
-                tweets={scopedTweets}
-                scopeLabel={activeSection.label}
-                route={route}
-                selectedUser={userFilter}
-                onTickerSelect={onTickerSelect}
-              />
+              <ErrorBoundary label="Ticker mention pulse">
+                <TickerMentionsPanel
+                  tweets={scopedTweets}
+                  scopeLabel={activeSection.label}
+                  route={route}
+                  selectedUser={userFilter}
+                  onTickerSelect={onTickerSelect}
+                />
+              </ErrorBoundary>
             )}
 
             {route === 'home' && (
-              <OverviewDashboard
-                onTickerClick={onTickerSelect}
-                userFilter={userFilter}
-                subscriberOnly={subscriberOnlyFilter}
-              />
+              <ErrorBoundary label="Market overview">
+                <OverviewDashboard
+                  onTickerClick={onTickerSelect}
+                  userFilter={userFilter}
+                  subscriberOnly={subscriberOnlyFilter}
+                />
+              </ErrorBoundary>
             )}
 
             {route === 'crypto' && (
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                <BinanceGainersLosersWidget />
-                <TrendingCryptoWidget />
-                <TreemapWidget />
+                <ErrorBoundary label="Binance movers">
+                  <BinanceGainersLosersWidget />
+                </ErrorBoundary>
+                <ErrorBoundary label="Trending crypto">
+                  <TrendingCryptoWidget />
+                </ErrorBoundary>
+                <ErrorBoundary label="Crypto treemap">
+                  <TreemapWidget />
+                </ErrorBoundary>
               </div>
             )}
 
             {route === 'stocks' && (
               <>
-                <MarketMoversPanel />
-                <ExtendedHoursPanel />
-                <StockMarketHoursBanner />
-                <StockHaltsWidget />
-                <StocktwitsWidget />
-                <SpyHeatmapWidget />
+                <ErrorBoundary label="Market movers">
+                  <MarketMoversPanel />
+                </ErrorBoundary>
+                <ErrorBoundary label="Extended hours">
+                  <ExtendedHoursPanel />
+                </ErrorBoundary>
+                <ErrorBoundary label="Market hours">
+                  <StockMarketHoursBanner />
+                </ErrorBoundary>
+                <ErrorBoundary label="Trading halts">
+                  <StockHaltsWidget />
+                </ErrorBoundary>
+                <ErrorBoundary label="StockTwits">
+                  <StocktwitsWidget />
+                </ErrorBoundary>
+                <ErrorBoundary label="SPY heatmap">
+                  <SpyHeatmapWidget />
+                </ErrorBoundary>
               </>
             )}
 
             {route === 'forex' && (
               <>
-                <ForexMacroWidget />
-                <EconomicEventsWidget />
+                <ErrorBoundary label="Macro snapshot">
+                  <ForexMacroWidget />
+                </ErrorBoundary>
+                <ErrorBoundary label="Economic events">
+                  <EconomicEventsWidget />
+                </ErrorBoundary>
               </>
             )}
 
-            {route === 'options' && <OptionsOverviewWidget />}
+            {route === 'options' && (
+              <ErrorBoundary label="Options overview">
+                <OptionsOverviewWidget />
+              </ErrorBoundary>
+            )}
 
-            {route === 'signa' && <SignaSection />}
+            {route === 'signa' && (
+              <ErrorBoundary label="Signa">
+                <SignaSection />
+              </ErrorBoundary>
+            )}
 
             {route === 'portfolio' && (
               <>
-                <PortfolioValueChart />
-                <PortfolioAssetInsights />
-                <IbkrPanel
-                  status={ibkrStatus}
-                  positions={ibkrPositions}
-                  trades={ibkrTrades}
-                  account={ibkrAccount}
-                  loading={ibkrLoading}
-                  error={ibkrError}
-                  reload={reloadIbkr}
-                />
-                <PortfolioPanel />
+                <ErrorBoundary label="Portfolio value">
+                  <PortfolioValueChart />
+                </ErrorBoundary>
+                <ErrorBoundary label="Asset context">
+                  <PortfolioAssetInsights />
+                </ErrorBoundary>
+                <ErrorBoundary label="IBKR live positions">
+                  <IbkrPanel
+                    status={ibkrStatus}
+                    positions={ibkrPositions}
+                    trades={ibkrTrades}
+                    account={ibkrAccount}
+                    loading={ibkrLoading}
+                    error={ibkrError}
+                    reload={reloadIbkr}
+                  />
+                </ErrorBoundary>
+                <ErrorBoundary label="Portfolio positions">
+                  <PortfolioPanel />
+                </ErrorBoundary>
               </>
             )}
 
-            {route === 'admin' && <DebugAdminPanel />}
+            {route === 'admin' && (
+              <ErrorBoundary label="Debug admin">
+                <DebugAdminPanel />
+              </ErrorBoundary>
+            )}
 
             {route !== 'signa' && (
               <>
                 {displayedTweets.map((t) => (
-                  <TweetCard
-                    key={t.id}
-                    t={t}
-                    onTickerSelect={onTickerSelect}
-                    onUserSelect={onUserSelect}
-                    mentionLookup={mentionLookup}
-                  />
+                  // Per card: tweet payloads vary with upstream, and one
+                  // malformed post should cost its own card, not the timeline.
+                  <ErrorBoundary key={t.id} label="This tweet" compact>
+                    <TweetCard
+                      t={t}
+                      onTickerSelect={onTickerSelect}
+                      onUserSelect={onUserSelect}
+                      mentionLookup={mentionLookup}
+                    />
+                  </ErrorBoundary>
                 ))}
                 {hasMore && (
                   <div className="flex justify-center py-2">
