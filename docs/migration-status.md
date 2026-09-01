@@ -42,6 +42,7 @@ Last updated: 2026-09-01
 - Forex/macro migration slice: TradingView-backed macro snapshot endpoint (`/api/forex/macro`) now exposes US/EU yield curves plus major FX index quotes for the `/forex` route.
 - Forex/macro migration slice: the macro snapshot now also includes legacy crypto indices and the stock/forex TradingView index panel, with market-hours-aware visibility for the legacy stock/forex block.
 - Service-backed endpoints for Fear & Greed, treemap, StockTwits, SPY heatmap, trending crypto, and WallStreetBets Reddit hot posts.
+- Stock migration slice: sector/subsector market overview endpoint (`/api/spy-heatmap/sectors`, `app/services/unusual_whales.py:summarize_spy_sectors`) groups the SPY heatmap universe by GICS sector and, within each sector, by `industry` (subsector, e.g. "Semiconductors" inside "Technology") — a plain sector is too coarse to see a narrow move. Each level reports a market-cap-weighted average `change_percent`, total `market_cap`, and `stock_count`.
 - Reddit WallStreetBets ingestion uses asyncpraw-first (legacy-style credentials) with HTTP JSON fallback when credentials are missing.
 - StockTwits service fallback for anti-bot blocks: curl-first fetch strategy with short-lived per-keyword cache fallback to avoid transient 503s (curl is executed via thread-backed sync subprocess for Windows/uvicorn compatibility).
 - Portfolio backend for IBKR-style stock tracking: positions CRUD endpoints and live summary valuation/PnL using Yahoo quotes.
@@ -118,6 +119,7 @@ Last updated: 2026-09-01
 - Trending crypto widget: `/api/trending-crypto` -> `TrendingCryptoWidget`.
 - StockTwits widget: `/api/stocktwits` -> `StocktwitsWidget`.
 - SPY heatmap widget: `/api/spy-heatmap` -> `SpyHeatmapWidget`.
+- Sector overview widget: `/api/spy-heatmap/sectors` -> `useSectorOverview` -> `SectorOverviewWidget` (`/stocks`).
 - Binance movers widget: `/api/binance/gainers-losers` -> `BinanceGainersLosersWidget`.
 - Nasdaq stock halts widget: `/api/stock-halts` -> `StockHaltsWidget`.
 - Options overview widget: `/api/options/overview` -> `OptionsOverviewWidget`.

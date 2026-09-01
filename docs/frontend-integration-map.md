@@ -149,6 +149,10 @@ Route-level sections:
   - Fetches: `/api/spy-heatmap?date=...`
   - Purpose: SPY constituent heatmap snapshot with selectable date ranges.
 
+- `SectorOverviewWidget` + `useSectorOverview`
+  - Fetches: `/api/spy-heatmap/sectors?date=...`
+  - Purpose: SPY sector/subsector performance trends (e.g. Technology, and within it Semiconductors vs Software) with selectable date ranges; each sector expands to its subsector breakdown.
+
 - `PortfolioPanel` + `usePortfolio`
   - Fetches: `/api/portfolio/positions` and `/api/portfolio/summary`
   - Mutates: `POST /api/portfolio/positions`, `PATCH /api/portfolio/positions/{position_id}`, `DELETE /api/portfolio/positions/{position_id}`

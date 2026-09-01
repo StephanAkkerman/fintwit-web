@@ -27,6 +27,7 @@ Last updated: 2026-09-01
 | `/api/options/overview` | GET | `api.nasdaq.com/api/quote/{symbol}/option-chain/most-active?assetclass=...` (aggregated across default major symbols, optional `symbols` query override) | Calls/puts totals, market put-call ratio, bullish-vs-bearish symbol ranking, and most-active contracts | Connected via `OptionsOverviewWidget` |
 | `/api/stocktwits` | GET | `api.stocktwits.com/api/2/charts/{keyword}` (curl-first, then httpx; short-lived cache fallback on transient failures) | Formatted StockTwits rank list (`symbol`, `name`, `price`, `val`); returns `[]` during transient upstream unavailability | Connected via `StocktwitsWidget` |
 | `/api/spy-heatmap` | GET | `phx.unusualwhales.com/api/etf/SPY/heatmap` | SPY heatmap JSON by date range | Connected via `SpyHeatmapWidget` |
+| `/api/spy-heatmap/sectors` | GET | Same `phx.unusualwhales.com/api/etf/SPY/heatmap` payload, aggregated by `unusual_whales.summarize_spy_sectors` | `{"sectors": [...]}` — SPY constituents grouped by GICS sector then by `industry` (subsector), each with a market-cap-weighted average `change_percent`, total `market_cap`, and `stock_count`; sectors carry a nested `subsectors` list of the same shape, both sorted by market cap descending. Accepts the same `date` range as `/api/spy-heatmap`. | Connected via `useSectorOverview` / `SectorOverviewWidget` (`/stocks`) |
 | `/api/reddit/wsb` | GET | `asyncpraw` (credentials via env) with fallback to `reddit.com/r/{subreddit}/hot.json` via `httpx` | Recent non-stickied Reddit hot posts with title/body/media normalization | Connected via `RedditWsbWidget` |
 | `/api/portfolio/positions` | GET | SQLite via `PortfolioRepo.list_positions` | Portfolio positions list | Connected via `usePortfolio` / `PortfolioPanel`; also via `usePortfolioTickers` (polls every 5m) to badge tweet-card tickers as Held / Recently Held |
 | `/api/portfolio/positions` | POST | SQLite via `PortfolioRepo.create_position` | Created portfolio position | Connected via `usePortfolio` / `PortfolioPanel` |
@@ -113,7 +114,8 @@ For equities/ETFs, `tweet.assets[*].company_profile` may include curated finance
 - Stocks route widgets rely on:
   - `/api/stocks/market-hours` for exchange session state,
   - `/api/stock-halts` for same-day halt/resumption activity,
-  - `/api/stocktwits` and `/api/spy-heatmap` for social and market breadth context.
+  - `/api/stocktwits` and `/api/spy-heatmap` for social and market breadth context,
+  - `/api/spy-heatmap/sectors` for sector/subsector performance trends.
 
 - Options route widgets rely on:
   - `/api/options/overview` for aggregated calls/puts totals, put-call ratio, and most-active option contracts.
