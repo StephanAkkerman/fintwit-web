@@ -14,6 +14,7 @@ import PortfolioPanel from './components/PortfolioPanel'
 import PortfolioValueChart from './components/PortfolioValueChart'
 import SignaSection from './components/SignaSection'
 import SpyHeatmapWidget from './components/SpyHeatmapWidget'
+import StockFearGreedWidget from './components/StockFearGreedWidget'
 import StockHaltsWidget from './components/StockHaltsWidget'
 import StockMarketHoursBanner from './components/StockMarketHoursBanner'
 import StocktwitsWidget from './components/StocktwitsWidget'
@@ -593,6 +594,9 @@ export default function App() {
 
             {route === 'stocks' && (
               <>
+                <ErrorBoundary label="Fear & Greed index">
+                  <StockFearGreedWidget />
+                </ErrorBoundary>
                 <ErrorBoundary label="Market movers">
                   <MarketMoversPanel />
                 </ErrorBoundary>

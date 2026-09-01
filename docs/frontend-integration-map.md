@@ -29,6 +29,7 @@ Route-level sections:
   - Chart-focused sort controls: Latest / Charts first / Charts only
 
 - `/stocks`
+  - `StockFearGreedWidget`
   - `StockMarketHoursBanner`
   - `StockHaltsWidget`
   - `StocktwitsWidget`
@@ -67,6 +68,10 @@ Route-level sections:
 - `FearGreedWidget`
   - Fetches: `/api/fear-greed`
   - Purpose: sentiment snapshot card.
+
+- `StockFearGreedWidget`
+  - Fetches: `/api/stocks/fear-greed`
+  - Purpose: stock market Fear & Greed index card (value + rating + day-over-day change), mounted on `/stocks`.
 
 - Tweet timeline (`useTweets` + `TweetCard`)
   - Fetches: `/api/posts?limit=200&since_hours=24` on initial mount, then keeps paging in 200-item batches until the selected time window is exhausted, while `/api/posts?limit=...&before_id=...` remains available for manual older-page loading, and `/api/stream` (SSE).
