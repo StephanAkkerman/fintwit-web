@@ -71,6 +71,24 @@ const INSIGHTS: PortfolioInsights = {
       weight_percent: 66.7,
     },
   ],
+  sectors: [
+    {
+      sector: 'Technology',
+      market_value: 2970,
+      weight_percent: 100,
+      symbols: ['AAPL', 'GHOST'],
+    },
+  ],
+  diversification: {
+    label: 'concentrated',
+    tone: 'bearish',
+    holding_hhi: 0.55,
+    effective_holdings: 1.8,
+    sector_hhi: 1,
+    effective_sectors: 1,
+    top_holding: { symbol: 'AAPL', weight_percent: 66.7 },
+    top_sector: { sector: 'Technology', weight_percent: 100 },
+  },
 }
 
 function mockState(overrides: Partial<ReturnType<typeof usePortfolioInsights>> = {}) {

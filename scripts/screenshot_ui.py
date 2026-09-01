@@ -268,6 +268,62 @@ def _portfolio_insights() -> dict:
         },
         "positions": positions,
         "highlights": highlights,
+        **_diversification(positions, market_value),
+    }
+
+
+#: Static stand-in for the `ticker_classifier` sector lookup the real API
+#: makes at request time — the screenshot fixture has no network access.
+_SECTOR_BY_SYMBOL = {
+    "NVDA": "Technology",
+    "AAPL": "Technology",
+    "MSFT": "Technology",
+    "TSLA": "Consumer Cyclical",
+}
+
+
+def _diversification(positions: list[dict], total_value: float) -> dict:
+    groups: dict[str, dict] = {}
+    for position in positions:
+        sector = _SECTOR_BY_SYMBOL.get(position["symbol"], "Unclassified")
+        group = groups.setdefault(
+            sector, {"sector": sector, "market_value": 0.0, "symbols": []}
+        )
+        group["market_value"] += position["market_value"]
+        group["symbols"].append(position["symbol"])
+
+    sectors = [
+        {
+            **group,
+            "weight_percent": (
+                group["market_value"] / total_value * 100 if total_value else 0.0
+            ),
+        }
+        for group in groups.values()
+    ]
+    sectors.sort(key=lambda s: s["market_value"], reverse=True)
+
+    top_holding = max(positions, key=lambda p: p["weight_percent"])
+    top_sector = sectors[0]
+
+    return {
+        "sectors": sectors,
+        "diversification": {
+            "label": "moderate",
+            "tone": "neutral",
+            "holding_hhi": sum((p["weight_percent"] / 100) ** 2 for p in positions),
+            "effective_holdings": len(positions),
+            "sector_hhi": sum((s["weight_percent"] / 100) ** 2 for s in sectors),
+            "effective_sectors": len(sectors),
+            "top_holding": {
+                "symbol": top_holding["symbol"],
+                "weight_percent": top_holding["weight_percent"],
+            },
+            "top_sector": {
+                "sector": top_sector["sector"],
+                "weight_percent": top_sector["weight_percent"],
+            },
+        },
     }
 
 
@@ -299,6 +355,17 @@ def _empty_insights() -> dict:
         },
         "positions": [],
         "highlights": [],
+        "sectors": [],
+        "diversification": {
+            "label": "unrated",
+            "tone": "neutral",
+            "holding_hhi": None,
+            "effective_holdings": None,
+            "sector_hhi": None,
+            "effective_sectors": None,
+            "top_holding": None,
+            "top_sector": None,
+        },
     }
 
 

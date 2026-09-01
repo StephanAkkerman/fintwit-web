@@ -152,6 +152,28 @@ async def test_history_returns_empty_payload_without_holdings():
     assert body["start_value"] is None
 
 
+_DIVERSIFICATION = {
+    "sectors": [
+        {
+            "sector": "Technology",
+            "market_value": 1200.0,
+            "weight_percent": 100.0,
+            "symbols": ["AAPL"],
+        }
+    ],
+    "diversification": {
+        "label": "concentrated",
+        "tone": "bearish",
+        "holding_hhi": 1.0,
+        "effective_holdings": 1.0,
+        "sector_hhi": 1.0,
+        "effective_sectors": 1.0,
+        "top_holding": {"symbol": "AAPL", "weight_percent": 100.0},
+        "top_sector": {"sector": "Technology", "weight_percent": 100.0},
+    },
+}
+
+
 async def test_insights_returns_positions_and_flattened_highlights():
     enriched = [
         {
@@ -182,6 +204,11 @@ async def test_insights_returns_positions_and_flattened_highlights():
             new_callable=AsyncMock,
             return_value=enriched,
         ),
+        patch(
+            "app.api.main.build_diversification",
+            new_callable=AsyncMock,
+            return_value=_DIVERSIFICATION,
+        ),
     ):
         async with await _client() as client:
             r = await client.get("/api/portfolio/insights")
@@ -199,6 +226,8 @@ async def test_insights_returns_positions_and_flattened_highlights():
             "weight_percent": 100.0,
         }
     ]
+    assert body["sectors"] == _DIVERSIFICATION["sectors"]
+    assert body["diversification"] == _DIVERSIFICATION["diversification"]
 
 
 async def test_insights_returns_empty_payload_without_holdings():
@@ -215,6 +244,8 @@ async def test_insights_returns_empty_payload_without_holdings():
     assert body["positions"] == []
     assert body["highlights"] == []
     assert body["totals"]["positions"] == 0
+    assert body["sectors"] == []
+    assert body["diversification"]["label"] == "unrated"
 
 
 async def test_portfolio_overview_endpoints_require_api_key():

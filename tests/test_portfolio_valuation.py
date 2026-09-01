@@ -10,6 +10,11 @@ from app.runtime.portfolio_snapshot import capture_snapshot
 pytestmark = pytest.mark.asyncio
 
 
+class _StubClassifier:
+    def __init__(self, classify_async):
+        self.classify_async = classify_async
+
+
 class _StubIbkrRepo:
     def __init__(self, positions: list[dict] | None = None):
         self._positions = positions or []
@@ -273,6 +278,70 @@ async def test_build_asset_insights_attaches_stats(monkeypatch):
     assert [p["symbol"] for p in enriched] == ["BIG", "BROKEN", "SMALL"]
     assert enriched[1]["stats"] is None
     assert enriched[0]["stats"]["flags"][0]["code"] == "at_ath"
+
+
+async def test_build_diversification_groups_by_sector_and_flags_concentration(
+    monkeypatch,
+):
+    async def fake_classify(symbols):
+        table = {
+            "AAPL": {"category": "EQUITY", "sector": "Technology"},
+            "MSFT": {"category": "EQUITY", "sector": "Technology"},
+            "BTC": {"category": "crypto", "sector": None},
+        }
+        return [table.get(s) for s in symbols]
+
+    monkeypatch.setattr(
+        pv, "get_shared_classifier", lambda: _StubClassifier(fake_classify)
+    )
+
+    result = await pv.build_diversification(
+        [
+            {"symbol": "AAPL", "market_value": 700.0, "weight_percent": 70.0},
+            {"symbol": "MSFT", "market_value": 200.0, "weight_percent": 20.0},
+            {"symbol": "BTC", "market_value": 100.0, "weight_percent": 10.0},
+        ]
+    )
+
+    sectors = {s["sector"]: s for s in result["sectors"]}
+    assert sectors["Technology"]["weight_percent"] == pytest.approx(90.0)
+    assert sectors["Technology"]["symbols"] == ["AAPL", "MSFT"]
+    assert sectors["Crypto"]["weight_percent"] == pytest.approx(10.0)
+
+    diversification = result["diversification"]
+    # AAPL alone is 70% of the book, so this reads as concentrated.
+    assert diversification["label"] == "concentrated"
+    assert diversification["tone"] == "bearish"
+    assert diversification["top_holding"] == {"symbol": "AAPL", "weight_percent": 70.0}
+    assert diversification["top_sector"]["sector"] == "Technology"
+    assert diversification["holding_hhi"] == pytest.approx(0.7**2 + 0.2**2 + 0.1**2)
+
+
+async def test_build_diversification_labels_a_spread_book_diversified(monkeypatch):
+    async def fake_classify(symbols):
+        sectors = ["Technology", "Healthcare", "Energy", "Financials", "Industrials"]
+        return [{"category": "EQUITY", "sector": s} for s in sectors[: len(symbols)]]
+
+    monkeypatch.setattr(
+        pv, "get_shared_classifier", lambda: _StubClassifier(fake_classify)
+    )
+
+    result = await pv.build_diversification(
+        [
+            {"symbol": s, "market_value": 20.0, "weight_percent": 20.0}
+            for s in ["A", "B", "C", "D", "E"]
+        ]
+    )
+
+    assert result["diversification"]["label"] == "diversified"
+    assert result["diversification"]["tone"] == "bullish"
+    assert len(result["sectors"]) == 5
+
+
+async def test_build_diversification_handles_empty_input():
+    result = await pv.build_diversification([])
+    assert result["sectors"] == []
+    assert result["diversification"]["label"] == "unrated"
 
 
 async def test_snapshot_repo_round_trip(portfolio_repo):

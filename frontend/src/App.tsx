@@ -10,6 +10,7 @@ import { OverviewDashboard } from './components/OverviewDashboard'
 import IbkrPanel from './components/IbkrPanel'
 import OptionsOverviewWidget from './components/OptionsOverviewWidget'
 import PortfolioAssetInsights from './components/PortfolioAssetInsights'
+import PortfolioDiversification from './components/PortfolioDiversification'
 import PortfolioPanel from './components/PortfolioPanel'
 import PortfolioValueChart from './components/PortfolioValueChart'
 import SignaSection from './components/SignaSection'
@@ -648,6 +649,9 @@ export default function App() {
                 </ErrorBoundary>
                 <ErrorBoundary label="Asset context">
                   <PortfolioAssetInsights />
+                </ErrorBoundary>
+                <ErrorBoundary label="Portfolio balance and sectors">
+                  <PortfolioDiversification />
                 </ErrorBoundary>
                 <ErrorBoundary label="IBKR live positions">
                   <IbkrPanel
