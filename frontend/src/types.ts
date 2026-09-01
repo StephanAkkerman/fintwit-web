@@ -315,6 +315,25 @@ export type SpyHeatmapItem = {
   marketcap?: number | string | null;
 };
 
+export type SectorSubsectorPerformance = {
+  industry: string;
+  market_cap: number;
+  change_percent: number | null;
+  stock_count: number;
+};
+
+export type SectorPerformance = {
+  sector: string;
+  market_cap: number;
+  change_percent: number | null;
+  stock_count: number;
+  subsectors: SectorSubsectorPerformance[];
+};
+
+export type SectorOverviewResponse = {
+  sectors: SectorPerformance[];
+};
+
 export type PortfolioPosition = {
   id: number;
   broker: 'IBKR';

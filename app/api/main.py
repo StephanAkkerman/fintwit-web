@@ -55,7 +55,7 @@ from ..services.reddit_service import get_reddit_hot_posts, is_valid_subreddit_n
 from ..services.signa import get_signa_best_trades, get_signa_live_feed
 from ..services.stock_fear_greed_service import get_stock_feargreed
 from ..services.stocktwits_service import get_stocktwits_data
-from ..services.unusual_whales import get_spy_heatmap
+from ..services.unusual_whales import get_spy_heatmap, summarize_spy_sectors
 from ..services.extended_hours_service import (
     get_snapshot as get_extended_hours_snapshot,
 )
@@ -311,21 +311,21 @@ async def stocks_market_movers(_=Depends(api_key_dep)):
     return data
 
 
+_SPY_HEATMAP_DATE_RANGES = [
+    "one_day",
+    "after_hours",
+    "yesterday",
+    "one_week",
+    "one_month",
+    "ytd",
+    "one_year",
+]
+
+
 @app.get("/api/spy-heatmap")
 async def spy_heatmap(
     request: Request,
-    date: str = Query(
-        "one_day",
-        enum=[
-            "one_day",
-            "after_hours",
-            "yesterday",
-            "one_week",
-            "one_month",
-            "ytd",
-            "one_year",
-        ],
-    ),
+    date: str = Query("one_day", enum=_SPY_HEATMAP_DATE_RANGES),
     _=Depends(api_key_dep),
 ):
     client: httpx.AsyncClient = request.app.state.http_client
@@ -333,6 +333,19 @@ async def spy_heatmap(
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data
+
+
+@app.get("/api/spy-heatmap/sectors")
+async def spy_heatmap_sectors(
+    request: Request,
+    date: str = Query("one_day", enum=_SPY_HEATMAP_DATE_RANGES),
+    _=Depends(api_key_dep),
+):
+    client: httpx.AsyncClient = request.app.state.http_client
+    data = await get_spy_heatmap(client, date=date)
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return {"sectors": summarize_spy_sectors(data)}
 
 
 @app.get("/api/treemap")

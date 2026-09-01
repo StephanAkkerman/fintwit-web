@@ -435,6 +435,66 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             "last_sync": None,
             "last_error": None,
         },
+        # Object-shaped: the catch-all's `[]` would leave SectorOverviewWidget
+        # on its empty state instead of showing the sector/subsector rows.
+        "/api/spy-heatmap/sectors": {
+            "sectors": [
+                {
+                    "sector": "Technology",
+                    "market_cap": 12_500_000_000_000,
+                    "change_percent": 1.8,
+                    "stock_count": 68,
+                    "subsectors": [
+                        {
+                            "industry": "Semiconductors",
+                            "market_cap": 5_200_000_000_000,
+                            "change_percent": 3.4,
+                            "stock_count": 14,
+                        },
+                        {
+                            "industry": "Software",
+                            "market_cap": 7_300_000_000_000,
+                            "change_percent": 0.6,
+                            "stock_count": 54,
+                        },
+                    ],
+                },
+                {
+                    "sector": "Health Care",
+                    "market_cap": 6_100_000_000_000,
+                    "change_percent": -0.4,
+                    "stock_count": 61,
+                    "subsectors": [
+                        {
+                            "industry": "Biotechnology",
+                            "market_cap": 1_900_000_000_000,
+                            "change_percent": -1.9,
+                            "stock_count": 20,
+                        },
+                        {
+                            "industry": "Pharmaceuticals",
+                            "market_cap": 4_200_000_000_000,
+                            "change_percent": 0.3,
+                            "stock_count": 41,
+                        },
+                    ],
+                },
+                {
+                    "sector": "Financials",
+                    "market_cap": 5_400_000_000_000,
+                    "change_percent": 0.2,
+                    "stock_count": 72,
+                    "subsectors": [
+                        {
+                            "industry": "Other",
+                            "market_cap": 5_400_000_000_000,
+                            "change_percent": 0.2,
+                            "stock_count": 72,
+                        }
+                    ],
+                },
+            ]
+        },
     }
 
 

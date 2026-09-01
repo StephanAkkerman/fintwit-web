@@ -341,6 +341,113 @@ async def test_spy_heatmap_returns_none_on_http_error():
         assert await unusual_whales.get_spy_heatmap(client) is None
 
 
+# ---------------------------------------------------------------------------
+# SPY heatmap sector/subsector aggregation
+# ---------------------------------------------------------------------------
+
+
+def test_summarize_spy_sectors_groups_by_sector_and_industry():
+    payload = {
+        "data": [
+            {
+                "ticker": "NVDA",
+                "sector": "Technology",
+                "industry": "Semiconductors",
+                "close": "110",
+                "prev_close": "100",
+                "marketcap": 3_000_000_000_000,
+            },
+            {
+                "ticker": "MSFT",
+                "sector": "Technology",
+                "industry": "Software",
+                "close": "410",
+                "prev_close": "410",
+                "marketcap": 1_000_000_000_000,
+            },
+            {
+                "ticker": "JPM",
+                "sector": "Financials",
+                "industry": "Banks",
+                "close": "196",
+                "prev_close": "200",
+                "marketcap": 500_000_000_000,
+            },
+        ]
+    }
+
+    sectors = unusual_whales.summarize_spy_sectors(payload)
+
+    assert [s["sector"] for s in sectors] == ["Technology", "Financials"]
+
+    tech = sectors[0]
+    assert tech["stock_count"] == 2
+    assert tech["market_cap"] == 4_000_000_000_000
+    # Weighted by market cap: (10% * 3T + 0% * 1T) / 4T = 7.5%
+    assert tech["change_percent"] == pytest.approx(7.5)
+
+    subsectors = {s["industry"]: s for s in tech["subsectors"]}
+    assert subsectors["Semiconductors"]["change_percent"] == pytest.approx(10.0)
+    assert subsectors["Software"]["change_percent"] == pytest.approx(0.0)
+
+    financials = sectors[1]
+    assert financials["change_percent"] == pytest.approx(-2.0)
+    assert financials["subsectors"] == [
+        {
+            "industry": "Banks",
+            "market_cap": 500_000_000_000,
+            "change_percent": pytest.approx(-2.0),
+            "stock_count": 1,
+        }
+    ]
+
+
+def test_summarize_spy_sectors_falls_back_for_missing_sector_industry_or_price():
+    payload = {
+        "data": [
+            {"ticker": "XYZ", "close": "10", "prev_close": "10", "marketcap": 1_000},
+        ]
+    }
+
+    sectors = unusual_whales.summarize_spy_sectors(payload)
+
+    assert sectors == [
+        {
+            "sector": "Unknown",
+            "market_cap": 1_000,
+            "change_percent": 0.0,
+            "stock_count": 1,
+            "subsectors": [
+                {
+                    "industry": "Other",
+                    "market_cap": 1_000,
+                    "change_percent": 0.0,
+                    "stock_count": 1,
+                }
+            ],
+        }
+    ]
+
+
+def test_summarize_spy_sectors_change_percent_is_none_without_market_cap():
+    payload = {
+        "data": [
+            {"ticker": "XYZ", "sector": "Energy", "close": "10", "prev_close": "9"}
+        ]
+    }
+
+    sectors = unusual_whales.summarize_spy_sectors(payload)
+
+    assert sectors[0]["market_cap"] == 0.0
+    assert sectors[0]["change_percent"] is None
+
+
+def test_summarize_spy_sectors_handles_missing_or_malformed_payload():
+    assert unusual_whales.summarize_spy_sectors(None) == []
+    assert unusual_whales.summarize_spy_sectors({}) == []
+    assert unusual_whales.summarize_spy_sectors({"data": "not-a-list"}) == []
+
+
 async def test_treemap_returns_the_payload():
     payload = {"data": [{"s": "BTC", "p": 1.0}]}
 

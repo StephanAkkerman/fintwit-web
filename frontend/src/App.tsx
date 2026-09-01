@@ -15,6 +15,7 @@ import PortfolioPanel from './components/PortfolioPanel'
 import PortfolioValueChart from './components/PortfolioValueChart'
 import SignaSection from './components/SignaSection'
 import SpyHeatmapWidget from './components/SpyHeatmapWidget'
+import SectorOverviewWidget from './components/SectorOverviewWidget'
 import StockFearGreedWidget from './components/StockFearGreedWidget'
 import StockHaltsWidget from './components/StockHaltsWidget'
 import StockMarketHoursBanner from './components/StockMarketHoursBanner'
@@ -615,6 +616,9 @@ export default function App() {
                 </ErrorBoundary>
                 <ErrorBoundary label="SPY heatmap">
                   <SpyHeatmapWidget />
+                </ErrorBoundary>
+                <ErrorBoundary label="Sector overview">
+                  <SectorOverviewWidget />
                 </ErrorBoundary>
               </>
             )}
