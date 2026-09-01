@@ -468,11 +468,61 @@ describe('TweetCard', () => {
     expect(screen.getByText('Stock')).toBeInTheDocument()
     expect(screen.getByText(/^\$185[.,]12$/)).toBeInTheDocument()
     expect(screen.getByText('+1.73%')).toBeInTheDocument()
-    expect(screen.queryByText('Information Technology')).not.toBeInTheDocument()
+    expect(screen.getByText('Information Technology')).toBeInTheDocument()
     expect(
       screen.queryByText('NASDAQ Global Select | United States | USD | Mega Cap')
     ).not.toBeInTheDocument()
     expect(screen.queryByText('Source: COINGECKO')).not.toBeInTheDocument()
+  })
+
+  it('renders the fundamentals strip for an asset by default', () => {
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          assets: [
+            {
+              symbol: 'NVDA',
+              kind: 'EQUITY',
+              name: 'NVIDIA Corp',
+              sector: 'Information Technology',
+              industry: 'Semiconductors',
+              fundamentals: {
+                market_cap: 3_400_000_000_000,
+                forward_pe: 31.24,
+                trailing_pe: 45.8,
+                avg_volume: 215_000_000,
+                currency: 'USD',
+              },
+              financials: { price: 140.5, change_percent: 2.1 },
+            },
+          ],
+        }}
+      />
+    )
+
+    expect(screen.getByText('$3.40T')).toBeInTheDocument()
+    expect(screen.getByText('Fwd P/E')).toBeInTheDocument()
+    expect(screen.getByText('31.2')).toBeInTheDocument()
+    expect(screen.getByText('215.0M')).toBeInTheDocument()
+    // The specific industry wins over the broad sector.
+    expect(screen.getByText('Semiconductors')).toBeInTheDocument()
+    expect(screen.queryByText('Information Technology')).not.toBeInTheDocument()
+  })
+
+  it('omits the fundamentals strip when an asset has none', () => {
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          assets: [
+            { symbol: 'ES', kind: 'FUTURE', financials: { price: 5800, change_percent: 0.4 } },
+          ],
+        }}
+      />
+    )
+
+    expect(screen.queryByTestId('asset-fundamentals')).not.toBeInTheDocument()
   })
 
   it('calls ticker filter callback when financial ticker is clicked', () => {

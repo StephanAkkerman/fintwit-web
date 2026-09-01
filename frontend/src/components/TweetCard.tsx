@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm'
 import type { Tweet } from '../types'
 import { hasChartSignal } from '../utils/tweetSignals'
 import type { MentionLookup } from '../hooks/useMentionFrequency'
+import AssetFundamentals from './AssetFundamentals'
 import AssetMentions from './AssetMentions'
 import SignaSignal from './SignaSignal'
 import TradingViewAnalysis from './TradingViewAnalysis'
@@ -692,6 +693,7 @@ export default function TweetCard({
                     </span>
                   </div>
                 )}
+                <AssetFundamentals asset={asset} className="mt-1.5" />
                 <TradingViewAnalysis analysis={financials?.technical_analysis} className="mt-1.5" />
                 <SignaSignal signal={financials?.signa} className="mt-1.5" />
                 {mentionLookup && t.user_screen_name && (

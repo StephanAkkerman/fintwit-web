@@ -63,6 +63,7 @@ def _mock_classifier_result(
     sector=None,
     industry=None,
     company_profile=None,
+    fundamentals=None,
 ):
     """Return a mock object that looks like a TickerClassifier result row."""
     r = MagicMock()
@@ -74,6 +75,7 @@ def _mock_classifier_result(
     r.sector = sector
     r.industry = industry
     r.company_profile = company_profile
+    r.fundamentals = fundamentals
     return r
 
 
@@ -491,6 +493,13 @@ async def test_classify_preserves_static_fields():
             "website": "http://www.apple.com",
             "market_cap_category": "Mega Cap",
         },
+        fundamentals={
+            "market_cap": 3_000_000_000_000,
+            "forward_pe": 30.7,
+            "trailing_pe": 41.1,
+            "avg_volume": 54_321_000,
+            "currency": "USD",
+        },
     )
     with patch.object(enricher._cls, "classify_async", return_value=[mock_result]):
         result = await enricher.classify(["AAPL"])
@@ -506,7 +515,44 @@ async def test_classify_preserves_static_fields():
         "website": "http://www.apple.com",
         "market_cap_category": "Mega Cap",
     }
+    assert result[0]["fundamentals"] == {
+        "market_cap": 3_000_000_000_000,
+        "forward_pe": 30.7,
+        "trailing_pe": 41.1,
+        "avg_volume": 54_321_000,
+        "currency": "USD",
+    }
     assert result[0]["meta"] == {"exchange": "NASDAQ"}
+
+
+@pytest.mark.asyncio
+async def test_classify_fundamentals_absent_when_classifier_omits_them():
+    """Older cached classifier rows have no fundamentals; the key must still exist."""
+    enricher = AssetEnricher()
+    mock_result = _mock_classifier_result("AAPL", "EQUITY", "Apple Inc.")
+    with patch.object(enricher._cls, "classify_async", return_value=[mock_result]):
+        result = await enricher.classify(["AAPL"])
+    assert result[0]["fundamentals"] is None
+
+
+@pytest.mark.asyncio
+async def test_classify_fundamentals_ignores_non_dict_payload():
+    enricher = AssetEnricher()
+    mock_result = _mock_classifier_result(
+        "AAPL", "EQUITY", "Apple Inc.", fundamentals="not-a-dict"
+    )
+    with patch.object(enricher._cls, "classify_async", return_value=[mock_result]):
+        result = await enricher.classify(["AAPL"])
+    assert result[0]["fundamentals"] is None
+
+
+@pytest.mark.asyncio
+async def test_classify_local_override_has_no_fundamentals():
+    """Local shortcuts bypass the classifier, so there is no quote to read."""
+    enricher = AssetEnricher()
+    with patch.object(enricher._cls, "classify_async", return_value=[]):
+        result = await enricher.classify(["NQ"])
+    assert result[0]["fundamentals"] is None
 
 
 @pytest.mark.asyncio
