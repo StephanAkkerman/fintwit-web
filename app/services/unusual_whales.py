@@ -3,7 +3,10 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-async def get_spy_heatmap(client: httpx.AsyncClient, date: str = "one_day") -> dict | None:
+
+async def get_spy_heatmap(
+    client: httpx.AsyncClient, date: str = "one_day"
+) -> dict | None:
     """
     Fetches the S&P 500 heatmap data from Unusual Whales API.
 
@@ -34,6 +37,7 @@ async def get_spy_heatmap(client: httpx.AsyncClient, date: str = "one_day") -> d
         logger.exception(f"Could not fetch SPY heatmap data from Unusual Whales: {e}")
         return None
 
+
 if __name__ == "__main__":
     import asyncio
 
@@ -41,7 +45,9 @@ if __name__ == "__main__":
         async with httpx.AsyncClient() as client:
             data = await get_spy_heatmap(client)
             if data:
-                print(f"Heatmap data fetched successfully. Returned {len(data.get('data', []))} records.")
+                print(
+                    f"Heatmap data fetched successfully. Returned {len(data.get('data', []))} records."
+                )
             else:
                 print("Failed to fetch SPY heatmap data.")
 

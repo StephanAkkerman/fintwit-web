@@ -7,6 +7,7 @@ import lxml.html
 
 logger = logging.getLogger(__name__)
 
+
 async def get_halt_data(client: httpx.AsyncClient) -> list[dict] | None:
     """
     Fetches the halted stocks data from Nasdaq.
@@ -36,7 +37,7 @@ async def get_halt_data(client: httpx.AsyncClient) -> list[dict] | None:
 
         table = tables[0]
         rows = table.xpath(".//tr")
-        if len(rows) <= 1: # Header only or empty
+        if len(rows) <= 1:  # Header only or empty
             return []
 
         # Extract headers to find column indices
@@ -48,10 +49,14 @@ async def get_halt_data(client: httpx.AsyncClient) -> list[dict] | None:
 
         required_cols = ["Halt Date", "Halt Time", "Issue Symbol"]
         if not all(col in col_indices for col in required_cols):
-             logger.warning(f"Nasdaq halt data missing required columns. Found: {headers}")
-             return []
+            logger.warning(
+                f"Nasdaq halt data missing required columns. Found: {headers}"
+            )
+            return []
 
-        has_resumption = "Resumption Date" in col_indices and "Resumption Trade Time" in col_indices
+        has_resumption = (
+            "Resumption Date" in col_indices and "Resumption Trade Time" in col_indices
+        )
 
         today_str = datetime.datetime.now(tz.gettz("US/Eastern")).strftime("%m/%d/%Y")
         halts = []
@@ -59,9 +64,11 @@ async def get_halt_data(client: httpx.AsyncClient) -> list[dict] | None:
         for row in rows[1:]:
             cols = row.xpath(".//td")
             if len(cols) != len(headers):
-                 continue
+                continue
 
-            row_data = {headers[i]: cols[i].text_content().strip() for i in range(len(headers))}
+            row_data = {
+                headers[i]: cols[i].text_content().strip() for i in range(len(headers))
+            }
 
             halt_date = row_data.get("Halt Date")
             if halt_date != today_str:
@@ -83,7 +90,7 @@ async def get_halt_data(client: httpx.AsyncClient) -> list[dict] | None:
 
             halt_dict = {
                 "Time": time_str,
-                "Issue Symbol": issue_symbol if issue_symbol else "?"
+                "Issue Symbol": issue_symbol if issue_symbol else "?",
             }
 
             if has_resumption:
@@ -91,14 +98,18 @@ async def get_halt_data(client: httpx.AsyncClient) -> list[dict] | None:
                 res_time = row_data.get("Resumption Trade Time")
                 if res_date and res_time and res_date != "" and res_time != "":
                     try:
-                         res_dt_str = f"{res_date} {res_time}"
-                         res_dt = datetime.datetime.strptime(res_dt_str, "%m/%d/%Y %H:%M:%S")
-                         res_dt_eastern = res_dt.replace(tzinfo=tz.gettz("US/Eastern"))
-                         halt_dict["Resumption Time"] = res_dt_eastern.strftime("%H:%M:%S")
+                        res_dt_str = f"{res_date} {res_time}"
+                        res_dt = datetime.datetime.strptime(
+                            res_dt_str, "%m/%d/%Y %H:%M:%S"
+                        )
+                        res_dt_eastern = res_dt.replace(tzinfo=tz.gettz("US/Eastern"))
+                        halt_dict["Resumption Time"] = res_dt_eastern.strftime(
+                            "%H:%M:%S"
+                        )
                     except ValueError:
-                         halt_dict["Resumption Time"] = "?"
+                        halt_dict["Resumption Time"] = "?"
                 else:
-                     halt_dict["Resumption Time"] = "?"
+                    halt_dict["Resumption Time"] = "?"
 
             halts.append(halt_dict)
 
@@ -106,6 +117,7 @@ async def get_halt_data(client: httpx.AsyncClient) -> list[dict] | None:
     except Exception as e:
         logger.exception(f"Error parsing Nasdaq halt data: {e}")
         return None
+
 
 _HALT_PAGE = "https://www.nasdaqtrader.com/trader.aspx?id=tradehalts"
 _HALT_RPC = "https://www.nasdaqtrader.com/RPCHandler.axd"
@@ -134,7 +146,12 @@ async def fetch_halt_data(client: httpx.AsyncClient) -> dict | None:
                 "Accept": "application/json, text/javascript, */*; q=0.01",
                 "User-Agent": _UA,
             },
-            json={"id": 3, "method": "BL_TradeHalt.GetTradeHalts", "params": "[]", "version": "1.1"},
+            json={
+                "id": 3,
+                "method": "BL_TradeHalt.GetTradeHalts",
+                "params": "[]",
+                "version": "1.1",
+            },
         )
         response.raise_for_status()
         return response.json()

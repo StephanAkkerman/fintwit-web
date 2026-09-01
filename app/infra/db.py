@@ -90,6 +90,32 @@ class PortfolioPositionRow(Base):
     updated_at: Mapped[DateTime] = mapped_column(DateTime, nullable=True, index=True)
 
 
+class PortfolioSnapshotRow(Base):
+    """Point-in-time record of the portfolio's total value.
+
+    Snapshots are what make the value-over-time chart reflect the portfolio as
+    it actually was; the API falls back to reconstructing value from historical
+    prices for the period before snapshots existed.
+    """
+
+    __tablename__ = "portfolio_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source: Mapped[str] = mapped_column(String, index=True, default="manual")
+    captured_at: Mapped[DateTime] = mapped_column(DateTime, index=True)
+    market_value: Mapped[float] = mapped_column(Float)
+    cost_basis: Mapped[float] = mapped_column(Float)
+    unrealized_pnl: Mapped[float] = mapped_column(Float)
+    unrealized_pnl_percent: Mapped[float] = mapped_column(Float)
+    positions: Mapped[int] = mapped_column(Integer, default=0)
+    breakdown: Mapped[list] = mapped_column(
+        JSON().with_variant(SQLITE_JSON, "sqlite"),
+        nullable=True,
+        default=None,
+        server_default=sql_text("NULL"),
+    )
+
+
 class IbkrPositionRow(Base):
     __tablename__ = "ibkr_positions"
 

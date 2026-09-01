@@ -1,6 +1,6 @@
 import { FormEvent, useMemo, useState } from 'react'
 import { usePortfolio } from '../hooks/usePortfolio'
-import type { PortfolioPosition } from '../types'
+import type { PortfolioPosition, PortfolioSummaryPosition } from '../types'
 
 function money(value: number): string {
   return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -17,7 +17,7 @@ export default function PortfolioPanel() {
   const [actionError, setActionError] = useState<string | null>(null)
 
   const summaryById = useMemo(() => {
-    const map = new Map<number, (typeof summary.positions)[number]>()
+    const map = new Map<number, PortfolioSummaryPosition>()
     for (const item of summary?.positions ?? []) {
       map.set(item.id, item)
     }
@@ -122,7 +122,7 @@ export default function PortfolioPanel() {
 
       {actionError && <p className="mt-2 text-xs text-red-500">{actionError}</p>}
 
-      {summary && (
+      {summary?.totals && (
         <div className="mt-3 grid gap-2 sm:grid-cols-3">
           <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-2 dark:border-zinc-700 dark:bg-zinc-900/50">
             <div className="text-[11px] text-zinc-500">Market Value</div>

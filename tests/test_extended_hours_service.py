@@ -1,4 +1,5 @@
 """Tests for extended_hours_service window logic and snapshot shape."""
+
 import pytest
 
 pytestmark = pytest.mark.asyncio
@@ -11,7 +12,7 @@ def test_window_bounds_pre_market():
 
     assert "04:00" in start_iso
     assert "09:30" in end_iso
-    assert since_utc.tzinfo is None   # must be naive UTC
+    assert since_utc.tzinfo is None  # must be naive UTC
     assert since_utc < until_utc
 
 
@@ -50,10 +51,24 @@ async def test_get_snapshot_shape(monkeypatch):
     monkeypatch.setattr(svc, "_snapshot_cache", None)
 
     async def _fake_futures():
-        return [{"label": "ES", "symbol": "CME_MINI:ES1!", "price": 5800.0, "change_pct": 0.3}]
+        return [
+            {
+                "label": "ES",
+                "symbol": "CME_MINI:ES1!",
+                "price": 5800.0,
+                "change_pct": 0.3,
+            }
+        ]
 
     async def _fake_etfs():
-        return [{"symbol": "SPY", "price": 580.0, "extended_price": 581.5, "extended_change_pct": 0.26}]
+        return [
+            {
+                "symbol": "SPY",
+                "price": 580.0,
+                "extended_price": 581.5,
+                "extended_change_pct": 0.26,
+            }
+        ]
 
     monkeypatch.setattr(svc, "_fetch_futures", _fake_futures)
     monkeypatch.setattr(svc, "_fetch_etfs", _fake_etfs)

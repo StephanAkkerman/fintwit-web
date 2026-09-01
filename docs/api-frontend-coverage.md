@@ -1,6 +1,6 @@
 # API and Frontend Coverage Matrix
 
-Last updated: 2026-06-12
+Last updated: 2026-08-31
 
 ## Authentication
 
@@ -32,6 +32,8 @@ Last updated: 2026-06-12
 | `/api/portfolio/positions/{position_id}` | PATCH | SQLite via `PortfolioRepo.update_position` | Updated portfolio position (active flag and editable fields) | Connected via `usePortfolio` / `PortfolioPanel` |
 | `/api/portfolio/positions/{position_id}` | DELETE | SQLite via `PortfolioRepo.delete_position` | `{ ok: true }` on delete | Connected via `usePortfolio` / `PortfolioPanel` |
 | `/api/portfolio/summary` | GET | SQLite positions + Yahoo Finance (`get_stock_info`) | Live valuation totals and per-position unrealized PnL | Connected via `usePortfolio` / `PortfolioPanel` |
+| `/api/portfolio/history` | GET | Holdings from `IbkrRepo`/`PortfolioRepo` + Yahoo Finance chart history (`price_history_service`) + stored `portfolio_snapshots` | Portfolio value over time for a range (`1W`,`1M`,`3M`,`6M`,`YTD`,`1Y`,`5Y`,`MAX`; default `3M`). Points carry `value`, `cost_basis`, `pnl`, `pnl_percent` and a `source` of `snapshot` (recorded valuation), `reconstructed` (today's quantities priced at historical closes) or `live` (current quote). Also returns `holdings`, live `totals`, `start_value`/`end_value`/`change`/`change_percent`, and `missing_symbols` for holdings with no price history. `source=auto\|manual\|ibkr` selects the holdings set (`auto` prefers synced IBKR stock positions, else manually tracked ones). | Connected via `usePortfolioHistory` / `PortfolioValueChart` (`/portfolio`) |
+| `/api/portfolio/insights` | GET | Holdings + Yahoo Finance quotes and full price history (`price_history_service.get_symbol_stats`) | Per-asset context: all-time high/low and 52-week high/low with dates, `from_ath_percent`/`from_atl_percent`, `range_position_52w`, `days_since_ath`/`days_since_atl`, plus ordered `flags` (`at_ath`, `near_ath`, `recent_ath`, `at_atl`, `near_atl`, `recent_atl`, `near_52w_high`, `near_52w_low`). Positions also carry live price, weight and unrealized PnL; `highlights` flattens the flags across holdings. Accepts the same `source` selector. | Connected via `usePortfolioInsights` / `PortfolioAssetInsights` (`/portfolio`) |
 | `/api/debug/tweet` | POST | Internal debug helper + enrichment | Injected tweet payload persisted + broadcast, including options-intent classification fields (`is_options_tweet`, `options_context`) | Connected via `DebugAdminPanel` (`/admin`) |
 | `/api/overview/mention-frequency` | POST | SQLite via `mention_aggregator.get_mention_frequency` (json_each over `tweets`) | Batch per-(author, ticker) mention-frequency stats over a 30d window in two scopes — `personal` (the tweet author) and `global` (all users). Body: `{ requests: [{ author, tickers[] }] }` (max 300 authors). Each `TickerScopeStat` carries `mentions`, `prev_mentions`, a primary `signal` (`new`/`resurfacing`/`top`/`hot`/`rising`/`falling`/`neutral`), `rank`, `pct_change`, `days_since_last`, sentiment `stance` (+`stance_flipped`), and a `notable` flag. | Connected via `useMentionFrequency` → `AssetMentions` inside each `TweetCard` asset card |
 
@@ -70,9 +72,9 @@ For equities/ETFs, `tweet.assets[*].company_profile` may include curated finance
   - `/stocks` stock-focused widgets,
   - `/forex` macro/forex-focused widgets,
   - `/options` options market-activity widgets,
-  - `/portfolio` portfolio management.
+  - `/portfolio` portfolio overview (value-over-time chart, per-asset ATH/ATL context, live IBKR positions) and portfolio management.
 
-- Primary contracts live in `frontend/src/types.ts` (tweets, market widgets, and portfolio types).
+- Primary contracts live in `frontend/src/types.ts` (tweets, market widgets, and portfolio types, including `PortfolioHistory`, `PortfolioHistoryPoint`, `PortfolioInsights`, `PortfolioInsightPosition`, `PortfolioAssetStats`, and `PortfolioAssetFlag`).
 - Containerized frontend proxy wiring: Nginx now resolves backend service DNS dynamically (`resolver 127.0.0.11`) on port 7999 for `/api/*` and `/api/stream` upstream routes to avoid stale upstream IPs after backend container restarts.
 - Timeline and filters rely on:
   - `tickers`, `hashtags`, and symbol extraction from text,

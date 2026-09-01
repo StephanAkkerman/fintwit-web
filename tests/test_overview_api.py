@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 def client():
     with patch("app.api.main.run_stream", new_callable=AsyncMock):
         from app.api.main import app
+
         with TestClient(app, raise_server_exceptions=True) as c:
             yield c
 
@@ -59,8 +60,11 @@ def test_mention_frequency_empty(client):
 
 def test_macro_strip_returns_list(client):
     mock_quote = {"price": 5000.0, "change_percent": 0.5}
-    with patch("app.api.overview.get_tradingview_quote",
-               new_callable=AsyncMock, return_value=mock_quote):
+    with patch(
+        "app.api.overview.get_tradingview_quote",
+        new_callable=AsyncMock,
+        return_value=mock_quote,
+    ):
         resp = client.get("/api/overview/macro-strip")
     assert resp.status_code == 200
     data = resp.json()

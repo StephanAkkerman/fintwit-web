@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
+import pandas as pd
 import pytest
 
 import app.services.market_hours_service as market_hours_service

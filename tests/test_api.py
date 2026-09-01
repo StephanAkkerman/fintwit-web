@@ -507,5 +507,3 @@ async def test_portfolio_summary_returns_totals(async_client):
     data = response.json()
     assert data["totals"]["positions"] == 1
     assert data["totals"]["unrealized_pnl"] == 200.0
-
-

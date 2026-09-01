@@ -1,4 +1,5 @@
 """Tests for market_movers_service."""
+
 import pytest
 import app.services.market_movers_service as svc
 
@@ -18,7 +19,7 @@ def _make_mover(symbol: str, change_pct: float) -> dict:
 
 
 FAKE_GAINERS = [_make_mover(f"G{i:02d}", float(i + 1)) for i in range(10)]
-FAKE_LOSERS  = [_make_mover(f"L{i:02d}", float(-(i + 1))) for i in range(10)]
+FAKE_LOSERS = [_make_mover(f"L{i:02d}", float(-(i + 1))) for i in range(10)]
 
 
 async def test_get_market_movers_shape(monkeypatch):
@@ -36,7 +37,15 @@ async def test_get_market_movers_shape(monkeypatch):
     assert result["stale"] is False
     assert len(result["gainers"]) == 10
     assert len(result["losers"]) == 10
-    for key in ("symbol", "name", "price", "extended_price", "change_pct", "volume", "market_cap"):
+    for key in (
+        "symbol",
+        "name",
+        "price",
+        "extended_price",
+        "change_pct",
+        "volume",
+        "market_cap",
+    ):
         assert key in result["gainers"][0], f"Missing key in gainer: {key}"
         assert key in result["losers"][0], f"Missing key in loser: {key}"
 
@@ -74,6 +83,7 @@ async def test_get_market_movers_returns_none_when_fetch_fails(monkeypatch):
 
 async def test_get_market_movers_returns_stale_on_failure_with_warm_cache(monkeypatch):
     import time as time_module
+
     monkeypatch.setattr(svc, "_cache", None)
 
     async def fake_fetch_success(prefix: str) -> tuple[list, list]:
@@ -86,7 +96,9 @@ async def test_get_market_movers_returns_stale_on_failure_with_warm_cache(monkey
 
     # Expire the cache
     current_prefix = svc._current_prefix()
-    monkeypatch.setattr(svc, "_cache", (time_module.time() - 400, current_prefix, fresh))
+    monkeypatch.setattr(
+        svc, "_cache", (time_module.time() - 400, current_prefix, fresh)
+    )
 
     async def fake_fetch_fail(prefix: str) -> tuple[list, list]:
         raise RuntimeError("scanner down")

@@ -67,7 +67,6 @@ async def run_stream(
                 persist_last_id_path=last_id_path,
             ) as xc:
                 async for t in xc.stream(interval_s=5.0, mode="with_updates"):
-
                     # Convert to dict for easier manipulation
                     t_dict = t.to_dict()
 

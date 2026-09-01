@@ -29,5 +29,14 @@ jobs:
             - name: Install dependencies
               run: npm ci
 
+            # `vite build` uses esbuild, which strips types without checking
+            # them, so the type errors only surface here.
+            - name: Typecheck
+              run: npx tsc --noEmit
+
             - name: Run Vitest
               run: npm test
+
+            # A component no test imports can still break the bundle.
+            - name: Build
+              run: npm run build

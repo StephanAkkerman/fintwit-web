@@ -77,15 +77,45 @@ reused across repos; do not re-add local `yahoo.py`/`coingecko.py` modules.
 ## Development
 
 ```bash
-# Backend
-uvicorn app.api.main:app --port 7999 --reload
-pytest --maxfail=1 --disable-warnings -q
-ruff check . && ruff format .
+# Backend — one-time setup. Installs only what the tests need; the ML stack
+# (torch/transformers/timm) is excluded because app/ml imports it lazily.
+pip install -e ".[test]"
+
+uvicorn app.api.main:app --port 7999 --reload   # needs `pip install -r requirements.txt`
+python -m pytest --disable-warnings -q             # no --maxfail: see every failure at once
+ruff check . && ruff format --check .           # CI runs both; drop --check to apply
 
 # Frontend (from /frontend)
-npm run dev      # proxies /api/* to http://127.0.0.1:7999
+npm ci
+npm run dev        # proxies /api/* to http://127.0.0.1:7999
+npx tsc --noEmit   # vite build does NOT typecheck; CI runs this separately
+npm test           # vitest
 npm run build
 ```
+
+```bash
+# See the UI. Renders a route with /api/** stubbed, so a capture needs no
+# backend and does not depend on live market data (the upstreams are
+# unreachable from sandboxes and CI anyway).
+pip install -e ".[dev]"
+make screenshot                              # artifacts/portfolio-loaded-dark.png
+make screenshot ROUTE=/crypto SCENARIO=empty THEME=light
+```
+
+Fixtures live in `scripts/screenshot_ui.py`. Add a scenario there to render a
+state that is awkward to reach for real — an asset exactly at its all-time high,
+a holding whose price history failed to load. Object-shaped endpoints must be
+fixtured explicitly; the catch-all answers with a list, and a component reading
+a field off it throws during render.
+
+`make check` runs every one of these gates, exactly as CI does — prefer it
+over running them individually. `make install` sets the environment up; in a
+Claude Code on the web session `.claude/hooks/session-start.sh` has already
+done that for you.
+
+`main` should be green on all of these checks. If something fails before you have
+changed anything, say so rather than working around it — a red baseline makes
+it impossible to attribute the next failure.
 
 ## Migration Workflow
 
@@ -103,5 +133,5 @@ When building a new feature, follow the 7-step order in `AGENTS.md`:
 
 - **Python:** Ruff + Black (line length 88), NumPy-style docstrings, isort with Black profile
 - **TypeScript:** strict mode, ESNext modules
-- Supported Python: 3.10–3.13
+- Supported Python: 3.11–3.13 (`xtimeline` requires >=3.11)
 

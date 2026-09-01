@@ -5,7 +5,7 @@ import logging
 import os
 import time
 from contextlib import asynccontextmanager, suppress
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal
 
@@ -23,6 +23,16 @@ from ..runtime.broadcast import Broadcaster
 from ..runtime.enricher import AssetEnricher
 from ..runtime.ibkr_sync import run_ibkr_sync
 from ..runtime.options_intent import classify_options_intent
+from ..runtime.portfolio_snapshot import (
+    DEFAULT_INTERVAL as SNAPSHOT_INTERVAL,
+    run_portfolio_snapshots,
+)
+from ..runtime.portfolio_valuation import (
+    build_asset_insights,
+    build_value_history,
+    resolve_holdings,
+    value_holdings,
+)
 from ..runtime.streamer import run_stream
 from ..runtime.symbols import merge_symbols
 from ..services.binance_service import get_gainers_losers
@@ -35,11 +45,18 @@ from ..services.macro_market import get_macro_snapshot
 from ..services.market_hours_service import get_stock_market_hours
 from ..services.nasdaq_service import get_halt_data
 from ..services.options_service import get_options_overview
+from ..services.price_history_service import (
+    DEFAULT_RANGE as DEFAULT_HISTORY_RANGE,
+    RANGE_PRESETS,
+    normalize_range,
+)
 from ..services.reddit_service import get_reddit_hot_posts, is_valid_subreddit_name
 from ..services.signa import get_signa_best_trades, get_signa_live_feed
 from ..services.stocktwits_service import get_stocktwits_data
 from ..services.unusual_whales import get_spy_heatmap
-from ..services.extended_hours_service import get_snapshot as get_extended_hours_snapshot
+from ..services.extended_hours_service import (
+    get_snapshot as get_extended_hours_snapshot,
+)
 from ..services.market_movers_service import get_market_movers
 
 with suppress(Exception):
@@ -107,6 +124,12 @@ async def lifespan(app: FastAPI):
     else:
         app.state.ibkr_gateway = None
 
+    snapshot_interval = int(os.getenv("PORTFOLIO_SNAPSHOT_INTERVAL", SNAPSHOT_INTERVAL))
+    snapshot_task = asyncio.create_task(
+        run_portfolio_snapshots(PORTFOLIO_REPO, IBKR_REPO, interval=snapshot_interval)
+    )
+    logger.info("[portfolio] snapshot worker started (interval=%ds)", snapshot_interval)
+
     try:
         logger.info(
             "[startup] application ready in %.2fs",
@@ -118,6 +141,9 @@ async def lifespan(app: FastAPI):
         task.cancel()
         with suppress(asyncio.CancelledError):
             await task
+        snapshot_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await snapshot_task
         if ibkr_task is not None:
             ibkr_task.cancel()
             with suppress(asyncio.CancelledError):
@@ -535,6 +561,126 @@ async def portfolio_summary(_=Depends(api_key_dep)):
             "unrealized_pnl_percent": total_pnl_pct,
         },
         "positions": enriched_positions,
+    }
+
+
+_RANGE_LOOKBACK_DAYS: dict[str, int | None] = {
+    "1W": 7,
+    "1M": 31,
+    "3M": 93,
+    "6M": 186,
+    "YTD": None,  # resolved against Jan 1 of the current year
+    "1Y": 366,
+    "5Y": 1830,
+    "MAX": None,
+}
+
+
+def _snapshot_cutoff(range_key: str) -> datetime | None:
+    """Earliest snapshot timestamp worth loading for a chart range."""
+    now = datetime.now(timezone.utc)
+    if range_key == "YTD":
+        return datetime(now.year, 1, 1, tzinfo=timezone.utc)
+
+    days = _RANGE_LOOKBACK_DAYS.get(range_key)
+    return now - timedelta(days=days) if days else None
+
+
+@app.get("/api/portfolio/history")
+async def portfolio_history(
+    range: str = Query(default=DEFAULT_HISTORY_RANGE),
+    source: str = Query(default="auto"),
+    _=Depends(api_key_dep),
+):
+    """Portfolio value over time for the requested range.
+
+    Values are reconstructed from each holding's historical closes and
+    overridden by stored snapshots wherever one exists for that day.
+    """
+    range_key = normalize_range(range)
+    resolved_source, holdings = await resolve_holdings(
+        PORTFOLIO_REPO, IBKR_REPO, source
+    )
+
+    if not holdings:
+        return {
+            "source": resolved_source,
+            "range": range_key,
+            "available_ranges": list(RANGE_PRESETS),
+            "holdings": [],
+            "points": [],
+            "cost_basis": 0.0,
+            "start_value": None,
+            "end_value": None,
+            "change": None,
+            "change_percent": None,
+            "missing_symbols": [],
+        }
+
+    snapshots = await PORTFOLIO_REPO.list_snapshots(
+        source=resolved_source, since=_snapshot_cutoff(range_key)
+    )
+    valuation = await value_holdings(holdings)
+    history = await build_value_history(
+        holdings,
+        range_key,
+        snapshots=snapshots,
+        live_totals=valuation["totals"],
+    )
+
+    return {
+        "source": resolved_source,
+        "available_ranges": list(RANGE_PRESETS),
+        "holdings": [h["symbol"] for h in holdings],
+        "totals": valuation["totals"],
+        **history,
+    }
+
+
+@app.get("/api/portfolio/insights")
+async def portfolio_insights(
+    source: str = Query(default="auto"),
+    _=Depends(api_key_dep),
+):
+    """Per-asset context for the overview: ATH/ATL distance and 52-week range."""
+    resolved_source, holdings = await resolve_holdings(
+        PORTFOLIO_REPO, IBKR_REPO, source
+    )
+
+    if not holdings:
+        return {
+            "source": resolved_source,
+            "totals": {
+                "positions": 0,
+                "market_value": 0.0,
+                "cost_basis": 0.0,
+                "unrealized_pnl": 0.0,
+                "unrealized_pnl_percent": 0.0,
+            },
+            "positions": [],
+            "highlights": [],
+        }
+
+    valuation = await value_holdings(holdings)
+    positions = await build_asset_insights(valuation["positions"])
+
+    highlights = [
+        {
+            "symbol": position["symbol"],
+            "code": flag["code"],
+            "label": flag["label"],
+            "tone": flag["tone"],
+            "weight_percent": position.get("weight_percent"),
+        }
+        for position in positions
+        for flag in ((position.get("stats") or {}).get("flags") or [])
+    ]
+
+    return {
+        "source": resolved_source,
+        "totals": valuation["totals"],
+        "positions": positions,
+        "highlights": highlights,
     }
 
 

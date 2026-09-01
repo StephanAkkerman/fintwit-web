@@ -1,6 +1,6 @@
 # Migration Status
 
-Last updated: 2026-06-17
+Last updated: 2026-08-31
 
 ## Backend: Implemented
 
@@ -44,6 +44,7 @@ Last updated: 2026-06-17
 - Reddit WallStreetBets ingestion uses asyncpraw-first (legacy-style credentials) with HTTP JSON fallback when credentials are missing.
 - StockTwits service fallback for anti-bot blocks: curl-first fetch strategy with short-lived per-keyword cache fallback to avoid transient 503s (curl is executed via thread-backed sync subprocess for Windows/uvicorn compatibility).
 - Portfolio backend for IBKR-style stock tracking: positions CRUD endpoints and live summary valuation/PnL using Yahoo quotes.
+- Portfolio overview slice: `app/services/price_history_service.py` (cached Yahoo chart history plus ATH/ATL and 52-week statistics), `app/runtime/portfolio_valuation.py` (holdings resolution, live valuation, value-over-time reconstruction, per-asset insights), `portfolio_snapshots` table + `PortfolioRepo` snapshot CRUD, and the `app/runtime/portfolio_snapshot.py` worker started from lifespan (interval via `PORTFOLIO_SNAPSHOT_INTERVAL`, default 1800s). Exposed as `GET /api/portfolio/history` and `GET /api/portfolio/insights`; both accept `source=auto|manual|ibkr`, where `auto` prefers synced IBKR stock positions and falls back to manually tracked ones.
 - Deployment scaffolding for self-hosting: backend Docker image, frontend Nginx reverse proxy for `/api/*` + `/api/stream`, Docker Compose stack for Raspberry Pi, and Terraform-managed Cloudflare tunnel + DNS.
 - Frontend proxy resilience hardening: containerized Nginx now uses Docker DNS re-resolution for backend upstream (`backend:7999`) so backend restarts do not leave stale upstream IPs that can surface first-hit `502` responses.
 
@@ -89,6 +90,8 @@ Last updated: 2026-06-17
 - Tweet cards display a small "Chart" badge only when backend chart classification marks `has_chart=true`.
 - Tweet cards display separate sentiment badges for the main post and quoted post using backend metadata.
 - Portfolio route includes add/list/toggle/delete workflows and summary cards (positions, market value, cost basis, unrealized PnL).
+- Portfolio route now leads with a value-over-time area chart (`PortfolioValueChart`, Recharts) with selectable ranges (1W-MAX), a cost-basis reference line, hover tooltip, and a table view so no value is hover-only.
+- Portfolio route also shows per-asset context (`PortfolioAssetInsights`): distance from all-time high/low, 52-week range position, and highlight badges for assets at/near — or recently at — an ATH or ATL.
 - Home route includes a WallStreetBets radar widget with latest Reddit post momentum signals.
 - Stocks route now includes a market-hours banner showing major exchange session state (open/pre-market/after-hours/closed) with explicit holiday closure labels when applicable.
 - Crypto route now includes a Binance movers widget (top gainers/losers).
@@ -119,6 +122,8 @@ Last updated: 2026-06-17
 - Ticker mention pulse: `/api/posts` + `/api/stream` -> `TickerMentionsPanel` (route-scoped + user-scoped mention analytics).
 - Debug admin panel: `/api/debug/tweet` -> `DebugAdminPanel` (`/admin`).
 - Portfolio panel: `/api/portfolio/positions` + `/api/portfolio/summary` -> `PortfolioPanel` (`/portfolio`).
+- Portfolio value chart: `/api/portfolio/history` -> `usePortfolioHistory` -> `PortfolioValueChart` (`/portfolio`).
+- Portfolio asset context: `/api/portfolio/insights` -> `usePortfolioInsights` -> `PortfolioAssetInsights` (`/portfolio`).
 - WallStreetBets panel: `/api/reddit/wsb` -> `RedditWsbWidget` (`/`).
 - Stock market-hours banner: `/api/stocks/market-hours` -> `StockMarketHoursBanner` (`/stocks`).
 - Economic events panel: `/api/events/economic` -> `EconomicEventsWidget` (`/forex`).
