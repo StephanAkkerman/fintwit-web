@@ -1,6 +1,6 @@
 # Frontend Integration Map
 
-Last updated: 2026-09-01
+Last updated: 2026-09-02
 
 ## Mounted in `App.tsx` Today
 
@@ -95,11 +95,18 @@ Route-level sections:
   - User filters:
     - click tweet author name/avatar,
     - type user name manually and apply.
+  - Every ticker click above (financial card, cashtag, hashtag, `TickerMentionsPanel` row, `MentionHeatmap` tile) also opens `TickerDetailModal`, in addition to applying the sidebar ticker filter.
 
 - `TickerMentionsPanel`
   - Source data: route/user scoped subset of loaded timeline tweets from `useTweets`.
   - Purpose: visualize most mentioned symbols and quick mention statistics for the active scope.
-  - Interaction: clicking an analytics ticker applies sidebar ticker filtering.
+  - Interaction: clicking an analytics ticker applies sidebar ticker filtering and opens `TickerDetailModal`.
+
+- `TickerDetailModal` + `useTickerTimeseries`
+  - Fetches: `/api/overview/ticker-timeseries?ticker=...&window_hours=...`.
+  - Purpose: per-ticker deep dive (issue #108) — mentions-over-time chart with an average-mentions reference line, a stacked bullish/bearish/neutral bar chart, and summary stat tiles (total mentions, avg mentions/bucket, overall sentiment, price move, unique voices, chart-tagged tweets, avg engagement, asset kind).
+  - Interaction: opened from `App.tsx`'s `onTickerSelect` (the same callback every ticker click site already calls), with a 24h/7d/30d window toggle; closes on the Close button, backdrop click, or Escape.
+  - Mounted app-wide as a modal overlay (not a route), consistent with the existing tweet-media lightbox pattern in `TweetCard`.
 
 - `TreemapWidget` + `useTreemap`
   - Fetches: `/api/treemap`

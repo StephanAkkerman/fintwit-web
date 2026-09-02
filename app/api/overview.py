@@ -4,7 +4,7 @@ import asyncio
 import logging
 import time
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 from ticker_price_data import get_tradingview_quote
 
@@ -13,6 +13,7 @@ from ..services.mention_aggregator import (
     get_mention_frequency,
     get_mention_heat,
     get_sentiment_shift,
+    get_ticker_timeseries,
     get_volume_baseline,
 )
 
@@ -158,6 +159,28 @@ async def mention_frequency(payload: MentionFrequencyRequest):
     return await get_mention_frequency(
         _main.Session,
         requests=[r.model_dump() for r in payload.requests],
+    )
+
+
+@router.get("/ticker-timeseries")
+async def ticker_timeseries(
+    ticker: str = Query(...),
+    window_hours: int = Query(default=168, ge=1, le=720),
+    user_screen_name: str | None = Query(default=None),
+    subscriber_only: bool = Query(default=False),
+):
+    from . import main as _main
+
+    ticker = ticker.strip()
+    if not ticker:
+        raise HTTPException(status_code=422, detail="ticker is required")
+
+    return await get_ticker_timeseries(
+        _main.Session,
+        ticker=ticker,
+        window_hours=window_hours,
+        user_screen_name=user_screen_name or None,
+        subscriber_only=subscriber_only,
     )
 
 

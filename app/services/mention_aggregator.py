@@ -432,6 +432,188 @@ async def get_hidden_gems(
     ]
 
 
+def _choose_bucket_hours(window_hours: int) -> int:
+    """Pick a bucket width that keeps a ticker's timeseries chart readable."""
+    if window_hours <= 48:
+        return 1
+    if window_hours <= 168:
+        return 6
+    return 24
+
+
+async def get_ticker_timeseries(
+    Session: async_sessionmaker,
+    ticker: str,
+    window_hours: int = 168,
+    user_screen_name: str | None = None,
+    subscriber_only: bool = False,
+) -> dict:
+    """Bucketed mention/sentiment history for a single ticker, plus a summary.
+
+    Bucket width scales with the window (hourly under 48h, 6-hourly up to 7d,
+    daily beyond) so the chart stays readable at any lookback. Buckets with no
+    mentions are zero-filled across the full window so the chart has no gaps.
+    """
+    now = _now()
+    cutoff = now - timedelta(hours=window_hours)
+    bucket_hours = _choose_bucket_hours(window_hours)
+    bucket_seconds = bucket_hours * 3600
+    ticker_u = ticker.strip().upper()
+    user_c = _user_clause(user_screen_name)
+    sub_c = _subscriber_clause(subscriber_only)
+
+    params: dict = {
+        "ticker": ticker_u,
+        "cutoff": cutoff,
+        "bucket_seconds": bucket_seconds,
+    }
+    if user_screen_name:
+        params["user_name_pat"] = f"%{user_screen_name.lower()}%"
+
+    buckets_sql = text(f"""
+        SELECT
+            CAST(strftime('%s', t.created_at) AS INTEGER) / :bucket_seconds
+                * :bucket_seconds AS bucket_epoch,
+            CAST(COUNT(*) AS INTEGER) AS mentions,
+            SUM(CASE WHEN t.sentiment_score >  0.1 THEN 1 ELSE 0 END) AS bullish,
+            SUM(CASE WHEN t.sentiment_score < -0.1 THEN 1 ELSE 0 END) AS bearish,
+            AVG(t.sentiment_score) AS avg_sentiment
+        FROM tweets t, json_each(t.tickers) j
+        WHERE UPPER(j.value) = :ticker
+          AND t.created_at >= :cutoff
+          {user_c}
+          {sub_c}
+        GROUP BY bucket_epoch
+    """)
+
+    summary_sql = text(f"""
+        SELECT
+            CAST(COUNT(*) AS INTEGER) AS total_mentions,
+            SUM(CASE WHEN t.sentiment_score >  0.1 THEN 1 ELSE 0 END) AS bullish,
+            SUM(CASE WHEN t.sentiment_score < -0.1 THEN 1 ELSE 0 END) AS bearish,
+            AVG(t.sentiment_score) AS avg_sentiment,
+            COUNT(DISTINCT LOWER(t.user_screen_name)) AS unique_authors,
+            SUM(CASE WHEN t.has_chart = 1 THEN 1 ELSE 0 END) AS chart_mentions,
+            AVG(COALESCE(t.likes, 0) + COALESCE(t.retweets, 0) + COALESCE(t.replies, 0))
+                AS avg_engagement,
+            MAX(json_extract(ae.value, '$.kind')) AS asset_kind,
+            MIN(t.created_at) AS first_seen,
+            MAX(t.created_at) AS last_seen
+        FROM tweets t, json_each(t.tickers) j
+        LEFT JOIN json_each(t.assets) ae
+               ON UPPER(json_extract(ae.value, '$.symbol')) = UPPER(j.value)
+        WHERE UPPER(j.value) = :ticker
+          AND t.created_at >= :cutoff
+          {user_c}
+          {sub_c}
+    """)
+
+    price_sql = text("""
+        SELECT
+            (SELECT json_extract(ae.value, '$.financials.price')
+             FROM tweets t, json_each(t.assets) ae
+             WHERE UPPER(json_extract(ae.value, '$.symbol')) = :ticker
+               AND json_extract(ae.value, '$.financials.price') IS NOT NULL
+             ORDER BY t.created_at DESC LIMIT 1) AS price_recent,
+            (SELECT json_extract(ae.value, '$.financials.price')
+             FROM tweets t, json_each(t.assets) ae
+             WHERE UPPER(json_extract(ae.value, '$.symbol')) = :ticker
+               AND json_extract(ae.value, '$.financials.price') IS NOT NULL
+             ORDER BY ABS(julianday(t.created_at) - julianday(:cutoff)) LIMIT 1)
+                AS price_at_start
+    """)
+
+    async with Session() as s:
+        result = await s.execute(buckets_sql, params)
+        bucket_rows = result.mappings().all()
+        result = await s.execute(summary_sql, params)
+        summary_row = result.mappings().first()
+        result = await s.execute(price_sql, {"ticker": ticker_u, "cutoff": cutoff})
+        price_row = result.mappings().first()
+
+    by_bucket = {int(r["bucket_epoch"]): r for r in bucket_rows}
+
+    start_epoch = (
+        int(cutoff.replace(tzinfo=timezone.utc).timestamp())
+        // bucket_seconds
+        * bucket_seconds
+    )
+    end_epoch = (
+        int(now.replace(tzinfo=timezone.utc).timestamp())
+        // bucket_seconds
+        * bucket_seconds
+    )
+
+    points = []
+    epoch = start_epoch
+    while epoch <= end_epoch:
+        row = by_bucket.get(epoch)
+        mentions = int(row["mentions"]) if row else 0
+        bullish = int(row["bullish"] or 0) if row else 0
+        bearish = int(row["bearish"] or 0) if row else 0
+        points.append(
+            {
+                "bucket": datetime.fromtimestamp(epoch, tz=timezone.utc).isoformat(),
+                "mentions": mentions,
+                "bullish": bullish,
+                "bearish": bearish,
+                "neutral": max(mentions - bullish - bearish, 0),
+                "avg_sentiment": row["avg_sentiment"] if row else None,
+            }
+        )
+        epoch += bucket_seconds
+
+    total_mentions = int(summary_row["total_mentions"] or 0) if summary_row else 0
+    bullish_total = int(summary_row["bullish"] or 0) if summary_row else 0
+    bearish_total = int(summary_row["bearish"] or 0) if summary_row else 0
+    avg_sentiment = summary_row["avg_sentiment"] if summary_row else None
+
+    price_recent = price_row["price_recent"] if price_row else None
+    price_start = price_row["price_at_start"] if price_row else None
+    price_direction = None
+    if price_recent is not None and price_start not in (None, 0):
+        price_direction = (price_recent - price_start) / price_start * 100.0
+
+    asset_kind = (
+        summary_row["asset_kind"].upper()
+        if summary_row and summary_row["asset_kind"]
+        else None
+    )
+
+    return {
+        "ticker": ticker_u,
+        "window_hours": window_hours,
+        "bucket_hours": bucket_hours,
+        "points": points,
+        "summary": {
+            "total_mentions": total_mentions,
+            "avg_mentions_per_bucket": (
+                total_mentions / len(points) if points else 0.0
+            ),
+            "bullish": bullish_total,
+            "bearish": bearish_total,
+            "neutral": max(total_mentions - bullish_total - bearish_total, 0),
+            "avg_sentiment": avg_sentiment,
+            "sentiment_label": _score_to_label(avg_sentiment),
+            "unique_authors": int(summary_row["unique_authors"] or 0)
+            if summary_row
+            else 0,
+            "chart_mentions": int(summary_row["chart_mentions"] or 0)
+            if summary_row
+            else 0,
+            "avg_engagement": summary_row["avg_engagement"] if summary_row else None,
+            "asset_kind": asset_kind,
+            "price_direction": price_direction,
+            "first_seen": str(summary_row["first_seen"])
+            if summary_row and summary_row["first_seen"]
+            else None,
+            "last_seen": str(summary_row["last_seen"])
+            if summary_row and summary_row["last_seen"]
+            else None,
+        },
+    }
+
+
 async def get_extended_hours_stats(
     Session: async_sessionmaker,
     since_dt: datetime,

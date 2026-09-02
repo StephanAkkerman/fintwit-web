@@ -734,6 +734,40 @@ export interface HiddenGemItem {
   asset_kind: string;
 }
 
+export interface TickerTimeseriesPoint {
+  bucket: string;
+  mentions: number;
+  bullish: number;
+  bearish: number;
+  neutral: number;
+  avg_sentiment: number | null;
+}
+
+export interface TickerTimeseriesSummary {
+  total_mentions: number;
+  avg_mentions_per_bucket: number;
+  bullish: number;
+  bearish: number;
+  neutral: number;
+  avg_sentiment: number | null;
+  sentiment_label: SentimentLabel;
+  unique_authors: number;
+  chart_mentions: number;
+  avg_engagement: number | null;
+  asset_kind: string | null;
+  price_direction: number | null;
+  first_seen: string | null;
+  last_seen: string | null;
+}
+
+export interface TickerTimeseries {
+  ticker: string;
+  window_hours: number;
+  bucket_hours: number;
+  points: TickerTimeseriesPoint[];
+  summary: TickerTimeseriesSummary;
+}
+
 export type ExtendedHoursFuture = {
   label: string
   symbol: string

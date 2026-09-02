@@ -326,3 +326,59 @@ async def test_extended_hours_stats_top_n(Session):
     result = await get_extended_hours_stats(Session, since, until, top_n=3)
 
     assert len(result["top_tickers"]) == 3
+
+
+async def test_ticker_timeseries_buckets_and_summary(Session):
+    from app.services.mention_aggregator import get_ticker_timeseries
+
+    await _insert(
+        Session,
+        [
+            _tweet(1, ["AAPL"], "BULLISH", 0.6, 1, price=190.0),
+            _tweet(2, ["AAPL"], "BULLISH", 0.5, 1),
+            _tweet(3, ["AAPL"], "BEARISH", -0.4, 30, price=180.0),
+            _tweet(4, ["MSFT"], "NEUTRAL", 0.0, 1),
+        ],
+    )
+
+    result = await get_ticker_timeseries(Session, "aapl", window_hours=48)
+
+    assert result["ticker"] == "AAPL"
+    assert result["bucket_hours"] == 1
+    # 48h window at hourly buckets zero-fills every hour, not just hits.
+    assert len(result["points"]) >= 48
+    assert sum(p["mentions"] for p in result["points"]) == 3
+
+    summary = result["summary"]
+    assert summary["total_mentions"] == 3
+    assert summary["bullish"] == 2
+    assert summary["bearish"] == 1
+    assert summary["neutral"] == 0
+    assert summary["unique_authors"] == 1
+    assert summary["asset_kind"] == "EQUITY"
+    # Most recent AAPL tweet (hours_ago=1) priced at 190, earliest in-window
+    # tweet within the price CTE lookback (hours_ago=30) priced at 180.
+    assert summary["price_direction"] == pytest.approx((190.0 - 180.0) / 180.0 * 100.0)
+
+
+async def test_ticker_timeseries_no_data_still_zero_fills(Session):
+    from app.services.mention_aggregator import get_ticker_timeseries
+
+    result = await get_ticker_timeseries(Session, "GHOST", window_hours=24)
+
+    assert result["points"]
+    assert all(p["mentions"] == 0 for p in result["points"])
+    assert result["summary"]["total_mentions"] == 0
+    assert result["summary"]["avg_mentions_per_bucket"] == 0.0
+    assert result["summary"]["price_direction"] is None
+    assert result["summary"]["asset_kind"] is None
+
+
+async def test_ticker_timeseries_bucket_width_scales_with_window(Session):
+    from app.services.mention_aggregator import get_ticker_timeseries
+
+    daily = await get_ticker_timeseries(Session, "AAPL", window_hours=24 * 30)
+    weekly = await get_ticker_timeseries(Session, "AAPL", window_hours=168)
+
+    assert daily["bucket_hours"] == 24
+    assert weekly["bucket_hours"] == 6
