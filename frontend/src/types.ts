@@ -30,6 +30,16 @@ export type AssetSignaSignal = {
   website?: string | null;
 };
 
+export type AssetStocktwitsSentiment = {
+  source?: string | null;
+  symbol?: string | null;
+  bullish_percent?: number | null;
+  bearish_percent?: number | null;
+  message_volume?: number | null;
+  as_of?: string | null;
+  website?: string | null;
+};
+
 export type AssetFinancials = {
   price?: number | null;
   change_percent?: number | null;
@@ -41,6 +51,7 @@ export type AssetFinancials = {
   extended_change_percent?: number | null;
   technical_analysis?: AssetTechnicalAnalysis | null;
   signa?: AssetSignaSignal | null;
+  stocktwits_sentiment?: AssetStocktwitsSentiment | null;
 };
 
 /**
