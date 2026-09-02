@@ -8,6 +8,7 @@ import ForexMacroWidget from './components/ForexMacroWidget'
 import MarketMoversPanel from './components/MarketMoversPanel'
 import { MentionHeatmap } from './components/MentionHeatmap'
 import { OverviewDashboard } from './components/OverviewDashboard'
+import { RouteSignalsPanel } from './components/RouteSignalsPanel'
 import IbkrPanel from './components/IbkrPanel'
 import OptionsOverviewWidget from './components/OptionsOverviewWidget'
 import PortfolioAssetInsights from './components/PortfolioAssetInsights'
@@ -571,15 +572,24 @@ export default function App() {
             </header>
 
             {route !== 'admin' && route !== 'signa' && route !== 'home' && (
-              <ErrorBoundary label="Mention heat">
-                <MentionHeatmap
-                  assetKind={mentionHeatAssetKind}
-                  onTickerClick={onTickerSelect}
-                  userFilter={userFilter}
-                  subscriberOnly={subscriberOnlyFilter}
-                  height={220}
-                />
-              </ErrorBoundary>
+              <>
+                <ErrorBoundary label="Mention heat">
+                  <MentionHeatmap
+                    assetKind={mentionHeatAssetKind}
+                    onTickerClick={onTickerSelect}
+                    userFilter={userFilter}
+                    subscriberOnly={subscriberOnlyFilter}
+                    height={220}
+                  />
+                </ErrorBoundary>
+                <ErrorBoundary label="More signals">
+                  <RouteSignalsPanel
+                    assetKind={mentionHeatAssetKind}
+                    userFilter={userFilter}
+                    subscriberOnly={subscriberOnlyFilter}
+                  />
+                </ErrorBoundary>
+              </>
             )}
 
             {route === 'home' && (
