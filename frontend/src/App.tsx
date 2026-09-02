@@ -20,6 +20,7 @@ import StockFearGreedWidget from './components/StockFearGreedWidget'
 import StockHaltsWidget from './components/StockHaltsWidget'
 import StockMarketHoursBanner from './components/StockMarketHoursBanner'
 import StocktwitsWidget from './components/StocktwitsWidget'
+import TickerDetailModal from './components/TickerDetailModal'
 import TickerMentionsPanel from './components/TickerMentionsPanel'
 import TreemapWidget from './components/TreemapWidget'
 import TrendingCryptoWidget from './components/TrendingCryptoWidget'
@@ -189,6 +190,7 @@ export default function App() {
   const [userInput, setUserInput] = useState('')
   const [subscriberOnlyFilter, setSubscriberOnlyFilter] = useState(false)
   const [chartSortMode, setChartSortMode] = useState<ChartSortMode>('latest')
+  const [detailTicker, setDetailTicker] = useState<string | null>(null)
 
   useEffect(() => {
     const onPopState = () => {
@@ -279,6 +281,7 @@ export default function App() {
   const onTickerSelect = (ticker: string) => {
     setTickerInput(ticker)
     setTickerFilter((current) => (current === ticker ? null : ticker))
+    setDetailTicker(ticker)
   }
 
   const applyTypedTickerFilter = () => {
@@ -717,6 +720,9 @@ export default function App() {
           </section>
         </div>
       </main>
+      {detailTicker && (
+        <TickerDetailModal ticker={detailTicker} onClose={() => setDetailTicker(null)} />
+      )}
     </div>
   )
 }

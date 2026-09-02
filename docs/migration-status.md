@@ -1,6 +1,6 @@
 # Migration Status
 
-Last updated: 2026-09-01
+Last updated: 2026-09-02
 
 ## Backend: Implemented
 
@@ -109,6 +109,7 @@ Last updated: 2026-09-01
 - Forex route now includes a TradingView macro snapshot widget with yield curves and FX indices.
 - Forex route now includes legacy crypto indices plus the stock/forex TradingView index panel.
 - Economic events widget now displays country/region flag emojis and explicit impact badges per event.
+- Clicking any ticker (tweet cards, ticker mention pulse, mention heatmap) now opens a `TickerDetailModal` with a mentions-over-time chart, a bullish/bearish/neutral sentiment breakdown chart, and summary stats (total mentions, avg mentions per bucket, unique voices, chart-tagged tweets, avg engagement, price move, asset kind) for a selectable 24h/7d/30d window — resolves issue #108.
 
 ## Connected End-to-End Today
 
@@ -128,6 +129,7 @@ Last updated: 2026-09-01
 - TradingView TA summaries: `/api/posts` + `/api/stream` -> `tweet.assets[*].financials.technical_analysis` -> `TweetCard` / `AssetBadge`.
 - Asset fundamentals: `/api/posts` + `/api/stream` -> `tweet.assets[*].fundamentals` -> `AssetFundamentals` in `TweetCard` / `AssetBadge`.
 - Ticker mention pulse: `/api/posts` + `/api/stream` -> `TickerMentionsPanel` (route-scoped + user-scoped mention analytics).
+- Ticker detail modal: `/api/overview/ticker-timeseries` -> `useTickerTimeseries` -> `TickerDetailModal` (mentions-over-time chart, bullish/bearish sentiment breakdown, and summary stats; opened by clicking any ticker across `TweetCard`, `TickerMentionsPanel`, `MentionHeatmap`).
 - Debug admin panel: `/api/debug/tweet` -> `DebugAdminPanel` (`/admin`).
 - Portfolio panel: `/api/portfolio/positions` + `/api/portfolio/summary` -> `PortfolioPanel` (`/portfolio`).
 - Portfolio ticker badges: `/api/portfolio/positions` -> `usePortfolioTickers` -> `TweetCard` financial asset blocks (all routes).

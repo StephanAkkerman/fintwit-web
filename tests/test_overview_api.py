@@ -58,6 +58,26 @@ def test_mention_frequency_empty(client):
     assert resp.json() == {"personal": {}, "global": {}}
 
 
+def test_ticker_timeseries_returns_shape(client):
+    resp = client.get("/api/overview/ticker-timeseries?ticker=AAPL&window_hours=24")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ticker"] == "AAPL"
+    assert isinstance(body["points"], list)
+    assert "summary" in body
+    assert "total_mentions" in body["summary"]
+
+
+def test_ticker_timeseries_requires_ticker(client):
+    resp = client.get("/api/overview/ticker-timeseries")
+    assert resp.status_code == 422
+
+
+def test_ticker_timeseries_rejects_blank_ticker(client):
+    resp = client.get("/api/overview/ticker-timeseries?ticker=%20%20")
+    assert resp.status_code == 422
+
+
 def test_macro_strip_returns_list(client):
     mock_quote = {"price": 5000.0, "change_percent": 0.5}
     with patch(
