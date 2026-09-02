@@ -8,6 +8,7 @@ import type { PortfolioTickerLookup, PortfolioTickerStatus } from '../hooks/useP
 import AssetFundamentals from './AssetFundamentals'
 import AssetMentions from './AssetMentions'
 import SignaSignal from './SignaSignal'
+import StocktwitsSentiment from './StocktwitsSentiment'
 import TradingViewAnalysis from './TradingViewAnalysis'
 
 function fmt(n: number): string {
@@ -730,6 +731,10 @@ export default function TweetCard({
                 <AssetFundamentals asset={asset} className="mt-1.5" />
                 <TradingViewAnalysis analysis={financials?.technical_analysis} className="mt-1.5" />
                 <SignaSignal signal={financials?.signa} className="mt-1.5" />
+                <StocktwitsSentiment
+                  sentiment={financials?.stocktwits_sentiment}
+                  className="mt-1.5"
+                />
                 {mentionLookup && t.user_screen_name && (
                   <AssetMentions
                     author={t.user_screen_name}
