@@ -372,6 +372,16 @@ export default function TweetCard({
   const hashtagBadges = [...new Set([...(t.hashtags ?? []), ...parsedSymbols.hashtags].map((v) => v.toUpperCase()))]
   const assets = (t.assets ?? []).filter((asset) => asset?.symbol)
   const hasChart = hasChartSignal(t)
+  const chartExtraction = t.chart_extraction ?? null
+  const chartExtractionLabel = chartExtraction
+    ? [
+        chartExtraction.symbol,
+        chartExtraction.timeframe,
+        typeof chartExtraction.price === 'number' ? fmtPrice(chartExtraction.price) : null,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : ''
   const sentimentLabel = t.sentiment_label?.toUpperCase() ?? null
   const sentimentEmoji = t.sentiment_emoji ?? null
   const quotedSentimentLabel = t.quoted_sentiment_label?.toUpperCase() ?? null
@@ -760,6 +770,15 @@ export default function TweetCard({
                 <path d="M7 14l4-4 3 3 5-6" />
               </svg>
               Chart
+            </span>
+          )}
+          {chartExtractionLabel && (
+            <span
+              aria-label="Chart-extracted symbol"
+              title="Extracted from the chart image via OCR"
+              className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-800 dark:bg-sky-900/40 dark:text-sky-300"
+            >
+              🔎 {chartExtractionLabel}
             </span>
           )}
           {(sentimentLabel || sentimentEmoji) && (

@@ -8,6 +8,7 @@ import xclient
 
 from ..infra.repos import TweetRepo
 from ..ml.chart import is_chart
+from ..ml.chart_extractor import extract_chart_data
 from ..ml.sentiment import FinTwitSentiment
 from .broadcast import Broadcaster
 from .enricher import AssetEnricher
@@ -126,9 +127,26 @@ async def run_stream(
                             *[is_chart(url) for url in media_urls],
                             return_exceptions=True,
                         )
-                        t_dict["has_chart"] = any(r is True for r in results)
+                        chart_urls = [
+                            url
+                            for url, is_chart_result in zip(media_urls, results)
+                            if is_chart_result is True
+                        ]
+                        t_dict["has_chart"] = bool(chart_urls)
                     else:
+                        chart_urls = []
                         t_dict["has_chart"] = False
+
+                    # Only extract chart data when the tweet text doesn't already
+                    # name a ticker — a mentioned ticker is a stronger, cheaper
+                    # signal than OCR off the chart image.
+                    t_dict["chart_extraction"] = None
+                    if chart_urls and not tickers:
+                        for chart_url in chart_urls:
+                            extraction = await extract_chart_data(chart_url)
+                            if extraction is not None:
+                                t_dict["chart_extraction"] = extraction
+                                break
 
                     main_sentiment = None
                     quoted_sentiment = None

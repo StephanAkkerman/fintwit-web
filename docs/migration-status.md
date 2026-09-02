@@ -51,6 +51,7 @@ Last updated: 2026-09-02
 - Portfolio balance/sector insights: `app/runtime/portfolio_valuation.py:build_diversification` classifies each holding via `ticker_classifier` (GICS sector for equities/ETFs, asset category otherwise), groups holdings into sectors, and scores concentration with a Herfindahl-Hirschman index at both the holding and sector level. Folded into `GET /api/portfolio/insights` as `sectors` and `diversification`.
 - Deployment scaffolding for self-hosting: backend Docker image, frontend Nginx reverse proxy for `/api/*` + `/api/stream`, Docker Compose stack for Raspberry Pi, and Terraform-managed Cloudflare tunnel + DNS.
 - Frontend proxy resilience hardening: containerized Nginx now uses Docker DNS re-resolution for backend upstream (`backend:7999`) so backend restarts do not leave stale upstream IPs that can surface first-hit `502` responses.
+- Chart data extraction (issue #49): when `chart-recognizer` classifies a tweet's image as a chart (`has_chart=true`) and the tweet text mentions no ticker, `app/ml/chart_extractor.py` (wrapping the external [`chart-extractor`](https://github.com/StephanAkkerman/chart-extractor) YOLO+OCR package) analyzes the image and attaches a `chart_extraction` payload (`symbol`, `exchange`, `timeframe`, `price`, `session`) to the tweet. Skipped entirely when the text already names a ticker, since the mentioned ticker is a stronger, cheaper signal than OCR. Runs lazily/thread-offloaded like `chart-recognizer`, and can be disabled independently via `CHART_EXTRACTION_ENABLED=false`.
 
 ## Frontend: Implemented
 
@@ -92,6 +93,7 @@ Last updated: 2026-09-02
   - Charts first,
   - Charts only.
 - Tweet cards display a small "Chart" badge only when backend chart classification marks `has_chart=true`.
+- Tweet cards display a "🔎 SYMBOL · TIMEFRAME · PRICE" badge when the backend attaches `chart_extraction` (chart data OCR'd off the image for tickerless chart tweets — issue #49).
 - Tweet cards display separate sentiment badges for the main post and quoted post using backend metadata.
 - Tweet card financial asset blocks display a portfolio-status badge (💼 Held / 🕓 Recently Held) when the ticker matches a current or recently-closed (within 30 days) portfolio position.
 - Portfolio route includes add/list/toggle/delete workflows and summary cards (positions, market value, cost basis, unrealized PnL).
