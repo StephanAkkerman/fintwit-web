@@ -369,6 +369,105 @@ def _empty_insights() -> dict:
     }
 
 
+# (ticker, sector, industry, market cap in billions, change percent) -- a
+# representative slice of the S&P 500 across sectors/industries, sized and
+# priced so the market heatmap treemap renders with the same kind of shape
+# (a few giant boxes, lots of small ones) as the real thing.
+_SPY_HEATMAP_ROWS: list[tuple[str, str, str, float, float]] = [
+    ("NVDA", "Technology", "Semiconductors", 3300, 4.06),
+    ("AVGO", "Technology", "Semiconductors", 1450, 1.31),
+    ("AMD", "Technology", "Semiconductors", 260, 2.48),
+    ("INTC", "Technology", "Semiconductors", 180, 4.42),
+    ("TXN", "Technology", "Semiconductors", 165, 2.25),
+    ("QCOM", "Technology", "Semiconductors", 175, -3.24),
+    ("MU", "Technology", "Semiconductors", 150, 4.99),
+    ("ADI", "Technology", "Semiconductors", 105, 1.69),
+    ("AAPL", "Technology", "Consumer Electronics", 3400, -0.76),
+    ("MSFT", "Technology", "Software Infrastructure", 3150, -1.52),
+    ("ORCL", "Technology", "Software Infrastructure", 480, -2.75),
+    ("CRWD", "Technology", "Software Infrastructure", 90, 12.14),
+    ("PANW", "Technology", "Software Infrastructure", 115, 6.97),
+    ("PLTR", "Technology", "Software Infrastructure", 340, 2.88),
+    ("JPM", "Financial Services", "Banks", 700, 2.52),
+    ("BAC", "Financial Services", "Banks", 330, 1.92),
+    ("WFC", "Financial Services", "Banks", 250, -2.59),
+    ("C", "Financial Services", "Banks", 150, -5.28),
+    ("MS", "Financial Services", "Capital Markets", 200, 3.38),
+    ("GS", "Financial Services", "Capital Markets", 190, 9.3),
+    ("SCHW", "Financial Services", "Capital Markets", 150, 0.32),
+    ("V", "Financial Services", "Credit Services", 620, -0.49),
+    ("MA", "Financial Services", "Credit Services", 480, 0.09),
+    ("AXP", "Financial Services", "Credit Services", 210, 0.21),
+    ("BRKB", "Financial Services", "Insurance", 1000, -2.23),
+    ("CB", "Financial Services", "Insurance", 100, -2.23),
+    ("PGR", "Financial Services", "Insurance", 140, -3.49),
+    ("GOOGL", "Communication Services", "Internet Content & Information", 2200, 1.98),
+    ("GOOG", "Communication Services", "Internet Content & Information", 2200, 1.88),
+    ("META", "Communication Services", "Internet Content & Information", 1500, 0.67),
+    ("NFLX", "Communication Services", "Entertainment", 450, -0.4),
+    ("DIS", "Communication Services", "Entertainment", 200, -0.17),
+    ("TMUS", "Communication Services", "Telecom Services", 260, -0.71),
+    ("VZ", "Communication Services", "Telecom Services", 170, -0.54),
+    ("AMZN", "Consumer Cyclical", "Internet Retail", 2200, 0.09),
+    ("TSLA", "Consumer Cyclical", "Automotive", 1050, 0.37),
+    ("MCD", "Consumer Cyclical", "Restaurants", 210, -1.35),
+    ("SBUX", "Consumer Cyclical", "Restaurants", 110, -1.06),
+    ("HD", "Consumer Cyclical", "Home Improvement Retail", 380, 0.24),
+    ("BKNG", "Consumer Cyclical", "Travel & Leisure", 160, -0.57),
+    ("LLY", "Healthcare", "Drug Manufacturers", 750, -2.37),
+    ("JNJ", "Healthcare", "Drug Manufacturers", 380, -1.55),
+    ("ABBV", "Healthcare", "Drug Manufacturers", 340, -1.29),
+    ("MRK", "Healthcare", "Drug Manufacturers", 250, -2.62),
+    ("UNH", "Healthcare", "Healthcare Plans", 460, -0.91),
+    ("AMGN", "Healthcare", "Biotechnology", 160, -1.4),
+    ("GILD", "Healthcare", "Biotechnology", 120, -0.95),
+    ("TMO", "Healthcare", "Diagnostics & Research", 210, 1.11),
+    ("RTX", "Industrials", "Aerospace & Defense", 170, -1.36),
+    ("BA", "Industrials", "Aerospace & Defense", 130, 0.8),
+    ("HON", "Industrials", "Aerospace & Defense", 140, 0.23),
+    ("GE", "Industrials", "Specialty Industrial Machinery", 220, -0.01),
+    ("CAT", "Industrials", "Specialty Industrial Machinery", 170, 0.27),
+    ("UNP", "Industrials", "Railroads", 140, -0.33),
+    ("WMT", "Consumer Defensive", "Discount Stores", 700, -0.98),
+    ("COST", "Consumer Defensive", "Discount Stores", 400, -0.52),
+    ("KO", "Consumer Defensive", "Beverages", 290, -1.38),
+    ("PEP", "Consumer Defensive", "Beverages", 220, -2.16),
+    ("PM", "Consumer Defensive", "Tobacco", 230, -2.31),
+    ("XOM", "Energy", "Oil & Gas Integrated", 500, 0.39),
+    ("CVX", "Energy", "Oil & Gas Integrated", 290, -0.24),
+    ("NEE", "Utilities", "Utilities - Regulated Electric", 160, 1.36),
+    ("GEV", "Utilities", "Utilities - Renewable", 130, 2.34),
+    ("PLD", "Real Estate", "REIT - Industrial", 100, 0.66),
+    ("WELL", "Real Estate", "REIT - Healthcare Facilities", 90, 0.66),
+    ("LIN", "Basic Materials", "Chemicals", 220, -0.27),
+    ("SHW", "Basic Materials", "Chemicals", 90, 1.01),
+]
+
+
+def _spy_heatmap_data() -> dict:
+    rows = []
+    for (
+        ticker,
+        sector,
+        industry,
+        marketcap_billions,
+        change_percent,
+    ) in _SPY_HEATMAP_ROWS:
+        prev_close = 100.0
+        close = prev_close * (1 + change_percent / 100)
+        rows.append(
+            {
+                "ticker": ticker,
+                "sector": sector,
+                "industry": industry,
+                "close": close,
+                "prev_close": prev_close,
+                "marketcap": marketcap_billions * 1_000_000_000,
+            }
+        )
+    return {"data": rows}
+
+
 def fixtures_for(scenario: str) -> dict[str, object]:
     """Map a URL fragment to the JSON served for it."""
     if scenario == "broken":
@@ -435,8 +534,11 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             "last_sync": None,
             "last_error": None,
         },
-        # Object-shaped: the catch-all's `[]` would leave SectorOverviewWidget
-        # on its empty state instead of showing the sector/subsector rows.
+        # Object-shaped: the catch-all's `[]` would leave the heatmap and
+        # SectorOverviewWidget on their empty states instead of rendering.
+        # The trailing "?" keeps this from also matching the /sectors
+        # sub-route below, since fragment matching is a plain substring test.
+        "/api/spy-heatmap?": _spy_heatmap_data(),
         "/api/spy-heatmap/sectors": {
             "sectors": [
                 {

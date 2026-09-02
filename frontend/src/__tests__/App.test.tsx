@@ -187,7 +187,7 @@ describe('App', () => {
     )
     expect(screen.getByRole('heading', { name: /nasdaq trading halts/i })).toBeInTheDocument()
     expect(screen.getByText(/major exchange sessions/i)).toBeInTheDocument()
-    expect(screen.getByText(/spy heatmap/i)).toBeInTheDocument()
+    expect(screen.getByText(/market heatmap/i)).toBeInTheDocument()
     expect(window.location.pathname).toBe('/stocks')
   })
 

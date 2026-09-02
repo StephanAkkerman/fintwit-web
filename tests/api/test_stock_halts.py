@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import patch, AsyncMock
 from httpx import ASGITransport
 import datetime
+from dateutil import tz
 from app.api.main import app
 
 import pytest_asyncio
@@ -52,7 +53,12 @@ MOCK_HTML_RESPONSE = """
 
 @pytest.mark.asyncio
 async def test_get_stock_halts_success(async_client):
-    today = datetime.datetime.now().strftime("%m/%d/%Y")
+    # get_halt_data filters rows by today's date in US/Eastern (Nasdaq's
+    # timezone), which can differ from the naive local date -- e.g. any time
+    # before ~20:00 US/Eastern is still "today" there but already tomorrow in
+    # UTC. Match that timezone so the test doesn't flip failing after midnight
+    # UTC.
+    today = datetime.datetime.now(tz.gettz("US/Eastern")).strftime("%m/%d/%Y")
     mock_html = MOCK_HTML_RESPONSE.format(today=today)
 
     mock_fetch = AsyncMock(return_value={"result": mock_html})
