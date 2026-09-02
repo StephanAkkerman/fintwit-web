@@ -7,6 +7,7 @@ from ticker_classifier.classifier import TickerClassifier
 from ticker_price_data import price_from_classification
 
 from ..services.signa import get_signa_signal
+from ..services.stocktwits_service import get_stocktwits_sentiment
 from ..services.tradingview_ta_service import get_tradingview_ta_summary
 
 logger = logging.getLogger(__name__)
@@ -289,9 +290,22 @@ class AssetEnricher:
 
         signa_signals = await asyncio.gather(*signa_tasks, return_exceptions=True)
 
+        # Fetch StockTwits community sentiment concurrently. StockTwits covers
+        # both stocks and crypto, so fetch for every supported kind.
+        stocktwits_tasks = [
+            get_stocktwits_sentiment(entry["symbol"]) for entry in classified
+        ]
+        stocktwits_sentiments = await asyncio.gather(
+            *stocktwits_tasks, return_exceptions=True
+        )
+
         # Attach fresh financials to the result
-        for entry, fin, ta, signa in zip(
-            classified, financials, technical_analysis, signa_signals
+        for entry, fin, ta, signa, stocktwits in zip(
+            classified,
+            financials,
+            technical_analysis,
+            signa_signals,
+            stocktwits_sentiments,
         ):
             if isinstance(fin, BaseException):
                 logger.debug("[enricher] %s financials error: %r", entry["symbol"], fin)
@@ -302,6 +316,8 @@ class AssetEnricher:
                     financial_payload["technical_analysis"] = ta
                 if isinstance(financial_payload, dict) and isinstance(signa, dict):
                     financial_payload["signa"] = signa
+                if isinstance(financial_payload, dict) and isinstance(stocktwits, dict):
+                    financial_payload["stocktwits_sentiment"] = stocktwits
                 entry["financials"] = financial_payload
                 logger.debug(
                     "[enricher] %s (%s) financials: %s",

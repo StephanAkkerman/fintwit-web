@@ -42,6 +42,10 @@ def _enricher_defaults():
             new=AsyncMock(return_value=None),
         ),
         patch(
+            "app.runtime.enricher.get_stocktwits_sentiment",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
             "app.runtime.enricher.price_from_classification",
             new=AsyncMock(side_effect=_route_price),
         ),
@@ -112,6 +116,16 @@ SIGNA_SIGNAL = {
     "confidence": 0.81,
     "timeframe": "1D",
     "website": "https://app.getsigna.ai/?sym=AAPL",
+}
+
+STOCKTWITS_SENTIMENT = {
+    "source": "stocktwits",
+    "symbol": "AAPL",
+    "bullish_percent": 62.5,
+    "bearish_percent": 37.5,
+    "message_volume": 120,
+    "as_of": "2026-09-02T08:00:00.000Z",
+    "website": "https://stocktwits.com/symbol/AAPL",
 }
 
 
@@ -209,6 +223,44 @@ async def test_classify_crypto_does_not_fetch_signa_signal():
 
     mock_signa.assert_not_awaited()
     assert "signa" not in result[0]["financials"]
+
+
+@pytest.mark.asyncio
+async def test_classify_equity_attaches_stocktwits_sentiment():
+    enricher = AssetEnricher()
+    mock_result = _mock_classifier_result(
+        "AAPL", "EQUITY", "Apple Inc.", 3_000_000_000_000
+    )
+    with (
+        patch.object(enricher._cls, "classify_async", return_value=[mock_result]),
+        patch(
+            "app.runtime.enricher.get_stocktwits_sentiment",
+            new=AsyncMock(return_value=STOCKTWITS_SENTIMENT),
+        ) as mock_stocktwits,
+    ):
+        result = await enricher.classify(["AAPL"])
+
+    mock_stocktwits.assert_awaited_once_with("AAPL")
+    assert result[0]["financials"]["stocktwits_sentiment"] == STOCKTWITS_SENTIMENT
+
+
+@pytest.mark.asyncio
+async def test_classify_crypto_also_fetches_stocktwits_sentiment():
+    """StockTwits covers crypto too, unlike the equity-only Signa signal."""
+    enricher = AssetEnricher()
+    mock_result = _mock_classifier_result("BTC", "CRYPTO", "Bitcoin")
+    crypto_sentiment = {**STOCKTWITS_SENTIMENT, "symbol": "BTC"}
+    with (
+        patch.object(enricher._cls, "classify_async", return_value=[mock_result]),
+        patch(
+            "app.runtime.enricher.get_stocktwits_sentiment",
+            new=AsyncMock(return_value=crypto_sentiment),
+        ) as mock_stocktwits,
+    ):
+        result = await enricher.classify(["BTC"])
+
+    mock_stocktwits.assert_awaited_once_with("BTC")
+    assert result[0]["financials"]["stocktwits_sentiment"] == crypto_sentiment
 
 
 @pytest.mark.asyncio

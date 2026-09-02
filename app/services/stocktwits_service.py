@@ -5,6 +5,7 @@ import os
 import shutil
 import subprocess
 import time
+from datetime import datetime, timezone
 
 import httpx
 
@@ -215,6 +216,207 @@ async def get_stocktwits_data(
         return None
 
 
+_SENTIMENT_CACHE_TTL_SECONDS = 180
+_SENTIMENT_CACHE: dict[str, tuple[float, dict | None]] = {}
+
+
+def _normalize_symbol(symbol: str) -> str:
+    return (symbol or "").strip().upper()
+
+
+def _coerce_float(value: object) -> float | None:
+    try:
+        if value is None:
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _pick(source: dict, *keys: str) -> object:
+    for key in keys:
+        if key in source and source[key] is not None:
+            return source[key]
+    return None
+
+
+def _latest_sentiment_point(payload: dict) -> dict | None:
+    """Return the most recent per-symbol datapoint from a sentiment-api payload.
+
+    The `sentiment-api/v2/{symbol}/detail` endpoint's schema isn't publicly
+    documented; it takes an `end` timestamp cursor (mirroring stocktwits.com's
+    own sentiment-history chart), so this treats the payload as either a
+    single snapshot or a time-ordered series and uses the newest entry either
+    way.
+    """
+    if not isinstance(payload, dict):
+        return None
+
+    for list_key in ("data", "points", "results", "series", "history"):
+        series = payload.get(list_key)
+        if isinstance(series, list) and series:
+            candidate = series[-1]
+            if isinstance(candidate, dict):
+                return candidate
+
+    return payload
+
+
+def _format_stocktwits_sentiment(payload: dict, symbol: str) -> dict | None:
+    point = _latest_sentiment_point(payload)
+    if not isinstance(point, dict):
+        return None
+
+    bullish = _coerce_float(
+        _pick(point, "bullish_percent", "bullishPercent", "bullish", "pct_bullish")
+    )
+    bearish = _coerce_float(
+        _pick(point, "bearish_percent", "bearishPercent", "bearish", "pct_bearish")
+    )
+
+    if bullish is None and bearish is None:
+        bullish_count = _coerce_float(_pick(point, "bullish_count", "bullishCount"))
+        bearish_count = _coerce_float(_pick(point, "bearish_count", "bearishCount"))
+        if bullish_count is not None and bearish_count is not None:
+            total = bullish_count + bearish_count
+            if total > 0:
+                bullish = round(bullish_count / total * 100, 2)
+                bearish = round(bearish_count / total * 100, 2)
+
+    if bullish is None and bearish is None:
+        score = _coerce_float(
+            _pick(point, "sentiment_score", "sentimentScore", "score")
+        )
+        if score is not None:
+            # StockTwits sentiment scores run -100 (all bearish) .. +100 (all bullish).
+            bullish = round((score + 100) / 2, 2)
+            bearish = round(100 - bullish, 2)
+
+    volume = _pick(point, "message_volume", "messageVolume", "volume", "total", "count")
+    volume = int(volume) if isinstance(volume, (int, float)) else None
+
+    as_of = _pick(point, "timestamp", "date", "end", "ts")
+    as_of = str(as_of) if as_of is not None else None
+
+    if bullish is None and bearish is None and volume is None:
+        logger.debug(
+            "[stocktwits] sentiment payload for %s had no recognizable fields: %s",
+            symbol,
+            list(point.keys()),
+        )
+        return None
+
+    if bullish is not None and bearish is None:
+        bearish = round(100 - bullish, 2)
+    elif bearish is not None and bullish is None:
+        bullish = round(100 - bearish, 2)
+
+    return {
+        "source": "stocktwits",
+        "symbol": symbol,
+        "bullish_percent": bullish,
+        "bearish_percent": bearish,
+        "message_volume": volume,
+        "as_of": as_of,
+        "website": f"https://stocktwits.com/symbol/{symbol}",
+    }
+
+
+def _get_cached_sentiment(symbol: str) -> dict | None:
+    cached = _SENTIMENT_CACHE.get(symbol)
+    if cached is None:
+        return None
+
+    ts, payload = cached
+    if time.time() - ts > _SENTIMENT_CACHE_TTL_SECONDS:
+        _SENTIMENT_CACHE.pop(symbol, None)
+        return None
+
+    return payload
+
+
+def _set_cached_sentiment(symbol: str, payload: dict | None) -> None:
+    _SENTIMENT_CACHE[symbol] = (time.time(), payload)
+
+
+async def get_stocktwits_sentiment(symbol: str) -> dict | None:
+    """
+    Gets the community sentiment (Bullish/Bearish split) for a single ticker
+    from StockTwits' sentiment-api, for attaching to enriched posts.
+
+    Parameters
+    ----------
+    symbol : str
+        The ticker to fetch sentiment for, e.g. "AAPL" or "VELO".
+
+    Returns
+    -------
+    dict | None
+        ``{"source", "symbol", "bullish_percent", "bearish_percent",
+        "message_volume", "as_of", "website"}``, or ``None`` if the ticker is
+        empty, the request fails, or the response carries no usable fields.
+    """
+    ticker = _normalize_symbol(symbol)
+    if not ticker:
+        return None
+
+    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+    url = f"https://api-gw-prd.stocktwits.com/sentiment-api/v2/{ticker}/detail"
+
+    try:
+        # Prefer curl first, same as get_stocktwits_data: StockTwits often
+        # blocks TLS fingerprints from Python HTTP clients.
+        data = await _fetch_with_curl(f"{url}?end={now_iso}")
+        response: httpx.Response | None = None
+
+        if data is None:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    url,
+                    params={"end": now_iso},
+                    headers=_BROWSER_HEADERS,
+                    follow_redirects=True,
+                )
+            if response.status_code == 200:
+                try:
+                    json_payload = response.json()
+                    if isinstance(json_payload, dict):
+                        data = json_payload
+                except ValueError:
+                    data = None
+
+        if data is None:
+            cached = _get_cached_sentiment(ticker)
+            if cached is not None:
+                logger.warning(
+                    "[stocktwits] using cached sentiment for symbol=%s", ticker
+                )
+                return cached
+
+            status = (
+                response.status_code if response is not None else "curl+httpx-failed"
+            )
+            logger.warning(
+                "[stocktwits] sentiment unavailable symbol=%s status=%s",
+                ticker,
+                status,
+            )
+            return None
+
+        formatted = _format_stocktwits_sentiment(data, ticker)
+        _set_cached_sentiment(ticker, formatted)
+        return formatted
+    except (
+        httpx.RequestError,
+        httpx.HTTPStatusError,
+        ValueError,
+        TypeError,
+        KeyError,
+    ) as e:
+        logger.exception(f"Could not fetch or process StockTwits sentiment: {e}")
+        return None
+
+
 if __name__ == "__main__":
     import asyncio
 
@@ -222,5 +424,8 @@ if __name__ == "__main__":
         async with httpx.AsyncClient() as client:
             data = await get_stocktwits_data(client, "ts")
             print(data)
+
+        sentiment = await get_stocktwits_sentiment("AAPL")
+        print(sentiment)
 
     asyncio.run(main())

@@ -4,6 +4,7 @@ Last updated: 2026-09-02
 
 ## Backend: Implemented
 
+- StockTwits community sentiment (Bullish/Bearish split) is now attached to enriched tweet asset financial payloads under `stocktwits_sentiment`, sourced from `api-gw-prd.stocktwits.com/sentiment-api/v2/{symbol}/detail` (curl-first, httpx fallback, short-lived per-symbol cache -- same anti-bot strategy as the existing `/api/stocktwits` rankings). Fetched for every supported kind (stocks and crypto alike), unlike the equity-only Signa signal. The upstream schema is undocumented, so `get_stocktwits_sentiment()` parses defensively across a few plausible field-name/shape variants and returns `None` rather than guessing when nothing recognizable is found.
 - Ticker pricing extracted to the external [`ticker-price-data`](https://github.com/StephanAkkerman/ticker-price-data) package (Yahoo/CoinGecko/TradingView + unified `get_price`). The old `app/services/{yahoo,coingecko,tradingview_quote,tradingview_stream}.py` modules were removed; consumers import from `ticker_price_data`. CoinGecko now uses the website `search_v2` endpoint to avoid public-API rate limits.
 
 - FastAPI app lifecycle with DB init and background tweet stream worker.
@@ -68,7 +69,7 @@ Last updated: 2026-09-02
 - Tweet body rendering now preserves original line breaks and intentional blank lines.
 - Tweet images now open in an in-page lightbox preview (no full-page navigation away from timeline).
 - Tweet timestamps are shown in the viewer's local timezone (UTC source timestamps normalized server-side with explicit UTC offset).
-- Financial asset blocks in tweet cards are intentionally compact and now show ticker, full name, type, current price, last close when available, daily % change, and optional TradingView TA summary rows.
+- Financial asset blocks in tweet cards are intentionally compact and now show ticker, full name, type, current price, last close when available, daily % change, optional TradingView TA summary rows, and an optional StockTwits Bullish/Bearish sentiment row (`StocktwitsSentiment`, also shared by `AssetBadge`).
 - Price links to source financial website when available.
 - Sidebar category filter widget removed; route sections now drive category scope.
 - Sidebar subscriber-only toggle filters the loaded timeline to posts marked `is_subscriber_only`.
