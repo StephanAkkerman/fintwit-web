@@ -128,8 +128,8 @@ Last updated: 2026-09-02
 - Market overview stream assets: `/api/posts` + `/api/stream` -> `MarketOverview`.
 - TradingView TA summaries: `/api/posts` + `/api/stream` -> `tweet.assets[*].financials.technical_analysis` -> `TweetCard` / `AssetBadge`.
 - Asset fundamentals: `/api/posts` + `/api/stream` -> `tweet.assets[*].fundamentals` -> `AssetFundamentals` in `TweetCard` / `AssetBadge`.
-- Ticker mention pulse: `/api/posts` + `/api/stream` -> `TickerMentionsPanel` (route-scoped + user-scoped mention analytics).
-- Ticker detail modal: `/api/overview/ticker-timeseries` -> `useTickerTimeseries` -> `TickerDetailModal` (mentions-over-time chart, bullish/bearish sentiment breakdown, and summary stats; opened by clicking any ticker across `TweetCard`, `TickerMentionsPanel`, `MentionHeatmap`).
+- Route-scoped mention heat: `/api/overview/mention-heat` -> `MentionHeatmap` (route-scoped `assetKind` + user-scoped mention/sentiment/price analytics; shown on `/crypto`, `/stocks`, `/forex`, `/options`, `/portfolio`, and on `/` via `OverviewDashboard`). Replaced the old client-computed `TickerMentionsPanel` (issue #94).
+- Ticker detail modal: `/api/overview/ticker-timeseries` -> `useTickerTimeseries` -> `TickerDetailModal` (mentions-over-time chart, bullish/bearish sentiment breakdown, and summary stats; opened by clicking any ticker across `TweetCard`, `MentionHeatmap`).
 - Debug admin panel: `/api/debug/tweet` -> `DebugAdminPanel` (`/admin`).
 - Portfolio panel: `/api/portfolio/positions` + `/api/portfolio/summary` -> `PortfolioPanel` (`/portfolio`).
 - Portfolio ticker badges: `/api/portfolio/positions` -> `usePortfolioTickers` -> `TweetCard` financial asset blocks (all routes).

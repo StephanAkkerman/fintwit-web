@@ -6,6 +6,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import ExtendedHoursPanel from './components/ExtendedHoursPanel'
 import ForexMacroWidget from './components/ForexMacroWidget'
 import MarketMoversPanel from './components/MarketMoversPanel'
+import { MentionHeatmap } from './components/MentionHeatmap'
 import { OverviewDashboard } from './components/OverviewDashboard'
 import IbkrPanel from './components/IbkrPanel'
 import OptionsOverviewWidget from './components/OptionsOverviewWidget'
@@ -21,7 +22,6 @@ import StockHaltsWidget from './components/StockHaltsWidget'
 import StockMarketHoursBanner from './components/StockMarketHoursBanner'
 import StocktwitsWidget from './components/StocktwitsWidget'
 import TickerDetailModal from './components/TickerDetailModal'
-import TickerMentionsPanel from './components/TickerMentionsPanel'
 import TreemapWidget from './components/TreemapWidget'
 import TrendingCryptoWidget from './components/TrendingCryptoWidget'
 import TweetCard from './components/TweetCard'
@@ -29,7 +29,7 @@ import { useIbkr } from './hooks/useIbkr'
 import { useTweets } from './hooks/useTweets'
 import { useMentionFrequency } from './hooks/useMentionFrequency'
 import { usePortfolioTickers } from './hooks/usePortfolioTickers'
-import type { Tweet } from './types'
+import type { AssetKind, Tweet } from './types'
 import { hasChartSignal } from './utils/tweetSignals'
 
 type FilterKey = 'all' | 'crypto' | 'stock' | 'forex'
@@ -215,6 +215,15 @@ export default function App() {
         ? 'forex'
         : route === 'stocks' || route === 'portfolio'
           ? 'stock'
+          : 'all'
+
+  const mentionHeatAssetKind: AssetKind =
+    route === 'crypto'
+      ? 'CRYPTO'
+      : route === 'forex'
+        ? 'FOREX'
+        : route === 'stocks' || route === 'portfolio'
+          ? 'EQUITY'
           : 'all'
 
   const activeSection = useMemo(
@@ -561,14 +570,14 @@ export default function App() {
               <p className="text-sm text-zinc-500">{activeSection.subtitle}</p>
             </header>
 
-            {route !== 'admin' && route !== 'signa' && (
-              <ErrorBoundary label="Ticker mention pulse">
-                <TickerMentionsPanel
-                  tweets={scopedTweets}
-                  scopeLabel={activeSection.label}
-                  route={route}
-                  selectedUser={userFilter}
-                  onTickerSelect={onTickerSelect}
+            {route !== 'admin' && route !== 'signa' && route !== 'home' && (
+              <ErrorBoundary label="Mention heat">
+                <MentionHeatmap
+                  assetKind={mentionHeatAssetKind}
+                  onTickerClick={onTickerSelect}
+                  userFilter={userFilter}
+                  subscriberOnly={subscriberOnlyFilter}
+                  height={220}
                 />
               </ErrorBoundary>
             )}

@@ -10,10 +10,12 @@ Infrastructure wiring note:
 
 Route-level sections:
 
-- All non-admin routes (`/`, `/crypto`, `/stocks`, `/forex`, `/options`, `/portfolio`)
-  - `TickerMentionsPanel`
-  - Uses currently loaded timeline tweets for in-place mention analytics (top symbols, share, chart-linked density, active authors).
-  - Analytics are reactive to route scope and sidebar user filtering.
+- Non-home, non-admin, non-signa routes (`/crypto`, `/stocks`, `/forex`, `/options`, `/portfolio`)
+  - `MentionHeatmap` (route-scoped `assetKind`: `CRYPTO` for `/crypto`, `FOREX` for `/forex`, `EQUITY` for `/stocks` and `/portfolio`, `all` for `/options`)
+  - Backend-aggregated mention/sentiment/price data from `/api/overview/mention-heat`, reactive to sidebar user filtering.
+  - Replaces the old `TickerMentionsPanel` (issue #94: it duplicated the heatmap while showing less useful, client-computed stats from only the currently loaded tweet buffer).
+
+- `/` (home) already renders the same heatmap (assetKind `all`, with asset/window tabs) via `OverviewDashboard`, so no separate top panel is shown there.
 
 - `/` (home)
   - `FearGreedWidget`
@@ -91,16 +93,16 @@ Route-level sections:
   - Ticker filters:
     - click ticker in tweet financial card,
     - type ticker manually and apply.
-    - click ticker from `TickerMentionsPanel` bars/chips.
+    - click a `MentionHeatmap` tile.
   - User filters:
     - click tweet author name/avatar,
     - type user name manually and apply.
-  - Every ticker click above (financial card, cashtag, hashtag, `TickerMentionsPanel` row, `MentionHeatmap` tile) also opens `TickerDetailModal`, in addition to applying the sidebar ticker filter.
+  - Every ticker click above (financial card, cashtag, hashtag, `MentionHeatmap` tile) also opens `TickerDetailModal`, in addition to applying the sidebar ticker filter.
 
-- `TickerMentionsPanel`
-  - Source data: route/user scoped subset of loaded timeline tweets from `useTweets`.
-  - Purpose: visualize most mentioned symbols and quick mention statistics for the active scope.
-  - Interaction: clicking an analytics ticker applies sidebar ticker filtering and opens `TickerDetailModal`.
+- `MentionHeatmap` (route-scoped, outside `/`)
+  - Source data: `/api/overview/mention-heat`, scoped by route `assetKind` and the sidebar user filter.
+  - Purpose: visualize most mentioned symbols (sized by mentions, colored by sentiment, ringed by price direction) for the active scope.
+  - Interaction: clicking a tile applies sidebar ticker filtering and opens `TickerDetailModal`.
 
 - `TickerDetailModal` + `useTickerTimeseries`
   - Fetches: `/api/overview/ticker-timeseries?ticker=...&window_hours=...`.
