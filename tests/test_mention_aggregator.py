@@ -23,7 +23,15 @@ def _now():
 
 
 def _tweet(
-    id, tickers, label, score, hours_ago, kind="EQUITY", change_pct=0.0, price=None
+    id,
+    tickers,
+    label,
+    score,
+    hours_ago,
+    kind="EQUITY",
+    change_pct=0.0,
+    price=None,
+    author="u",
 ):
     financials = {"change_percent": change_pct}
     if price is not None:
@@ -31,8 +39,8 @@ def _tweet(
     return TweetRow(
         id=id,
         text="x",
-        user_name="u",
-        user_screen_name="u",
+        user_name=author,
+        user_screen_name=author,
         user_img="",
         url="",
         media=[],
@@ -73,6 +81,9 @@ async def test_mention_heat_counts(Session):
     assert btc["mentions"] == 2
     assert btc["asset_kind"] == "CRYPTO"
     assert btc["sentiment_label_24h"] == "BULL"
+    # Both BTC tweets are from the same default author.
+    assert btc["unique_authors"] == 1
+    assert btc["mention_score"] == 2
 
 
 async def test_mention_heat_avg_sentiment(Session):
@@ -108,6 +119,36 @@ async def test_mention_heat_min_mentions_filter(Session):
     tickers = [r["ticker"] for r in rows]
     assert "BIG" in tickers
     assert "TINY" not in tickers
+
+
+async def test_mention_heat_fair_score_caps_single_spammy_author(Session):
+    """A ticker spammed by one account should not out-rank a ticker spread
+    across several distinct authors, even though it has more raw mentions."""
+    from app.services.mention_aggregator import get_mention_heat
+
+    spam = [
+        _tweet(i, ["SPAM"], "NEUTRAL", 0.0, 1, author="loud_one") for i in range(1, 11)
+    ]
+    fair = [
+        _tweet(i + 100, ["FAIR"], "NEUTRAL", 0.0, 1, author=f"author_{i}")
+        for i in range(1, 5)
+    ]
+    await _insert(Session, spam + fair)
+
+    rows = await get_mention_heat(Session, window_hours=24, min_mentions=1)
+    spam_row = next(r for r in rows if r["ticker"] == "SPAM")
+    fair_row = next(r for r in rows if r["ticker"] == "FAIR")
+
+    assert spam_row["mentions"] == 10
+    assert spam_row["unique_authors"] == 1
+    assert spam_row["mention_score"] == 3  # capped at AUTHOR_MENTION_CAP
+
+    assert fair_row["mentions"] == 4
+    assert fair_row["unique_authors"] == 4
+    assert fair_row["mention_score"] == 4
+
+    assert fair_row["mention_score"] > spam_row["mention_score"]
+    assert rows[0]["ticker"] == "FAIR"  # ranked ahead despite fewer raw mentions
 
 
 async def test_volume_baseline_multiplier(Session):
