@@ -211,6 +211,40 @@ async def test_hidden_gems_detects_resurfacing(Session):
     assert gem["days_since_last"] is not None and gem["days_since_last"] >= 9
 
 
+async def test_hidden_gems_fair_score_caps_single_spammy_author(Session):
+    """Same fairness concern as mention-heat (issue #101): a ticker spammed
+    by one account shouldn't out-rank a ticker several distinct authors are
+    genuinely discovering, even though it has more raw mentions."""
+    from app.services.mention_aggregator import get_hidden_gems
+
+    spam = [
+        _tweet(i, ["SPAM"], "NEUTRAL", 0.0, 0.5, author="loud_one")
+        for i in range(1, 11)
+    ]
+    fair = [
+        _tweet(i + 100, ["FAIR"], "NEUTRAL", 0.0, 0.5, author=f"author_{i}")
+        for i in range(1, 5)
+    ]
+    await _insert(Session, spam + fair)
+
+    rows = await get_hidden_gems(Session)
+    spam_row = next(r for r in rows if r["ticker"] == "SPAM")
+    fair_row = next(r for r in rows if r["ticker"] == "FAIR")
+
+    assert spam_row["gem_subtype"] == "new"
+    assert spam_row["mentions_24h"] == 10
+    assert spam_row["unique_authors"] == 1
+    assert spam_row["mention_score"] == 3  # capped at AUTHOR_MENTION_CAP
+
+    assert fair_row["gem_subtype"] == "new"
+    assert fair_row["mentions_24h"] == 4
+    assert fair_row["unique_authors"] == 4
+    assert fair_row["mention_score"] == 4
+
+    assert fair_row["mention_score"] > spam_row["mention_score"]
+    assert rows[0]["ticker"] == "FAIR"  # ranked ahead despite fewer raw mentions
+
+
 # ── Price direction tests ────────────────────────────────────────────────────
 
 
