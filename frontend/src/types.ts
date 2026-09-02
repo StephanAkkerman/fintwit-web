@@ -121,6 +121,19 @@ export type TweetOptionsContext = {
   cashtags: string[];
 };
 
+/**
+ * OCR-derived data from a chart screenshot, populated only when the tweet's
+ * image was classified as a chart and its text didn't already mention a
+ * ticker. Every field is optional: only what OCR actually found is present.
+ */
+export type ChartExtraction = {
+  symbol?: string | null;
+  exchange?: string | null;
+  timeframe?: string | null;
+  price?: number | null;
+  session?: 'regular' | 'pre' | 'post' | string | null;
+};
+
 export type Tweet = {
   id: number;
   text: string;
@@ -154,6 +167,7 @@ export type Tweet = {
   quoted_sentiment_emoji?: string | null;
   quoted_sentiment_score?: number | null;
   has_chart?: boolean | null;
+  chart_extraction?: ChartExtraction | null;
   assets?: Asset[];
 };
 

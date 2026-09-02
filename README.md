@@ -62,6 +62,14 @@ error in chart recognition, temporarily disable chart inference:
 CHART_ENABLED=false
 ```
 
+Chart data extraction (OCR of symbol/price off chart screenshots, run only
+when a chart tweet's text has no ticker) shares the same PyTorch stack via
+`ultralytics`. Disable it independently with:
+
+```bash
+CHART_EXTRACTION_ENABLED=false
+```
+
 To pin/downgrade PyTorch used by the backend Docker image, set:
 
 ```bash

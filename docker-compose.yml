@@ -51,6 +51,7 @@ services:
       DB_URL: sqlite+aiosqlite:///./state/data.db
       API_KEY: ${API_KEY:-}
       CHART_ENABLED: ${CHART_ENABLED:-true}
+      CHART_EXTRACTION_ENABLED: ${CHART_EXTRACTION_ENABLED:-true}
       IBKR_ENABLED: "true"
       IBKR_HOST: ibgateway
       # Keep this aligned with TRADING_MODE (live=4003, paper=4004).

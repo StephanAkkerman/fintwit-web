@@ -57,6 +57,7 @@ def _row_to_dict(r: TweetRow) -> dict:
         "quoted_sentiment_score": r.quoted_sentiment_score,
         "quoted_tweet": r.quoted_tweet,
         "has_chart": r.has_chart,
+        "chart_extraction": r.chart_extraction,
         "is_options_tweet": r.is_options_tweet,
         "options_context": r.options_context,
         "assets": r.assets,

@@ -18,8 +18,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 # Left out of the test extra on purpose: `app/ml/` imports these lazily inside
-# functions, so no test needs them, and they cost ~2.5 GB of CUDA wheels.
-LAZY_ML_PACKAGES = {"torch", "timm", "transformers", "pillow"}
+# functions, so no test needs them, and they cost ~2.5 GB of CUDA wheels
+# (chart-extractor pulls in ultralytics/rapidocr-onnxruntime/opencv on top).
+LAZY_ML_PACKAGES = {
+    "torch",
+    "timm",
+    "transformers",
+    "pillow",
+    "chart-extractor",
+    "opencv-python",
+}
 
 _REQUIREMENT = re.compile(
     r"^\s*(?P<name>[A-Za-z0-9._-]+)"  # package name
@@ -106,7 +114,7 @@ def test_lazy_ml_packages_are_absent_at_import_time():
     """
     probe = (
         "import app.api.main, sys;"
-        "leaked = {'torch', 'timm', 'transformers'} &"
+        "leaked = {'torch', 'timm', 'transformers', 'chart_extractor', 'cv2'} &"
         " {n.split('.', 1)[0] for n in sys.modules};"
         "print(','.join(sorted(leaked)))"
     )
@@ -133,6 +141,7 @@ _MODULE_TO_DISTRIBUTION = {
     "dotenv": "dotenv",
     "PIL": "pillow",
     "xclient": "xtimeline",
+    "cv2": "opencv-python",
 }
 
 # Imported by app/ but deliberately not declared: these ship with Python, or are

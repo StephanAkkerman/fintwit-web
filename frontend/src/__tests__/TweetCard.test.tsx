@@ -359,6 +359,31 @@ describe('TweetCard', () => {
     expect(screen.queryByLabelText('Chart tweet')).not.toBeInTheDocument()
   })
 
+  it('shows chart-extracted symbol badge when chart_extraction is present', () => {
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          has_chart: true,
+          chart_extraction: {
+            symbol: 'SPY',
+            exchange: 'NYSE',
+            timeframe: '1D',
+            price: 682.98,
+            session: 'regular',
+          },
+        }}
+      />
+    )
+
+    expect(screen.getByLabelText('Chart-extracted symbol')).toHaveTextContent('SPY · 1D · $682.98')
+  })
+
+  it('does not show chart-extracted symbol badge when chart_extraction is absent', () => {
+    render(<TweetCard t={{ ...baseTweet, has_chart: true, chart_extraction: null }} />)
+    expect(screen.queryByLabelText('Chart-extracted symbol')).not.toBeInTheDocument()
+  })
+
   it('renders sentiment badge when sentiment fields are available', () => {
     render(
       <TweetCard

@@ -59,6 +59,12 @@ class TweetRow(Base):
         default=None,
         server_default=sql_text("NULL"),
     )
+    chart_extraction: Mapped[dict] = mapped_column(
+        JSON().with_variant(SQLITE_JSON, "sqlite"),
+        nullable=True,
+        default=None,
+        server_default=sql_text("NULL"),
+    )
     is_options_tweet: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
