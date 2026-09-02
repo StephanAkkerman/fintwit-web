@@ -6,6 +6,7 @@ import { MentionHeatmap, MENTION_WINDOWS, type MentionWindowHours } from './Ment
 import { SentimentShiftWidget } from './SentimentShiftWidget'
 import { VolumeBaselineWidget } from './VolumeBaselineWidget'
 import { HiddenGemWidget } from './HiddenGemWidget'
+import { SectorMentionsWidget } from './SectorMentionsWidget'
 
 const SCOPE_LABEL: Record<AssetKind, string> = {
   all:    'All markets',
@@ -80,6 +81,9 @@ export function OverviewDashboard({ onTickerClick, userFilter = null, subscriber
         <VolumeBaselineWidget assetKind={assetKind} windowHours={windowHours} userFilter={userFilter} subscriberOnly={subscriberOnly} />
         <HiddenGemWidget assetKind={assetKind} windowHours={windowHours} userFilter={userFilter} subscriberOnly={subscriberOnly} />
       </div>
+
+      {/* Equity-only: sector/industry metadata is resolved for stocks/ETFs, not crypto or forex. */}
+      <SectorMentionsWidget windowHours={windowHours} userFilter={userFilter} subscriberOnly={subscriberOnly} onTickerClick={onTickerClick} />
     </div>
   )
 }

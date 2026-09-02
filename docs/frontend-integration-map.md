@@ -110,6 +110,11 @@ Route-level sections:
   - Interaction: opened from `App.tsx`'s `onTickerSelect` (the same callback every ticker click site already calls), with a 24h/7d/30d window toggle; closes on the Close button, backdrop click, or Escape.
   - Mounted app-wide as a modal overlay (not a route), consistent with the existing tweet-media lightbox pattern in `TweetCard`.
 
+- `SectorMentionsWidget` + `useSectorMentions` (`/` only, inside `OverviewDashboard`)
+  - Fetches: `/api/overview/sector-mentions?window_hours=...` (plus the sidebar user filter).
+  - Purpose: most-mentioned equity sectors (issue #104) — proportional bars ranked by the fairness-adjusted `mention_score`, top mentioned tickers per sector, expandable per-sector industry breakdown (e.g. "Technology > Semiconductors"). Equity-only: crypto/forex tickers carry no sector metadata, so it is not asset-kind scoped like the other overview widgets.
+  - Interaction: expand/collapse a sector row for its industries; clicking a ticker chip applies sidebar ticker filtering and opens `TickerDetailModal` via the shared `onTickerClick` callback.
+
 - `TreemapWidget` + `useTreemap`
   - Fetches: `/api/treemap`
   - Purpose: top crypto market-cap snapshot tiles.

@@ -749,6 +749,30 @@ export interface MentionFrequencyResponse {
   global: Record<string, TickerScopeStat>;
 }
 
+export interface SectorMentionTicker {
+  ticker: string;
+  mentions: number;
+}
+
+export interface SectorMentionIndustry {
+  industry: string;
+  mentions: number;
+  unique_tickers: number;
+  top_tickers: SectorMentionTicker[];
+}
+
+export interface SectorMentionItem {
+  sector: string;
+  mentions: number;
+  mention_score: number;
+  unique_authors: number;
+  unique_tickers: number;
+  avg_sentiment_24h: number;
+  sentiment_label_24h: SentimentLabel;
+  top_tickers: SectorMentionTicker[];
+  industries: SectorMentionIndustry[];
+}
+
 export interface HiddenGemItem {
   ticker: string;
   mentions_24h: number;
