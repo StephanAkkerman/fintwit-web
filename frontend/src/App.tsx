@@ -614,7 +614,7 @@ export default function App() {
                 <ErrorBoundary label="StockTwits">
                   <StocktwitsWidget />
                 </ErrorBoundary>
-                <ErrorBoundary label="SPY heatmap">
+                <ErrorBoundary label="Market heatmap">
                   <SpyHeatmapWidget />
                 </ErrorBoundary>
                 <ErrorBoundary label="Sector overview">
