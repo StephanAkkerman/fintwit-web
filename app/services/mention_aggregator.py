@@ -63,6 +63,14 @@ def _subscriber_clause(subscriber_only: bool) -> str:
     )
 
 
+# Per-author cap applied when computing get_mention_heat's ranking score
+# (issue #101): one account retweeting/spamming a ticker shouldn't be able to
+# out-rank a ticker genuinely mentioned by several distinct people. Each
+# author contributes at most this many mentions toward the score; raw
+# `mentions` is still returned unclipped for display.
+AUTHOR_MENTION_CAP = 3
+
+
 async def get_mention_heat(
     Session: async_sessionmaker,
     asset_kind: str = "all",
@@ -73,6 +81,13 @@ async def get_mention_heat(
     subscriber_only: bool = False,
 ) -> list[dict]:
     """Return the top-mentioned tickers in the last ``window_hours`` hours.
+
+    Ranking uses a fairness-adjusted ``mention_score`` rather than raw
+    ``mentions`` (issue #101): each author's contribution to a ticker is
+    capped at ``AUTHOR_MENTION_CAP`` before summing, so one account
+    retweeting/spamming a ticker can't out-rank a ticker genuinely spread
+    across several distinct authors. ``mentions`` and ``unique_authors`` are
+    still returned uncapped so callers can see the raw numbers.
 
     ``price_direction`` is the point-to-point % return over the window:
     ``(most_recent_price - nearest_to_cutoff_price) / nearest_to_cutoff_price * 100``.
@@ -136,12 +151,34 @@ async def get_mention_heat(
             GROUP BY j.value
             HAVING COUNT(*) >= :min_mentions
             {kind_clause}
+        ),
+        author_mentions AS (
+            SELECT
+                LOWER(t.user_screen_name) AS author,
+                j.value AS ticker,
+                COUNT(*) AS author_mentions
+            FROM tweets t, json_each(t.tickers) j
+            WHERE t.created_at >= :cutoff
+              AND t.tickers IS NOT NULL AND t.tickers != '[]'
+              {user_c}
+              {sub_c}
+            GROUP BY author, j.value
+        ),
+        fair_score AS (
+            SELECT
+                ticker,
+                CAST(COUNT(*) AS INTEGER) AS unique_authors,
+                CAST(SUM(MIN(author_mentions, :author_cap)) AS INTEGER) AS mention_score
+            FROM author_mentions
+            GROUP BY ticker
         )
         SELECT
             m.ticker,
             m.mentions,
             m.avg_sentiment_24h,
             m.asset_kind,
+            fs.unique_authors,
+            fs.mention_score,
             CASE
                 WHEN pr.price IS NOT NULL
                  AND ps.price IS NOT NULL
@@ -150,13 +187,19 @@ async def get_mention_heat(
                 ELSE NULL
             END AS price_direction
         FROM mentions m
+        JOIN fair_score fs ON fs.ticker = m.ticker
         LEFT JOIN (SELECT ticker, price FROM price_recent WHERE rn = 1) pr ON pr.ticker = m.ticker
         LEFT JOIN (SELECT ticker, price FROM price_at_start WHERE rn = 1) ps ON ps.ticker = m.ticker
-        ORDER BY m.mentions DESC
+        ORDER BY fs.mention_score DESC
         LIMIT :limit
     """)
 
-    params: dict = {"cutoff": cutoff, "limit": limit, "min_mentions": min_mentions}
+    params: dict = {
+        "cutoff": cutoff,
+        "limit": limit,
+        "min_mentions": min_mentions,
+        "author_cap": AUTHOR_MENTION_CAP,
+    }
     if user_screen_name:
         params["user_name_pat"] = f"%{user_screen_name.lower()}%"
 
@@ -168,6 +211,8 @@ async def get_mention_heat(
         {
             "ticker": r["ticker"],
             "mentions": r["mentions"],
+            "unique_authors": r["unique_authors"],
+            "mention_score": r["mention_score"],
             "avg_sentiment_24h": r["avg_sentiment_24h"] or 0.0,
             "sentiment_label_24h": _score_to_label(r["avg_sentiment_24h"]),
             "asset_kind": (r["asset_kind"] or "EQUITY").upper(),
@@ -331,6 +376,18 @@ async def get_hidden_gems(
     user_screen_name: str | None = None,
     subscriber_only: bool = False,
 ) -> list[dict]:
+    """Surface newly-appeared or resurfacing tickers in the active window.
+
+    Ordering uses the same fairness-adjusted ``mention_score`` as
+    ``get_mention_heat`` (issue #101): each author's contribution is capped
+    at ``AUTHOR_MENTION_CAP`` before summing, so one account bursting
+    retweets on a ticker can't push it to the top — or push genuinely
+    multi-author gems out of the ``LIMIT 20`` cutoff. Unlike
+    ``get_mention_heat`` there is no minimum-mentions floor: a single
+    early mention is the whole point of a "hidden gem", so it isn't
+    filtered out — it just won't outrank gems several people are talking
+    about.
+    """
     now = _now()
     cutoff_now = now - timedelta(hours=window_hours)
     # "Resurfacing" means the prior occurrence is at least one full lookback
@@ -379,6 +436,26 @@ async def get_hidden_gems(
               {user_c}
               {sub_c}
             GROUP BY j.value
+        ),
+        author_mentions AS (
+            SELECT
+                LOWER(t.user_screen_name) AS author,
+                j.value AS ticker,
+                COUNT(*) AS author_mentions
+            FROM tweets t, json_each(t.tickers) j
+            WHERE t.created_at >= :c_now
+              AND t.tickers IS NOT NULL AND t.tickers != '[]'
+              {user_c}
+              {sub_c}
+            GROUP BY author, j.value
+        ),
+        fair_score AS (
+            SELECT
+                ticker,
+                CAST(COUNT(*) AS INTEGER) AS unique_authors,
+                CAST(SUM(MIN(author_mentions, :author_cap)) AS INTEGER) AS mention_score
+            FROM author_mentions
+            GROUP BY ticker
         )
         SELECT
             a.ticker,
@@ -386,11 +463,11 @@ async def get_hidden_gems(
             a.asset_kind,
             h.first_seen,
             h.last_seen_before_window,
+            fs.unique_authors,
+            fs.mention_score,
             CASE
                 WHEN h.first_seen >= :c_now THEN 'new'
-                WHEN h.last_seen_before_window IS NULL
-                     OR h.last_seen_before_window < :c_resurface
-                     THEN 'resurfacing'
+                WHEN h.last_seen_before_window < :c_resurface THEN 'resurfacing'
                 ELSE NULL
             END AS gem_subtype,
             CASE
@@ -402,13 +479,18 @@ async def get_hidden_gems(
             END AS days_since_last
         FROM active a
         JOIN history h ON a.ticker = h.ticker
+        JOIN fair_score fs ON fs.ticker = a.ticker
         WHERE gem_subtype IS NOT NULL
           {kind_filter}
-        ORDER BY a.mentions_now DESC
+        ORDER BY fs.mention_score DESC
         LIMIT 20
     """)
 
-    params: dict = {"c_now": cutoff_now, "c_resurface": cutoff_resurface}
+    params: dict = {
+        "c_now": cutoff_now,
+        "c_resurface": cutoff_resurface,
+        "author_cap": AUTHOR_MENTION_CAP,
+    }
     if user_screen_name:
         params["user_name_pat"] = f"%{user_screen_name.lower()}%"
 
@@ -420,6 +502,8 @@ async def get_hidden_gems(
         {
             "ticker": r["ticker"],
             "mentions_24h": r["mentions_now"],
+            "unique_authors": r["unique_authors"],
+            "mention_score": r["mention_score"],
             "asset_kind": (r["asset_kind"] or "EQUITY").upper(),
             "gem_subtype": r["gem_subtype"],
             "days_since_last": r["days_since_last"],
