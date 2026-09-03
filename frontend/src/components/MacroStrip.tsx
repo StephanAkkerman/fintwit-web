@@ -50,7 +50,7 @@ function MacroTile({ item }: { item: MacroTickerItem }) {
 export function MacroStrip() {
   const { data, loading } = useMacroStrip()
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3">
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-3">
       {loading ? (
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
           {Array.from({ length: 6 }).map((_, i) => (

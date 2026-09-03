@@ -16,7 +16,7 @@ export function RouteSignalsPanel({ assetKind, windowHours = 24, userFilter = nu
   const [open, setOpen] = useState(false)
 
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-950">
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-900">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}

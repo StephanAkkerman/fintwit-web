@@ -45,7 +45,7 @@ export default function TrendingCryptoWidget() {
 
   if (trending.length === 0) {
     return (
-      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 mb-4">
+      <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-4 mb-4">
         <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
           <span className="text-xl">🔥</span> Trending Crypto
         </h2>
@@ -55,7 +55,7 @@ export default function TrendingCryptoWidget() {
   }
 
   return (
-    <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 mb-4">
+    <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-4 mb-4">
       <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
         <span className="text-xl">🔥</span> Trending Crypto
       </h2>

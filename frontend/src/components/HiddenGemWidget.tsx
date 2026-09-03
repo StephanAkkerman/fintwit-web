@@ -1,3 +1,4 @@
+import { Gem } from 'lucide-react'
 import { useHiddenGems } from '../hooks/useHiddenGems'
 import type { AssetKind } from '../types'
 
@@ -32,7 +33,7 @@ export function HiddenGemWidget({ assetKind, windowHours = 24, userFilter = null
 
   if (loading) {
     return (
-      <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4 flex flex-col gap-3">
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 flex flex-col gap-3">
         <div className="h-4 w-32 bg-zinc-800 rounded animate-pulse" />
         {[0, 1, 2].map(i => (
           <div key={i} className="h-5 bg-zinc-800 rounded animate-pulse" />
@@ -43,7 +44,7 @@ export function HiddenGemWidget({ assetKind, windowHours = 24, userFilter = null
 
   if (error) {
     return (
-      <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-zinc-500 text-sm">
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 text-zinc-500 text-sm">
         Failed to load hidden gems.
       </div>
     )
@@ -51,7 +52,8 @@ export function HiddenGemWidget({ assetKind, windowHours = 24, userFilter = null
 
   if (data.length === 0) {
     return (
-      <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-zinc-500 text-sm">
+      <div className="flex items-center gap-2 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 text-zinc-500 text-sm">
+        <Gem className="h-4 w-4 shrink-0" aria-hidden="true" />
         No hidden gems found.
       </div>
     )
@@ -61,7 +63,7 @@ export function HiddenGemWidget({ assetKind, windowHours = 24, userFilter = null
   const remaining = data.length - 10
 
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4 flex flex-col gap-0">
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 flex flex-col gap-0">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-[13px] font-semibold text-zinc-100">Hidden gems</h2>
         <span className="text-[10px] text-zinc-500 font-mono">low-vol tickers gaining traction</span>
