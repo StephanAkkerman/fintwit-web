@@ -1,6 +1,6 @@
 # Frontend Integration Map
 
-Last updated: 2026-09-02
+Last updated: 2026-09-03
 
 ## Mounted in `App.tsx` Today
 
@@ -21,6 +21,7 @@ Route-level sections:
   - `FearGreedWidget`
   - `RedditWsbWidget`
   - `MarketOverview`
+  - `OverviewDashboard` — macro strip (`MacroStrip`), the `all`-scoped `MentionHeatmap`, a three-column analytics row (`SentimentShiftWidget`, `VolumeBaselineWidget`, `HiddenGemWidget`), and `SectorMentionsWidget`, with shared asset-kind (`all`/`EQUITY`/`CRYPTO`/`FOREX`) and lookback-window (24h/48h/7d) controls
   - Tweet timeline (`useTweets` + `TweetCard`)
 
 - `/crypto`
@@ -36,6 +37,7 @@ Route-level sections:
   - `StockHaltsWidget`
   - `StocktwitsWidget`
   - `SpyHeatmapWidget`
+  - `EarningsCalendarWidget`
   - Tweet timeline auto-filtered to stock signals
   - Chart-focused sort controls: Latest / Charts first / Charts only
 
@@ -115,6 +117,29 @@ Route-level sections:
   - Purpose: most-mentioned equity sectors (issue #104) — proportional bars ranked by the fairness-adjusted `mention_score`, top mentioned tickers per sector, expandable per-sector industry breakdown (e.g. "Technology > Semiconductors"). Equity-only: crypto/forex tickers carry no sector metadata, so it is not asset-kind scoped like the other overview widgets.
   - Interaction: expand/collapse a sector row for its industries; clicking a ticker chip applies sidebar ticker filtering and opens `TickerDetailModal` via the shared `onTickerClick` callback.
 
+- `MacroStrip` + `useMacroStrip` (`/` only, inside `OverviewDashboard`)
+  - Fetches: `/api/overview/macro-strip` (5-minute server-side cache).
+  - Purpose: at-a-glance macro tape — live price + % change + sparkline tiles for SPX, NDX, BTC, ETH, DXY, VIX, and GOLD — above the rest of the home dashboard.
+
+- `SentimentShiftWidget` + `useSentimentShift` (`/` only, inside `OverviewDashboard`)
+  - Fetches: `/api/overview/sentiment-shift`, scoped by the dashboard's asset-kind/window controls and the sidebar user filter.
+  - Purpose: rank tickers by the biggest swing in average tweet sentiment between the active window and the prior baseline, each row showing a prev→current sentiment sparkline and signed delta — surfaces sentiment momentum, not just mention volume.
+  - Portfolio awareness: accepts the shared `portfolioLookup` (see below) and renders a `PortfolioTickerBadge` next to any ticker currently or recently held.
+
+- `VolumeBaselineWidget` + `useVolumeBaseline` (`/` only, inside `OverviewDashboard`)
+  - Fetches: `/api/overview/volume-baseline`, same scoping as `SentimentShiftWidget`.
+  - Purpose: "Unusually loud" — tickers whose mention count in the active window exceeds a multiple of their rolling baseline rate, each row showing mentions vs. baseline and the multiplier — mention-spike/anomaly detection.
+  - Portfolio awareness: same `portfolioLookup` badge as `SentimentShiftWidget`.
+
+- `HiddenGemWidget` + `useHiddenGems` (`/` only, inside `OverviewDashboard`)
+  - Fetches: `/api/overview/hidden-gems`, same scoping as `SentimentShiftWidget`.
+  - Purpose: surface tickers being mentioned for the first time (✦ new) or resurfacing after a long gap (↩ resurface) in the active window — catches tickers before they're loud enough to rank on the main mention heatmap.
+  - Portfolio awareness: same `portfolioLookup` badge as `SentimentShiftWidget`.
+
+- `PortfolioTickerBadge` (shared by `SentimentShiftWidget`, `VolumeBaselineWidget`, `HiddenGemWidget`)
+  - Consumes: the same `portfolioLookup` function (`usePortfolioTickers`, computed once in `App.tsx` and threaded through `OverviewDashboard`) that already badges tweet-card financial cards as 💼 Held / 🕓 Recently Held.
+  - Purpose: compact emoji-only variant of the same portfolio-status signal for the tighter analytics-row layouts, so a sentiment swing, mention spike, or hidden gem on a held position is visible without leaving the home dashboard.
+
 - `TreemapWidget` + `useTreemap`
   - Fetches: `/api/treemap`
   - Purpose: top crypto market-cap snapshot tiles.
@@ -166,6 +191,11 @@ Route-level sections:
 - `SectorOverviewWidget` + `useSectorOverview`
   - Fetches: `/api/spy-heatmap/sectors?date=...`
   - Purpose: SPY sector/subsector performance trends (e.g. Technology, and within it Semiconductors vs Software) with selectable date ranges; each sector expands to its subsector breakdown.
+
+- `EarningsCalendarWidget` + `useEarningsCalendar` (`/stocks`)
+  - Fetches: `/api/earnings/calendar?days=7`.
+  - Purpose: horizontally-scrollable strip of the next 7 days, each a card listing that day's reporting tickers (already ranked by market cap), a session emoji (🌅 pre-market / 🌙 after-hours), and the EPS estimate; a day with nothing scheduled shows "No major earnings" instead of being omitted, and a day with more tickers than fit shows a "+N more" note.
+  - Portfolio awareness: accepts `portfolioLookup` (passed from `App.tsx`, same source as the tweet-card Held/Recently Held badges) and renders a `PortfolioTickerBadge` next to any reporting ticker currently or recently held — so an upcoming earnings date on one of your own positions stands out from the rest of the calendar.
 
 - `PortfolioPanel` + `usePortfolio`
   - Fetches: `/api/portfolio/positions` and `/api/portfolio/summary`

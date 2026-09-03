@@ -575,6 +575,36 @@ export type EconomicEventItem = {
   source: string | null;
 };
 
+export type EarningsSession = 'pre-market' | 'after-hours' | 'unknown';
+
+export type EarningsRow = {
+  symbol: string;
+  name: string | null;
+  date: string;
+  session: EarningsSession;
+  session_emoji: string | null;
+  market_cap: number | null;
+  eps_forecast: number | null;
+  num_estimates: number | null;
+  fiscal_quarter_ending: string | null;
+  last_year_eps: number | null;
+  last_year_report_date: string | null;
+  website: string | null;
+};
+
+export type EarningsCalendarDay = {
+  date: string;
+  count: number;
+  rows: EarningsRow[];
+};
+
+export type EarningsCalendar = {
+  start_date: string;
+  end_date: string;
+  days: EarningsCalendarDay[];
+  source: string;
+};
+
 export type ForexMacroCurvePoint = {
   maturity: string;
   symbol: string;
@@ -680,7 +710,7 @@ export interface MacroTickerItem {
   symbol: string;
   price: number;
   change_pct: number;
-  sparkline: number[]; // [] until intraday bars are added
+  sparkline: number[]; // in-memory history, one point per ~5min server-side fetch; empty until the first few fetches land
 }
 
 export interface MentionHeatCell {

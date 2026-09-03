@@ -1,12 +1,15 @@
 import { BarChart3 } from 'lucide-react'
 import type { AssetKind } from '../types'
 import { useVolumeBaseline } from '../hooks/useVolumeBaseline'
+import type { PortfolioTickerLookup } from '../hooks/usePortfolioTickers'
+import { PortfolioTickerBadge } from './PortfolioTickerBadge'
 
 interface Props {
   assetKind: AssetKind
   windowHours?: number
   userFilter?: string | null
   subscriberOnly?: boolean
+  portfolioLookup?: PortfolioTickerLookup
 }
 
 function sentimentBarColor(sentiment?: number): string {
@@ -16,7 +19,7 @@ function sentimentBarColor(sentiment?: number): string {
   return 'rgba(161,161,170,0.6)'
 }
 
-export function VolumeBaselineWidget({ assetKind, windowHours = 24, userFilter = null, subscriberOnly = false }: Props) {
+export function VolumeBaselineWidget({ assetKind, windowHours = 24, userFilter = null, subscriberOnly = false, portfolioLookup }: Props) {
   const { data, loading, error } = useVolumeBaseline(assetKind, windowHours, userFilter, subscriberOnly)
 
   if (loading) {
@@ -65,7 +68,10 @@ export function VolumeBaselineWidget({ assetKind, windowHours = 24, userFilter =
           const baselineWidth = `${Math.min(100, (item.baseline_7d_avg / Math.max(item.mentions_24h, 1)) * (item.volume_multiplier / maxMultiplier) * 100).toFixed(1)}%`
           return (
             <div key={item.ticker} className="grid items-center gap-2" style={{ gridTemplateColumns: '56px 1fr 44px' }}>
-              <span className="font-mono text-[11px] text-zinc-100 font-semibold">${item.ticker}</span>
+              <span className="flex items-center gap-1 font-mono text-[11px] text-zinc-100 font-semibold">
+                ${item.ticker}
+                <PortfolioTickerBadge status={portfolioLookup?.(item.ticker) ?? null} />
+              </span>
               <div className="relative h-[22px] rounded bg-zinc-900 border border-zinc-800 overflow-hidden">
                 <div
                   className="absolute inset-y-0 left-0"

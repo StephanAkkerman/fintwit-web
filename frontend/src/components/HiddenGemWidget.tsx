@@ -1,12 +1,15 @@
 import { Gem } from 'lucide-react'
 import { useHiddenGems } from '../hooks/useHiddenGems'
 import type { AssetKind } from '../types'
+import type { PortfolioTickerLookup } from '../hooks/usePortfolioTickers'
+import { PortfolioTickerBadge } from './PortfolioTickerBadge'
 
 interface Props {
   assetKind: AssetKind
   windowHours?: number
   userFilter?: string | null
   subscriberOnly?: boolean
+  portfolioLookup?: PortfolioTickerLookup
 }
 
 interface GemBadgeProps {
@@ -28,7 +31,7 @@ function GemBadge({ subtype }: GemBadgeProps) {
   )
 }
 
-export function HiddenGemWidget({ assetKind, windowHours = 24, userFilter = null, subscriberOnly = false }: Props) {
+export function HiddenGemWidget({ assetKind, windowHours = 24, userFilter = null, subscriberOnly = false, portfolioLookup }: Props) {
   const { data, loading, error } = useHiddenGems(assetKind, windowHours, userFilter, subscriberOnly)
 
   if (loading) {
@@ -74,7 +77,10 @@ export function HiddenGemWidget({ assetKind, windowHours = 24, userFilter = null
             key={item.ticker}
             className={'flex items-center justify-between py-1.5 ' + (i < visible.length - 1 ? 'border-b border-zinc-900' : '')}
           >
-            <span className="font-mono text-[11px] text-zinc-100 font-semibold">${item.ticker}</span>
+            <span className="flex items-center gap-1 font-mono text-[11px] text-zinc-100 font-semibold">
+              ${item.ticker}
+              <PortfolioTickerBadge status={portfolioLookup?.(item.ticker) ?? null} />
+            </span>
             <span className="flex items-center gap-1.5">
               <GemBadge subtype={item.gem_subtype} />
               {item.gem_subtype === 'new' && (

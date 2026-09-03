@@ -14,6 +14,7 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import BinanceGainersLosersWidget from './components/BinanceGainersLosersWidget'
 import DebugAdminPanel from './components/DebugAdminPanel'
+import EarningsCalendarWidget from './components/EarningsCalendarWidget'
 import EconomicEventsWidget from './components/EconomicEventsWidget'
 import ErrorBoundary from './components/ErrorBoundary'
 import ExtendedHoursPanel from './components/ExtendedHoursPanel'
@@ -652,6 +653,7 @@ export default function App() {
                   onTickerClick={onTickerSelect}
                   userFilter={userFilter}
                   subscriberOnly={subscriberOnlyFilter}
+                  portfolioLookup={portfolioLookup}
                 />
               </ErrorBoundary>
             )}
@@ -706,6 +708,11 @@ export default function App() {
                 <div className="sm:col-span-2">
                   <ErrorBoundary label="Sector overview">
                     <SectorOverviewWidget />
+                  </ErrorBoundary>
+                </div>
+                <div className="sm:col-span-2">
+                  <ErrorBoundary label="Earnings calendar">
+                    <EarningsCalendarWidget portfolioLookup={portfolioLookup} />
                   </ErrorBoundary>
                 </div>
               </div>

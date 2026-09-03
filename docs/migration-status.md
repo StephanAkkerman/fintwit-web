@@ -1,6 +1,6 @@
 # Migration Status
 
-Last updated: 2026-09-02
+Last updated: 2026-09-03
 
 ## Backend: Implemented
 
@@ -54,6 +54,11 @@ Last updated: 2026-09-02
 - Chart data extraction (issue #49): when `chart-recognizer` classifies a tweet's image as a chart (`has_chart=true`) and the tweet text mentions no ticker, `app/ml/chart_extractor.py` (wrapping the external [`chart-extractor`](https://github.com/StephanAkkerman/chart-extractor) YOLO+OCR package) analyzes the image and attaches a `chart_extraction` payload (`symbol`, `exchange`, `timeframe`, `price`, `session`) to the tweet. Skipped entirely when the text already names a ticker, since the mentioned ticker is a stronger, cheaper signal than OCR. Runs lazily/thread-offloaded like `chart-recognizer`, and can be disabled independently via `CHART_EXTRACTION_ENABLED=false`.
 
 - Sector/industry mention overview (issue #104): `mention_aggregator.get_sector_mentions` aggregates ticker mentions from `tweets.assets[*].sector`/`.industry` (equities/ETFs only — crypto and forex carry no sector metadata and are excluded) into a sector -> industry -> ticker rollup, so a cluster of activity across several related tickers (e.g. "Technology > Semiconductors") surfaces as a sector-level trend. Ranking uses the same fairness-adjusted `mention_score` as `get_mention_heat` (issue #101), capping each author's contribution per sector at `AUTHOR_MENTION_CAP`. Exposed via `GET /api/overview/sector-mentions` (`window_hours`, `limit`, plus the standard `user_screen_name`/`subscriber_only` filters).
+- Home dashboard analytics slice (issue #101): `mention_aggregator.get_mention_heat` ranks the top-mentioned tickers over `window_hours` using a fairness-adjusted `mention_score` (each author's contribution capped at `AUTHOR_MENTION_CAP` before summing, so one spamming account can't out-rank a ticker genuinely spread across several authors) plus a point-to-point `price_direction` return over the window. Exposed via `GET /api/overview/mention-heat` (`asset_kind`, `window_hours`, `user_screen_name`, `subscriber_only`).
+- Sentiment-shift ranking: `mention_aggregator.get_sentiment_shift` ranks tickers by absolute change in average FinTwitBERT sentiment between the active window and the prior baseline span (everything before the window cutoff, out to `max(window_hours * 2, 7d)`), surfacing tickers whose tweet sentiment is swinging fastest rather than just the loudest. Exposed via `GET /api/overview/sentiment-shift`.
+- Mention-volume anomaly detection: `mention_aggregator.get_volume_baseline` flags tickers whose mention count in the active window exceeds `threshold` (default 1.5x) times their expected count from a rolling baseline (4x the active window, floored at 7 days), i.e. tickers suddenly getting talked about far more than usual. Exposed via `GET /api/overview/volume-baseline`.
+- Hidden-gem detection: `mention_aggregator.get_hidden_gems` surfaces tickers that are newly appearing or resurfacing (no mention in at least `max(window_hours * 7, 7d)` prior) in the active window, using the same fairness-adjusted `mention_score` as `get_mention_heat` but with no minimum-mentions floor, since a single early mention is the point. Exposed via `GET /api/overview/hidden-gems`.
+- Macro strip: `GET /api/overview/macro-strip` returns live TradingView quotes (price + % change) for a fixed watchlist (SPX, NDX, BTC, ETH, DXY, VIX, GOLD), 5-minute server-side cached, plus a rolling per-label `sparkline` (up to 48 points, one appended per real fetch, ~4h of trend at the cache TTL; in-memory, resets on restart).
 
 ## Frontend: Implemented
 
@@ -116,6 +121,10 @@ Last updated: 2026-09-02
 - Economic events widget now displays country/region flag emojis and explicit impact badges per event.
 - Clicking any ticker (tweet cards, ticker mention pulse, mention heatmap) now opens a `TickerDetailModal` with a mentions-over-time chart, a bullish/bearish/neutral sentiment breakdown chart, and summary stats (total mentions, avg mentions per bucket, unique voices, chart-tagged tweets, avg engagement, price move, asset kind) for a selectable 24h/7d/30d window — resolves issue #108.
 - Home route overview dashboard now includes a "Sectors & industries" widget (`SectorMentionsWidget`, issue #104): sectors ranked by mention volume with a proportional bar, top mentioned tickers per sector, and an expandable industry breakdown (e.g. "Technology > Semiconductors") — surfaces which corner of the market is getting talked about most, ahead of any single ticker breaking out.
+- Stocks route now includes an earnings calendar widget (`EarningsCalendarWidget`): a horizontally-scrollable strip of day cards for the next 7 days, each listing the reporting tickers (ranked by market cap) with their session emoji and EPS estimate, a portfolio badge on any held/recently-held ticker, and a "+N more" overflow note; a day with nothing scheduled shows "No major earnings" rather than being omitted.
+- Home route overview dashboard (`OverviewDashboard`, mounted at `/`) leads with a macro strip (`MacroStrip`) showing live SPX/NDX/BTC/ETH/DXY/VIX/GOLD quotes with sparklines, then the mention-heat heatmap, then a three-column analytics row: `SentimentShiftWidget` (tickers with the biggest sentiment swing between now and the prior baseline), `VolumeBaselineWidget` ("Unusually loud" — tickers whose mention volume is a multiple of their rolling baseline), and `HiddenGemWidget` (newly-appearing or resurfacing tickers, tagged ✦ new / ↩ resurface).
+- Stock migration slice: earnings calendar endpoint (`GET /api/earnings/calendar`, `app/services/earnings_service.py`), ported from fintwit-bot's `src/api/nasdaq.py:get_earnings_for_date` (used by the weekly `earnings_overview.py` Discord loop and the `/earnings` slash command). Fetches `api.nasdaq.com/api/calendar/earnings?date=...` for each of the next `days` days (1-14, default 7) concurrently, and returns `{start_date, end_date, days: [{date, count, rows}], source}` — each row carries `symbol`, `name`, `date`, `session`/`session_emoji` (`pre-market`🌅/`after-hours`🌙/`unknown`), `market_cap`, `eps_forecast`, `num_estimates`, `fiscal_quarter_ending`, `last_year_eps`, `last_year_report_date`, and a Nasdaq `website` link. Rows arrive already ranked by market cap descending; `limit_per_day` (1-50, default 10) trims the per-day list while `count` keeps the true daily total. 15-minute server-side cache keyed by `(today, days, limit_per_day)`. A day with no `data`/`rows` key (e.g. a weekend) is a successful empty day, not a failure — the endpoint only 503s when every day in the window fails to fetch.
+- Portfolio-aware analytics badges: `SentimentShiftWidget`, `VolumeBaselineWidget`, and `HiddenGemWidget` now accept the same `portfolioLookup` (from `usePortfolioTickers`, already used for tweet-card Held/Recently Held badges) as `OverviewDashboard`/`App.tsx`, and render a compact `PortfolioTickerBadge` (💼/🕓) next to any listed ticker that matches a current or recently-closed portfolio position — so a sentiment swing, volume spike, or hidden gem on something you actually hold stands out from the rest of the list.
 
 ## Connected End-to-End Today
 
@@ -129,12 +138,17 @@ Last updated: 2026-09-02
 - Sector overview widget: `/api/spy-heatmap/sectors` -> `useSectorOverview` -> `SectorOverviewWidget` (`/stocks`).
 - Binance movers widget: `/api/binance/gainers-losers` -> `BinanceGainersLosersWidget`.
 - Nasdaq stock halts widget: `/api/stock-halts` -> `StockHaltsWidget`.
+- Earnings calendar widget: `/api/earnings/calendar` -> `useEarningsCalendar` -> `EarningsCalendarWidget` (`/stocks`).
 - Options overview widget: `/api/options/overview` -> `OptionsOverviewWidget`.
 - Options tweet intent metadata: `/api/posts` + `/api/stream` -> options route timeline filtering (`is_options_tweet`, `options_context`).
 - Market overview stream assets: `/api/posts` + `/api/stream` -> `MarketOverview`.
 - TradingView TA summaries: `/api/posts` + `/api/stream` -> `tweet.assets[*].financials.technical_analysis` -> `TweetCard` / `AssetBadge`.
 - Asset fundamentals: `/api/posts` + `/api/stream` -> `tweet.assets[*].fundamentals` -> `AssetFundamentals` in `TweetCard` / `AssetBadge`.
 - Route-scoped mention heat: `/api/overview/mention-heat` -> `MentionHeatmap` (route-scoped `assetKind` + user-scoped mention/sentiment/price analytics; shown on `/crypto`, `/stocks`, `/forex`, `/options`, `/portfolio`, and on `/` via `OverviewDashboard`). Replaced the old client-computed `TickerMentionsPanel` (issue #94).
+- Macro strip: `/api/overview/macro-strip` -> `MacroStrip` (`/` via `OverviewDashboard`).
+- Sentiment-shift ranking: `/api/overview/sentiment-shift` -> `useSentimentShift` -> `SentimentShiftWidget` (`/` via `OverviewDashboard`).
+- Mention-volume anomaly detection: `/api/overview/volume-baseline` -> `useVolumeBaseline` -> `VolumeBaselineWidget` (`/` via `OverviewDashboard`).
+- Hidden-gem detection: `/api/overview/hidden-gems` -> `useHiddenGems` -> `HiddenGemWidget` (`/` via `OverviewDashboard`).
 - Sector/industry mentions: `/api/overview/sector-mentions` -> `useSectorMentions` -> `SectorMentionsWidget` (shown on `/` via `OverviewDashboard`, below the mention-heat/sentiment/volume/hidden-gem row; expand a sector for its industry breakdown, click a ticker chip to apply the sidebar ticker filter) (issue #104).
 - Ticker detail modal: `/api/overview/ticker-timeseries` -> `useTickerTimeseries` -> `TickerDetailModal` (mentions-over-time chart, bullish/bearish sentiment breakdown, and summary stats; opened by clicking any ticker across `TweetCard`, `MentionHeatmap`).
 - Debug admin panel: `/api/debug/tweet` -> `DebugAdminPanel` (`/admin`).

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { AssetKind } from '../types'
+import type { PortfolioTickerLookup } from '../hooks/usePortfolioTickers'
 import { MacroStrip } from './MacroStrip'
 import { AssetFilterTabs } from './AssetFilterTabs'
 import { MentionHeatmap, MENTION_WINDOWS, type MentionWindowHours } from './MentionHeatmap'
@@ -23,9 +24,10 @@ interface Props {
   onTickerClick?: (ticker: string) => void
   userFilter?: string | null
   subscriberOnly?: boolean
+  portfolioLookup?: PortfolioTickerLookup
 }
 
-export function OverviewDashboard({ onTickerClick, userFilter = null, subscriberOnly = false }: Props) {
+export function OverviewDashboard({ onTickerClick, userFilter = null, subscriberOnly = false, portfolioLookup }: Props) {
   const [assetKind, setAssetKind]     = useState<AssetKind>('all')
   const [windowHours, setWindowHours] = useState<MentionWindowHours>(MENTION_WINDOWS[0])
 
@@ -77,9 +79,9 @@ export function OverviewDashboard({ onTickerClick, userFilter = null, subscriber
         subscriberOnly={subscriberOnly}
       />
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <SentimentShiftWidget assetKind={assetKind} windowHours={windowHours} userFilter={userFilter} subscriberOnly={subscriberOnly} />
-        <VolumeBaselineWidget assetKind={assetKind} windowHours={windowHours} userFilter={userFilter} subscriberOnly={subscriberOnly} />
-        <HiddenGemWidget assetKind={assetKind} windowHours={windowHours} userFilter={userFilter} subscriberOnly={subscriberOnly} />
+        <SentimentShiftWidget assetKind={assetKind} windowHours={windowHours} userFilter={userFilter} subscriberOnly={subscriberOnly} portfolioLookup={portfolioLookup} />
+        <VolumeBaselineWidget assetKind={assetKind} windowHours={windowHours} userFilter={userFilter} subscriberOnly={subscriberOnly} portfolioLookup={portfolioLookup} />
+        <HiddenGemWidget assetKind={assetKind} windowHours={windowHours} userFilter={userFilter} subscriberOnly={subscriberOnly} portfolioLookup={portfolioLookup} />
       </div>
 
       {/* Equity-only: sector/industry metadata is resolved for stocks/ETFs, not crypto or forex. */}

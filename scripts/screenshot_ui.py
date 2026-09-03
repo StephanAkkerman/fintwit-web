@@ -1097,6 +1097,99 @@ def _economic_events() -> list[dict]:
     ]
 
 
+def _earnings_row(
+    symbol: str,
+    name: str,
+    market_cap: float,
+    eps_forecast: float | None,
+    session: str,
+    session_emoji: str | None,
+    date_str: str,
+) -> dict:
+    return {
+        "symbol": symbol,
+        "name": name,
+        "date": date_str,
+        "session": session,
+        "session_emoji": session_emoji,
+        "market_cap": market_cap,
+        "eps_forecast": eps_forecast,
+        "num_estimates": 14 if eps_forecast is not None else None,
+        "fiscal_quarter_ending": "Sep/2026",
+        "last_year_eps": eps_forecast - 0.08 if eps_forecast is not None else None,
+        "last_year_report_date": "08/01/2025",
+        "website": f"https://www.nasdaq.com/market-activity/stocks/{symbol.lower()}/earnings",
+    }
+
+
+def _earnings_calendar() -> dict:
+    today = date.today()
+    day0 = today.isoformat()
+    day1 = (today + timedelta(days=1)).isoformat()
+    day2 = (today + timedelta(days=2)).isoformat()
+
+    return {
+        "start_date": day0,
+        "end_date": (today + timedelta(days=6)).isoformat(),
+        "days": [
+            {
+                "date": day0,
+                "count": 2,
+                "rows": [
+                    _earnings_row(
+                        "AAPL",
+                        "Apple Inc.",
+                        3_000_000_000_000,
+                        1.25,
+                        "after-hours",
+                        "🌙",
+                        day0,
+                    ),
+                    _earnings_row(
+                        "NKE",
+                        "Nike Inc.",
+                        120_000_000_000,
+                        0.55,
+                        "pre-market",
+                        "🌅",
+                        day0,
+                    ),
+                ],
+            },
+            {
+                "date": day1,
+                "count": 1,
+                "rows": [
+                    _earnings_row(
+                        "FDX",
+                        "FedEx Corp.",
+                        60_000_000_000,
+                        4.10,
+                        "unknown",
+                        None,
+                        day1,
+                    ),
+                ],
+            },
+            {"date": day2, "count": 0, "rows": []},
+        ],
+        "source": "nasdaq",
+    }
+
+
+def _empty_earnings_calendar() -> dict:
+    today = date.today()
+    return {
+        "start_date": today.isoformat(),
+        "end_date": (today + timedelta(days=6)).isoformat(),
+        "days": [
+            {"date": (today + timedelta(days=i)).isoformat(), "count": 0, "rows": []}
+            for i in range(7)
+        ],
+        "source": "nasdaq",
+    }
+
+
 def _option_contract(
     symbol: str,
     right: str,
@@ -1467,6 +1560,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             "/api/treemap": _empty_treemap(),
             "/api/forex/macro": _empty_forex_macro(),
             "/api/spy-heatmap?": {"data": []},
+            "/api/earnings/calendar": _empty_earnings_calendar(),
         }
 
     insights = _portfolio_insights()
@@ -1658,6 +1752,9 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         "/api/stocks/extended-hours": _extended_hours(),
         "/api/stocks/market-hours": _market_hours(),
         "/api/stock-halts": _stock_halts(),
+        # Object-shaped: the catch-all's `[]` would leave EarningsCalendarWidget
+        # reading `.days` off a list and throwing during render.
+        "/api/earnings/calendar": _earnings_calendar(),
         "/api/stocktwits": _stocktwits(),
         # Crypto route.
         "/api/binance/gainers-losers": _binance_gainers_losers(),
