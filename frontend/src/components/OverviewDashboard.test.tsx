@@ -13,6 +13,7 @@ vi.mock('./MentionHeatmap', () => ({
 vi.mock('./SentimentShiftWidget', () => ({ SentimentShiftWidget: () => <div data-testid="sentiment-shift" /> }))
 vi.mock('./VolumeBaselineWidget', () => ({ VolumeBaselineWidget: () => <div data-testid="volume-baseline" /> }))
 vi.mock('./HiddenGemWidget', () => ({ HiddenGemWidget: () => <div data-testid="hidden-gem" /> }))
+vi.mock('./SectorMentionsWidget', () => ({ SectorMentionsWidget: () => <div data-testid="sector-mentions" /> }))
 
 describe('OverviewDashboard', () => {
   it('renders all child components', () => {
@@ -23,6 +24,7 @@ describe('OverviewDashboard', () => {
     expect(screen.getByTestId('sentiment-shift')).toBeInTheDocument()
     expect(screen.getByTestId('volume-baseline')).toBeInTheDocument()
     expect(screen.getByTestId('hidden-gem')).toBeInTheDocument()
+    expect(screen.getByTestId('sector-mentions')).toBeInTheDocument()
   })
 
   it('passes assetKind="all" to AssetFilterTabs initially', () => {

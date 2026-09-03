@@ -53,6 +53,8 @@ Last updated: 2026-09-02
 - Frontend proxy resilience hardening: containerized Nginx now uses Docker DNS re-resolution for backend upstream (`backend:7999`) so backend restarts do not leave stale upstream IPs that can surface first-hit `502` responses.
 - Chart data extraction (issue #49): when `chart-recognizer` classifies a tweet's image as a chart (`has_chart=true`) and the tweet text mentions no ticker, `app/ml/chart_extractor.py` (wrapping the external [`chart-extractor`](https://github.com/StephanAkkerman/chart-extractor) YOLO+OCR package) analyzes the image and attaches a `chart_extraction` payload (`symbol`, `exchange`, `timeframe`, `price`, `session`) to the tweet. Skipped entirely when the text already names a ticker, since the mentioned ticker is a stronger, cheaper signal than OCR. Runs lazily/thread-offloaded like `chart-recognizer`, and can be disabled independently via `CHART_EXTRACTION_ENABLED=false`.
 
+- Sector/industry mention overview (issue #104): `mention_aggregator.get_sector_mentions` aggregates ticker mentions from `tweets.assets[*].sector`/`.industry` (equities/ETFs only — crypto and forex carry no sector metadata and are excluded) into a sector -> industry -> ticker rollup, so a cluster of activity across several related tickers (e.g. "Technology > Semiconductors") surfaces as a sector-level trend. Ranking uses the same fairness-adjusted `mention_score` as `get_mention_heat` (issue #101), capping each author's contribution per sector at `AUTHOR_MENTION_CAP`. Exposed via `GET /api/overview/sector-mentions` (`window_hours`, `limit`, plus the standard `user_screen_name`/`subscriber_only` filters).
+
 ## Frontend: Implemented
 
 - Live tweet timeline using initial REST load + SSE updates.
@@ -113,6 +115,7 @@ Last updated: 2026-09-02
 - Forex route now includes legacy crypto indices plus the stock/forex TradingView index panel.
 - Economic events widget now displays country/region flag emojis and explicit impact badges per event.
 - Clicking any ticker (tweet cards, ticker mention pulse, mention heatmap) now opens a `TickerDetailModal` with a mentions-over-time chart, a bullish/bearish/neutral sentiment breakdown chart, and summary stats (total mentions, avg mentions per bucket, unique voices, chart-tagged tweets, avg engagement, price move, asset kind) for a selectable 24h/7d/30d window — resolves issue #108.
+- Home route overview dashboard now includes a "Sectors & industries" widget (`SectorMentionsWidget`, issue #104): sectors ranked by mention volume with a proportional bar, top mentioned tickers per sector, and an expandable industry breakdown (e.g. "Technology > Semiconductors") — surfaces which corner of the market is getting talked about most, ahead of any single ticker breaking out.
 
 ## Connected End-to-End Today
 
@@ -132,6 +135,7 @@ Last updated: 2026-09-02
 - TradingView TA summaries: `/api/posts` + `/api/stream` -> `tweet.assets[*].financials.technical_analysis` -> `TweetCard` / `AssetBadge`.
 - Asset fundamentals: `/api/posts` + `/api/stream` -> `tweet.assets[*].fundamentals` -> `AssetFundamentals` in `TweetCard` / `AssetBadge`.
 - Route-scoped mention heat: `/api/overview/mention-heat` -> `MentionHeatmap` (route-scoped `assetKind` + user-scoped mention/sentiment/price analytics; shown on `/crypto`, `/stocks`, `/forex`, `/options`, `/portfolio`, and on `/` via `OverviewDashboard`). Replaced the old client-computed `TickerMentionsPanel` (issue #94).
+- Sector/industry mentions: `/api/overview/sector-mentions` -> `useSectorMentions` -> `SectorMentionsWidget` (shown on `/` via `OverviewDashboard`, below the mention-heat/sentiment/volume/hidden-gem row; expand a sector for its industry breakdown, click a ticker chip to apply the sidebar ticker filter) (issue #104).
 - Ticker detail modal: `/api/overview/ticker-timeseries` -> `useTickerTimeseries` -> `TickerDetailModal` (mentions-over-time chart, bullish/bearish sentiment breakdown, and summary stats; opened by clicking any ticker across `TweetCard`, `MentionHeatmap`).
 - Debug admin panel: `/api/debug/tweet` -> `DebugAdminPanel` (`/admin`).
 - Portfolio panel: `/api/portfolio/positions` + `/api/portfolio/summary` -> `PortfolioPanel` (`/portfolio`).

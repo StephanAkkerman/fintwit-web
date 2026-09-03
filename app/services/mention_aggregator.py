@@ -516,6 +516,161 @@ async def get_hidden_gems(
     ]
 
 
+async def get_sector_mentions(
+    Session: async_sessionmaker,
+    window_hours: int = 24,
+    limit: int = 15,
+    user_screen_name: str | None = None,
+    subscriber_only: bool = False,
+) -> list[dict]:
+    """Aggregate ticker mentions by equity sector and industry (issue #104).
+
+    Surfaces which sectors — and, within a sector, which industries — are
+    getting talked about the most, so a cluster of mentions across several
+    tickers (e.g. "Technology > Semiconductors") reads as a sector-level
+    trend rather than scattered per-ticker noise. Only assets with resolved
+    sector metadata are counted; sector/industry is populated by
+    ticker-classifier for equities/ETFs only, so crypto and forex tickers
+    are excluded here (unlike the other mention endpoints).
+
+    Ranking uses the same fairness-adjusted ``mention_score`` as
+    ``get_mention_heat`` (issue #101): each author's contribution to a
+    sector is capped at ``AUTHOR_MENTION_CAP`` before summing, so one
+    account spamming a sector's tickers can't out-rank a sector genuinely
+    discussed by several distinct authors.
+    """
+    now = _now()
+    cutoff = now - timedelta(hours=window_hours)
+    user_c = _user_clause(user_screen_name)
+    sub_c = _subscriber_clause(subscriber_only)
+
+    sql = text(f"""
+        WITH ticker_sector AS (
+            SELECT
+                t.user_screen_name AS author,
+                t.sentiment_score AS sentiment_score,
+                j.value AS ticker,
+                json_extract(ae.value, '$.sector') AS sector,
+                json_extract(ae.value, '$.industry') AS industry
+            FROM tweets t, json_each(t.tickers) j
+            LEFT JOIN json_each(t.assets) ae
+                   ON json_extract(ae.value, '$.symbol') = j.value
+            WHERE t.created_at >= :cutoff
+              AND t.tickers IS NOT NULL AND t.tickers != '[]'
+              {user_c}
+              {sub_c}
+        ),
+        sector_scoped AS (
+            SELECT * FROM ticker_sector WHERE sector IS NOT NULL AND sector != ''
+        ),
+        ticker_rollup AS (
+            SELECT
+                sector,
+                COALESCE(NULLIF(industry, ''), 'Other') AS industry,
+                ticker,
+                CAST(COUNT(*) AS INTEGER) AS mentions,
+                AVG(sentiment_score) AS avg_sentiment
+            FROM sector_scoped
+            GROUP BY sector, industry, ticker
+        ),
+        author_sector AS (
+            SELECT
+                LOWER(author) AS author,
+                sector,
+                COUNT(*) AS author_mentions
+            FROM sector_scoped
+            GROUP BY author, sector
+        ),
+        fair_score AS (
+            SELECT
+                sector,
+                CAST(COUNT(*) AS INTEGER) AS unique_authors,
+                CAST(SUM(MIN(author_mentions, :author_cap)) AS INTEGER) AS mention_score
+            FROM author_sector
+            GROUP BY sector
+        )
+        SELECT
+            tr.sector, tr.industry, tr.ticker, tr.mentions, tr.avg_sentiment,
+            fs.unique_authors, fs.mention_score
+        FROM ticker_rollup tr
+        JOIN fair_score fs ON fs.sector = tr.sector
+    """)
+
+    params: dict = {"cutoff": cutoff, "author_cap": AUTHOR_MENTION_CAP}
+    if user_screen_name:
+        params["user_name_pat"] = f"%{user_screen_name.lower()}%"
+
+    async with Session() as s:
+        result = await s.execute(sql, params)
+        rows = result.mappings().all()
+
+    sectors: dict[str, dict] = {}
+    for r in rows:
+        sector = sectors.setdefault(
+            r["sector"],
+            {
+                "sector": r["sector"],
+                "mentions": 0,
+                "mention_score": r["mention_score"],
+                "unique_authors": r["unique_authors"],
+                "sentiment_sum": 0.0,
+                "tickers": {},
+                "industries": {},
+            },
+        )
+        mentions = int(r["mentions"])
+        sector["mentions"] += mentions
+        sector["sentiment_sum"] += (r["avg_sentiment"] or 0.0) * mentions
+        sector["tickers"][r["ticker"]] = (
+            sector["tickers"].get(r["ticker"], 0) + mentions
+        )
+
+        industry = sector["industries"].setdefault(
+            r["industry"], {"industry": r["industry"], "mentions": 0, "tickers": {}}
+        )
+        industry["mentions"] += mentions
+        industry["tickers"][r["ticker"]] = (
+            industry["tickers"].get(r["ticker"], 0) + mentions
+        )
+
+    def _top_tickers(ticker_counts: dict[str, int], n: int) -> list[dict]:
+        ranked = sorted(ticker_counts.items(), key=lambda kv: kv[1], reverse=True)
+        return [{"ticker": t, "mentions": m} for t, m in ranked[:n]]
+
+    out = []
+    for sector in sectors.values():
+        avg_sentiment = (
+            sector["sentiment_sum"] / sector["mentions"] if sector["mentions"] else 0.0
+        )
+        industries = sorted(
+            sector["industries"].values(), key=lambda i: i["mentions"], reverse=True
+        )
+        out.append(
+            {
+                "sector": sector["sector"],
+                "mentions": sector["mentions"],
+                "mention_score": sector["mention_score"],
+                "unique_authors": sector["unique_authors"],
+                "unique_tickers": len(sector["tickers"]),
+                "avg_sentiment_24h": avg_sentiment,
+                "sentiment_label_24h": _score_to_label(avg_sentiment),
+                "top_tickers": _top_tickers(sector["tickers"], 5),
+                "industries": [
+                    {
+                        "industry": i["industry"],
+                        "mentions": i["mentions"],
+                        "unique_tickers": len(i["tickers"]),
+                        "top_tickers": _top_tickers(i["tickers"], 3),
+                    }
+                    for i in industries
+                ],
+            }
+        )
+
+    out.sort(key=lambda s: s["mention_score"], reverse=True)
+    return out[:limit]
+
+
 def _choose_bucket_hours(window_hours: int) -> int:
     """Pick a bucket width that keeps a ticker's timeseries chart readable."""
     if window_hours <= 48:

@@ -597,6 +597,83 @@ def fixtures_for(scenario: str) -> dict[str, object]:
                 },
             ]
         },
+        # Object-shaped list, but the catch-all's `[]` would leave
+        # SectorMentionsWidget on its empty state instead of rendering.
+        "/api/overview/sector-mentions": [
+            {
+                "sector": "Technology",
+                "mentions": 41,
+                "mention_score": 27,
+                "unique_authors": 19,
+                "unique_tickers": 3,
+                "avg_sentiment_24h": 0.42,
+                "sentiment_label_24h": "BULL",
+                "top_tickers": [
+                    {"ticker": "NVDA", "mentions": 20},
+                    {"ticker": "MU", "mentions": 15},
+                    {"ticker": "MSFT", "mentions": 6},
+                ],
+                "industries": [
+                    {
+                        "industry": "Semiconductors",
+                        "mentions": 35,
+                        "unique_tickers": 2,
+                        "top_tickers": [
+                            {"ticker": "NVDA", "mentions": 20},
+                            {"ticker": "MU", "mentions": 15},
+                        ],
+                    },
+                    {
+                        "industry": "Software",
+                        "mentions": 6,
+                        "unique_tickers": 1,
+                        "top_tickers": [{"ticker": "MSFT", "mentions": 6}],
+                    },
+                ],
+            },
+            {
+                "sector": "Financials",
+                "mentions": 18,
+                "mention_score": 14,
+                "unique_authors": 11,
+                "unique_tickers": 2,
+                "avg_sentiment_24h": 0.05,
+                "sentiment_label_24h": "NEUTRAL",
+                "top_tickers": [
+                    {"ticker": "JPM", "mentions": 11},
+                    {"ticker": "GS", "mentions": 7},
+                ],
+                "industries": [
+                    {
+                        "industry": "Banks",
+                        "mentions": 18,
+                        "unique_tickers": 2,
+                        "top_tickers": [
+                            {"ticker": "JPM", "mentions": 11},
+                            {"ticker": "GS", "mentions": 7},
+                        ],
+                    },
+                ],
+            },
+            {
+                "sector": "Energy",
+                "mentions": 9,
+                "mention_score": 9,
+                "unique_authors": 9,
+                "unique_tickers": 1,
+                "avg_sentiment_24h": -0.18,
+                "sentiment_label_24h": "BEAR",
+                "top_tickers": [{"ticker": "XOM", "mentions": 9}],
+                "industries": [
+                    {
+                        "industry": "Other",
+                        "mentions": 9,
+                        "unique_tickers": 1,
+                        "top_tickers": [{"ticker": "XOM", "mentions": 9}],
+                    },
+                ],
+            },
+        ],
     }
 
 

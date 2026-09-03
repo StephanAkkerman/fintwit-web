@@ -32,10 +32,17 @@ def _tweet(
     change_pct=0.0,
     price=None,
     author="u",
+    sector=None,
+    industry=None,
 ):
     financials = {"change_percent": change_pct}
     if price is not None:
         financials["price"] = price
+    asset = {"kind": kind, "financials": financials}
+    if sector is not None:
+        asset["sector"] = sector
+    if industry is not None:
+        asset["industry"] = industry
     return TweetRow(
         id=id,
         text="x",
@@ -51,7 +58,7 @@ def _tweet(
         created_at=_now() - timedelta(hours=hours_ago),
         sentiment_label=label,
         sentiment_score=score,
-        assets=[{"symbol": t, "kind": kind, "financials": financials} for t in tickers],
+        assets=[{"symbol": t, **asset} for t in tickers],
         is_options_tweet=False,
     )
 
@@ -149,6 +156,116 @@ async def test_mention_heat_fair_score_caps_single_spammy_author(Session):
 
     assert fair_row["mention_score"] > spam_row["mention_score"]
     assert rows[0]["ticker"] == "FAIR"  # ranked ahead despite fewer raw mentions
+
+
+async def test_sector_mentions_groups_by_sector_and_industry(Session):
+    from app.services.mention_aggregator import get_sector_mentions
+
+    await _insert(
+        Session,
+        [
+            _tweet(
+                1,
+                ["NVDA"],
+                "BULL",
+                0.5,
+                1,
+                sector="Technology",
+                industry="Semiconductors",
+            ),
+            _tweet(
+                2,
+                ["MU"],
+                "BULL",
+                0.3,
+                2,
+                sector="Technology",
+                industry="Semiconductors",
+            ),
+            _tweet(
+                3,
+                ["MSFT"],
+                "NEUTRAL",
+                0.0,
+                1,
+                sector="Technology",
+                industry="Software",
+            ),
+            _tweet(4, ["BTC"], "BULL", 0.5, 1, kind="CRYPTO"),  # no sector, excluded
+        ],
+    )
+
+    rows = await get_sector_mentions(Session, window_hours=24)
+    tech = next(r for r in rows if r["sector"] == "Technology")
+
+    assert tech["mentions"] == 3
+    assert tech["unique_tickers"] == 3
+    assert {t["ticker"] for t in tech["top_tickers"]} == {"NVDA", "MU", "MSFT"}
+
+    industries = {i["industry"]: i for i in tech["industries"]}
+    assert industries["Semiconductors"]["mentions"] == 2
+    assert industries["Semiconductors"]["unique_tickers"] == 2
+    assert industries["Software"]["mentions"] == 1
+
+    assert all(r["sector"] != "" for r in rows)
+
+
+async def test_sector_mentions_excludes_untagged_assets(Session):
+    from app.services.mention_aggregator import get_sector_mentions
+
+    await _insert(
+        Session,
+        [
+            _tweet(1, ["BTC"], "BULL", 0.5, 1, kind="CRYPTO"),
+            _tweet(2, ["EURUSD"], "NEUTRAL", 0.0, 1, kind="FOREX"),
+        ],
+    )
+
+    rows = await get_sector_mentions(Session, window_hours=24)
+    assert rows == []
+
+
+async def test_sector_mentions_fair_score_caps_single_spammy_author(Session):
+    from app.services.mention_aggregator import get_sector_mentions
+
+    spam = [
+        _tweet(
+            i,
+            ["MU"],
+            "NEUTRAL",
+            0.0,
+            1,
+            author="loud_one",
+            sector="Technology",
+            industry="Semiconductors",
+        )
+        for i in range(1, 11)
+    ]
+    fair = [
+        _tweet(
+            i + 100,
+            ["JPM"],
+            "NEUTRAL",
+            0.0,
+            1,
+            author=f"author_{i}",
+            sector="Financials",
+            industry="Banks",
+        )
+        for i in range(1, 5)
+    ]
+    await _insert(Session, spam + fair)
+
+    rows = await get_sector_mentions(Session, window_hours=24)
+    tech = next(r for r in rows if r["sector"] == "Technology")
+    fin = next(r for r in rows if r["sector"] == "Financials")
+
+    assert tech["mentions"] == 10
+    assert tech["mention_score"] == 3  # capped at AUTHOR_MENTION_CAP
+    assert fin["mentions"] == 4
+    assert fin["mention_score"] == 4
+
+    assert rows[0]["sector"] == "Financials"  # ranked ahead despite fewer raw mentions
 
 
 async def test_volume_baseline_multiplier(Session):

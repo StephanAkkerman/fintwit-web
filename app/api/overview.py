@@ -12,6 +12,7 @@ from ..services.mention_aggregator import (
     get_hidden_gems,
     get_mention_frequency,
     get_mention_heat,
+    get_sector_mentions,
     get_sentiment_shift,
     get_ticker_timeseries,
     get_volume_baseline,
@@ -179,6 +180,24 @@ async def ticker_timeseries(
         _main.Session,
         ticker=ticker,
         window_hours=window_hours,
+        user_screen_name=user_screen_name or None,
+        subscriber_only=subscriber_only,
+    )
+
+
+@router.get("/sector-mentions")
+async def sector_mentions(
+    window_hours: int = Query(default=24, ge=1, le=168),
+    limit: int = Query(default=15, ge=1, le=50),
+    user_screen_name: str | None = Query(default=None),
+    subscriber_only: bool = Query(default=False),
+):
+    from . import main as _main
+
+    return await get_sector_mentions(
+        _main.Session,
+        window_hours=window_hours,
+        limit=limit,
         user_screen_name=user_screen_name or None,
         subscriber_only=subscriber_only,
     )

@@ -36,6 +36,12 @@ def test_volume_baseline_returns_list(client):
     assert isinstance(resp.json(), list)
 
 
+def test_sector_mentions_returns_list(client):
+    resp = client.get("/api/overview/sector-mentions")
+    assert resp.status_code == 200
+    assert isinstance(resp.json(), list)
+
+
 def test_hidden_gems_returns_list(client):
     resp = client.get("/api/overview/hidden-gems")
     assert resp.status_code == 200
