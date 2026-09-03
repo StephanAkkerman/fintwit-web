@@ -1,6 +1,6 @@
 # Frontend Integration Map
 
-Last updated: 2026-09-02
+Last updated: 2026-09-03
 
 ## Mounted in `App.tsx` Today
 
@@ -21,6 +21,7 @@ Route-level sections:
   - `FearGreedWidget`
   - `RedditWsbWidget`
   - `MarketOverview`
+  - `OverviewDashboard` — macro strip (`MacroStrip`), the `all`-scoped `MentionHeatmap`, a three-column analytics row (`SentimentShiftWidget`, `VolumeBaselineWidget`, `HiddenGemWidget`), and `SectorMentionsWidget`, with shared asset-kind (`all`/`EQUITY`/`CRYPTO`/`FOREX`) and lookback-window (24h/48h/7d) controls
   - Tweet timeline (`useTweets` + `TweetCard`)
 
 - `/crypto`
@@ -114,6 +115,22 @@ Route-level sections:
   - Fetches: `/api/overview/sector-mentions?window_hours=...` (plus the sidebar user filter).
   - Purpose: most-mentioned equity sectors (issue #104) — proportional bars ranked by the fairness-adjusted `mention_score`, top mentioned tickers per sector, expandable per-sector industry breakdown (e.g. "Technology > Semiconductors"). Equity-only: crypto/forex tickers carry no sector metadata, so it is not asset-kind scoped like the other overview widgets.
   - Interaction: expand/collapse a sector row for its industries; clicking a ticker chip applies sidebar ticker filtering and opens `TickerDetailModal` via the shared `onTickerClick` callback.
+
+- `MacroStrip` + `useMacroStrip` (`/` only, inside `OverviewDashboard`)
+  - Fetches: `/api/overview/macro-strip` (5-minute server-side cache).
+  - Purpose: at-a-glance macro tape — live price + % change + sparkline tiles for SPX, NDX, BTC, ETH, DXY, VIX, and GOLD — above the rest of the home dashboard.
+
+- `SentimentShiftWidget` + `useSentimentShift` (`/` only, inside `OverviewDashboard`)
+  - Fetches: `/api/overview/sentiment-shift`, scoped by the dashboard's asset-kind/window controls and the sidebar user filter.
+  - Purpose: rank tickers by the biggest swing in average tweet sentiment between the active window and the prior baseline, each row showing a prev→current sentiment sparkline and signed delta — surfaces sentiment momentum, not just mention volume.
+
+- `VolumeBaselineWidget` + `useVolumeBaseline` (`/` only, inside `OverviewDashboard`)
+  - Fetches: `/api/overview/volume-baseline`, same scoping as `SentimentShiftWidget`.
+  - Purpose: "Unusually loud" — tickers whose mention count in the active window exceeds a multiple of their rolling baseline rate, each row showing mentions vs. baseline and the multiplier — mention-spike/anomaly detection.
+
+- `HiddenGemWidget` + `useHiddenGems` (`/` only, inside `OverviewDashboard`)
+  - Fetches: `/api/overview/hidden-gems`, same scoping as `SentimentShiftWidget`.
+  - Purpose: surface tickers being mentioned for the first time (✦ new) or resurfacing after a long gap (↩ resurface) in the active window — catches tickers before they're loud enough to rank on the main mention heatmap.
 
 - `TreemapWidget` + `useTreemap`
   - Fetches: `/api/treemap`
