@@ -183,12 +183,12 @@ export function MentionHeatmap({
   const rowHeight = Math.floor(height / 5)
 
   if (loading) {
-    return <div className="rounded-xl border border-zinc-800 bg-zinc-950 h-[200px] animate-pulse" />
+    return <div className="rounded-2xl border border-zinc-800 bg-zinc-900 h-[200px] animate-pulse" />
   }
 
   if (error) {
     return (
-      <div className="rounded-xl border border-zinc-800 bg-zinc-950 h-[200px] flex items-center justify-center text-zinc-500 text-sm">
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900 h-[200px] flex items-center justify-center text-zinc-500 text-sm">
         Failed to load mention data.
       </div>
     )
@@ -196,12 +196,12 @@ export function MentionHeatmap({
 
   if (data.length === 0) {
     return (
-      <div className="rounded-xl border border-zinc-800 bg-zinc-950 h-[200px] flex items-center justify-center text-zinc-500 text-sm">
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900 h-[200px] flex items-center justify-center text-zinc-500 text-sm">
         No tickers in the last {windowLabel(windowHours)}.{' '}
         {canWiden && (
           <button
             onClick={() => onWindowChange?.(MENTION_WINDOWS[currentIdx + 1])}
-            className="ml-1 text-blue-400 underline cursor-pointer hover:text-blue-300"
+            className="ml-1 text-indigo-400 underline cursor-pointer hover:text-indigo-300"
           >
             widen window
           </button>
@@ -211,7 +211,7 @@ export function MentionHeatmap({
   }
 
   return (
-    <div data-testid="mention-heatmap-container" className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+    <div data-testid="mention-heatmap-container" className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
       <div className="flex items-center mb-3">
         <h2 className="text-[13px] font-semibold text-zinc-100">Mention heat</h2>
         <span className="ml-auto text-[10px] text-zinc-500 font-mono">

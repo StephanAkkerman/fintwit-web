@@ -1,4 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
+import {
+  Banknote,
+  Bitcoin,
+  LayoutDashboard,
+  LineChart,
+  Menu,
+  Radar,
+  ShieldCheck,
+  SlidersHorizontal,
+  Wallet,
+  X,
+} from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import BinanceGainersLosersWidget from './components/BinanceGainersLosersWidget'
 import DebugAdminPanel from './components/DebugAdminPanel'
 import EconomicEventsWidget from './components/EconomicEventsWidget'
@@ -44,15 +57,15 @@ const LOOKBACK_WINDOWS: Array<{ value: LookbackWindow; label: string }> = [
   { value: 168, label: '7d' },
 ]
 
-const SECTIONS: Array<{ key: RouteKey; label: string; path: string; subtitle: string }> = [
-  { key: 'home', label: 'Home', path: '/', subtitle: 'Cross-market stream' },
-  { key: 'crypto', label: 'Crypto', path: '/crypto', subtitle: 'Coins, trend, heatmap' },
-  { key: 'stocks', label: 'Stocks', path: '/stocks', subtitle: 'Equity sentiment and SPY map' },
-  { key: 'forex', label: 'Forex', path: '/forex', subtitle: 'Macro events and FX sentiment' },
-  { key: 'options', label: 'Options', path: '/options', subtitle: 'Flow activity and put/call balance' },
-  { key: 'signa', label: 'Signa', path: '/signa', subtitle: 'Best trades + live model signals from getsigna.ai' },
-  { key: 'portfolio', label: 'Portfolio', path: '/portfolio', subtitle: 'Value over time, asset context and PnL' },
-  { key: 'admin', label: 'Admin', path: '/admin', subtitle: 'Debug tweet injection and verification' },
+const SECTIONS: Array<{ key: RouteKey; label: string; path: string; subtitle: string; icon: LucideIcon }> = [
+  { key: 'home', label: 'Home', path: '/', subtitle: 'Cross-market stream', icon: LayoutDashboard },
+  { key: 'crypto', label: 'Crypto', path: '/crypto', subtitle: 'Coins, trend, heatmap', icon: Bitcoin },
+  { key: 'stocks', label: 'Stocks', path: '/stocks', subtitle: 'Equity sentiment and SPY map', icon: LineChart },
+  { key: 'forex', label: 'Forex', path: '/forex', subtitle: 'Macro events and FX sentiment', icon: Banknote },
+  { key: 'options', label: 'Options', path: '/options', subtitle: 'Flow activity and put/call balance', icon: SlidersHorizontal },
+  { key: 'signa', label: 'Signa', path: '/signa', subtitle: 'Best trades + live model signals from getsigna.ai', icon: Radar },
+  { key: 'portfolio', label: 'Portfolio', path: '/portfolio', subtitle: 'Value over time, asset context and PnL', icon: Wallet },
+  { key: 'admin', label: 'Admin', path: '/admin', subtitle: 'Debug tweet injection and verification', icon: ShieldCheck },
 ]
 
 function routeFromPath(pathname: string): RouteKey {
@@ -174,6 +187,7 @@ function isSubscriberOnlyTweet(tweet: Tweet): boolean {
 
 export default function App() {
   const [route, setRoute] = useState<RouteKey>(() => routeFromPath(window.location.pathname))
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [lookbackHours, setLookbackHours] = useState<LookbackWindow>(24)
   const {
     tweets,
@@ -207,6 +221,7 @@ export default function App() {
       window.history.pushState({}, '', path)
     }
     setRoute(nextRoute)
+    setMobileNavOpen(false)
   }
 
   const effectiveFilter: FilterKey =
@@ -318,27 +333,66 @@ export default function App() {
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100">
       <main className="mx-auto max-w-6xl p-4">
+        <div className="mb-3 flex items-center gap-3 lg:hidden">
+          <button
+            type="button"
+            onClick={() => setMobileNavOpen(true)}
+            aria-label="Open navigation menu"
+            className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-700 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200"
+          >
+            <Menu className="h-4 w-4" aria-hidden="true" />
+            Menu
+          </button>
+          <span className="text-sm font-semibold text-zinc-500 dark:text-zinc-400">{activeSection.label}</span>
+        </div>
+
+        {mobileNavOpen && (
+          <div
+            role="presentation"
+            onClick={() => setMobileNavOpen(false)}
+            className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm lg:hidden"
+          />
+        )}
+
         <div className="grid gap-4 lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start">
-          <aside className="h-fit max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl border border-zinc-200 bg-white/80 p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/70 lg:sticky lg:top-4">
-            <h2 className="px-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">Sections</h2>
+          <aside
+            className={`fixed inset-y-0 left-0 z-40 w-72 max-w-[85vw] overflow-y-auto border-r border-zinc-200 bg-white p-3 shadow-xl transition-transform duration-200 ease-out dark:border-zinc-800 dark:bg-zinc-900 lg:sticky lg:top-4 lg:z-auto lg:h-fit lg:max-h-[calc(100vh-2rem)] lg:w-auto lg:max-w-none lg:translate-x-0 lg:rounded-2xl lg:border lg:bg-white/80 lg:shadow-sm lg:transition-none dark:lg:bg-zinc-900/70 ${
+              mobileNavOpen ? 'translate-x-0' : '-translate-x-full'
+            }`}
+          >
+            <div className="flex items-center justify-between px-2">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Sections</h2>
+              <button
+                type="button"
+                onClick={() => setMobileNavOpen(false)}
+                aria-label="Close navigation menu"
+                className="rounded-lg p-1 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 lg:hidden"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
             <div className="mt-2 flex flex-col gap-1">
               {SECTIONS.map((section) => {
                 const active = section.key === route
+                const Icon = section.icon
                 return (
                   <button
                     key={section.key}
                     type="button"
                     onClick={() => navigateTo(section.key)}
                     aria-label={`Open ${section.path}`}
-                    className={`rounded-xl px-3 py-2 text-left transition-colors ${
+                    className={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-left transition-colors ${
                       active
-                        ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                        ? 'bg-indigo-600 text-white dark:bg-indigo-500'
                         : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'
                     }`}
                   >
-                    <div className="text-sm font-semibold">{section.label}</div>
-                    <div className={`text-xs ${active ? 'text-white/80 dark:text-zinc-700' : 'text-zinc-500'}`}>
-                      {section.path}
+                    <Icon className={`h-4 w-4 shrink-0 ${active ? 'text-white' : 'text-zinc-400'}`} aria-hidden="true" />
+                    <div>
+                      <div className="text-sm font-semibold">{section.label}</div>
+                      <div className={`text-xs ${active ? 'text-white/80' : 'text-zinc-500'}`}>
+                        {section.path}
+                      </div>
                     </div>
                   </button>
                 )
@@ -359,7 +413,7 @@ export default function App() {
                       onClick={() => setChartSortMode('latest')}
                       className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${
                         chartSortMode === 'latest'
-                          ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                          ? 'bg-indigo-600 text-white dark:bg-indigo-500'
                           : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
                       }`}
                     >
@@ -371,7 +425,7 @@ export default function App() {
                       onClick={() => setChartSortMode('charts-first')}
                       className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${
                         chartSortMode === 'charts-first'
-                          ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                          ? 'bg-indigo-600 text-white dark:bg-indigo-500'
                           : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
                       }`}
                     >
@@ -383,7 +437,7 @@ export default function App() {
                       onClick={() => setChartSortMode('charts-only')}
                       className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${
                         chartSortMode === 'charts-only'
-                          ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                          ? 'bg-indigo-600 text-white dark:bg-indigo-500'
                           : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
                       }`}
                     >
@@ -423,7 +477,7 @@ export default function App() {
                       onClick={() => setLookbackHours(window.value)}
                       className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${
                         active
-                          ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                          ? 'bg-indigo-600 text-white dark:bg-indigo-500'
                           : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
                       }`}
                     >
@@ -452,7 +506,7 @@ export default function App() {
                   onClick={() => setSubscriberOnlyFilter((current) => !current)}
                   className={`w-full rounded-xl px-3 py-2 text-left text-sm font-semibold transition-colors ${
                     subscriberOnlyFilter
-                      ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                      ? 'bg-indigo-600 text-white dark:bg-indigo-500'
                       : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700'
                   }`}
                 >
@@ -484,11 +538,11 @@ export default function App() {
                   onChange={(ev) => setTickerInput(ev.target.value)}
                   placeholder="$SOL"
                   aria-label="Ticker symbol"
-                  className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none ring-zinc-400 placeholder:text-zinc-400 focus:ring-2 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                  className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none ring-indigo-400 placeholder:text-zinc-400 focus:ring-2 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
                 />
                 <button
                   type="submit"
-                  className="rounded-lg bg-zinc-900 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+                  className="rounded-lg bg-indigo-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-indigo-500 dark:bg-indigo-500 dark:hover:bg-indigo-400"
                 >
                   Apply
                 </button>
@@ -496,7 +550,7 @@ export default function App() {
 
               {tickerFilter ? (
                 <div className="mt-2 flex items-center gap-2 px-2">
-                  <span className="rounded-full bg-zinc-900 px-2 py-1 text-xs font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900">
+                  <span className="rounded-full bg-indigo-600 px-2 py-1 text-xs font-semibold text-white dark:bg-indigo-500">
                     ${tickerFilter}
                   </span>
                   <button
@@ -533,11 +587,11 @@ export default function App() {
                   onChange={(ev) => setUserInput(ev.target.value)}
                   placeholder="@trader"
                   aria-label="User name"
-                  className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none ring-zinc-400 placeholder:text-zinc-400 focus:ring-2 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                  className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none ring-indigo-400 placeholder:text-zinc-400 focus:ring-2 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
                 />
                 <button
                   type="submit"
-                  className="rounded-lg bg-zinc-900 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+                  className="rounded-lg bg-indigo-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-indigo-500 dark:bg-indigo-500 dark:hover:bg-indigo-400"
                 >
                   Apply
                 </button>
@@ -545,7 +599,7 @@ export default function App() {
 
               {userFilter ? (
                 <div className="mt-2 flex items-center gap-2 px-2">
-                  <span className="rounded-full bg-zinc-900 px-2 py-1 text-xs font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900">
+                  <span className="rounded-full bg-indigo-600 px-2 py-1 text-xs font-semibold text-white dark:bg-indigo-500">
                     @{userFilter}
                   </span>
                   <button
@@ -603,57 +657,69 @@ export default function App() {
             )}
 
             {route === 'crypto' && (
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <ErrorBoundary label="Binance movers">
                   <BinanceGainersLosersWidget />
                 </ErrorBoundary>
                 <ErrorBoundary label="Trending crypto">
                   <TrendingCryptoWidget />
                 </ErrorBoundary>
-                <ErrorBoundary label="Crypto treemap">
-                  <TreemapWidget />
-                </ErrorBoundary>
+                <div className="sm:col-span-2">
+                  <ErrorBoundary label="Crypto treemap">
+                    <TreemapWidget />
+                  </ErrorBoundary>
+                </div>
               </div>
             )}
 
             {route === 'stocks' && (
-              <>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <ErrorBoundary label="Fear & Greed index">
                   <StockFearGreedWidget />
-                </ErrorBoundary>
-                <ErrorBoundary label="Market movers">
-                  <MarketMoversPanel />
-                </ErrorBoundary>
-                <ErrorBoundary label="Extended hours">
-                  <ExtendedHoursPanel />
-                </ErrorBoundary>
-                <ErrorBoundary label="Market hours">
-                  <StockMarketHoursBanner />
                 </ErrorBoundary>
                 <ErrorBoundary label="Trading halts">
                   <StockHaltsWidget />
                 </ErrorBoundary>
+                <div className="sm:col-span-2">
+                  <ErrorBoundary label="Market hours">
+                    <StockMarketHoursBanner />
+                  </ErrorBoundary>
+                </div>
                 <ErrorBoundary label="StockTwits">
                   <StocktwitsWidget />
                 </ErrorBoundary>
-                <ErrorBoundary label="Market heatmap">
-                  <SpyHeatmapWidget />
-                </ErrorBoundary>
-                <ErrorBoundary label="Sector overview">
-                  <SectorOverviewWidget />
-                </ErrorBoundary>
-              </>
+                <div className="sm:col-span-2">
+                  <ErrorBoundary label="Market movers">
+                    <MarketMoversPanel />
+                  </ErrorBoundary>
+                </div>
+                <div className="sm:col-span-2">
+                  <ErrorBoundary label="Extended hours">
+                    <ExtendedHoursPanel />
+                  </ErrorBoundary>
+                </div>
+                <div className="sm:col-span-2">
+                  <ErrorBoundary label="Market heatmap">
+                    <SpyHeatmapWidget />
+                  </ErrorBoundary>
+                </div>
+                <div className="sm:col-span-2">
+                  <ErrorBoundary label="Sector overview">
+                    <SectorOverviewWidget />
+                  </ErrorBoundary>
+                </div>
+              </div>
             )}
 
             {route === 'forex' && (
-              <>
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                 <ErrorBoundary label="Macro snapshot">
                   <ForexMacroWidget />
                 </ErrorBoundary>
                 <ErrorBoundary label="Economic events">
                   <EconomicEventsWidget />
                 </ErrorBoundary>
-              </>
+              </div>
             )}
 
             {route === 'options' && (

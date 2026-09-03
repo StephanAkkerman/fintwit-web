@@ -82,7 +82,7 @@ export default function MarketMoversPanel() {
   const isPreMarket = data.session_type === 'pre-market'
 
   return (
-    <div className="mb-4 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+    <div className="mb-4 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       <div className="mb-3 flex items-center gap-2">
         <span
           className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${sessionBadgeClass(data.session_type)}`}

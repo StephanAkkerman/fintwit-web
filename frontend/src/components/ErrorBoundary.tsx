@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { AlertTriangle } from 'lucide-react'
 
 type Props = {
   /** Names the failing widget in the fallback, e.g. "Portfolio value". */
@@ -42,8 +43,9 @@ export default class ErrorBoundary extends Component<Props, State> {
       return (
         <div
           role="alert"
-          className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300"
+          className="flex items-center gap-1.5 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300"
         >
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           {label} could not be displayed.
         </div>
       )
@@ -52,11 +54,12 @@ export default class ErrorBoundary extends Component<Props, State> {
     return (
       <section
         role="alert"
-        className="rounded-xl border border-rose-300 bg-rose-50 p-4 dark:border-rose-900 dark:bg-rose-950/30"
+        className="rounded-2xl border border-rose-300 bg-rose-50 p-4 shadow-sm dark:border-rose-900 dark:bg-rose-950/30"
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-rose-700 dark:text-rose-300">
-            {label} failed to render
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider text-rose-700 dark:text-rose-300">
+            <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+            {label} isn&apos;t available right now
           </h2>
           <button
             type="button"
@@ -67,11 +70,16 @@ export default class ErrorBoundary extends Component<Props, State> {
           </button>
         </div>
         <p className="mt-2 text-xs text-rose-700/90 dark:text-rose-300/90">
-          The rest of the dashboard is unaffected. Details are in the browser console.
+          The rest of the dashboard is unaffected.
         </p>
-        <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-words text-[11px] text-rose-800/80 dark:text-rose-200/70">
-          {error.message}
-        </pre>
+        <details className="mt-2 text-[11px] text-rose-700/80 dark:text-rose-300/70">
+          <summary className="cursor-pointer select-none hover:text-rose-800 dark:hover:text-rose-200">
+            Technical details
+          </summary>
+          <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words text-rose-800/80 dark:text-rose-200/70">
+            {error.message}
+          </pre>
+        </details>
       </section>
     )
   }

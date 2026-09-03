@@ -125,7 +125,7 @@ export default function ForexMacroWidget() {
   const stockForexVisible = data?.stock_forex_visible ?? true
 
   return (
-    <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+    <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       <div className="mb-3 flex items-center justify-between gap-2">
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">Macro Snapshot</h2>

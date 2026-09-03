@@ -120,7 +120,7 @@ export function SectorMentionsWidget({
 
   if (loading) {
     return (
-      <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4 flex flex-col gap-3">
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 flex flex-col gap-3">
         <div className="h-4 w-40 bg-zinc-800 rounded animate-pulse" />
         {[0, 1, 2, 3].map(i => (
           <div key={i} className="h-6 bg-zinc-800 rounded animate-pulse" />
@@ -131,7 +131,7 @@ export function SectorMentionsWidget({
 
   if (error) {
     return (
-      <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-zinc-500 text-sm">
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 text-zinc-500 text-sm">
         Failed to load sector mentions.
       </div>
     )
@@ -139,7 +139,7 @@ export function SectorMentionsWidget({
 
   if (data.length === 0) {
     return (
-      <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-zinc-500 text-sm">
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 text-zinc-500 text-sm">
         No sector data yet — sector mentions need classified equity tickers.
       </div>
     )
@@ -148,7 +148,7 @@ export function SectorMentionsWidget({
   const maxScore = Math.max(...data.map(s => s.mention_score)) || 1
 
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4 flex flex-col gap-0">
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 flex flex-col gap-0">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-[13px] font-semibold text-zinc-100">Sectors &amp; industries</h2>
         <span className="text-[10px] text-zinc-500 font-mono">most mentioned · expand for detail</span>

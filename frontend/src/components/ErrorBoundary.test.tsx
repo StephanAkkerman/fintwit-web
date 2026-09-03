@@ -30,7 +30,7 @@ describe('ErrorBoundary', () => {
     )
 
     expect(screen.getByRole('alert')).toBeInTheDocument()
-    expect(screen.getByText(/portfolio value failed to render/i)).toBeInTheDocument()
+    expect(screen.getByText(/portfolio value isn't available right now/i)).toBeInTheDocument()
     expect(screen.getByText(/reading 'market_value'/)).toBeInTheDocument()
   })
 
@@ -46,7 +46,7 @@ describe('ErrorBoundary', () => {
       </>
     )
 
-    expect(screen.getByText(/broken widget failed to render/i)).toBeInTheDocument()
+    expect(screen.getByText(/broken widget isn't available right now/i)).toBeInTheDocument()
     // The whole point: the neighbour renders normally.
     expect(screen.getByText('still here')).toBeInTheDocument()
   })

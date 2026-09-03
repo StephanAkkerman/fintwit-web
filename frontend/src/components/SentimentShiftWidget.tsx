@@ -1,3 +1,4 @@
+import { Activity } from 'lucide-react'
 import type { AssetKind, SentimentShiftItem } from '../types'
 import { useSentimentShift } from '../hooks/useSentimentShift'
 
@@ -69,7 +70,7 @@ export function SentimentShiftWidget({ assetKind, windowHours = 24, userFilter =
 
   if (loading) {
     return (
-      <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4 flex flex-col gap-3">
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 flex flex-col gap-3">
         <div className="h-4 w-32 bg-zinc-800 rounded animate-pulse" />
         {[0, 1, 2].map(i => (
           <div key={i} className="h-5 bg-zinc-800 rounded animate-pulse" />
@@ -80,7 +81,7 @@ export function SentimentShiftWidget({ assetKind, windowHours = 24, userFilter =
 
   if (error) {
     return (
-      <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-zinc-500 text-sm">
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 text-zinc-500 text-sm">
         Failed to load sentiment data.
       </div>
     )
@@ -88,14 +89,15 @@ export function SentimentShiftWidget({ assetKind, windowHours = 24, userFilter =
 
   if (data.length === 0) {
     return (
-      <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-zinc-500 text-sm">
+      <div className="flex items-center gap-2 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 text-zinc-500 text-sm">
+        <Activity className="h-4 w-4 shrink-0" aria-hidden="true" />
         No sentiment shift data.
       </div>
     )
   }
 
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4 flex flex-col gap-0">
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 flex flex-col gap-0">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-[13px] font-semibold text-zinc-100">Sentiment Shift</h2>
         <span className="text-[10px] text-zinc-500 font-mono">biggest swings</span>

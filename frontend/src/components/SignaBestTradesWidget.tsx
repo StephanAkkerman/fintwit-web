@@ -25,7 +25,7 @@ function TradeCard({ trade, rank }: { trade: SignaBestTrade; rank: number }) {
     typeof trade.confidence === 'number' ? `${Math.round(trade.confidence * 100)}%` : '—'
 
   return (
-    <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+    <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
