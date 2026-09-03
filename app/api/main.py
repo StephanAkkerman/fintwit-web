@@ -39,6 +39,7 @@ from ..runtime.symbols import merge_symbols
 from ..services.binance_service import get_gainers_losers
 from ..services.cmc import get_trending_crypto
 from ..services.coin360_service import get_treemap_data
+from ..services.earnings_service import get_earnings_calendar
 from ..services.events_service import get_economic_events
 from ..services.fear_greed_service import get_feargreed
 from ..services.ibkr import IbkrGateway
@@ -231,6 +232,20 @@ async def forex_macro(_=Depends(api_key_dep)):
 async def stock_halts(request: Request, _=Depends(api_key_dep)):
     client: httpx.AsyncClient = request.app.state.http_client
     data = await get_halt_data(client)
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
+
+
+@app.get("/api/earnings/calendar")
+async def earnings_calendar(
+    request: Request,
+    days: int = Query(7, ge=1, le=14),
+    limit_per_day: int = Query(10, ge=1, le=50),
+    _=Depends(api_key_dep),
+):
+    client: httpx.AsyncClient = request.app.state.http_client
+    data = await get_earnings_calendar(client, days=days, limit_per_day=limit_per_day)
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data

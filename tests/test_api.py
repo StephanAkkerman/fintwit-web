@@ -340,6 +340,77 @@ async def test_economic_events_returns_503_when_service_unavailable(async_client
 
 
 @pytest.mark.asyncio
+async def test_earnings_calendar_returns_data(async_client):
+    app.state.http_client = AsyncMock()
+
+    with patch(
+        "app.api.main.get_earnings_calendar", new_callable=AsyncMock
+    ) as mock_get:
+        mock_get.return_value = {
+            "start_date": "2026-09-03",
+            "end_date": "2026-09-09",
+            "days": [
+                {
+                    "date": "2026-09-03",
+                    "count": 1,
+                    "rows": [
+                        {
+                            "symbol": "AAPL",
+                            "name": "Apple Inc.",
+                            "date": "2026-09-03",
+                            "session": "after-hours",
+                            "session_emoji": "🌙",
+                            "market_cap": 3_000_000_000_000.0,
+                            "eps_forecast": 1.25,
+                            "num_estimates": 12,
+                            "fiscal_quarter_ending": "Sep/2026",
+                            "last_year_eps": 1.10,
+                            "last_year_report_date": "08/01/2025",
+                            "website": "https://www.nasdaq.com/market-activity/stocks/aapl/earnings",
+                        }
+                    ],
+                }
+            ],
+            "source": "nasdaq",
+        }
+
+        response = await async_client.get(
+            "/api/earnings/calendar?days=3", headers={"X-API-Key": "test-api-key"}
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["source"] == "nasdaq"
+    assert body["days"][0]["rows"][0]["symbol"] == "AAPL"
+    mock_get.assert_awaited_once_with(app.state.http_client, days=3, limit_per_day=10)
+
+
+@pytest.mark.asyncio
+async def test_earnings_calendar_returns_503_when_service_unavailable(async_client):
+    app.state.http_client = AsyncMock()
+
+    with patch(
+        "app.api.main.get_earnings_calendar", new_callable=AsyncMock
+    ) as mock_get:
+        mock_get.return_value = None
+
+        response = await async_client.get(
+            "/api/earnings/calendar", headers={"X-API-Key": "test-api-key"}
+        )
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Service Unavailable"}
+
+
+@pytest.mark.asyncio
+async def test_earnings_calendar_rejects_invalid_days(async_client):
+    response = await async_client.get(
+        "/api/earnings/calendar?days=99", headers={"X-API-Key": "test-api-key"}
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_stock_market_hours_returns_data(async_client):
     app.state.http_client = AsyncMock()
 

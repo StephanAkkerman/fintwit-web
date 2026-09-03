@@ -37,6 +37,7 @@ Route-level sections:
   - `StockHaltsWidget`
   - `StocktwitsWidget`
   - `SpyHeatmapWidget`
+  - `EarningsCalendarWidget`
   - Tweet timeline auto-filtered to stock signals
   - Chart-focused sort controls: Latest / Charts first / Charts only
 
@@ -190,6 +191,11 @@ Route-level sections:
 - `SectorOverviewWidget` + `useSectorOverview`
   - Fetches: `/api/spy-heatmap/sectors?date=...`
   - Purpose: SPY sector/subsector performance trends (e.g. Technology, and within it Semiconductors vs Software) with selectable date ranges; each sector expands to its subsector breakdown.
+
+- `EarningsCalendarWidget` + `useEarningsCalendar` (`/stocks`)
+  - Fetches: `/api/earnings/calendar?days=7`.
+  - Purpose: horizontally-scrollable strip of the next 7 days, each a card listing that day's reporting tickers (already ranked by market cap), a session emoji (🌅 pre-market / 🌙 after-hours), and the EPS estimate; a day with nothing scheduled shows "No major earnings" instead of being omitted, and a day with more tickers than fit shows a "+N more" note.
+  - Portfolio awareness: accepts `portfolioLookup` (passed from `App.tsx`, same source as the tweet-card Held/Recently Held badges) and renders a `PortfolioTickerBadge` next to any reporting ticker currently or recently held — so an upcoming earnings date on one of your own positions stands out from the rest of the calendar.
 
 - `PortfolioPanel` + `usePortfolio`
   - Fetches: `/api/portfolio/positions` and `/api/portfolio/summary`
