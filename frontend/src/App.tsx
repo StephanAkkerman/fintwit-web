@@ -652,6 +652,7 @@ export default function App() {
                   onTickerClick={onTickerSelect}
                   userFilter={userFilter}
                   subscriberOnly={subscriberOnlyFilter}
+                  portfolioLookup={portfolioLookup}
                 />
               </ErrorBoundary>
             )}

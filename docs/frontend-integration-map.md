@@ -123,14 +123,21 @@ Route-level sections:
 - `SentimentShiftWidget` + `useSentimentShift` (`/` only, inside `OverviewDashboard`)
   - Fetches: `/api/overview/sentiment-shift`, scoped by the dashboard's asset-kind/window controls and the sidebar user filter.
   - Purpose: rank tickers by the biggest swing in average tweet sentiment between the active window and the prior baseline, each row showing a prev→current sentiment sparkline and signed delta — surfaces sentiment momentum, not just mention volume.
+  - Portfolio awareness: accepts the shared `portfolioLookup` (see below) and renders a `PortfolioTickerBadge` next to any ticker currently or recently held.
 
 - `VolumeBaselineWidget` + `useVolumeBaseline` (`/` only, inside `OverviewDashboard`)
   - Fetches: `/api/overview/volume-baseline`, same scoping as `SentimentShiftWidget`.
   - Purpose: "Unusually loud" — tickers whose mention count in the active window exceeds a multiple of their rolling baseline rate, each row showing mentions vs. baseline and the multiplier — mention-spike/anomaly detection.
+  - Portfolio awareness: same `portfolioLookup` badge as `SentimentShiftWidget`.
 
 - `HiddenGemWidget` + `useHiddenGems` (`/` only, inside `OverviewDashboard`)
   - Fetches: `/api/overview/hidden-gems`, same scoping as `SentimentShiftWidget`.
   - Purpose: surface tickers being mentioned for the first time (✦ new) or resurfacing after a long gap (↩ resurface) in the active window — catches tickers before they're loud enough to rank on the main mention heatmap.
+  - Portfolio awareness: same `portfolioLookup` badge as `SentimentShiftWidget`.
+
+- `PortfolioTickerBadge` (shared by `SentimentShiftWidget`, `VolumeBaselineWidget`, `HiddenGemWidget`)
+  - Consumes: the same `portfolioLookup` function (`usePortfolioTickers`, computed once in `App.tsx` and threaded through `OverviewDashboard`) that already badges tweet-card financial cards as 💼 Held / 🕓 Recently Held.
+  - Purpose: compact emoji-only variant of the same portfolio-status signal for the tighter analytics-row layouts, so a sentiment swing, mention spike, or hidden gem on a held position is visible without leaving the home dashboard.
 
 - `TreemapWidget` + `useTreemap`
   - Fetches: `/api/treemap`

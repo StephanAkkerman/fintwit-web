@@ -1,12 +1,15 @@
 import { Activity } from 'lucide-react'
 import type { AssetKind, SentimentShiftItem } from '../types'
 import { useSentimentShift } from '../hooks/useSentimentShift'
+import type { PortfolioTickerLookup } from '../hooks/usePortfolioTickers'
+import { PortfolioTickerBadge } from './PortfolioTickerBadge'
 
 interface Props {
   assetKind: AssetKind
   windowHours?: number
   userFilter?: string | null
   subscriberOnly?: boolean
+  portfolioLookup?: PortfolioTickerLookup
 }
 
 function deltaTone(delta: number): { color: string; arrow: string } {
@@ -46,12 +49,15 @@ function ShiftSparkline({ prev, current }: { prev: number; current: number }) {
   )
 }
 
-function Row({ item }: { item: SentimentShiftItem }) {
+function Row({ item, portfolioStatus }: { item: SentimentShiftItem; portfolioStatus: ReturnType<PortfolioTickerLookup> }) {
   const { color, arrow } = deltaTone(item.delta)
   return (
     <div className="grid items-center gap-2 py-1.5 border-b border-zinc-900 last:border-b-0"
       style={{ gridTemplateColumns: '60px 1fr 72px 56px' }}>
-      <span className="font-mono text-[11px] text-zinc-100 font-semibold">{item.ticker}</span>
+      <span className="flex items-center gap-1 font-mono text-[11px] text-zinc-100 font-semibold">
+        {item.ticker}
+        <PortfolioTickerBadge status={portfolioStatus} />
+      </span>
       <ShiftSparkline prev={item.avg_sentiment_prev} current={item.avg_sentiment_24h} />
       <span className="font-mono text-[10px] text-zinc-500 text-right whitespace-nowrap">
         {formatSentiment(item.avg_sentiment_prev)}
@@ -65,7 +71,7 @@ function Row({ item }: { item: SentimentShiftItem }) {
   )
 }
 
-export function SentimentShiftWidget({ assetKind, windowHours = 24, userFilter = null, subscriberOnly = false }: Props) {
+export function SentimentShiftWidget({ assetKind, windowHours = 24, userFilter = null, subscriberOnly = false, portfolioLookup }: Props) {
   const { data, loading, error } = useSentimentShift(assetKind, windowHours, userFilter, subscriberOnly)
 
   if (loading) {
@@ -103,7 +109,9 @@ export function SentimentShiftWidget({ assetKind, windowHours = 24, userFilter =
         <span className="text-[10px] text-zinc-500 font-mono">biggest swings</span>
       </div>
       <div className="flex flex-col">
-        {data.map(item => <Row key={item.ticker} item={item} />)}
+        {data.map(item => (
+          <Row key={item.ticker} item={item} portfolioStatus={portfolioLookup?.(item.ticker) ?? null} />
+        ))}
       </div>
     </div>
   )

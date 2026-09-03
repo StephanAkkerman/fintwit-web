@@ -96,4 +96,14 @@ describe('VolumeBaselineWidget', () => {
     render(<VolumeBaselineWidget assetKind="all" windowHours={168} />)
     expect(screen.getByText('this week vs 28d avg')).toBeTruthy()
   })
+
+  it('shows a portfolio badge only for tickers the lookup flags', () => {
+    const items = makeSample(2)
+    mockUseVolumeBaseline.mockReturnValue({ data: items, loading: false, error: false })
+    const portfolioLookup = (symbol: string) => (symbol === 'TKR1' ? 'recent' as const : null)
+    render(<VolumeBaselineWidget assetKind="all" portfolioLookup={portfolioLookup} />)
+
+    expect(screen.getByLabelText('Recently in your portfolio')).toBeTruthy()
+    expect(screen.queryByLabelText('Currently in your portfolio')).toBeNull()
+  })
 })

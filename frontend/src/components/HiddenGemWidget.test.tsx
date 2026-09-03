@@ -88,4 +88,14 @@ describe('HiddenGemWidget', () => {
     expect(screen.queryByText('$TKR10')).toBeNull()
     expect(screen.getByText('+3 more')).toBeTruthy()
   })
+
+  it('shows a portfolio badge only for tickers the lookup flags', () => {
+    const items = [makeNewItem('AAPL'), makeNewItem('MSFT')]
+    mockUseHiddenGems.mockReturnValue({ data: items, loading: false, error: false })
+    const portfolioLookup = (symbol: string) => (symbol === 'AAPL' ? 'active' as const : null)
+    render(<HiddenGemWidget assetKind="all" portfolioLookup={portfolioLookup} />)
+
+    expect(screen.getByLabelText('Currently in your portfolio')).toBeTruthy()
+    expect(screen.queryByLabelText('Recently in your portfolio')).toBeNull()
+  })
 })

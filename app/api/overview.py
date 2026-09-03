@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import time
+from collections import deque
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -37,6 +38,12 @@ _STRIP_CACHE_TTL = 300  # seconds
 _strip_cache: tuple[float, list[dict]] | None = None
 _strip_lock = asyncio.Lock()
 
+# Rolling per-label price history, one point appended per real fetch (i.e.
+# once per _STRIP_CACHE_TTL). 48 points * 5min = ~4h of trend for the strip
+# sparklines; in-memory only, so it resets on restart like _strip_cache.
+_STRIP_HISTORY_MAXLEN = 48
+_strip_history: dict[str, deque[float]] = {}
+
 
 async def _build_strip() -> list[dict]:
     sem = asyncio.Semaphore(4)
@@ -50,12 +57,17 @@ async def _build_strip() -> list[dict]:
                 price = result.get("price")
                 if not isinstance(price, (int, float)):
                     return None
+                price = float(price)
+                history = _strip_history.setdefault(
+                    label, deque(maxlen=_STRIP_HISTORY_MAXLEN)
+                )
+                history.append(price)
                 return {
                     "label": label,
                     "symbol": symbol,
-                    "price": float(price),
+                    "price": price,
                     "change_pct": float(result.get("change_percent") or 0.0),
-                    "sparkline": [],  # reserved for future intraday bars
+                    "sparkline": list(history),
                 }
             except Exception as exc:
                 logger.debug("[macro-strip] %s failed: %r", symbol, exc)

@@ -680,7 +680,7 @@ export interface MacroTickerItem {
   symbol: string;
   price: number;
   change_pct: number;
-  sparkline: number[]; // [] until intraday bars are added
+  sparkline: number[]; // in-memory history, one point per ~5min server-side fetch; empty until the first few fetches land
 }
 
 export interface MentionHeatCell {

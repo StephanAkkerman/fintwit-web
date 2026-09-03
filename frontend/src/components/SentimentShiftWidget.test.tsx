@@ -75,4 +75,22 @@ describe('SentimentShiftWidget', () => {
     expect(screen.getByText('TKR0')).toBeTruthy()
     expect(screen.getByText('TKR12')).toBeTruthy()
   })
+
+  it('shows a portfolio badge only for tickers the lookup flags', () => {
+    const items = makeSample(2)
+    mockUseSentimentShift.mockReturnValue({ data: items, loading: false, error: false })
+    const portfolioLookup = (symbol: string) => (symbol === 'TKR0' ? 'active' as const : null)
+    render(<SentimentShiftWidget assetKind="all" portfolioLookup={portfolioLookup} />)
+
+    expect(screen.getByLabelText('Currently in your portfolio')).toBeTruthy()
+    expect(screen.queryByLabelText('Recently in your portfolio')).toBeNull()
+  })
+
+  it('shows no portfolio badge when no portfolioLookup is provided', () => {
+    const items = makeSample(2)
+    mockUseSentimentShift.mockReturnValue({ data: items, loading: false, error: false })
+    render(<SentimentShiftWidget assetKind="all" />)
+
+    expect(screen.queryByLabelText('Currently in your portfolio')).toBeNull()
+  })
 })
