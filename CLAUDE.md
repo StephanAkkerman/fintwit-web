@@ -102,11 +102,22 @@ make screenshot                              # artifacts/portfolio-loaded-dark.p
 make screenshot ROUTE=/crypto SCENARIO=empty THEME=light
 ```
 
-Fixtures live in `scripts/screenshot_ui.py`. Add a scenario there to render a
-state that is awkward to reach for real — an asset exactly at its all-time high,
-a holding whose price history failed to load. Object-shaped endpoints must be
-fixtured explicitly; the catch-all answers with a list, and a component reading
-a field off it throws during render.
+Fixtures live in `scripts/screenshot_ui.py`. The `loaded` scenario now covers
+every route's widgets with realistic data (stocks, crypto, forex, options,
+signa, the home overview panels, and a handful of sample tweets for the
+timeline itself) — this is also usable directly against `npm run dev` for
+day-to-day frontend work, not just `make screenshot`: point the dev server's
+`/api/**` calls at a copy of `fixtures_for("loaded")` (e.g. a small dev-only
+proxy or MSW handler) when building a widget without a running backend.
+Add a fixture there whenever a new widget starts hitting a fresh endpoint —
+without one it's left on its empty or error state, which is what a first-time
+visitor to that route sees. Add a scenario to render a state that's awkward
+to reach for real — an asset exactly at its all-time high, a holding whose
+price history failed to load. Object-shaped endpoints must be fixtured
+explicitly (in every scenario that can render them); the catch-all answers
+with a list, and a component reading a field off it throws during render —
+`empty` fixtures the object-shaped endpoints with their own zero-value shape
+for exactly this reason.
 
 `make check` runs every one of these gates, exactly as CI does — prefer it
 over running them individually. `make install` sets the environment up; in a

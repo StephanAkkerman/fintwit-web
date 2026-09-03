@@ -677,12 +677,14 @@ export default function App() {
                 <ErrorBoundary label="Fear & Greed index">
                   <StockFearGreedWidget />
                 </ErrorBoundary>
-                <ErrorBoundary label="Market hours">
-                  <StockMarketHoursBanner />
-                </ErrorBoundary>
                 <ErrorBoundary label="Trading halts">
                   <StockHaltsWidget />
                 </ErrorBoundary>
+                <div className="sm:col-span-2">
+                  <ErrorBoundary label="Market hours">
+                    <StockMarketHoursBanner />
+                  </ErrorBoundary>
+                </div>
                 <ErrorBoundary label="StockTwits">
                   <StocktwitsWidget />
                 </ErrorBoundary>
