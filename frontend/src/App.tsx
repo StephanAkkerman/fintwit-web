@@ -735,7 +735,7 @@ export default function App() {
                 </div>
                 <div className="sm:col-span-2">
                   <ErrorBoundary label="Company news">
-                    <CompanyNewsWidget />
+                    <CompanyNewsWidget selectedTicker={tickerFilter} />
                   </ErrorBoundary>
                 </div>
               </div>

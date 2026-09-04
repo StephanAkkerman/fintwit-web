@@ -39,7 +39,7 @@ Route-level sections:
   - `SpyHeatmapWidget`
   - `EarningsCalendarWidget`
   - `CompanyNewsWidget`
-  - Recent per-symbol news headlines (title/source/date/excerpt) via `yfinance`, symbol entered by the user (defaults to `AAPL`)
+  - Recent per-symbol news headlines (title/source/date/excerpt) via `yfinance`, defaults to `AAPL`; auto-loads whichever ticker is currently clicked/filtered app-wide (`tickerFilter`), still overridable via its own symbol input
   - Tweet timeline auto-filtered to stock signals
   - Chart-focused sort controls: Latest / Charts first / Charts only
 

@@ -131,7 +131,7 @@ For equities/ETFs, `tweet.assets[*].company_profile` may include curated finance
   - `/api/stock-halts` for same-day halt/resumption activity,
   - `/api/stocktwits` and `/api/spy-heatmap` for social and market breadth context,
   - `/api/spy-heatmap/sectors` for sector/subsector performance trends,
-  - `/api/news/company` for per-symbol recent news headlines (`CompanyNewsWidget`, symbol entered by the user, defaults to `AAPL`).
+  - `/api/news/company` for per-symbol recent news headlines (`CompanyNewsWidget`, defaults to `AAPL`; auto-loads the app-wide clicked ticker via `tickerFilter` when one is selected, still overridable by typing a different symbol).
 
 - Options route widgets rely on:
   - `/api/options/overview` for aggregated calls/puts totals, put-call ratio, and most-active option contracts,

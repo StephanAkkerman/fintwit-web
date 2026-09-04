@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useCompanyNews } from '../hooks/useCompanyNews'
 
 function fmtDate(value: string): string {
@@ -6,10 +6,28 @@ function fmtDate(value: string): string {
   return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString()
 }
 
-export default function CompanyNewsWidget() {
+type CompanyNewsWidgetProps = {
+  /** Ticker clicked elsewhere in the app (tweet card, mention heatmap, etc.). */
+  selectedTicker?: string | null
+}
+
+export default function CompanyNewsWidget({ selectedTicker }: CompanyNewsWidgetProps = {}) {
   const [symbolInput, setSymbolInput] = useState('AAPL')
   const [symbol, setSymbol] = useState('AAPL')
   const { data, loading, error } = useCompanyNews(symbol)
+
+  // A ticker click elsewhere (tweet card, mention heatmap, ...) takes over the
+  // widget; typing a different symbol here still overrides it. Clearing the
+  // global filter (click same ticker again) intentionally does not reset us
+  // back to AAPL.
+  useEffect(() => {
+    const next = (selectedTicker ?? '').trim().toUpperCase()
+    if (next && next !== symbol) {
+      setSymbol(next)
+      setSymbolInput(next)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTicker])
 
   const submitSymbol = () => {
     const next = symbolInput.trim().toUpperCase()

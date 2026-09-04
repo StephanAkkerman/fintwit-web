@@ -117,7 +117,7 @@ Last updated: 2026-09-04 (options chain + company news)
 - Stocks route now includes a stock market Fear & Greed index card.
 - Options route now includes a market activity widget for calls, puts, put/call ratio, and most-active contracts.
 - Options route now also includes a per-symbol options chain widget (`OptionsChainWidget`): a symbol input plus an expiration picker, rendering the full call/put chain (strike, bid/ask, last, IV, volume, OI) with in-the-money rows shaded.
-- Stocks route now includes a company news widget (`CompanyNewsWidget`): a symbol input showing recent headlines with source, timestamp, and excerpt.
+- Stocks route now includes a company news widget (`CompanyNewsWidget`): a symbol input showing recent headlines with source, timestamp, and excerpt. It also syncs to the app-wide clicked-ticker state (`tickerFilter`) — clicking any ticker elsewhere (tweet card, mention heatmap, etc.) auto-loads that symbol's news, while typing a different symbol still overrides it.
 - Options route timeline now filters to tweets classified as options-intent (`is_options_tweet=true`) instead of generic stock-linked tweets.
 - Options route now consumes options-only REST/SSE feeds so only options-classified tweets are fetched and rendered there.
 - Forex route now includes an economic events widget backed by Investing high-impact calendar data.
