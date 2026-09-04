@@ -8,6 +8,7 @@ import {
   Radar,
   ShieldCheck,
   SlidersHorizontal,
+  Trophy,
   Wallet,
   X,
 } from 'lucide-react'
@@ -37,6 +38,7 @@ import StockHaltsWidget from './components/StockHaltsWidget'
 import StockMarketHoursBanner from './components/StockMarketHoursBanner'
 import StocktwitsWidget from './components/StocktwitsWidget'
 import TickerDetailModal from './components/TickerDetailModal'
+import TraderLeaderboardWidget from './components/TraderLeaderboardWidget'
 import TreemapWidget from './components/TreemapWidget'
 import TrendingCryptoWidget from './components/TrendingCryptoWidget'
 import TweetCard from './components/TweetCard'
@@ -48,7 +50,16 @@ import type { AssetKind, Tweet } from './types'
 import { hasChartSignal } from './utils/tweetSignals'
 
 type FilterKey = 'all' | 'crypto' | 'stock' | 'forex'
-type RouteKey = 'home' | 'crypto' | 'stocks' | 'forex' | 'options' | 'signa' | 'portfolio' | 'admin'
+type RouteKey =
+  | 'home'
+  | 'crypto'
+  | 'stocks'
+  | 'forex'
+  | 'options'
+  | 'signa'
+  | 'traders'
+  | 'portfolio'
+  | 'admin'
 type ChartSortMode = 'latest' | 'charts-first' | 'charts-only'
 type LookbackWindow = 24 | 48 | 168
 
@@ -65,6 +76,7 @@ const SECTIONS: Array<{ key: RouteKey; label: string; path: string; subtitle: st
   { key: 'forex', label: 'Forex', path: '/forex', subtitle: 'Macro events and FX sentiment', icon: Banknote },
   { key: 'options', label: 'Options', path: '/options', subtitle: 'Flow activity and put/call balance', icon: SlidersHorizontal },
   { key: 'signa', label: 'Signa', path: '/signa', subtitle: 'Best trades + live model signals from getsigna.ai', icon: Radar },
+  { key: 'traders', label: 'Traders', path: '/traders', subtitle: 'Credibility leaderboard: whose calls actually work out', icon: Trophy },
   { key: 'portfolio', label: 'Portfolio', path: '/portfolio', subtitle: 'Value over time, asset context and PnL', icon: Wallet },
   { key: 'admin', label: 'Admin', path: '/admin', subtitle: 'Debug tweet injection and verification', icon: ShieldCheck },
 ]
@@ -75,6 +87,7 @@ function routeFromPath(pathname: string): RouteKey {
   if (pathname.startsWith('/forex')) return 'forex'
   if (pathname.startsWith('/options')) return 'options'
   if (pathname.startsWith('/signa')) return 'signa'
+  if (pathname.startsWith('/traders')) return 'traders'
   if (pathname.startsWith('/portfolio')) return 'portfolio'
   if (pathname.startsWith('/admin')) return 'admin'
   return 'home'
@@ -86,6 +99,7 @@ function pathFromRoute(route: RouteKey): string {
   if (route === 'forex') return '/forex'
   if (route === 'options') return '/options'
   if (route === 'signa') return '/signa'
+  if (route === 'traders') return '/traders'
   if (route === 'portfolio') return '/portfolio'
   if (route === 'admin') return '/admin'
   return '/'
@@ -626,7 +640,7 @@ export default function App() {
               <p className="text-sm text-zinc-500">{activeSection.subtitle}</p>
             </header>
 
-            {route !== 'admin' && route !== 'signa' && route !== 'home' && (
+            {route !== 'admin' && route !== 'signa' && route !== 'home' && route !== 'traders' && (
               <>
                 <ErrorBoundary label="Mention heat">
                   <MentionHeatmap
@@ -741,6 +755,12 @@ export default function App() {
               </ErrorBoundary>
             )}
 
+            {route === 'traders' && (
+              <ErrorBoundary label="Trader credibility">
+                <TraderLeaderboardWidget />
+              </ErrorBoundary>
+            )}
+
             {route === 'portfolio' && (
               <>
                 <ErrorBoundary label="Portfolio value">
@@ -775,7 +795,7 @@ export default function App() {
               </ErrorBoundary>
             )}
 
-            {route !== 'signa' && (
+            {route !== 'signa' && route !== 'traders' && (
               <>
                 {displayedTweets.map((t) => (
                   // Per card: tweet payloads vary with upstream, and one

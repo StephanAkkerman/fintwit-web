@@ -1,6 +1,6 @@
 # Frontend Integration Map
 
-Last updated: 2026-09-03
+Last updated: 2026-09-04
 
 ## Mounted in `App.tsx` Today
 
@@ -66,6 +66,11 @@ Route-level sections:
   - `PortfolioPanel`
   - Add/list/toggle/delete IBKR-style stock positions
   - Summary cards backed by live valuation/PnL
+
+- `/traders`
+  - `TraderLeaderboardWidget`
+  - Purpose: trader credibility leaderboard (issue #72, narrowed scope). A horizon tab (1/7/30 days) over a table ranked by hit-rate, with graded-call count and signed average return. Self-contained like `/signa` — not wired into the shared tweet timeline, ticker/user filters, or the cross-route `MentionHeatmap`/`RouteSignalsPanel` block.
+  - Fetches: `/api/traders/leaderboard` via `useTraderLeaderboard`.
 
 - `/admin`
   - `DebugAdminPanel`

@@ -1,5 +1,14 @@
 # app/infra/db.py
-from sqlalchemy import JSON, Boolean, DateTime, Float, Integer, String, inspect
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    Float,
+    Integer,
+    String,
+    UniqueConstraint,
+    inspect,
+)
 from sqlalchemy import text as sql_text
 from sqlalchemy.dialects.sqlite import JSON as SQLITE_JSON
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
@@ -151,6 +160,44 @@ class IbkrTradeRow(Base):
     commission: Mapped[float] = mapped_column(Float, nullable=True)
     executed_at: Mapped[DateTime] = mapped_column(DateTime, index=True, nullable=True)
     created_at: Mapped[DateTime] = mapped_column(DateTime)
+
+
+class TraderCallRow(Base):
+    """One directional call: a non-neutral sentiment tweet mentioning a ticker.
+
+    Created once, at enrichment time, from the tweet's already-computed
+    sentiment and asset price — no extra fetch needed. Graded later, at one
+    or more horizons, by TraderCallResultRow.
+    """
+
+    __tablename__ = "trader_calls"
+    __table_args__ = (UniqueConstraint("tweet_id", "ticker"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tweet_id: Mapped[int] = mapped_column(Integer, index=True)
+    ticker: Mapped[str] = mapped_column(String, index=True)
+    user_screen_name: Mapped[str] = mapped_column(String, index=True)
+    direction: Mapped[str] = mapped_column(String)  # "bullish" | "bearish"
+    sentiment_score: Mapped[float] = mapped_column(Float, nullable=True)
+    asset_kind: Mapped[str] = mapped_column(String, nullable=True)
+    price_at_call: Mapped[float] = mapped_column(Float)
+    called_at: Mapped[DateTime] = mapped_column(DateTime, index=True)
+    created_at: Mapped[DateTime] = mapped_column(DateTime)
+
+
+class TraderCallResultRow(Base):
+    """Grading of one TraderCallRow at one fixed horizon (1d/7d/30d)."""
+
+    __tablename__ = "trader_call_results"
+    __table_args__ = (UniqueConstraint("call_id", "horizon_days"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    call_id: Mapped[int] = mapped_column(Integer, index=True)
+    horizon_days: Mapped[int] = mapped_column(Integer, index=True)
+    price_at_horizon: Mapped[float] = mapped_column(Float)
+    return_pct: Mapped[float] = mapped_column(Float)
+    correct: Mapped[bool] = mapped_column(Boolean)
+    evaluated_at: Mapped[DateTime] = mapped_column(DateTime)
 
 
 def create_engine(url: str = "sqlite+aiosqlite:///./data.db") -> AsyncEngine:

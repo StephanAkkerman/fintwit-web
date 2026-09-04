@@ -1366,6 +1366,35 @@ def _signa_live_feed() -> list[dict]:
     ]
 
 
+def _trader_leaderboard() -> list[dict]:
+    return [
+        {
+            "user_screen_name": "finguru",
+            "horizon_days": 7,
+            "graded_calls": 42,
+            "correct_calls": 29,
+            "hit_rate": 0.69,
+            "avg_return_pct": 4.8,
+        },
+        {
+            "user_screen_name": "cryptoking",
+            "horizon_days": 7,
+            "graded_calls": 18,
+            "correct_calls": 9,
+            "hit_rate": 0.5,
+            "avg_return_pct": 0.3,
+        },
+        {
+            "user_screen_name": "bearishbob",
+            "horizon_days": 7,
+            "graded_calls": 11,
+            "correct_calls": 3,
+            "hit_rate": 0.27,
+            "avg_return_pct": -6.1,
+        },
+    ]
+
+
 def _reddit_wsb() -> list[dict]:
     now = int(datetime.now(timezone.utc).timestamp())
     return [
@@ -1775,6 +1804,8 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         # Signa route.
         "/api/signa/best-trades": _signa_best_trades(),
         "/api/signa/live-feed": _signa_live_feed(),
+        # Traders route.
+        "/api/traders/leaderboard": _trader_leaderboard(),
         # Reddit (WSB) widget.
         "/api/reddit/wsb": _reddit_wsb(),
         # Timeline: without this every route's tweet feed (and the ticker /

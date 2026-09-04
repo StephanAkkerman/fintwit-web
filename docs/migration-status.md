@@ -1,6 +1,6 @@
 # Migration Status
 
-Last updated: 2026-09-03
+Last updated: 2026-09-04
 
 ## Backend: Implemented
 
@@ -59,6 +59,7 @@ Last updated: 2026-09-03
 - Mention-volume anomaly detection: `mention_aggregator.get_volume_baseline` flags tickers whose mention count in the active window exceeds `threshold` (default 1.5x) times their expected count from a rolling baseline (4x the active window, floored at 7 days), i.e. tickers suddenly getting talked about far more than usual. Exposed via `GET /api/overview/volume-baseline`.
 - Hidden-gem detection: `mention_aggregator.get_hidden_gems` surfaces tickers that are newly appearing or resurfacing (no mention in at least `max(window_hours * 7, 7d)` prior) in the active window, using the same fairness-adjusted `mention_score` as `get_mention_heat` but with no minimum-mentions floor, since a single early mention is the point. Exposed via `GET /api/overview/hidden-gems`.
 - Macro strip: `GET /api/overview/macro-strip` returns live TradingView quotes (price + % change) for a fixed watchlist (SPX, NDX, BTC, ETH, DXY, VIX, GOLD), 5-minute server-side cached, plus a rolling per-label `sparkline` (up to 48 points, one appended per real fetch, ~4h of trend at the cache TTL; in-memory, resets on restart).
+- Trader credibility scoring (issue #72, deliberately narrowed): a "call" is any non-neutral-sentiment tweet mentioning a ticker — FinTwitBERT sentiment stands in for a buy/sell opinion, and the ticker's price already computed for the tweet's `assets` payload is the entry price, so no separate buy/sell/hold signal model (issue #71) is needed to get a first version shipped. `app/services/trader_scoring.py:extract_calls` turns an enriched tweet into zero or more `trader_calls` rows (one per priced ticker mentioned with |sentiment| > 0.1); wired into both the live stream (`runtime/streamer.py`) and `/api/debug/tweet`. Since a tweet's holding-period intent is unknown, each call is graded at three fixed horizons (1d/7d/30d) rather than one guessed timeframe: a background worker (`runtime/trader_evaluator.py`, 30-minute interval, `TRADER_EVAL_INTERVAL` env override) finds calls past a horizon with no result yet, re-prices the ticker via the same `AssetEnricher` used for live tweets, and records `trader_call_results` (`return_pct`, `correct` — direction-of-price-move match, no dead zone). Exposed via `GET /api/traders/leaderboard` (`horizon_days` one of 1/7/30, `min_calls` floor so a single lucky/unlucky call can't produce a 0%/100% row, `limit`) and `GET /api/traders/user/{screen_name}` (per-horizon hit-rate/avg-return plus recent graded and pending calls).
 
 ## Frontend: Implemented
 
@@ -125,6 +126,7 @@ Last updated: 2026-09-03
 - Home route overview dashboard (`OverviewDashboard`, mounted at `/`) leads with a macro strip (`MacroStrip`) showing live SPX/NDX/BTC/ETH/DXY/VIX/GOLD quotes with sparklines, then the mention-heat heatmap, then a three-column analytics row: `SentimentShiftWidget` (tickers with the biggest sentiment swing between now and the prior baseline), `VolumeBaselineWidget` ("Unusually loud" — tickers whose mention volume is a multiple of their rolling baseline), and `HiddenGemWidget` (newly-appearing or resurfacing tickers, tagged ✦ new / ↩ resurface).
 - Stock migration slice: earnings calendar endpoint (`GET /api/earnings/calendar`, `app/services/earnings_service.py`), ported from fintwit-bot's `src/api/nasdaq.py:get_earnings_for_date` (used by the weekly `earnings_overview.py` Discord loop and the `/earnings` slash command). Fetches `api.nasdaq.com/api/calendar/earnings?date=...` for each of the next `days` days (1-14, default 7) concurrently, and returns `{start_date, end_date, days: [{date, count, rows}], source}` — each row carries `symbol`, `name`, `date`, `session`/`session_emoji` (`pre-market`🌅/`after-hours`🌙/`unknown`), `market_cap`, `eps_forecast`, `num_estimates`, `fiscal_quarter_ending`, `last_year_eps`, `last_year_report_date`, and a Nasdaq `website` link. Rows arrive already ranked by market cap descending; `limit_per_day` (1-50, default 10) trims the per-day list while `count` keeps the true daily total. 15-minute server-side cache keyed by `(today, days, limit_per_day)`. A day with no `data`/`rows` key (e.g. a weekend) is a successful empty day, not a failure — the endpoint only 503s when every day in the window fails to fetch.
 - Portfolio-aware analytics badges: `SentimentShiftWidget`, `VolumeBaselineWidget`, and `HiddenGemWidget` now accept the same `portfolioLookup` (from `usePortfolioTickers`, already used for tweet-card Held/Recently Held badges) as `OverviewDashboard`/`App.tsx`, and render a compact `PortfolioTickerBadge` (💼/🕓) next to any listed ticker that matches a current or recently-closed portfolio position — so a sentiment swing, volume spike, or hidden gem on something you actually hold stands out from the rest of the list.
+- New `/traders` route (`TraderLeaderboardWidget`, sidebar entry between Signa and Portfolio): a horizon tab (1/7/30 days) over a ranked table of trader hit-rate, graded-call count, and signed average return. Self-contained like `/signa` — excluded from the shared tweet timeline and the cross-route mention-heat/signals panel.
 
 ## Connected End-to-End Today
 
@@ -161,10 +163,11 @@ Last updated: 2026-09-03
 - Stock market-hours banner: `/api/stocks/market-hours` -> `StockMarketHoursBanner` (`/stocks`).
 - Economic events panel: `/api/events/economic` -> `EconomicEventsWidget` (`/forex`).
 - Macro snapshot panel: `/api/forex/macro` -> `ForexMacroWidget` (`/forex`).
+- Trader credibility leaderboard: `/api/traders/leaderboard` -> `useTraderLeaderboard` -> `TraderLeaderboardWidget` (`/traders`).
 
 ## Backend APIs Not Yet Connected in Main UI
 
-- No known unconnected backend API endpoints from the current `app/api/main.py` surface.
+- `GET /api/traders/user/{screen_name}` (per-trader horizon breakdown + recent calls) has no frontend consumer yet — the leaderboard is the v1 surface; a per-trader detail view (e.g. click a leaderboard row) is a natural follow-up.
 
 ## Suggested Next Connections
 
