@@ -1,6 +1,6 @@
 # API and Frontend Coverage Matrix
 
-Last updated: 2026-09-04
+Last updated: 2026-09-04 (options chain + company news)
 
 ## Authentication
 
@@ -26,6 +26,8 @@ Last updated: 2026-09-04
 | `/api/stock-halts` | GET | `www.nasdaqtrader.com/RPCHandler.axd` (`BL_TradeHalt.GetTradeHalts`) | Current-day Nasdaq halt rows with halt time, issue symbol, and optional resumption time | Connected via `StockHaltsWidget` |
 | `/api/earnings/calendar` | GET | `api.nasdaq.com/api/calendar/earnings?date=...` fetched concurrently for each day in the window (`app/services/earnings_service.py`) | `{start_date, end_date, days: [{date, count, rows}], source}`. Each row: `symbol`, `name`, `date`, `session` (`pre-market`/`after-hours`/`unknown`) + `session_emoji`, `market_cap`, `eps_forecast`, `num_estimates`, `fiscal_quarter_ending`, `last_year_eps`, `last_year_report_date`, `website`. Rows are pre-ranked by market cap descending (Nasdaq's own ordering); `count` is the true daily total, `rows` is trimmed to `limit_per_day`. Params: `days` (1-14, default 7), `limit_per_day` (1-50, default 10). 15-minute cache; 503 only when every day's fetch fails — a day with nothing scheduled is a normal empty result. | Connected via `useEarningsCalendar` / `EarningsCalendarWidget` (`/stocks`) |
 | `/api/options/overview` | GET | `api.nasdaq.com/api/quote/{symbol}/option-chain/most-active?assetclass=...` (aggregated across default major symbols, optional `symbols` query override) | Calls/puts totals, market put-call ratio, bullish-vs-bearish symbol ranking, and most-active contracts | Connected via `OptionsOverviewWidget` |
+| `/api/options/chain` | GET | `yfinance` (`Ticker.option_chain`), free, no API key — same Yahoo Finance data `openbb-yfinance` wraps, called directly to avoid OpenBB's dependency conflicts (see `app/services/options_chain_service.py`) | Full per-symbol options chain for one expiration: `underlying` snapshot (name, last price, change, market cap, 52w range, volume), `expirations` list, the resolved `expiration`, and `contracts[]` (`option_type`, `strike`, `bid`, `ask`, `last_price`, `volume`, `open_interest`, `implied_volatility`, `change_percent`, `in_the_money`). Params: `symbol` (required), `expiration` (optional; defaults to nearest, falls back to nearest on an unknown value). Blocking yfinance calls run via `asyncio.to_thread`; 180s in-process cache per `(symbol, expiration)`. | Connected via `useOptionsChain` / `OptionsChainWidget` (`/options`) |
+| `/api/news/company` | GET | `yfinance` (`Ticker.get_news`), free, no API key | `{ articles: [{ symbols, title, excerpt, url, date, source }], source }`. Params: `symbols` (required, comma-separated), `limit` (1-50, default 10). Blocking yfinance calls run via `asyncio.to_thread`, fetched concurrently per symbol. | Connected via `useCompanyNews` / `CompanyNewsWidget` (`/stocks`) |
 | `/api/stocktwits` | GET | `api.stocktwits.com/api/2/charts/{keyword}` (curl-first, then httpx; short-lived cache fallback on transient failures) | Formatted StockTwits rank list (`symbol`, `name`, `price`, `val`); returns `[]` during transient upstream unavailability | Connected via `StocktwitsWidget` |
 | `/api/spy-heatmap` | GET | `phx.unusualwhales.com/api/etf/SPY/heatmap` | SPY heatmap JSON by date range | Connected via `SpyHeatmapWidget` |
 | `/api/spy-heatmap/sectors` | GET | Same `phx.unusualwhales.com/api/etf/SPY/heatmap` payload, aggregated by `unusual_whales.summarize_spy_sectors` | `{"sectors": [...]}` — SPY constituents grouped by GICS sector then by `industry` (subsector), each with a market-cap-weighted average `change_percent`, total `market_cap`, and `stock_count`; sectors carry a nested `subsectors` list of the same shape, both sorted by market cap descending. Accepts the same `date` range as `/api/spy-heatmap`. | Connected via `useSectorOverview` / `SectorOverviewWidget` (`/stocks`) |
@@ -128,7 +130,9 @@ For equities/ETFs, `tweet.assets[*].company_profile` may include curated finance
   - `/api/stocks/market-hours` for exchange session state,
   - `/api/stock-halts` for same-day halt/resumption activity,
   - `/api/stocktwits` and `/api/spy-heatmap` for social and market breadth context,
-  - `/api/spy-heatmap/sectors` for sector/subsector performance trends.
+  - `/api/spy-heatmap/sectors` for sector/subsector performance trends,
+  - `/api/news/company` for per-symbol recent news headlines (`CompanyNewsWidget`, symbol entered by the user, defaults to `AAPL`).
 
 - Options route widgets rely on:
-  - `/api/options/overview` for aggregated calls/puts totals, put-call ratio, and most-active option contracts.
+  - `/api/options/overview` for aggregated calls/puts totals, put-call ratio, and most-active option contracts,
+  - `/api/options/chain` for a full per-symbol options chain with an expiration picker (`OptionsChainWidget`, symbol entered by the user, defaults to `AAPL`).

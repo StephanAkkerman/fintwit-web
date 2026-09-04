@@ -27,5 +27,4 @@ python-dateutil==2.9.0
 ib_insync==0.9.86
 tradingview-scraper==0.4.20
 tradingview-ta==3.3.0
-openbb-core==1.6.13
-openbb-yfinance==1.6.3
+yfinance==1.7.0

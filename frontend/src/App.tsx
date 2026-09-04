@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import BinanceGainersLosersWidget from './components/BinanceGainersLosersWidget'
+import CompanyNewsWidget from './components/CompanyNewsWidget'
 import DebugAdminPanel from './components/DebugAdminPanel'
 import EarningsCalendarWidget from './components/EarningsCalendarWidget'
 import EconomicEventsWidget from './components/EconomicEventsWidget'
@@ -25,6 +26,7 @@ import { MentionHeatmap } from './components/MentionHeatmap'
 import { OverviewDashboard } from './components/OverviewDashboard'
 import { RouteSignalsPanel } from './components/RouteSignalsPanel'
 import IbkrPanel from './components/IbkrPanel'
+import OptionsChainWidget from './components/OptionsChainWidget'
 import OptionsOverviewWidget from './components/OptionsOverviewWidget'
 import PortfolioAssetInsights from './components/PortfolioAssetInsights'
 import PortfolioDiversification from './components/PortfolioDiversification'
@@ -731,6 +733,11 @@ export default function App() {
                     <EarningsCalendarWidget portfolioLookup={portfolioLookup} />
                   </ErrorBoundary>
                 </div>
+                <div className="sm:col-span-2">
+                  <ErrorBoundary label="Company news">
+                    <CompanyNewsWidget />
+                  </ErrorBoundary>
+                </div>
               </div>
             )}
 
@@ -746,9 +753,14 @@ export default function App() {
             )}
 
             {route === 'options' && (
-              <ErrorBoundary label="Options overview">
-                <OptionsOverviewWidget />
-              </ErrorBoundary>
+              <div className="space-y-4">
+                <ErrorBoundary label="Options overview">
+                  <OptionsOverviewWidget />
+                </ErrorBoundary>
+                <ErrorBoundary label="Options chain">
+                  <OptionsChainWidget />
+                </ErrorBoundary>
+              </div>
             )}
 
             {route === 'signa' && (

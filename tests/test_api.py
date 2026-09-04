@@ -293,6 +293,78 @@ async def test_options_overview_returns_503_when_service_unavailable(async_clien
 
 
 @pytest.mark.asyncio
+async def test_options_chain_returns_data(async_client):
+    with patch("app.api.main.get_options_chain", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = {
+            "symbol": "AAPL",
+            "underlying": {"name": "Apple Inc.", "last_price": 152.3},
+            "expirations": ["2026-09-19"],
+            "expiration": "2026-09-19",
+            "contracts": [],
+            "source": "yfinance",
+        }
+
+        response = await async_client.get(
+            "/api/options/chain?symbol=AAPL", headers={"X-API-Key": "test-api-key"}
+        )
+
+    assert response.status_code == 200
+    assert response.json()["symbol"] == "AAPL"
+    mock_get.assert_awaited_once_with("AAPL", None)
+
+
+@pytest.mark.asyncio
+async def test_options_chain_returns_503_when_service_unavailable(async_client):
+    with patch("app.api.main.get_options_chain", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = None
+
+        response = await async_client.get(
+            "/api/options/chain?symbol=ZZZZ", headers={"X-API-Key": "test-api-key"}
+        )
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Service Unavailable"}
+
+
+@pytest.mark.asyncio
+async def test_news_company_returns_data(async_client):
+    with patch("app.api.main.get_company_news", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = [
+            {
+                "symbols": ["AAPL"],
+                "title": "AAPL rallies",
+                "excerpt": "Some summary text.",
+                "url": "https://example.com/a",
+                "date": "2026-09-01T12:00:00Z",
+                "source": "Reuters",
+            }
+        ]
+
+        response = await async_client.get(
+            "/api/news/company?symbols=AAPL", headers={"X-API-Key": "test-api-key"}
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["source"] == "yfinance"
+    assert len(body["articles"]) == 1
+    mock_get.assert_awaited_once_with(["AAPL"], 10)
+
+
+@pytest.mark.asyncio
+async def test_news_company_returns_503_when_service_unavailable(async_client):
+    with patch("app.api.main.get_company_news", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = None
+
+        response = await async_client.get(
+            "/api/news/company?symbols=AAPL", headers={"X-API-Key": "test-api-key"}
+        )
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Service Unavailable"}
+
+
+@pytest.mark.asyncio
 async def test_economic_events_returns_data(async_client):
     app.state.http_client = AsyncMock()
 

@@ -1,6 +1,6 @@
 # Frontend Integration Map
 
-Last updated: 2026-09-04
+Last updated: 2026-09-04 (options chain + company news)
 
 ## Mounted in `App.tsx` Today
 
@@ -38,6 +38,8 @@ Route-level sections:
   - `StocktwitsWidget`
   - `SpyHeatmapWidget`
   - `EarningsCalendarWidget`
+  - `CompanyNewsWidget`
+  - Recent per-symbol news headlines (title/source/date/excerpt) via `yfinance`, symbol entered by the user (defaults to `AAPL`)
   - Tweet timeline auto-filtered to stock signals
   - Chart-focused sort controls: Latest / Charts first / Charts only
 
@@ -52,6 +54,8 @@ Route-level sections:
 - `/options`
   - `OptionsOverviewWidget`
   - Nasdaq-based options activity summary (calls/puts totals, put-call ratio, most-active contracts)
+  - `OptionsChainWidget`
+  - Full per-symbol options chain (strike/bid/ask/last/IV/volume/OI, ITM rows shaded) with an expiration picker, via `yfinance`, symbol entered by the user (defaults to `AAPL`)
   - Tweet timeline sourced from options-only tweet feed (`/api/posts?...&options_only=true` + `/api/stream?options_only=true`)
 
 - `/portfolio`

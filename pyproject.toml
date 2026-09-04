@@ -41,6 +41,7 @@ test = [
     "tradingview-scraper==0.4.20",
     "tradingview-ta==3.3.0",
     "xtimeline==0.1.6",
+    "yfinance==1.7.0",
 ]
 
 # Tooling for working on the app locally: running it and capturing the UI.

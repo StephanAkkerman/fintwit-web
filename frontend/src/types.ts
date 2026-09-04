@@ -371,6 +371,53 @@ export type OptionsOverviewResponse = {
   source: string;
 };
 
+export type OptionsChainContract = {
+  option_type: 'CALL' | 'PUT' | string;
+  strike: number | null;
+  bid: number | null;
+  ask: number | null;
+  last_price: number | null;
+  volume: number;
+  open_interest: number;
+  implied_volatility: number | null;
+  change_percent: number | null;
+  in_the_money: boolean;
+};
+
+export type OptionsChainUnderlying = {
+  name?: string | null;
+  last_price?: number | null;
+  change?: number | null;
+  change_percent?: number | null;
+  market_cap?: number | null;
+  year_high?: number | null;
+  year_low?: number | null;
+  volume?: number | null;
+};
+
+export type OptionsChainResponse = {
+  symbol: string;
+  underlying: OptionsChainUnderlying;
+  expirations: string[];
+  expiration: string;
+  contracts: OptionsChainContract[];
+  source: string;
+};
+
+export type CompanyNewsArticle = {
+  symbols: string[];
+  title: string;
+  excerpt?: string | null;
+  url: string;
+  date: string;
+  source?: string | null;
+};
+
+export type CompanyNewsResponse = {
+  articles: CompanyNewsArticle[];
+  source: string;
+};
+
 export type SpyHeatmapDateRange =
   | 'one_day'
   | 'after_hours'

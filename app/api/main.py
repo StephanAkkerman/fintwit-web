@@ -50,6 +50,8 @@ from ..services.ibkr import IbkrGateway
 from ..services.macro_market import get_macro_snapshot
 from ..services.market_hours_service import get_stock_market_hours
 from ..services.nasdaq_service import get_halt_data
+from ..services.news_service import get_company_news
+from ..services.options_chain_service import get_options_chain
 from ..services.options_service import get_options_overview
 from ..services.price_history_service import (
     DEFAULT_RANGE as DEFAULT_HISTORY_RANGE,
@@ -315,6 +317,33 @@ async def options_overview(
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data
+
+
+@app.get("/api/options/chain")
+async def options_chain(
+    symbol: str = Query(...),
+    expiration: str | None = Query(default=None),
+    _=Depends(api_key_dep),
+):
+    data = await get_options_chain(symbol, expiration)
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
+
+
+@app.get("/api/news/company")
+async def news_company(
+    symbols: str = Query(...),
+    limit: int = Query(default=10, ge=1, le=50),
+    _=Depends(api_key_dep),
+):
+    parsed_symbols = [
+        part.strip().upper() for part in symbols.split(",") if part.strip()
+    ]
+    data = await get_company_news(parsed_symbols, limit)
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return {"articles": data, "source": "yfinance"}
 
 
 @app.get("/api/stocks/fear-greed")
