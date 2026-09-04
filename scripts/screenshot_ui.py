@@ -565,6 +565,46 @@ def _empty_market_movers() -> dict:
     return {"session_type": "pre-market", "gainers": [], "losers": [], "stale": False}
 
 
+def _mover_item(
+    symbol: str,
+    name: str,
+    price: float,
+    change_pct: float,
+    volume: int,
+    market_cap: int,
+) -> dict:
+    return {
+        "symbol": symbol,
+        "name": name,
+        "price": price,
+        "change_pct": change_pct,
+        "volume": volume,
+        "market_cap": market_cap,
+    }
+
+
+def _markets_movers() -> dict:
+    return {
+        "market": "usa",
+        "category": "gainers",
+        "movers": [
+            _mover_item(
+                "SMCI", "Super Micro Computer", 46.80, 11.16, 8_200_000, 25_000_000_000
+            ),
+            _mover_item(
+                "PLTR", "Palantir Technologies", 71.20, 4.09, 5_600_000, 150_000_000_000
+            ),
+            _mover_item(
+                "RIVN", "Rivian Automotive", 13.05, 6.10, 4_100_000, 12_000_000_000
+            ),
+        ],
+    }
+
+
+def _empty_markets_movers() -> dict:
+    return {"market": "usa", "category": "gainers", "movers": []}
+
+
 def _extended_hours() -> dict:
     now = datetime.now(timezone.utc)
     return {
@@ -1708,6 +1748,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             # zero-value shape is required to see the real empty state
             # instead of a render crash.
             "/api/stocks/market-movers": _empty_market_movers(),
+            "/api/markets/movers": _empty_markets_movers(),
             "/api/stocks/extended-hours": _empty_extended_hours(),
             "/api/binance/gainers-losers": _empty_binance_gainers_losers(),
             "/api/treemap": _empty_treemap(),
@@ -1904,6 +1945,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         # Stocks route.
         "/api/stocks/fear-greed": _stock_fear_greed(),
         "/api/stocks/market-movers": _market_movers(),
+        "/api/markets/movers": _markets_movers(),
         "/api/stocks/extended-hours": _extended_hours(),
         "/api/stocks/market-hours": _market_hours(),
         "/api/stock-halts": _stock_halts(),

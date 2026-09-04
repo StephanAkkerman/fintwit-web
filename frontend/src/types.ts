@@ -994,3 +994,22 @@ export type MarketMoversSnapshot = {
   losers: MarketMover[]
   stale?: boolean
 }
+
+export type Market = 'usa' | 'uk' | 'india' | 'australia' | 'canada' | 'crypto'
+
+export type MoverCategory = 'gainers' | 'losers' | 'most_active' | 'penny_stocks'
+
+export type MoverItem = {
+  symbol: string
+  name: string
+  price: number
+  change_pct: number
+  volume: number
+  market_cap: number
+}
+
+export type MoversResponse = {
+  market: Market | string
+  category: MoverCategory | string
+  movers: MoverItem[]
+}

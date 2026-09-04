@@ -1,9 +1,10 @@
 # Migration Status
 
-Last updated: 2026-09-04 (options chain + company news)
+Last updated: 2026-09-04 (multi-market TradingView movers explorer)
 
 ## Backend: Implemented
 
+- Multi-market TradingView movers (issue #79): `app/services/market_movers_service.py` gained `get_movers(market, category)` alongside the existing pre/post-market `get_market_movers()`. Queries the regular-session TradingView scanner (`https://scanner.tradingview.com/{market}/scan`) for `market` in `usa`/`uk`/`india`/`australia`/`canada`/`crypto` (`MARKETS`) and `category` in `gainers`/`losers`/`most_active`/`penny_stocks` (`CATEGORIES`), filtered to market cap > $100M (penny stocks are exempt from the cap filter and instead capped at close < $5), sorted by `change` or `volume` depending on category. Cached per `(market, category)` pair for 5 minutes, same `asyncio.Lock` + stale-fallback-on-failure pattern as the existing service. New endpoint: `GET /api/markets/movers?market=usa&category=gainers` (defaults shown), 400 on an unknown market/category, 503 when the scanner is unreachable and there's no warm cache. Forex, bonds, and futures scanners are out of scope for this slice — TradingView's column schema for those asset classes isn't verifiable from this sandbox (outbound access to `scanner.tradingview.com` is blocked here), so shipping them would mean guessing field names with no way to test against the real API.
 - StockTwits community sentiment (Bullish/Bearish split) is now attached to enriched tweet asset financial payloads under `stocktwits_sentiment`, sourced from `api-gw-prd.stocktwits.com/sentiment-api/v2/{symbol}/detail` (curl-first, httpx fallback, short-lived per-symbol cache -- same anti-bot strategy as the existing `/api/stocktwits` rankings). Fetched for every supported kind (stocks and crypto alike), unlike the equity-only Signa signal. The upstream schema is undocumented, so `get_stocktwits_sentiment()` parses defensively across a few plausible field-name/shape variants and returns `None` rather than guessing when nothing recognizable is found.
 - Ticker pricing extracted to the external [`ticker-price-data`](https://github.com/StephanAkkerman/ticker-price-data) package (Yahoo/CoinGecko/TradingView + unified `get_price`). The old `app/services/{yahoo,coingecko,tradingview_quote,tradingview_stream}.py` modules were removed; consumers import from `ticker_price_data`. CoinGecko now uses the website `search_v2` endpoint to avoid public-API rate limits.
 
@@ -132,6 +133,7 @@ Last updated: 2026-09-04 (options chain + company news)
 - Portfolio-aware analytics badges: `SentimentShiftWidget`, `VolumeBaselineWidget`, and `HiddenGemWidget` now accept the same `portfolioLookup` (from `usePortfolioTickers`, already used for tweet-card Held/Recently Held badges) as `OverviewDashboard`/`App.tsx`, and render a compact `PortfolioTickerBadge` (💼/🕓) next to any listed ticker that matches a current or recently-closed portfolio position — so a sentiment swing, volume spike, or hidden gem on something you actually hold stands out from the rest of the list.
 - New `/traders` route (`TraderLeaderboardWidget`, sidebar entry between Signa and Portfolio): a horizon tab (1/7/30 days) over a ranked table of trader hit-rate, graded-call count, and signed average return. Self-contained like `/signa` — excluded from the shared tweet timeline and the cross-route mention-heat/signals panel.
 - Trader credibility badge on tweet cards: every `TweetCard` header now shows a compact `🎯 69%` pill next to the author's `@handle` when they have a graded track record (7d horizon), via `useTraderCredibility` batching all visible authors into one `POST /api/traders/credibility` request per load (mirrors `useMentionFrequency`'s batching pattern) instead of one request per card. Color-coded green/red by hit-rate (shared `utils/traderFormat.ts`, also used by `TraderLeaderboardWidget`); silently absent when a trader has fewer than 3 graded calls, so missing never reads as "0% accurate."
+- New `/movers` route (`MarketMoversExplorer`, sidebar entry between Options and Signa, issue #79): a market dropdown (USA/UK/India/Australia/Canada/Crypto) and a category tab row (Gainers/Losers/Most Active/Penny Stocks) over a ranked table (symbol, name, price, change%, volume, market cap), backed by `useMoversExplorer` polling `GET /api/markets/movers`. Self-contained like `/signa` and `/traders` — no tweet timeline on this route.
 
 ## Connected End-to-End Today
 
@@ -172,6 +174,8 @@ Last updated: 2026-09-04 (options chain + company news)
 - Macro snapshot panel: `/api/forex/macro` -> `ForexMacroWidget` (`/forex`).
 - Trader credibility leaderboard: `/api/traders/leaderboard` -> `useTraderLeaderboard` -> `TraderLeaderboardWidget` (`/traders`).
 - Trader credibility badge: `/api/traders/credibility` -> `useTraderCredibility` -> `TraderCredibilityBadge` in every `TweetCard`.
+- Pre/after-market movers panel: `/api/stocks/market-movers` -> `useMarketMovers` -> `MarketMoversPanel` (`/stocks`).
+- Multi-market movers explorer: `/api/markets/movers` -> `useMoversExplorer` -> `MarketMoversExplorer` (`/movers`, issue #79).
 
 ## Backend APIs Not Yet Connected in Main UI
 
@@ -180,3 +184,4 @@ Last updated: 2026-09-04 (options chain + company news)
 ## Suggested Next Connections
 
 - Continue legacy feature migration from `fintwit-bot` domains not yet ported (forex, options volume/SPACs/short-interest slices).
+- Issue #79 follow-up: forex, bonds, and futures TradingView movers scanners. `market_movers_service.MARKETS` is a small dict keyed by our market name -> (scanner path segment, market-cap column), so adding a market is mechanical once the correct scanner path and column names for that asset class are confirmed against the live API (not possible from this sandbox — outbound access to `scanner.tradingview.com` is blocked here).

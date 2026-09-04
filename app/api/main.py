@@ -67,7 +67,12 @@ from ..services.unusual_whales import get_spy_heatmap, summarize_spy_sectors
 from ..services.extended_hours_service import (
     get_snapshot as get_extended_hours_snapshot,
 )
-from ..services.market_movers_service import get_market_movers
+from ..services.market_movers_service import (
+    CATEGORIES as MOVERS_CATEGORIES,
+    MARKETS as MOVERS_MARKETS,
+    get_market_movers,
+)
+from ..services.market_movers_service import get_movers as get_market_movers_multi
 
 with suppress(Exception):
     from dotenv import load_dotenv
@@ -377,6 +382,22 @@ async def stocks_market_movers(_=Depends(api_key_dep)):
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data
+
+
+@app.get("/api/markets/movers")
+async def markets_movers(
+    market: str = Query("usa"),
+    category: str = Query("gainers"),
+    _=Depends(api_key_dep),
+):
+    if market not in MOVERS_MARKETS:
+        raise HTTPException(status_code=400, detail="Invalid market")
+    if category not in MOVERS_CATEGORIES:
+        raise HTTPException(status_code=400, detail="Invalid category")
+    movers = await get_market_movers_multi(market, category)
+    if movers is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return {"market": market, "category": category, "movers": movers}
 
 
 _SPY_HEATMAP_DATE_RANGES = [
