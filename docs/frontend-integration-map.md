@@ -1,6 +1,6 @@
 # Frontend Integration Map
 
-Last updated: 2026-09-03
+Last updated: 2026-09-04
 
 ## Mounted in `App.tsx` Today
 
@@ -67,6 +67,11 @@ Route-level sections:
   - Add/list/toggle/delete IBKR-style stock positions
   - Summary cards backed by live valuation/PnL
 
+- `/traders`
+  - `TraderLeaderboardWidget`
+  - Purpose: trader credibility leaderboard (issue #72, narrowed scope). A horizon tab (1/7/30 days) over a table ranked by hit-rate, with graded-call count and signed average return. Self-contained like `/signa` — not wired into the shared tweet timeline, ticker/user filters, or the cross-route `MentionHeatmap`/`RouteSignalsPanel` block.
+  - Fetches: `/api/traders/leaderboard` via `useTraderLeaderboard`.
+
 - `/admin`
   - `DebugAdminPanel`
   - Purpose: inject synthetic tweets through `/api/debug/tweet` for ingestion/UX verification.
@@ -85,6 +90,7 @@ Route-level sections:
   - Purpose: live timeline with native-style quote headers (quoted avatar + author + timestamp), repost attribution headers (original author identity + reposter line), subscriber-only post icons (main/repost/quoted when flagged), quote embeds, preserved body whitespace/line breaks, media, in-page image lightbox previews, compact financial cards (ticker + full name + type + linked price + last close + daily % change + optional TradingView TA rows + optional Signa signal row + optional StockTwits sentiment row, all color-coded by direction/dominant side), chart badge signals, a chart-extracted symbol/timeframe/price badge for tickerless chart tweets (issue #49), separate main/quoted sentiment badges, options-intent metadata support (`is_options_tweet`, `options_context`), portfolio-status badges (💼 Held / 🕓 Recently Held) on financial cards whose ticker matches a portfolio position, and engagement updates.
   - Quote integration: consumes `quoted_tweet` payload from backend for quote author metadata and quote media placement (falls back to markdown inference when absent).
   - Portfolio badge integration: `App.tsx` calls `usePortfolioTickers` (fetches `/api/portfolio/positions`, polls every 5m) and passes the resulting `portfolioLookup` into every `TweetCard`. A ticker is "Held" if any position for that symbol has `is_active: true`, or "Recently Held" if its most recent closed position's `updated_at` is within the last 30 days; otherwise no badge is shown.
+  - Trader credibility badge integration: `App.tsx` calls `useTraderCredibility(displayedTweets)` (batches every visible author into one `POST /api/traders/credibility` per load/scroll, 5-minute cache — mirrors `useMentionFrequency`'s batching) and passes the resulting `traderLookup` into every `TweetCard`, which renders a `TraderCredibilityBadge` (`🎯 69%`, green/red by hit-rate) next to the author's `@handle`. Renders nothing for authors without a graded track record yet.
 
 - Sidebar filters
   - Category scope is controlled by route/section selection.

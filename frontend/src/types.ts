@@ -224,6 +224,55 @@ export type SignaLiveSignal = {
   website?: string | null;
 };
 
+// Trader credibility scoring: a "call" is a non-neutral-sentiment tweet
+// mentioning a ticker, graded against the ticker's price at fixed horizons
+// after the call (1/7/30 days) since a tweet's holding-period intent isn't
+// known.
+export type TraderCallHorizon = 1 | 7 | 30;
+
+export type TraderLeaderboardEntry = {
+  user_screen_name: string;
+  horizon_days: TraderCallHorizon;
+  graded_calls: number;
+  correct_calls: number;
+  hit_rate: number; // 0–1
+  avg_return_pct: number | null;
+};
+
+export type TraderCallResult = {
+  horizon_days: TraderCallHorizon;
+  price_at_horizon: number;
+  return_pct: number;
+  correct: boolean;
+  evaluated_at: string;
+};
+
+export type TraderCall = {
+  id: number;
+  tweet_id: number;
+  ticker: string;
+  direction: 'bullish' | 'bearish';
+  sentiment_score: number | null;
+  asset_kind: string | null;
+  price_at_call: number;
+  called_at: string;
+  results: TraderCallResult[];
+};
+
+export type TraderHorizonStat = {
+  horizon_days: TraderCallHorizon;
+  graded_calls: number;
+  correct_calls: number;
+  hit_rate: number | null;
+  avg_return_pct: number | null;
+};
+
+export type TraderDetail = {
+  user_screen_name: string;
+  horizons: TraderHorizonStat[];
+  recent_calls: TraderCall[];
+};
+
 export type TreemapCoin = {
   n: string; // name
   s: string; // symbol

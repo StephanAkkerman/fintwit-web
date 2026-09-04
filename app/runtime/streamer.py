@@ -6,10 +6,11 @@ from pathlib import Path
 
 import xclient
 
-from ..infra.repos import TweetRepo
+from ..infra.repos import TraderCallRepo, TweetRepo
 from ..ml.chart import is_chart
 from ..ml.chart_extractor import extract_chart_data
 from ..ml.sentiment import FinTwitSentiment
+from ..services.trader_scoring import extract_calls
 from .broadcast import Broadcaster
 from .enricher import AssetEnricher
 from .options_intent import classify_options_intent
@@ -54,6 +55,7 @@ async def run_stream(
     repo: TweetRepo,
     bc: Broadcaster,
     sentiment_model: FinTwitSentiment | None = None,
+    trader_call_repo: TraderCallRepo | None = None,
 ) -> None:
     apply_xclient_retweet_patch()
     backoff = 1.0
@@ -185,6 +187,11 @@ async def run_stream(
                     await repo.upsert_many([t_dict])
                     # 2) broadcast after successful commit
                     await bc.publish(t_dict)
+                    # 3) record any directional calls for credibility scoring
+                    if trader_call_repo is not None:
+                        calls = extract_calls(t_dict)
+                        if calls:
+                            await trader_call_repo.insert_calls(calls)
 
             backoff = 1.0
         except Exception as e:

@@ -10,6 +10,8 @@ from .db import (
     IbkrTradeRow,
     PortfolioPositionRow,
     PortfolioSnapshotRow,
+    TraderCallResultRow,
+    TraderCallRow,
     TweetRow,
 )
 
@@ -61,6 +63,33 @@ def _row_to_dict(r: TweetRow) -> dict:
         "is_options_tweet": r.is_options_tweet,
         "options_context": r.options_context,
         "assets": r.assets,
+    }
+
+
+def _call_row_to_dict(r: TraderCallRow) -> dict:
+    return {
+        "id": r.id,
+        "tweet_id": r.tweet_id,
+        "ticker": r.ticker,
+        "user_screen_name": r.user_screen_name,
+        "direction": r.direction,
+        "sentiment_score": r.sentiment_score,
+        "asset_kind": r.asset_kind,
+        "price_at_call": r.price_at_call,
+        "called_at": _iso_utc(r.called_at),
+        "created_at": _iso_utc(r.created_at),
+    }
+
+
+def _result_row_to_dict(r: TraderCallResultRow) -> dict:
+    return {
+        "id": r.id,
+        "call_id": r.call_id,
+        "horizon_days": r.horizon_days,
+        "price_at_horizon": r.price_at_horizon,
+        "return_pct": r.return_pct,
+        "correct": bool(r.correct),
+        "evaluated_at": _iso_utc(r.evaluated_at),
     }
 
 
@@ -418,3 +447,66 @@ class IbkrRepo:
         async with self.Session() as s:
             rows = (await s.execute(stmt)).scalars().all()
         return [_ibkr_trade_to_dict(r) for r in rows]
+
+
+class TraderCallRepo:
+    """Async repo for trader credibility calls and their horizon results."""
+
+    def __init__(self, session_factory: async_sessionmaker):
+        self.Session = session_factory
+
+    async def insert_calls(self, calls: Iterable[dict]) -> int:
+        """Insert calls, skipping any (tweet_id, ticker) already recorded.
+
+        :param calls: Dicts matching TraderCallRow fields (``created_at`` is
+            stamped here, not by the caller).
+        :return: Number of calls attempted (not all necessarily new).
+        """
+        call_list = list(calls)
+        if not call_list:
+            return 0
+
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        payload = [{**c, "created_at": now} for c in call_list]
+
+        async with self.Session() as s:
+            async with s.begin():
+                stmt = (
+                    sqlite_insert(TraderCallRow)
+                    .values(payload)
+                    .on_conflict_do_nothing(index_elements=["tweet_id", "ticker"])
+                )
+                await s.execute(stmt)
+        return len(call_list)
+
+    async def insert_results(self, results: Iterable[dict]) -> int:
+        """Insert horizon results, skipping any (call_id, horizon_days) already graded.
+
+        :param results: Dicts matching TraderCallResultRow fields.
+        :return: Number of results attempted (not all necessarily new).
+        """
+        result_list = list(results)
+        if not result_list:
+            return 0
+
+        async with self.Session() as s:
+            async with s.begin():
+                stmt = (
+                    sqlite_insert(TraderCallResultRow)
+                    .values(result_list)
+                    .on_conflict_do_nothing(index_elements=["call_id", "horizon_days"])
+                )
+                await s.execute(stmt)
+        return len(result_list)
+
+    async def by_id(self, call_id: int) -> dict | None:
+        stmt = select(TraderCallRow).where(TraderCallRow.id == call_id).limit(1)
+        async with self.Session() as s:
+            row = (await s.execute(stmt)).scalars().first()
+        return _call_row_to_dict(row) if row else None
+
+    async def results_for_call(self, call_id: int) -> list[dict]:
+        stmt = select(TraderCallResultRow).where(TraderCallResultRow.call_id == call_id)
+        async with self.Session() as s:
+            rows = (await s.execute(stmt)).scalars().all()
+        return [_result_row_to_dict(r) for r in rows]

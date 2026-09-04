@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from ticker_price_data import close_shared_pool, get_stock_info
 
 from ..infra.db import create_engine, init_db
-from ..infra.repos import IbkrRepo, PortfolioRepo, TweetRepo
+from ..infra.repos import IbkrRepo, PortfolioRepo, TraderCallRepo, TweetRepo
 from ..ml.sentiment import FinTwitSentiment
 from ..runtime.broadcast import Broadcaster
 from ..runtime.enricher import AssetEnricher
@@ -36,6 +36,10 @@ from ..runtime.portfolio_valuation import (
 )
 from ..runtime.streamer import run_stream
 from ..runtime.symbols import merge_symbols
+from ..runtime.trader_evaluator import (
+    DEFAULT_INTERVAL as TRADER_EVAL_INTERVAL,
+    run_trader_call_evaluation,
+)
 from ..services.binance_service import get_gainers_losers
 from ..services.cmc import get_trending_crypto
 from ..services.coin360_service import get_treemap_data
@@ -56,6 +60,7 @@ from ..services.reddit_service import get_reddit_hot_posts, is_valid_subreddit_n
 from ..services.signa import get_signa_best_trades, get_signa_live_feed
 from ..services.stock_fear_greed_service import get_stock_feargreed
 from ..services.stocktwits_service import get_stocktwits_data
+from ..services.trader_scoring import extract_calls
 from ..services.unusual_whales import get_spy_heatmap, summarize_spy_sectors
 from ..services.extended_hours_service import (
     get_snapshot as get_extended_hours_snapshot,
@@ -75,6 +80,7 @@ Session = async_sessionmaker(ENGINE, expire_on_commit=False)
 REPO = TweetRepo(Session)
 PORTFOLIO_REPO = PortfolioRepo(Session)
 IBKR_REPO = IbkrRepo(Session)
+TRADER_CALL_REPO = TraderCallRepo(Session)
 BROADCAST = Broadcaster()
 logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.INFO)
@@ -107,7 +113,9 @@ async def lifespan(app: FastAPI):
     app.state.sentiment_model = sentiment_model
 
     # start background stream: persist THEN broadcast
-    task = asyncio.create_task(run_stream(REPO, BROADCAST, sentiment_model))
+    task = asyncio.create_task(
+        run_stream(REPO, BROADCAST, sentiment_model, TRADER_CALL_REPO)
+    )
 
     # start IBKR sync worker if enabled
     ibkr_task: asyncio.Task | None = None
@@ -133,6 +141,17 @@ async def lifespan(app: FastAPI):
     )
     logger.info("[portfolio] snapshot worker started (interval=%ds)", snapshot_interval)
 
+    trader_eval_interval = int(os.getenv("TRADER_EVAL_INTERVAL", TRADER_EVAL_INTERVAL))
+    trader_eval_task = asyncio.create_task(
+        run_trader_call_evaluation(
+            Session, TRADER_CALL_REPO, interval=trader_eval_interval
+        )
+    )
+    logger.info(
+        "[trader-eval] call evaluation worker started (interval=%ds)",
+        trader_eval_interval,
+    )
+
     try:
         logger.info(
             "[startup] application ready in %.2fs",
@@ -147,6 +166,9 @@ async def lifespan(app: FastAPI):
         snapshot_task.cancel()
         with suppress(asyncio.CancelledError):
             await snapshot_task
+        trader_eval_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await trader_eval_task
         if ibkr_task is not None:
             ibkr_task.cancel()
             with suppress(asyncio.CancelledError):
@@ -160,8 +182,10 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="X Stream API", lifespan=lifespan)
 
 from .overview import router as overview_router  # noqa: E402
+from .traders import router as traders_router  # noqa: E402
 
 app.include_router(overview_router)
+app.include_router(traders_router)
 
 
 @app.get("/api/posts")
@@ -490,6 +514,9 @@ async def debug_tweet(body: DebugTweet, request: Request):
     }
     await REPO.upsert_many([tweet])
     await BROADCAST.publish(tweet)
+    calls = extract_calls(tweet)
+    if calls:
+        await TRADER_CALL_REPO.insert_calls(calls)
     return tweet
 
 
