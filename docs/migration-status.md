@@ -1,6 +1,6 @@
 # Migration Status
 
-Last updated: 2026-09-04
+Last updated: 2026-09-04 (options chain + company news)
 
 ## Backend: Implemented
 
@@ -34,6 +34,8 @@ Last updated: 2026-09-04
 - Signa `/signa` route is now a two-layer tabbed section: "Best Trades" (daily consensus, `/api/signa/best-trades` → `app.getsigna.ai/api/signals/run`) and "Live Feed" (raw per-model live signals, `/api/signa/live-feed` → `app.getsigna.ai/api/signals/feed`). The live feed is filtered to directional calls only (BUY/SELL/SHORT), ranked with the same comparator as Best Trades (score → confidence → tier), and auto-refreshes every 5 minutes via `useSignaLiveFeed`.
 - Additional market-microstructure endpoints now available: Binance gainers/losers (`/api/binance/gainers-losers`) and Nasdaq stock halts (`/api/stock-halts`).
 - Options migration slice: market options overview endpoint (`/api/options/overview`) now available, powered by Nasdaq most-active option-chain data for major US underlyings.
+- Options migration slice: per-symbol options chain endpoint (`GET /api/options/chain`, `app/services/options_chain_service.py`) now available, powered by `yfinance` (the same free, no-API-key Yahoo Finance data `openbb-yfinance` wraps — used directly via `Ticker.option_chain`/`Ticker.options` to avoid `openbb-core`'s hard version conflicts with this project's `fastapi`/`requests` pins). Returns the full chain for one expiration (defaults to nearest) plus the underlying snapshot and the list of available expirations; blocking `yfinance` calls run through `asyncio.to_thread` so the event loop is never blocked, and results are cached 180s per `(symbol, expiration)`.
+- Company news migration slice: new endpoint `GET /api/news/company` (`app/services/news_service.py`), also `yfinance`-backed (`Ticker.get_news`), returns recent per-symbol news headlines with title/excerpt/url/date/source, fetched concurrently across symbols. This is a net-new capability — no equivalent existed in fintwit-bot or the earlier web app.
 - Stream/runtime options-intent classification now tags tweets with `is_options_tweet` and structured `options_context` (contracts/side/score) for options-focused filtering and UI routing.
 - Options tweet delivery now supports backend feed filtering (`options_only=true`) on both `/api/posts` and `/api/stream` for route-level isolation.
 - Stock migration slice: market session endpoint (`/api/stocks/market-hours`) now available with pre-market/after-hours state mapping for major exchanges.
@@ -114,6 +116,8 @@ Last updated: 2026-09-04
 - Stocks route now includes a Nasdaq trading halts widget.
 - Stocks route now includes a stock market Fear & Greed index card.
 - Options route now includes a market activity widget for calls, puts, put/call ratio, and most-active contracts.
+- Options route now also includes a per-symbol options chain widget (`OptionsChainWidget`): a symbol input plus an expiration picker, rendering the full call/put chain (strike, bid/ask, last, IV, volume, OI) with in-the-money rows shaded.
+- Stocks route now includes a company news widget (`CompanyNewsWidget`): a symbol input showing recent headlines with source, timestamp, and excerpt. It also syncs to the app-wide clicked-ticker state (`tickerFilter`) — clicking any ticker elsewhere (tweet card, mention heatmap, etc.) auto-loads that symbol's news, while typing a different symbol still overrides it.
 - Options route timeline now filters to tweets classified as options-intent (`is_options_tweet=true`) instead of generic stock-linked tweets.
 - Options route now consumes options-only REST/SSE feeds so only options-classified tweets are fetched and rendered there.
 - Forex route now includes an economic events widget backed by Investing high-impact calendar data.
@@ -143,6 +147,8 @@ Last updated: 2026-09-04
 - Nasdaq stock halts widget: `/api/stock-halts` -> `StockHaltsWidget`.
 - Earnings calendar widget: `/api/earnings/calendar` -> `useEarningsCalendar` -> `EarningsCalendarWidget` (`/stocks`).
 - Options overview widget: `/api/options/overview` -> `OptionsOverviewWidget`.
+- Options chain widget: `/api/options/chain` -> `useOptionsChain` -> `OptionsChainWidget` (`/options`).
+- Company news widget: `/api/news/company` -> `useCompanyNews` -> `CompanyNewsWidget` (`/stocks`).
 - Options tweet intent metadata: `/api/posts` + `/api/stream` -> options route timeline filtering (`is_options_tweet`, `options_context`).
 - Market overview stream assets: `/api/posts` + `/api/stream` -> `MarketOverview`.
 - TradingView TA summaries: `/api/posts` + `/api/stream` -> `tweet.assets[*].financials.technical_analysis` -> `TweetCard` / `AssetBadge`.

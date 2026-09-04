@@ -1276,6 +1276,108 @@ def _options_overview() -> dict:
     }
 
 
+def _options_chain() -> dict:
+    return {
+        "symbol": "AAPL",
+        "underlying": {
+            "name": "Apple Inc.",
+            "last_price": 227.5,
+            "change": 1.85,
+            "change_percent": 0.82,
+            "market_cap": 3_450_000_000_000,
+            "year_high": 260.1,
+            "year_low": 164.1,
+            "volume": 48_000_000,
+        },
+        "expirations": ["2026-09-19", "2026-09-26", "2026-10-17"],
+        "expiration": "2026-09-19",
+        "contracts": [
+            {
+                "option_type": "CALL",
+                "strike": 225.0,
+                "bid": 6.10,
+                "ask": 6.25,
+                "last_price": 6.15,
+                "volume": 4_200,
+                "open_interest": 15_800,
+                "implied_volatility": 0.28,
+                "change_percent": 5.4,
+                "in_the_money": True,
+            },
+            {
+                "option_type": "PUT",
+                "strike": 225.0,
+                "bid": 3.40,
+                "ask": 3.55,
+                "last_price": 3.45,
+                "volume": 2_600,
+                "open_interest": 9_100,
+                "implied_volatility": 0.31,
+                "change_percent": -3.1,
+                "in_the_money": False,
+            },
+            {
+                "option_type": "CALL",
+                "strike": 230.0,
+                "bid": 3.20,
+                "ask": 3.35,
+                "last_price": 3.25,
+                "volume": 3_100,
+                "open_interest": 11_200,
+                "implied_volatility": 0.27,
+                "change_percent": 4.1,
+                "in_the_money": False,
+            },
+        ],
+        "source": "yfinance",
+    }
+
+
+def _empty_options_chain() -> dict:
+    return {
+        "symbol": "AAPL",
+        "underlying": {},
+        "expirations": [],
+        "expiration": "",
+        "contracts": [],
+        "source": "yfinance",
+    }
+
+
+def _company_news() -> dict:
+    return {
+        "articles": [
+            {
+                "symbols": ["AAPL"],
+                "title": "Apple unveils new product lineup ahead of holiday season",
+                "excerpt": (
+                    "The company announced updates across its product line "
+                    "during a keynote event."
+                ),
+                "url": "https://example.com/news/aapl-lineup",
+                "date": "2026-09-03T14:30:00Z",
+                "source": "Reuters",
+            },
+            {
+                "symbols": ["AAPL"],
+                "title": "Analysts raise price targets after strong quarterly guidance",
+                "excerpt": (
+                    "Several Wall Street analysts increased their price targets "
+                    "following the earnings call."
+                ),
+                "url": "https://example.com/news/aapl-targets",
+                "date": "2026-09-02T09:15:00Z",
+                "source": "Bloomberg",
+            },
+        ],
+        "source": "yfinance",
+    }
+
+
+def _empty_company_news() -> dict:
+    return {"articles": [], "source": "yfinance"}
+
+
 def _signa_best_trades() -> list[dict]:
     return [
         {
@@ -1612,6 +1714,8 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             "/api/forex/macro": _empty_forex_macro(),
             "/api/spy-heatmap?": {"data": []},
             "/api/earnings/calendar": _empty_earnings_calendar(),
+            "/api/options/chain": _empty_options_chain(),
+            "/api/news/company": _empty_company_news(),
         }
 
     insights = _portfolio_insights()
@@ -1823,6 +1927,9 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         "/api/events/economic": _economic_events(),
         # Options route.
         "/api/options/overview": _options_overview(),
+        "/api/options/chain": _options_chain(),
+        # Company news (stocks route).
+        "/api/news/company": _company_news(),
         # Signa route.
         "/api/signa/best-trades": _signa_best_trades(),
         "/api/signa/live-feed": _signa_live_feed(),
