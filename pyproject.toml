@@ -23,7 +23,7 @@ requires-python = ">=3.11"
 test = [
     "aiohttp",
     "aiosqlite<=0.17.0",
-    "asyncpraw==7.8.1",
+    "asyncpraw==8.0.3",
     "exchange_calendars",
     "fastapi==0.141.1",
     "httpx==0.28.1",
