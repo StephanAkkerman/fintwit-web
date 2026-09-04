@@ -1,25 +1,13 @@
 import { useState } from 'react'
 import { useTraderLeaderboard } from '../hooks/useTraderLeaderboard'
 import type { TraderCallHorizon } from '../types'
+import { formatReturnPct, hitRateClass, returnClass } from '../utils/traderFormat'
 
 const HORIZONS: { value: TraderCallHorizon; label: string }[] = [
   { value: 1, label: '1 day' },
   { value: 7, label: '7 days' },
   { value: 30, label: '30 days' },
 ]
-
-function hitRateClass(hitRate: number): string {
-  if (hitRate >= 0.6) return 'text-emerald-600 dark:text-emerald-400'
-  if (hitRate <= 0.4) return 'text-rose-600 dark:text-rose-400'
-  return 'text-zinc-600 dark:text-zinc-300'
-}
-
-function returnClass(value: number | null): string {
-  if (value == null) return 'text-zinc-400 dark:text-zinc-500'
-  if (value > 0) return 'text-emerald-600 dark:text-emerald-400'
-  if (value < 0) return 'text-rose-600 dark:text-rose-400'
-  return 'text-zinc-500 dark:text-zinc-400'
-}
 
 export default function TraderLeaderboardWidget() {
   const [horizon, setHorizon] = useState<TraderCallHorizon>(7)
@@ -102,9 +90,7 @@ export default function TraderLeaderboardWidget() {
                     {row.graded_calls}
                   </td>
                   <td className={`px-3 py-2 text-right font-semibold tabular-nums ${returnClass(row.avg_return_pct)}`}>
-                    {row.avg_return_pct == null
-                      ? '—'
-                      : `${row.avg_return_pct > 0 ? '+' : ''}${row.avg_return_pct.toFixed(1)}%`}
+                    {formatReturnPct(row.avg_return_pct)}
                   </td>
                 </tr>
               ))}

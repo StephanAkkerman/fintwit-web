@@ -127,6 +127,7 @@ Last updated: 2026-09-04
 - Stock migration slice: earnings calendar endpoint (`GET /api/earnings/calendar`, `app/services/earnings_service.py`), ported from fintwit-bot's `src/api/nasdaq.py:get_earnings_for_date` (used by the weekly `earnings_overview.py` Discord loop and the `/earnings` slash command). Fetches `api.nasdaq.com/api/calendar/earnings?date=...` for each of the next `days` days (1-14, default 7) concurrently, and returns `{start_date, end_date, days: [{date, count, rows}], source}` — each row carries `symbol`, `name`, `date`, `session`/`session_emoji` (`pre-market`🌅/`after-hours`🌙/`unknown`), `market_cap`, `eps_forecast`, `num_estimates`, `fiscal_quarter_ending`, `last_year_eps`, `last_year_report_date`, and a Nasdaq `website` link. Rows arrive already ranked by market cap descending; `limit_per_day` (1-50, default 10) trims the per-day list while `count` keeps the true daily total. 15-minute server-side cache keyed by `(today, days, limit_per_day)`. A day with no `data`/`rows` key (e.g. a weekend) is a successful empty day, not a failure — the endpoint only 503s when every day in the window fails to fetch.
 - Portfolio-aware analytics badges: `SentimentShiftWidget`, `VolumeBaselineWidget`, and `HiddenGemWidget` now accept the same `portfolioLookup` (from `usePortfolioTickers`, already used for tweet-card Held/Recently Held badges) as `OverviewDashboard`/`App.tsx`, and render a compact `PortfolioTickerBadge` (💼/🕓) next to any listed ticker that matches a current or recently-closed portfolio position — so a sentiment swing, volume spike, or hidden gem on something you actually hold stands out from the rest of the list.
 - New `/traders` route (`TraderLeaderboardWidget`, sidebar entry between Signa and Portfolio): a horizon tab (1/7/30 days) over a ranked table of trader hit-rate, graded-call count, and signed average return. Self-contained like `/signa` — excluded from the shared tweet timeline and the cross-route mention-heat/signals panel.
+- Trader credibility badge on tweet cards: every `TweetCard` header now shows a compact `🎯 69%` pill next to the author's `@handle` when they have a graded track record (7d horizon), via `useTraderCredibility` batching all visible authors into one `POST /api/traders/credibility` request per load (mirrors `useMentionFrequency`'s batching pattern) instead of one request per card. Color-coded green/red by hit-rate (shared `utils/traderFormat.ts`, also used by `TraderLeaderboardWidget`); silently absent when a trader has fewer than 3 graded calls, so missing never reads as "0% accurate."
 
 ## Connected End-to-End Today
 
@@ -164,6 +165,7 @@ Last updated: 2026-09-04
 - Economic events panel: `/api/events/economic` -> `EconomicEventsWidget` (`/forex`).
 - Macro snapshot panel: `/api/forex/macro` -> `ForexMacroWidget` (`/forex`).
 - Trader credibility leaderboard: `/api/traders/leaderboard` -> `useTraderLeaderboard` -> `TraderLeaderboardWidget` (`/traders`).
+- Trader credibility badge: `/api/traders/credibility` -> `useTraderCredibility` -> `TraderCredibilityBadge` in every `TweetCard`.
 
 ## Backend APIs Not Yet Connected in Main UI
 

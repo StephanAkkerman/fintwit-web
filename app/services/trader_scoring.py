@@ -218,6 +218,72 @@ async def get_leaderboard(
     ]
 
 
+#: Minimum graded calls at a horizon before the batched lookup (used for the
+#: per-tweet inline badge) reports a trader at all — same rationale as
+#: `get_leaderboard`'s `min_calls`, just a lower bar since this isn't a
+#: competitive ranking, only a quick "is there any track record here" hint.
+MIN_CALLS_FOR_BADGE = 3
+
+
+async def get_credibility_batch(
+    Session: async_sessionmaker,
+    screen_names: list[str],
+    horizon_days: int = 7,
+) -> dict[str, dict]:
+    """Hit-rate summaries for many traders at once, keyed by lowercased handle.
+
+    Built for the tweet-card credibility badge: one batched lookup per visible
+    page of authors instead of one request per card. Traders with fewer than
+    :data:`MIN_CALLS_FOR_BADGE` graded calls at this horizon are omitted
+    entirely rather than returned with a misleadingly certain 0%/100%.
+
+    :param screen_names: Author handles to look up (case-insensitive).
+    :param horizon_days: One of :data:`HORIZONS`.
+    :return: ``{lowercased_screen_name: {graded_calls, correct_calls,
+        hit_rate, avg_return_pct}}`` — missing keys mean no qualifying
+        track record yet.
+    """
+    names = sorted({n.strip().lower() for n in screen_names if n and n.strip()})
+    if not names:
+        return {}
+
+    sql = text("""
+        SELECT
+            LOWER(c.user_screen_name) AS user_screen_name,
+            CAST(COUNT(*) AS INTEGER) AS graded_calls,
+            CAST(SUM(CASE WHEN r.correct THEN 1 ELSE 0 END) AS INTEGER) AS correct_calls,
+            AVG(CASE WHEN c.direction = 'bullish' THEN r.return_pct ELSE -r.return_pct END)
+                AS avg_return_pct
+        FROM trader_call_results r
+        JOIN trader_calls c ON c.id = r.call_id
+        WHERE r.horizon_days = :horizon AND LOWER(c.user_screen_name) IN :names
+        GROUP BY LOWER(c.user_screen_name)
+        HAVING COUNT(*) >= :min_calls
+    """).bindparams(bindparam("names", expanding=True))
+
+    async with Session() as s:
+        result = await s.execute(
+            sql,
+            {
+                "horizon": horizon_days,
+                "names": names,
+                "min_calls": MIN_CALLS_FOR_BADGE,
+            },
+        )
+        rows = result.mappings().all()
+
+    return {
+        r["user_screen_name"]: {
+            "horizon_days": horizon_days,
+            "graded_calls": r["graded_calls"],
+            "correct_calls": r["correct_calls"],
+            "hit_rate": r["correct_calls"] / r["graded_calls"],
+            "avg_return_pct": r["avg_return_pct"],
+        }
+        for r in rows
+    }
+
+
 async def get_trader_detail(
     Session: async_sessionmaker,
     user_screen_name: str,

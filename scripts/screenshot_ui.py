@@ -1366,6 +1366,28 @@ def _signa_live_feed() -> list[dict]:
     ]
 
 
+def _trader_credibility() -> dict:
+    """Keyed by lowercased screen name, matching `_sample_tweets()` authors
+    (`chart_trader`, `crypto_watcher`) so the tweet-card badge has something
+    to render in a `loaded` capture."""
+    return {
+        "chart_trader": {
+            "horizon_days": 7,
+            "graded_calls": 24,
+            "correct_calls": 17,
+            "hit_rate": 0.71,
+            "avg_return_pct": 3.9,
+        },
+        "crypto_watcher": {
+            "horizon_days": 7,
+            "graded_calls": 9,
+            "correct_calls": 3,
+            "hit_rate": 0.33,
+            "avg_return_pct": -2.4,
+        },
+    }
+
+
 def _trader_leaderboard() -> list[dict]:
     return [
         {
@@ -1804,8 +1826,9 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         # Signa route.
         "/api/signa/best-trades": _signa_best_trades(),
         "/api/signa/live-feed": _signa_live_feed(),
-        # Traders route.
+        # Traders route + tweet-card credibility badge.
         "/api/traders/leaderboard": _trader_leaderboard(),
+        "/api/traders/credibility": _trader_credibility(),
         # Reddit (WSB) widget.
         "/api/reddit/wsb": _reddit_wsb(),
         # Timeline: without this every route's tweet feed (and the ticker /

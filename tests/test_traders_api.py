@@ -40,6 +40,29 @@ def test_trader_detail_returns_shape_for_unknown_user(client):
     assert body["recent_calls"] == []
 
 
+def test_credibility_batch_returns_empty_dict_for_unknown_authors(client):
+    resp = client.post(
+        "/api/traders/credibility",
+        json={"screen_names": ["nobody-has-this-handle"], "horizon_days": 7},
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {}
+
+
+def test_credibility_batch_rejects_unsupported_horizon(client):
+    resp = client.post(
+        "/api/traders/credibility",
+        json={"screen_names": ["someone"], "horizon_days": 3},
+    )
+    assert resp.status_code == 422
+
+
+def test_credibility_batch_defaults_to_empty_names(client):
+    resp = client.post("/api/traders/credibility", json={})
+    assert resp.status_code == 200
+    assert resp.json() == {}
+
+
 class _FakeSentimentModel:
     def __init__(self, label: str, score: float):
         self._label = label

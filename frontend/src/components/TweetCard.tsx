@@ -5,11 +5,13 @@ import type { Tweet } from '../types'
 import { hasChartSignal } from '../utils/tweetSignals'
 import type { MentionLookup } from '../hooks/useMentionFrequency'
 import type { PortfolioTickerLookup, PortfolioTickerStatus } from '../hooks/usePortfolioTickers'
+import type { TraderCredibilityLookup } from '../hooks/useTraderCredibility'
 import AssetFundamentals from './AssetFundamentals'
 import AssetMentions from './AssetMentions'
 import SignaSignal from './SignaSignal'
 import StocktwitsSentiment from './StocktwitsSentiment'
 import TradingViewAnalysis from './TradingViewAnalysis'
+import { TraderCredibilityBadge } from './TraderCredibilityBadge'
 
 function fmt(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
@@ -306,12 +308,14 @@ export default function TweetCard({
   onUserSelect,
   mentionLookup,
   portfolioLookup,
+  traderLookup,
 }: {
   t: Tweet
   onTickerSelect?: (ticker: string) => void
   onUserSelect?: (user: string) => void
   mentionLookup?: MentionLookup
   portfolioLookup?: PortfolioTickerLookup
+  traderLookup?: TraderCredibilityLookup
 }) {
   const [lightboxImage, setLightboxImage] = useState<{ url: string; alt: string } | null>(null)
 
@@ -449,18 +453,23 @@ export default function TweetCard({
             )}
             {isSubscriberOnly && <SubscriberOnlyBadge ariaLabel="Subscribers-only post" />}
           </div>
-          {onUserSelect ? (
-            <button
-              type="button"
-              onClick={() => onUserSelect(headerUserFilterValue)}
-              aria-label={`Filter by user @${headerTweet.user_screen_name}`}
-              className="text-sm text-zinc-500 hover:underline"
-            >
-              @{headerTweet.user_screen_name}
-            </button>
-          ) : (
-            <div className="text-sm text-zinc-500">@{headerTweet.user_screen_name}</div>
-          )}
+          <div className="flex min-w-0 items-center gap-1.5">
+            {onUserSelect ? (
+              <button
+                type="button"
+                onClick={() => onUserSelect(headerUserFilterValue)}
+                aria-label={`Filter by user @${headerTweet.user_screen_name}`}
+                className="text-sm text-zinc-500 hover:underline"
+              >
+                @{headerTweet.user_screen_name}
+              </button>
+            ) : (
+              <div className="text-sm text-zinc-500">@{headerTweet.user_screen_name}</div>
+            )}
+            {traderLookup && headerTweet.user_screen_name && (
+              <TraderCredibilityBadge stat={traderLookup(headerTweet.user_screen_name)} />
+            )}
+          </div>
           {isRepost && (
             <div className="text-xs text-zinc-500">Reposted by {t.user_name}</div>
           )}

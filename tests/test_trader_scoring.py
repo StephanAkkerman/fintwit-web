@@ -5,8 +5,10 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.infra.db import Base, TraderCallResultRow, TraderCallRow
 from app.services.trader_scoring import (
+    MIN_CALLS_FOR_BADGE,
     extract_calls,
     find_due_calls,
+    get_credibility_batch,
     get_leaderboard,
     get_trader_detail,
     grade_call,
@@ -240,3 +242,45 @@ async def test_trader_detail_is_case_insensitive_on_screen_name(Session):
     await _insert(Session, [_call(1, user="EveTrader")])
     detail = await get_trader_detail(Session, "evetrader")
     assert len(detail["recent_calls"]) == 1
+
+
+# ─── get_credibility_batch ────────────────────────────────────────────────────
+
+
+async def test_credibility_batch_omits_traders_below_min_calls(Session):
+    assert MIN_CALLS_FOR_BADGE == 3  # documents the threshold this test relies on
+
+    await _insert(Session, [_call(i, user="frank") for i in range(1, 3)])  # 2 calls
+    await _insert(
+        Session,
+        [_result(i, 7, return_pct=5.0, correct=True) for i in range(1, 3)],
+    )
+
+    batch = await get_credibility_batch(Session, ["frank"], horizon_days=7)
+    assert batch == {}
+
+
+async def test_credibility_batch_returns_matching_traders_keyed_lowercase(Session):
+    await _insert(Session, [_call(i, user="GraceTrader") for i in range(1, 4)])
+    await _insert(
+        Session,
+        [_result(i, 7, return_pct=5.0, correct=True) for i in range(1, 4)],
+    )
+
+    batch = await get_credibility_batch(
+        Session, ["GraceTrader", "nobody"], horizon_days=7
+    )
+
+    assert set(batch.keys()) == {"gracetrader"}
+    stat = batch["gracetrader"]
+    assert stat["graded_calls"] == 3
+    assert stat["hit_rate"] == pytest.approx(1.0)
+    assert stat["horizon_days"] == 7
+
+
+async def test_credibility_batch_empty_names_returns_empty_dict(Session):
+    batch = await get_credibility_batch(Session, [], horizon_days=7)
+    assert batch == {}
+
+    batch2 = await get_credibility_batch(Session, ["  ", ""], horizon_days=7)
+    assert batch2 == {}
