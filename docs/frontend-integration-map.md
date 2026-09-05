@@ -1,6 +1,6 @@
 # Frontend Integration Map
 
-Last updated: 2026-09-04 (options chain + company news)
+Last updated: 2026-09-04 (multi-market TradingView movers explorer)
 
 ## Mounted in `App.tsx` Today
 
@@ -36,6 +36,8 @@ Route-level sections:
   - `StockMarketHoursBanner`
   - `StockHaltsWidget`
   - `StocktwitsWidget`
+  - `MarketMoversPanel`
+  - Always-visible top-10 pre-market/after-hours gainers and losers (whichever session is current), via `useMarketMovers` polling `/api/stocks/market-movers` every 5 minutes
   - `SpyHeatmapWidget`
   - `EarningsCalendarWidget`
   - `CompanyNewsWidget`
@@ -75,6 +77,12 @@ Route-level sections:
   - `TraderLeaderboardWidget`
   - Purpose: trader credibility leaderboard (issue #72, narrowed scope). A horizon tab (1/7/30 days) over a table ranked by hit-rate, with graded-call count and signed average return. Self-contained like `/signa` — not wired into the shared tweet timeline, ticker/user filters, or the cross-route `MentionHeatmap`/`RouteSignalsPanel` block.
   - Fetches: `/api/traders/leaderboard` via `useTraderLeaderboard`.
+
+- `/movers` (issue #79)
+  - `MarketMoversExplorer`
+  - Purpose: browse TradingView regular-session market movers by market and category. A market dropdown (USA/UK/India/Australia/Canada/Crypto) plus a category tab row (Gainers/Losers/Most Active/Penny Stocks) over a ranked table (symbol, name, price, change%, volume, market cap). Self-contained like `/signa` and `/traders` — not wired into the shared tweet timeline, ticker/user filters, or the cross-route `MentionHeatmap`/`RouteSignalsPanel` block.
+  - Fetches: `/api/markets/movers?market=...&category=...` via `useMoversExplorer`, re-fetched on every market/category change.
+  - Out of scope for this slice: forex, bonds, and futures markets — see `docs/migration-status.md` for why.
 
 - `/admin`
   - `DebugAdminPanel`

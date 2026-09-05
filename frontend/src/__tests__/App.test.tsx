@@ -69,6 +69,12 @@ beforeEach(() => {
         json: async () => ({ session_type: 'pre-market', gainers: [], losers: [] }),
       } as Response)
     }
+    if (url.includes('/api/markets/movers')) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ market: 'usa', category: 'gainers', movers: [] }),
+      } as Response)
+    }
     if (url.includes('/api/stocks/market-hours')) {
       return Promise.resolve({ ok: true, json: async () => [] } as Response)
     }
@@ -216,6 +222,24 @@ describe('App', () => {
       ).toBe(true)
     })
     expect(window.location.pathname).toBe('/options')
+  })
+
+  it('shows market movers explorer when navigating to /movers', async () => {
+    render(<App />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open /movers' }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: /market movers/i })).toBeInTheDocument()
+    )
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some((call) =>
+          String(call[0]).includes('/api/markets/movers?market=usa&category=gainers')
+        )
+      ).toBe(true)
+    })
+    expect(window.location.pathname).toBe('/movers')
   })
 
   it('switches lookback window and refreshes performance stats', async () => {

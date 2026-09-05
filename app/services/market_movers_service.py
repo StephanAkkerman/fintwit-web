@@ -118,3 +118,134 @@ async def get_market_movers() -> dict | None:
 def _reset_cache_for_tests() -> None:
     global _cache
     _cache = None
+
+
+# ---------------------------------------------------------------------------
+# Multi-market regular-session movers: gainers / losers / most active / penny
+# stocks, across several TradingView scanner regions (issue #79).
+# ---------------------------------------------------------------------------
+
+# Maps our market key -> (TradingView scanner path segment, market-cap column).
+# Country equity scanners share the same column family; the crypto scanner
+# uses `market_cap_calc` instead of `market_cap_basic`.
+MARKETS: dict[str, tuple[str, str]] = {
+    "usa": ("america", "market_cap_basic"),
+    "uk": ("uk", "market_cap_basic"),
+    "india": ("india", "market_cap_basic"),
+    "australia": ("australia", "market_cap_basic"),
+    "canada": ("canada", "market_cap_basic"),
+    "crypto": ("crypto", "market_cap_calc"),
+}
+
+CATEGORIES: tuple[str, ...] = ("gainers", "losers", "most_active", "penny_stocks")
+
+_MOVERS_MIN_CAP = 100_000_000
+_PENNY_MAX_PRICE = 5.0
+_MOVERS_RANGE = 25
+
+_multi_cache: dict[tuple[str, str], tuple[float, list[dict]]] = {}
+_multi_lock = asyncio.Lock()
+
+
+def _build_movers_payload(market: str, category: str) -> dict:
+    _, cap_column = MARKETS[market]
+
+    filters: list[dict] = [
+        {"left": "volume", "operation": "greater", "right": 0},
+        {"left": "change", "operation": "nempty"},
+    ]
+    if category == "penny_stocks":
+        filters.append(
+            {"left": "close", "operation": "less", "right": _PENNY_MAX_PRICE}
+        )
+    else:
+        filters.append(
+            {"left": cap_column, "operation": "greater", "right": _MOVERS_MIN_CAP}
+        )
+
+    if category == "losers":
+        sort_by, sort_order = "change", "asc"
+    elif category in ("most_active", "penny_stocks"):
+        sort_by, sort_order = "volume", "desc"
+    else:  # gainers
+        sort_by, sort_order = "change", "desc"
+
+    return {
+        "filter": filters,
+        "columns": ["name", "description", "close", "change", "volume", cap_column],
+        "sort": {"sortBy": sort_by, "sortOrder": sort_order},
+        "range": [0, _MOVERS_RANGE],
+    }
+
+
+def _parse_movers_rows(rows: list) -> list[dict]:
+    result = []
+    for item in rows:
+        if not isinstance(item, dict):
+            continue
+        d = item.get("d", [])
+        if len(d) < 6:
+            continue
+        symbol = (item.get("s") or "").split(":")[-1]
+        result.append(
+            {
+                "symbol": symbol,
+                "name": str(d[1] or d[0] or symbol),
+                "price": float(d[2] or 0),
+                "change_pct": float(d[3] or 0),
+                "volume": int(d[4] or 0),
+                "market_cap": float(d[5] or 0),
+            }
+        )
+    return result
+
+
+async def _fetch_movers_list(market: str, category: str) -> list[dict]:
+    scanner_path, _ = MARKETS[market]
+    payload = _build_movers_payload(market, category)
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(
+            f"https://scanner.tradingview.com/{scanner_path}/scan",
+            json=payload,
+            timeout=aiohttp.ClientTimeout(total=10),
+        ) as r:
+            r.raise_for_status()
+            body = await r.json(content_type=None)
+            rows = body.get("data") or []
+
+    return _parse_movers_rows(rows)
+
+
+async def get_movers(market: str, category: str) -> list[dict] | None:
+    """Top movers for `market` (see `MARKETS`) and `category` (see `CATEGORIES`).
+
+    Cached per (market, category) pair for `_CACHE_TTL` seconds. Returns
+    `None` if the scanner request fails and there is no warm cache to fall
+    back on.
+    """
+    if market not in MARKETS or category not in CATEGORIES:
+        raise ValueError(f"Unsupported market/category: {market}/{category}")
+
+    key = (market, category)
+    async with _multi_lock:
+        cached = _multi_cache.get(key)
+        if cached is not None and time.time() - cached[0] < _CACHE_TTL:
+            return cached[1]
+
+        try:
+            movers = await _fetch_movers_list(market, category)
+        except Exception:
+            logger.exception(
+                "Failed to fetch %s/%s movers from TradingView scanner",
+                market,
+                category,
+            )
+            return cached[1] if cached is not None else None
+
+        _multi_cache[key] = (time.time(), movers)
+        return movers
+
+
+def _reset_multi_cache_for_tests() -> None:
+    _multi_cache.clear()
