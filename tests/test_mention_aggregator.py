@@ -328,6 +328,84 @@ async def test_hidden_gems_detects_resurfacing(Session):
     assert gem["days_since_last"] is not None and gem["days_since_last"] >= 9
 
 
+async def test_hidden_gems_resurfacing_after_very_long_silence(Session):
+    """A years-old prior mention still reads as resurfacing, not new.
+
+    This is the case a bounded history lookback would get wrong: cap the
+    scan at any horizon and a ticker last mentioned beyond it looks like it
+    has never been seen. `ticker_mentions` is seeked per ticker rather than
+    scanned, so depth of history costs nothing and no cap is needed.
+    """
+    from app.services.mention_aggregator import get_hidden_gems
+
+    await _insert(
+        Session,
+        [
+            _tweet(1, ["ANCIENT"], "BULL", 0.5, 0.5),
+            _tweet(2, ["ANCIENT"], "BULL", 0.5, 24 * 900),
+        ],
+    )
+
+    rows = await get_hidden_gems(Session)
+    gem = next(r for r in rows if r["ticker"] == "ANCIENT")
+    assert gem["gem_subtype"] == "resurfacing"
+    assert gem["days_since_last"] >= 890
+
+
+async def test_hidden_gems_excludes_ticker_active_in_quiet_zone(Session):
+    """Mentioned between the resurface cutoff and the window: not a gem.
+
+    It is neither new nor has it been away long enough, so it must not
+    appear at all.
+    """
+    from app.services.mention_aggregator import get_hidden_gems
+
+    await _insert(
+        Session,
+        [
+            _tweet(1, ["STEADY"], "BULL", 0.5, 0.5),
+            # 3 days ago: outside the 24h window, inside the 7d resurface span.
+            _tweet(2, ["STEADY"], "BULL", 0.5, 24 * 3),
+            # Also has ancient history, which must not promote it to resurfacing.
+            _tweet(3, ["STEADY"], "BULL", 0.5, 24 * 200),
+        ],
+    )
+
+    rows = await get_hidden_gems(Session)
+    assert all(r["ticker"] != "STEADY" for r in rows)
+
+
+async def test_hidden_gems_first_seen_reports_all_time_first_mention(Session):
+    """`first_seen` is the ticker's earliest mention ever, for both subtypes."""
+    from app.services.mention_aggregator import get_hidden_gems
+
+    await _insert(
+        Session,
+        [
+            _tweet(1, ["FRESHGEM"], "BULL", 0.5, 2),
+            _tweet(2, ["FRESHGEM"], "BULL", 0.5, 0.5),
+            _tweet(3, ["BACKAGAIN"], "BULL", 0.5, 0.5),
+            _tweet(4, ["BACKAGAIN"], "BULL", 0.5, 24 * 40),
+        ],
+    )
+
+    rows = {r["ticker"]: r for r in await get_hidden_gems(Session)}
+    now = _now()
+
+    fresh = rows["FRESHGEM"]
+    assert fresh["gem_subtype"] == "new"
+    # Never seen before this window: the earlier of its two in-window tweets.
+    assert (now - datetime.fromisoformat(fresh["first_seen"])) >= timedelta(hours=1.5)
+    assert fresh["last_seen"] is None
+    assert fresh["days_since_last"] is None
+
+    back = rows["BACKAGAIN"]
+    assert back["gem_subtype"] == "resurfacing"
+    # Reaches past the window to the 40-day-old mention.
+    assert (now - datetime.fromisoformat(back["first_seen"])) >= timedelta(days=39)
+    assert back["last_seen"] is not None
+
+
 async def test_hidden_gems_fair_score_caps_single_spammy_author(Session):
     """Same fairness concern as mention-heat (issue #101): a ticker spammed
     by one account shouldn't out-rank a ticker several distinct authors are
@@ -437,6 +515,77 @@ async def test_price_direction_7d_window(Session):
     spy = next((r for r in rows if r["ticker"] == "SPY"), None)
     assert spy is not None
     assert spy["price_direction"] == pytest.approx(10.0, abs=0.5)
+
+
+async def test_price_direction_anchors_within_lookback(Session):
+    """The price anchor may sit well before the cutoff, up to a full window back.
+
+    `get_mention_heat` bounds its price scan to `[cutoff - window_hours, now]`
+    instead of scanning all of history. A pre-window mention anywhere inside
+    that lookback must still anchor `price_direction` — here 40h ago, well
+    past the 24h cutoff but inside the 48h floor.
+    """
+    from app.services.mention_aggregator import get_mention_heat
+
+    await _insert(
+        Session,
+        [
+            _tweet(50, ["LOOKB"], "BULL", 0.5, 40, kind="EQUITY", price=100.0),
+            _tweet(51, ["LOOKB"], "BULL", 0.5, 1, kind="EQUITY", price=125.0),
+        ],
+    )
+
+    rows = await get_mention_heat(Session, window_hours=24)
+    row = next(r for r in rows if r["ticker"] == "LOOKB")
+    assert row["price_direction"] == pytest.approx(25.0, abs=0.5)
+
+
+async def test_price_direction_ignores_prices_before_lookback(Session):
+    """A priced mention older than the lookback does not anchor the return.
+
+    Anchoring a "24h move" to a price from months ago produced a wildly
+    misleading number, so prices outside `[cutoff - window_hours, now]` are
+    not consulted. With no in-lookback price at all, `price_direction` is
+    None rather than a fabricated swing.
+    """
+    from app.services.mention_aggregator import get_mention_heat
+
+    await _insert(
+        Session,
+        [
+            # ~4 months old: the only priced mention, far outside the 48h floor.
+            _tweet(60, ["STALE"], "BULL", 0.5, 24 * 120, kind="EQUITY", price=10.0),
+            # In-window mention with no price, so it can't anchor either.
+            _tweet(61, ["STALE"], "BULL", 0.5, 1, kind="EQUITY"),
+        ],
+    )
+
+    rows = await get_mention_heat(Session, window_hours=24)
+    row = next(r for r in rows if r["ticker"] == "STALE")
+    assert row["mentions"] == 1  # still ranked; only the price anchor is dropped
+    assert row["price_direction"] is None
+
+
+async def test_price_direction_falls_back_to_in_window_price(Session):
+    """With no pre-window price, the earliest in-window mention anchors.
+
+    Documented fallback: `price_direction` then reflects an intra-window
+    range rather than a window-anchored return, which beats hiding a ticker
+    that has only been tracked recently.
+    """
+    from app.services.mention_aggregator import get_mention_heat
+
+    await _insert(
+        Session,
+        [
+            _tweet(70, ["FRESH"], "BULL", 0.5, 20, kind="EQUITY", price=200.0),
+            _tweet(71, ["FRESH"], "BULL", 0.5, 2, kind="EQUITY", price=220.0),
+        ],
+    )
+
+    rows = await get_mention_heat(Session, window_hours=24)
+    row = next(r for r in rows if r["ticker"] == "FRESH")
+    assert row["price_direction"] == pytest.approx(10.0, abs=0.5)
 
 
 async def test_volume_baseline_7d_window_detects_spike(Session):

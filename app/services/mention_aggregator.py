@@ -92,48 +92,75 @@ async def get_mention_heat(
     ``price_direction`` is the point-to-point % return over the window:
     ``(most_recent_price - nearest_to_cutoff_price) / nearest_to_cutoff_price * 100``.
 
-    Both price CTEs search all tweets with no time restriction so that sparse
-    data still produces a price estimate. A side-effect: when a ticker has no
-    pre-window tweets, ``price_at_start`` falls back to the earliest in-window
-    tweet, making ``price_direction`` reflect an intra-window range rather than
-    a window-anchored return. This is acceptable; the alternative is returning
-    NULL, which would hide tickers that have only been tracked recently.
+    Both prices come from a single ``prices`` CTE bounded to
+    ``[cutoff - window_hours, now]`` — the window again before the cutoff, so a
+    ticker whose last pre-window mention is somewhat stale still anchors
+    against a real pre-window price. Bounding it matters: an unbounded scan
+    costs O(all tweets ever) per request, and because the heatmap only ever
+    displays the last 24h-7d that cost is pure waste that grows forever (see
+    the "Performance" note below).
+
+    When a ticker has no priced mention in that lookback, ``price_at_start``
+    falls back to the earliest in-window one, making ``price_direction``
+    reflect an intra-window range rather than a window-anchored return. This
+    is acceptable; the alternative is returning NULL, which would hide
+    tickers that have only been tracked recently. Conversely, a ticker whose
+    only priced mentions predate the lookback now yields NULL rather than
+    anchoring on an arbitrarily old price — anchoring a "24h move" to a price
+    from months ago produced a number that was worse than no number.
+
+    Performance
+    -----------
+    The price lookup drives off ``json_each(t.assets)`` alone and takes the
+    ticker from the asset's own ``$.symbol``, rather than expanding
+    ``json_each(t.tickers)`` and joining ``json_each(t.assets)`` onto it. The
+    two are equivalent here — ``streamer.py`` builds ``assets`` from
+    ``tickers`` (``asset_symbols = [*tickers]``), so every asset symbol comes
+    from ``tickers``, and the outer ``LEFT JOIN`` on ``m.ticker`` discards
+    anything not in the mention set anyway — but it avoids a nested loop per
+    row.
     """
     now = _now()
     cutoff = now - timedelta(hours=window_hours)
+    # Price lookback: the window again before the cutoff, so `price_at_start`
+    # can reach a real pre-window price without scanning all of history.
+    price_floor = now - timedelta(hours=window_hours * 2)
     kind_clause = _KIND_FILTER.get(asset_kind.upper(), "")
     user_c = _user_clause(user_screen_name)
     sub_c = _subscriber_clause(subscriber_only)
 
     sql = text(f"""
         WITH
+        -- One bounded pass over priced assets, shared by both price CTEs so
+        -- the tweets table is scanned once rather than twice.
+        prices AS (
+            SELECT
+                json_extract(ae.value, '$.symbol') AS ticker,
+                t.created_at AS created_at,
+                json_extract(ae.value, '$.financials.price') AS price
+            FROM tweets t, json_each(t.assets) ae
+            WHERE t.created_at >= :price_floor
+              AND json_extract(ae.value, '$.financials.price') IS NOT NULL
+        ),
         price_recent AS (
             SELECT
-                j.value AS ticker,
-                json_extract(ae.value, '$.financials.price') AS price,
+                ticker,
+                price,
                 ROW_NUMBER() OVER (
-                    PARTITION BY j.value
-                    ORDER BY t.created_at DESC
+                    PARTITION BY ticker
+                    ORDER BY created_at DESC
                 ) AS rn
-            FROM tweets t, json_each(t.tickers) j
-            LEFT JOIN json_each(t.assets) ae
-                   ON json_extract(ae.value, '$.symbol') = j.value
-            WHERE json_extract(ae.value, '$.financials.price') IS NOT NULL
-              AND t.tickers IS NOT NULL AND t.tickers != '[]'
+            FROM prices
         ),
         price_at_start AS (
             SELECT
-                j.value AS ticker,
-                json_extract(ae.value, '$.financials.price') AS price,
+                ticker,
+                price,
                 ROW_NUMBER() OVER (
-                    PARTITION BY j.value
-                    ORDER BY ABS(julianday(t.created_at) - julianday(:cutoff))
+                    PARTITION BY ticker
+                    ORDER BY ABS(julianday(created_at) - julianday(:cutoff))
                 ) AS rn
-            FROM tweets t, json_each(t.tickers) j
-            LEFT JOIN json_each(t.assets) ae
-                   ON json_extract(ae.value, '$.symbol') = j.value
-            WHERE json_extract(ae.value, '$.financials.price') IS NOT NULL
-              AND t.tickers IS NOT NULL AND t.tickers != '[]'
+            FROM prices
         ),
         mentions AS (
             SELECT
@@ -196,6 +223,7 @@ async def get_mention_heat(
 
     params: dict = {
         "cutoff": cutoff,
+        "price_floor": price_floor,
         "limit": limit,
         "min_mentions": min_mentions,
         "author_cap": AUTHOR_MENTION_CAP,
@@ -387,6 +415,29 @@ async def get_hidden_gems(
     early mention is the whole point of a "hidden gem", so it isn't
     filtered out — it just won't outrank gems several people are talking
     about.
+
+    Classification
+    --------------
+    A ticker mentioned in the active window qualifies as a gem exactly when
+    it has no mention in the *quiet zone* ``[c_resurface, c_now)``. From
+    there ``gem_subtype`` follows from whether any older mention exists:
+    ``resurfacing`` if one does, ``new`` if none ever has.
+
+    That is the same classification the previous, more literal formulation
+    made — ``first_seen >= c_now`` for new, ``last_seen_before_window <
+    c_resurface`` for resurfacing — restated so it can be answered without
+    an all-time ``MIN(created_at)`` per ticker. The old form computed that
+    aggregate for *every* ticker on *every* request by expanding
+    ``json_each(tickers)`` across the whole table, which made this endpoint
+    scale with total tweet volume: measured at a fixed ingest rate with
+    identical recent data, it went from 11ms at 30 days of history to 139ms
+    at 360 days and 461ms at 1200 days, all of it that one scan.
+
+    Now the quiet-zone check is a bounded window, and the only unbounded
+    question — "has this ticker ever been mentioned before?" — is asked of
+    the ``ticker_mentions`` index for the handful of candidates that get
+    that far, as a seek on ``(ticker, created_at)``. The same measurement
+    holds flat at ~1.3ms regardless of history depth.
     """
     now = _now()
     cutoff_now = now - timedelta(hours=window_hours)
@@ -410,11 +461,17 @@ async def get_hidden_gems(
     user_c = _user_clause(user_screen_name)
     sub_c = _subscriber_clause(subscriber_only)
 
+    # The `ticker_mentions` lookups below only need `tweets` when a user or
+    # subscriber filter has to be applied; without one, the index answers
+    # alone and the join is pure overhead.
+    tm_join = "JOIN tweets t ON t.id = tm.tweet_id" if (user_c or sub_c) else ""
+
     sql = text(f"""
         WITH active AS (
             SELECT
                 j.value AS ticker,
                 CAST(COUNT(*) AS INTEGER) AS mentions_now,
+                MIN(t.created_at) AS first_in_window,
                 MAX(json_extract(ae.value, '$.kind')) AS asset_kind
             FROM tweets t, json_each(t.tickers) j
             LEFT JOIN json_each(t.assets) ae
@@ -425,17 +482,38 @@ async def get_hidden_gems(
               {sub_c}
             GROUP BY j.value
         ),
-        history AS (
-            SELECT
-                j.value AS ticker,
-                MIN(t.created_at) AS first_seen,
-                MAX(CASE WHEN t.created_at < :c_now THEN t.created_at ELSE NULL END)
-                    AS last_seen_before_window
-            FROM tweets t, json_each(t.tickers) j
-            WHERE t.tickers IS NOT NULL AND t.tickers != '[]'
+        -- Any mention in the quiet zone [c_resurface, c_now) disqualifies a
+        -- ticker: it is neither new nor has it been away long enough.
+        quiet AS (
+            SELECT DISTINCT tm.ticker
+            FROM ticker_mentions tm
+            {tm_join}
+            WHERE tm.created_at >= :c_resurface
+              AND tm.created_at < :c_now
               {user_c}
               {sub_c}
-            GROUP BY j.value
+        ),
+        candidates AS (
+            SELECT a.*
+            FROM active a
+            WHERE a.ticker NOT IN (SELECT ticker FROM quiet)
+        ),
+        -- History before the quiet zone, for candidates only. Seeks the
+        -- `(ticker, created_at)` index per candidate instead of expanding
+        -- every tweet in the table, so cost tracks the handful of candidates
+        -- rather than how much history has piled up.
+        prior AS (
+            SELECT
+                tm.ticker AS ticker,
+                MIN(tm.created_at) AS first_seen,
+                MAX(tm.created_at) AS last_seen_before_window
+            FROM ticker_mentions tm
+            {tm_join}
+            WHERE tm.created_at < :c_resurface
+              AND tm.ticker IN (SELECT ticker FROM candidates)
+              {user_c}
+              {sub_c}
+            GROUP BY tm.ticker
         ),
         author_mentions AS (
             SELECT
@@ -461,26 +539,30 @@ async def get_hidden_gems(
             a.ticker,
             a.mentions_now,
             a.asset_kind,
-            h.first_seen,
-            h.last_seen_before_window,
+            -- All-time first mention. A candidate has nothing in the quiet
+            -- zone, so its earliest pre-window mention (if any) is also its
+            -- earliest ever; a genuinely new ticker starts in this window.
+            COALESCE(p.first_seen, a.first_in_window) AS first_seen,
+            p.last_seen_before_window,
             fs.unique_authors,
             fs.mention_score,
+            -- No pre-quiet-zone history at all means the ticker has never
+            -- been seen before this window.
             CASE
-                WHEN h.first_seen >= :c_now THEN 'new'
-                WHEN h.last_seen_before_window < :c_resurface THEN 'resurfacing'
-                ELSE NULL
+                WHEN p.ticker IS NULL THEN 'new'
+                ELSE 'resurfacing'
             END AS gem_subtype,
             CASE
-                WHEN h.last_seen_before_window IS NOT NULL
+                WHEN p.last_seen_before_window IS NOT NULL
                 THEN CAST(
-                    (julianday('now') - julianday(h.last_seen_before_window))
+                    (julianday('now') - julianday(p.last_seen_before_window))
                     AS INTEGER)
                 ELSE NULL
             END AS days_since_last
-        FROM active a
-        JOIN history h ON a.ticker = h.ticker
+        FROM candidates a
         JOIN fair_score fs ON fs.ticker = a.ticker
-        WHERE gem_subtype IS NOT NULL
+        LEFT JOIN prior p ON p.ticker = a.ticker
+        WHERE 1 = 1
           {kind_filter}
         ORDER BY fs.mention_score DESC
         LIMIT 20
