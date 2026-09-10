@@ -439,6 +439,77 @@ async def test_price_direction_7d_window(Session):
     assert spy["price_direction"] == pytest.approx(10.0, abs=0.5)
 
 
+async def test_price_direction_anchors_within_lookback(Session):
+    """The price anchor may sit well before the cutoff, up to a full window back.
+
+    `get_mention_heat` bounds its price scan to `[cutoff - window_hours, now]`
+    instead of scanning all of history. A pre-window mention anywhere inside
+    that lookback must still anchor `price_direction` — here 40h ago, well
+    past the 24h cutoff but inside the 48h floor.
+    """
+    from app.services.mention_aggregator import get_mention_heat
+
+    await _insert(
+        Session,
+        [
+            _tweet(50, ["LOOKB"], "BULL", 0.5, 40, kind="EQUITY", price=100.0),
+            _tweet(51, ["LOOKB"], "BULL", 0.5, 1, kind="EQUITY", price=125.0),
+        ],
+    )
+
+    rows = await get_mention_heat(Session, window_hours=24)
+    row = next(r for r in rows if r["ticker"] == "LOOKB")
+    assert row["price_direction"] == pytest.approx(25.0, abs=0.5)
+
+
+async def test_price_direction_ignores_prices_before_lookback(Session):
+    """A priced mention older than the lookback does not anchor the return.
+
+    Anchoring a "24h move" to a price from months ago produced a wildly
+    misleading number, so prices outside `[cutoff - window_hours, now]` are
+    not consulted. With no in-lookback price at all, `price_direction` is
+    None rather than a fabricated swing.
+    """
+    from app.services.mention_aggregator import get_mention_heat
+
+    await _insert(
+        Session,
+        [
+            # ~4 months old: the only priced mention, far outside the 48h floor.
+            _tweet(60, ["STALE"], "BULL", 0.5, 24 * 120, kind="EQUITY", price=10.0),
+            # In-window mention with no price, so it can't anchor either.
+            _tweet(61, ["STALE"], "BULL", 0.5, 1, kind="EQUITY"),
+        ],
+    )
+
+    rows = await get_mention_heat(Session, window_hours=24)
+    row = next(r for r in rows if r["ticker"] == "STALE")
+    assert row["mentions"] == 1  # still ranked; only the price anchor is dropped
+    assert row["price_direction"] is None
+
+
+async def test_price_direction_falls_back_to_in_window_price(Session):
+    """With no pre-window price, the earliest in-window mention anchors.
+
+    Documented fallback: `price_direction` then reflects an intra-window
+    range rather than a window-anchored return, which beats hiding a ticker
+    that has only been tracked recently.
+    """
+    from app.services.mention_aggregator import get_mention_heat
+
+    await _insert(
+        Session,
+        [
+            _tweet(70, ["FRESH"], "BULL", 0.5, 20, kind="EQUITY", price=200.0),
+            _tweet(71, ["FRESH"], "BULL", 0.5, 2, kind="EQUITY", price=220.0),
+        ],
+    )
+
+    rows = await get_mention_heat(Session, window_hours=24)
+    row = next(r for r in rows if r["ticker"] == "FRESH")
+    assert row["price_direction"] == pytest.approx(10.0, abs=0.5)
+
+
 async def test_volume_baseline_7d_window_detects_spike(Session):
     """With window_hours=168, baseline = 28d, so spikes within the week still register."""
     from app.services.mention_aggregator import get_volume_baseline
