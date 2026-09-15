@@ -17,12 +17,24 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from ticker_price_data import close_shared_pool, get_stock_info
 
 from ..infra.db import create_engine, init_db
-from ..infra.repos import IbkrRepo, PortfolioRepo, TraderCallRepo, TweetRepo
+from ..infra.repos import (
+    IbkrRepo,
+    PortfolioRepo,
+    RedditTrendRepo,
+    TraderCallRepo,
+    TweetRepo,
+)
 from ..ml.sentiment import FinTwitSentiment
 from ..runtime.broadcast import Broadcaster
 from ..runtime.enricher import AssetEnricher
 from ..runtime.ibkr_sync import run_ibkr_sync
 from ..runtime.options_intent import classify_options_intent
+from ..runtime.reddit_trends import (
+    DEFAULT_INTERVAL as REDDIT_TREND_INTERVAL,
+)
+from ..runtime.reddit_trends import (
+    run_reddit_trends,
+)
 from ..runtime.portfolio_snapshot import (
     DEFAULT_INTERVAL as SNAPSHOT_INTERVAL,
     run_portfolio_snapshots,
@@ -59,6 +71,7 @@ from ..services.price_history_service import (
     normalize_range,
 )
 from ..services.reddit_service import get_reddit_hot_posts, is_valid_subreddit_name
+from ..services import reddit_trends_service
 from ..services.signa import get_signa_best_trades, get_signa_live_feed
 from ..services.stock_fear_greed_service import get_stock_feargreed
 from ..services.stocktwits_service import get_stocktwits_data
@@ -88,6 +101,7 @@ REPO = TweetRepo(Session)
 PORTFOLIO_REPO = PortfolioRepo(Session)
 IBKR_REPO = IbkrRepo(Session)
 TRADER_CALL_REPO = TraderCallRepo(Session)
+REDDIT_TREND_REPO = RedditTrendRepo(Session)
 BROADCAST = Broadcaster()
 logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.INFO)
@@ -159,6 +173,21 @@ async def lifespan(app: FastAPI):
         trader_eval_interval,
     )
 
+    reddit_task: asyncio.Task | None = None
+    if os.getenv("REDDIT_TRENDS_ENABLED", "1").lower() in ("1", "true", "yes"):
+        reddit_interval = int(os.getenv("REDDIT_TREND_INTERVAL", REDDIT_TREND_INTERVAL))
+        reddit_task = asyncio.create_task(
+            run_reddit_trends(
+                REDDIT_TREND_REPO,
+                interval=reddit_interval,
+                window_hours=float(os.getenv("REDDIT_TREND_WINDOW_HOURS", "24")),
+            )
+        )
+        logger.info(
+            "[reddit-trends] worker started (interval=%ds)",
+            reddit_interval,
+        )
+
     try:
         logger.info(
             "[startup] application ready in %.2fs",
@@ -176,6 +205,11 @@ async def lifespan(app: FastAPI):
         trader_eval_task.cancel()
         with suppress(asyncio.CancelledError):
             await trader_eval_task
+        if reddit_task is not None:
+            reddit_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await reddit_task
+            await reddit_trends_service.close()
         if ibkr_task is not None:
             ibkr_task.cancel()
             with suppress(asyncio.CancelledError):
@@ -461,6 +495,79 @@ async def reddit_wsb(
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data
+
+
+@app.get("/api/reddit/trends")
+async def reddit_trends(
+    limit: int = Query(25, ge=1, le=100),
+    _=Depends(api_key_dep),
+):
+    """Latest stored ranking of the tickers finance subreddits are discussing.
+
+    Served from the last completed worker run rather than scraping on request:
+    a scrape is several subreddit listings plus two model passes over every
+    post. `available` is False when `reddit-stock-analyzer` is not installed,
+    and `captured_at` is null until the first run completes — the UI needs to
+    tell "nothing installed" apart from "nothing scraped yet".
+    """
+    run = await REDDIT_TREND_REPO.latest_run(limit=limit)
+    if run is None:
+        return {
+            "available": reddit_trends_service.is_available(),
+            "captured_at": None,
+            "subreddits": reddit_trends_service.default_subreddits(),
+            "tickers": [],
+        }
+    return {"available": True, **run}
+
+
+@app.get("/api/reddit/trends/{symbol}/history")
+async def reddit_trend_history(
+    symbol: str,
+    days: int = Query(30, ge=1, le=365),
+    _=Depends(api_key_dep),
+):
+    """One ticker's mention/sentiment history across stored runs, oldest first."""
+    points = await REDDIT_TREND_REPO.ticker_history(symbol, days=days)
+    return {"symbol": symbol.upper(), "days": days, "points": points}
+
+
+@app.get("/api/reddit/categories")
+async def reddit_categories(_=Depends(api_key_dep)):
+    """The subreddit catalogue, grouped by the kind of discussion it carries."""
+    return {
+        "available": reddit_trends_service.is_available(),
+        "default": reddit_trends_service.default_subreddits(),
+        "categories": reddit_trends_service.subreddit_categories(),
+    }
+
+
+@app.get("/api/reddit/summary/{subreddit}")
+async def reddit_subreddit_summary(
+    subreddit: str,
+    limit: int = Query(50, ge=1, le=100),
+    _=Depends(api_key_dep),
+):
+    """Ticker and sentiment snapshot for one subreddit, computed on request.
+
+    Affordable live because it is a single listing with no baseline window —
+    unlike the full trend report, which the worker owns.
+    """
+    if not is_valid_subreddit_name(subreddit):
+        raise HTTPException(status_code=400, detail="Invalid subreddit")
+
+    try:
+        return await reddit_trends_service.fetch_subreddit_summary(
+            subreddit, limit=limit
+        )
+    except reddit_trends_service.RedditAnalyzerUnavailable:
+        raise HTTPException(
+            status_code=503,
+            detail="Reddit trend analysis is not available in this deployment",
+        ) from None
+    except Exception as exc:
+        logger.warning("[reddit-trends] subreddit summary failed: %r", exc)
+        raise HTTPException(status_code=503, detail="Service Unavailable") from None
 
 
 class DebugTweet(BaseModel):

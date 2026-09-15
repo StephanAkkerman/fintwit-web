@@ -287,6 +287,99 @@ def _add_missing_columns(sync_conn) -> None:
             )
 
 
+class RedditTrendRunRow(Base):
+    """One completed Reddit scrape-and-rank pass (issue #6).
+
+    A trend report is expensive — several subreddits scraped, every post run
+    through ticker recognition and sentiment — so it is computed on a worker
+    interval and stored, not on request. The run row holds everything that
+    describes the pass as a whole; the per-ticker rankings live in
+    ``reddit_ticker_trends`` and point back here.
+
+    Keeping runs rather than overwriting one row is what makes a ticker's
+    mention history chartable over weeks: a live scrape can only ever see as
+    far back as the posts still on the listing pages.
+    """
+
+    __tablename__ = "reddit_trend_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    captured_at: Mapped[DateTime] = mapped_column(DateTime, index=True)
+    window_hours: Mapped[float] = mapped_column(Float)
+    baseline_hours: Mapped[float] = mapped_column(Float)
+    subreddits: Mapped[list] = mapped_column(JSON().with_variant(SQLITE_JSON, "sqlite"))
+    posts_analyzed: Mapped[int] = mapped_column(Integer, default=0)
+    posts_in_window: Mapped[int] = mapped_column(Integer, default=0)
+    mood: Mapped[str] = mapped_column(String, nullable=True)
+    sentiment_score: Mapped[float] = mapped_column(Float, nullable=True)
+    sentiment_breakdown: Mapped[dict] = mapped_column(
+        JSON().with_variant(SQLITE_JSON, "sqlite"), nullable=True
+    )
+    rising: Mapped[list] = mapped_column(
+        JSON().with_variant(SQLITE_JSON, "sqlite"), nullable=True
+    )
+    fading: Mapped[list] = mapped_column(
+        JSON().with_variant(SQLITE_JSON, "sqlite"), nullable=True
+    )
+    emerging: Mapped[list] = mapped_column(
+        JSON().with_variant(SQLITE_JSON, "sqlite"), nullable=True
+    )
+    by_subreddit: Mapped[list] = mapped_column(
+        JSON().with_variant(SQLITE_JSON, "sqlite"), nullable=True
+    )
+    timeline: Mapped[dict] = mapped_column(
+        JSON().with_variant(SQLITE_JSON, "sqlite"), nullable=True
+    )
+
+
+class RedditTickerTrendRow(Base):
+    """One ticker's ranking within a :class:`RedditTrendRunRow`.
+
+    Columns mirror ``reddit_stock_analyzer.TickerTrend`` so the ranked list can
+    be served straight back without recomputation. ``(run_id, symbol)`` is
+    unique, and ``(symbol, captured_at)`` is indexed for the per-ticker
+    history chart — the same shape of question ``ticker_mentions`` answers for
+    tweets, so it gets the same treatment.
+    """
+
+    __tablename__ = "reddit_ticker_trends"
+    __table_args__ = (
+        UniqueConstraint("run_id", "symbol"),
+        Index("ix_reddit_ticker_trends_symbol_captured", "symbol", "captured_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[int] = mapped_column(Integer, index=True)
+    # Denormalised from the run so the index above answers time-ranged
+    # per-ticker questions without joining back.
+    captured_at: Mapped[DateTime] = mapped_column(DateTime, index=True)
+    symbol: Mapped[str] = mapped_column(String, index=True)
+    rank: Mapped[int] = mapped_column(Integer, default=0)
+    mentions: Mapped[int] = mapped_column(Integer, default=0)
+    previous_mentions: Mapped[int] = mapped_column(Integer, default=0)
+    unique_authors: Mapped[int] = mapped_column(Integer, default=0)
+    score_sum: Mapped[int] = mapped_column(Integer, default=0)
+    comment_sum: Mapped[int] = mapped_column(Integer, default=0)
+    engagement: Mapped[int] = mapped_column(Integer, default=0)
+    mentions_per_hour: Mapped[float] = mapped_column(Float, default=0.0)
+    momentum: Mapped[float] = mapped_column(Float, default=0.0)
+    change_ratio: Mapped[float] = mapped_column(Float, nullable=True)
+    spike_score: Mapped[float] = mapped_column(Float, default=0.0)
+    heat_score: Mapped[float] = mapped_column(Float, default=0.0)
+    sentiment: Mapped[str] = mapped_column(String, nullable=True)
+    sentiment_score: Mapped[float] = mapped_column(Float, default=0.0)
+    sentiment_breakdown: Mapped[dict] = mapped_column(
+        JSON().with_variant(SQLITE_JSON, "sqlite"), nullable=True
+    )
+    is_emerging: Mapped[bool] = mapped_column(Boolean, default=False)
+    subreddits: Mapped[dict] = mapped_column(
+        JSON().with_variant(SQLITE_JSON, "sqlite"), nullable=True
+    )
+    sample_posts: Mapped[list] = mapped_column(
+        JSON().with_variant(SQLITE_JSON, "sqlite"), nullable=True
+    )
+
+
 # Keeps `ticker_mentions` in lockstep with `tweets.tickers` from inside the
 # database, so no writer can leave the index stale — the ORM, `TweetRepo`'s
 # ON CONFLICT upsert, raw SQL and test fixtures all go through these. Doing it

@@ -20,6 +20,7 @@ Route-level sections:
 - `/` (home)
   - `FearGreedWidget`
   - `RedditWsbWidget`
+  - `RedditTrendsWidget`
   - `MarketOverview`
   - `OverviewDashboard` — macro strip (`MacroStrip`), the `all`-scoped `MentionHeatmap`, a three-column analytics row (`SentimentShiftWidget`, `VolumeBaselineWidget`, `HiddenGemWidget`), and `SectorMentionsWidget`, with shared asset-kind (`all`/`EQUITY`/`CRYPTO`/`FOREX`) and lookback-window (24h/48h/7d) controls
   - Tweet timeline (`useTweets` + `TweetCard`)
@@ -177,6 +178,10 @@ Route-level sections:
 - `RedditWsbWidget` + `useRedditWsb`
   - Fetches: `/api/reddit/wsb?limit=...`
   - Purpose: latest WallStreetBets Reddit hot-post radar for headline and engagement context.
+
+- `RedditTrendsWidget` + `useRedditTrends`
+  - Fetches: `/api/reddit/trends?limit=...`
+  - Purpose: what finance subreddits are talking about and which way it is moving (issue #6) — tickers ranked by `heat_score`, each row showing a mention bar (share of the loudest ticker), now/previous counts, per-ticker sentiment and smoothed momentum, with a NEW badge for a ticker absent from the previous window and an emerging/fading footer. Unlike the other overview widgets it ignores the dashboard's asset-kind/window/user controls: those filter tweets, and none of them apply to a subreddit scrape. Clicking a ticker opens the same `TickerDetailModal` as everywhere else.
 
 - `StocktwitsWidget` + `useStocktwits`
   - Fetches: `/api/stocktwits?keyword=...`

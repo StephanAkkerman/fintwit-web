@@ -650,3 +650,131 @@ async def test_portfolio_summary_returns_totals(async_client):
     data = response.json()
     assert data["totals"]["positions"] == 1
     assert data["totals"]["unrealized_pnl"] == 200.0
+
+
+# ---------------------------------------------------------------------------
+# Reddit trend integration (issue #6)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_reddit_trends_empty_before_the_first_run(async_client):
+    with patch(
+        "app.api.main.REDDIT_TREND_REPO.latest_run", new_callable=AsyncMock
+    ) as m:
+        m.return_value = None
+        response = await async_client.get(
+            "/api/reddit/trends", headers={"X-API-Key": "test-api-key"}
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    # "Never scraped" must be distinguishable from "package not installed",
+    # so the widget can say which.
+    assert body["captured_at"] is None
+    assert body["tickers"] == []
+    assert body["subreddits"]
+
+
+@pytest.mark.asyncio
+async def test_reddit_trends_returns_the_stored_run(async_client):
+    with patch(
+        "app.api.main.REDDIT_TREND_REPO.latest_run", new_callable=AsyncMock
+    ) as m:
+        m.return_value = {
+            "captured_at": "2026-09-15T00:00:00+00:00",
+            "mood": "bullish",
+            "subreddits": ["wallstreetbets"],
+            "tickers": [{"symbol": "NVDA", "mentions": 41, "momentum": 1.21}],
+        }
+        response = await async_client.get(
+            "/api/reddit/trends?limit=5", headers={"X-API-Key": "test-api-key"}
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["available"] is True
+    assert body["tickers"][0]["symbol"] == "NVDA"
+
+
+@pytest.mark.asyncio
+async def test_reddit_trend_history(async_client):
+    with patch(
+        "app.api.main.REDDIT_TREND_REPO.ticker_history", new_callable=AsyncMock
+    ) as m:
+        m.return_value = [{"mentions": 10}, {"mentions": 20}]
+        response = await async_client.get(
+            "/api/reddit/trends/nvda/history?days=7",
+            headers={"X-API-Key": "test-api-key"},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["symbol"] == "NVDA"
+    assert len(body["points"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_reddit_categories(async_client):
+    response = await async_client.get(
+        "/api/reddit/categories", headers={"X-API-Key": "test-api-key"}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "default" in body
+    assert isinstance(body["categories"], dict)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad", ["ab", "way-too-punctuated!"])
+async def test_reddit_summary_invalid_subreddit_returns_400(async_client, bad):
+    # Guards the name before it reaches the scraper. A slash cannot be tested
+    # here: it never matches the route in the first place.
+    response = await async_client.get(
+        f"/api/reddit/summary/{bad}", headers={"X-API-Key": "test-api-key"}
+    )
+    assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_reddit_summary_without_the_package_returns_503(async_client):
+    from app.services import reddit_trends_service
+
+    with patch.object(
+        reddit_trends_service,
+        "fetch_subreddit_summary",
+        AsyncMock(side_effect=reddit_trends_service.RedditAnalyzerUnavailable("no")),
+    ):
+        response = await async_client.get(
+            "/api/reddit/summary/wallstreetbets",
+            headers={"X-API-Key": "test-api-key"},
+        )
+
+    assert response.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_reddit_summary_returns_the_snapshot(async_client):
+    from app.services import reddit_trends_service
+
+    with patch.object(
+        reddit_trends_service,
+        "fetch_subreddit_summary",
+        AsyncMock(
+            return_value={
+                "subreddit": "wallstreetbets",
+                "sample_size": 40,
+                "overall_mood": "bullish",
+                "top_tickers": {"NVDA": 7},
+                "posts": [],
+            }
+        ),
+    ):
+        response = await async_client.get(
+            "/api/reddit/summary/wallstreetbets",
+            headers={"X-API-Key": "test-api-key"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["top_tickers"] == {"NVDA": 7}
