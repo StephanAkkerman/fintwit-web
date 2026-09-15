@@ -58,6 +58,14 @@ class TweetRow(Base):
     )
     quoted_sentiment_emoji: Mapped[str] = mapped_column(String, nullable=True)
     quoted_sentiment_score: Mapped[float] = mapped_column(Float, nullable=True)
+    # Signed sentiment per ticker, for tweets that say different things about
+    # different names ("long $NVDA, short $INTC"). Only holds the tickers whose
+    # score differs from `sentiment_score`; everything else reads that.
+    ticker_sentiment: Mapped[dict] = mapped_column(
+        JSON().with_variant(SQLITE_JSON, "sqlite"),
+        nullable=True,
+        default=None,
+    )
     quoted_tweet: Mapped[dict] = mapped_column(
         JSON().with_variant(SQLITE_JSON, "sqlite"),
         nullable=True,

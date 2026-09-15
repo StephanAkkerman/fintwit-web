@@ -398,3 +398,22 @@ async def test_portfolio_repo_update_and_delete_position(portfolio_repo):
     deleted = await portfolio_repo.delete_position(created["id"])
     assert deleted is True
     assert await portfolio_repo.by_id(created["id"]) is None
+
+
+@pytest.mark.asyncio
+async def test_ticker_sentiment_round_trips(tweet_repo):
+    # The per-ticker scores have to survive the DB: trader calls are extracted
+    # from stored rows on the backfill path, not just from the live stream.
+    tweet = {**SAMPLE_TWEETS[0], "ticker_sentiment": {"NVDA": 0.91, "INTC": -0.88}}
+    await tweet_repo.upsert_many([tweet])
+
+    rows = await tweet_repo.latest()
+    assert rows[0]["ticker_sentiment"] == {"NVDA": 0.91, "INTC": -0.88}
+
+
+@pytest.mark.asyncio
+async def test_ticker_sentiment_defaults_to_null(tweet_repo):
+    await tweet_repo.upsert_many([SAMPLE_TWEETS[0]])
+
+    rows = await tweet_repo.latest()
+    assert rows[0]["ticker_sentiment"] is None

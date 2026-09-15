@@ -284,3 +284,63 @@ async def test_credibility_batch_empty_names_returns_empty_dict(Session):
 
     batch2 = await get_credibility_batch(Session, ["  ", ""], horizon_days=7)
     assert batch2 == {}
+
+
+def _pair_trade_tweet(**overrides) -> dict:
+    """A tweet that is bullish on one ticker and bearish on another."""
+    tweet = {
+        "id": 42,
+        "user_screen_name": "pairtrader",
+        "created_at": "2026-01-01T00:00:00",
+        "sentiment_score": 0.6,
+        "ticker_sentiment": {"INTC": -0.8},
+        "tickers": ["NVDA", "INTC"],
+        "assets": [
+            {"symbol": "NVDA", "kind": "EQUITY", "financials": {"price": 100.0}},
+            {"symbol": "INTC", "kind": "EQUITY", "financials": {"price": 20.0}},
+        ],
+    }
+    tweet.update(overrides)
+    return tweet
+
+
+def test_extract_calls_uses_per_ticker_sentiment():
+    # "Long NVDA, short INTC" is two opposite calls. Grading both as bullish
+    # would credit or punish the trader for a call they never made.
+    calls = {c["ticker"]: c for c in extract_calls(_pair_trade_tweet())}
+
+    assert calls["NVDA"]["direction"] == "bullish"
+    assert calls["NVDA"]["sentiment_score"] == 0.6
+    assert calls["INTC"]["direction"] == "bearish"
+    assert calls["INTC"]["sentiment_score"] == -0.8
+
+
+def test_extract_calls_falls_back_to_the_tweet_score():
+    # A ticker the classifier could not attribute keeps the tweet's own view.
+    calls = {c["ticker"]: c for c in extract_calls(_pair_trade_tweet())}
+
+    assert calls["NVDA"]["direction"] == "bullish"
+
+
+def test_extract_calls_skips_tickers_the_tweet_is_neutral_on():
+    tweet = _pair_trade_tweet(ticker_sentiment={"INTC": 0.02})
+    calls = {c["ticker"]: c for c in extract_calls(tweet)}
+
+    assert set(calls) == {"NVDA"}
+
+
+def test_extract_calls_directional_ticker_inside_a_neutral_tweet():
+    # The tweet overall says nothing, but one leg of it is a real call.
+    tweet = _pair_trade_tweet(sentiment_score=0.0, ticker_sentiment={"INTC": -0.8})
+    calls = {c["ticker"]: c for c in extract_calls(tweet)}
+
+    assert set(calls) == {"INTC"}
+    assert calls["INTC"]["direction"] == "bearish"
+
+
+def test_extract_calls_without_per_ticker_sentiment_is_unchanged():
+    tweet = _pair_trade_tweet(ticker_sentiment=None)
+    calls = {c["ticker"]: c for c in extract_calls(tweet)}
+
+    assert set(calls) == {"NVDA", "INTC"}
+    assert all(c["direction"] == "bullish" for c in calls.values())

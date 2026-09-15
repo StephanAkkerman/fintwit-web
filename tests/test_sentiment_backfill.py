@@ -1,6 +1,7 @@
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from app.infra.db import TweetRow
 from app.runtime.backfill_sentiment import backfill_tweet_sentiment
 from tests.conftest import SAMPLE_TWEETS
 
@@ -9,24 +10,32 @@ class _FakeSentimentModel:
     async def warmup(self) -> None:
         return None
 
-    async def classify(self, text: str) -> dict[str, str | float] | None:
+    async def classify(
+        self, text: str, tickers: list[str] | None = None
+    ) -> dict[str, str | float] | None:
+        # Scores are signed by direction, as the real model returns them.
         if "bull" in text.lower():
             return {"label": "BULLISH", "emoji": "bull", "score": 0.9}
         if "bear" in text.lower():
-            return {"label": "BEARISH", "emoji": "bear", "score": 0.9}
-        return {"label": "NEUTRAL", "emoji": "duck", "score": 0.6}
+            return {"label": "BEARISH", "emoji": "bear", "score": -0.9}
+        return {"label": "NEUTRAL", "emoji": "duck", "score": 0.0}
 
     async def classify_parts(
-        self, text: str
-    ) -> dict[str, dict[str, str | float] | None]:
+        self, text: str, tickers: list[str] | None = None
+    ) -> dict[str, dict | None]:
         if "\n\n>" not in text:
-            return {"main": await self.classify(text), "quoted": None}
+            return {
+                "main": await self.classify(text),
+                "quoted": None,
+                "tickers": {},
+            }
 
         main_text, quote_block = text.split("\n\n>", 1)
         quote_text = quote_block.replace(">", "").strip()
         return {
             "main": await self.classify(main_text),
             "quoted": await self.classify(quote_text),
+            "tickers": {},
         }
 
 
@@ -176,3 +185,39 @@ async def test_backfill_writes_quoted_sentiment_separately(db_engine, tweet_repo
     assert stats.updated == 1
     assert await _get_label(session_factory, quote_tweet["id"]) == "BULLISH"
     assert await _get_quote_label(session_factory, quote_tweet["id"]) == "BEARISH"
+
+
+class _PerTickerSentimentModel(_FakeSentimentModel):
+    """Attributes a bearish score to whichever ticker the tweet shorts."""
+
+    async def classify_parts(
+        self, text: str, tickers: list[str] | None = None
+    ) -> dict[str, dict | None]:
+        parts = await super().classify_parts(text, tickers)
+        parts["tickers"] = {t: -0.85 for t in (tickers or []) if t == "INTC"}
+        return parts
+
+
+@pytest.mark.asyncio
+async def test_backfill_writes_per_ticker_sentiment(db_engine, tweet_repo):
+    # The backfill is how historical rows get the per-ticker scores (and the
+    # signed ones), so it has to read `tickers` and write `ticker_sentiment`.
+    session_factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    tweet = {
+        **SAMPLE_TWEETS[0],
+        "id": 888888,
+        "text": "Bull case for $NVDA. $INTC is the short leg.",
+        "tickers": ["NVDA", "INTC"],
+    }
+    await tweet_repo.upsert_many([tweet])
+
+    stats = await backfill_tweet_sentiment(
+        session_factory=session_factory,
+        sentiment_model=_PerTickerSentimentModel(),
+    )
+
+    assert stats.updated == 1
+    async with session_factory() as session:
+        stored = await session.get(TweetRow, 888888)
+        assert stored.ticker_sentiment == {"INTC": -0.85}
+        assert stored.sentiment_label == "BULLISH"

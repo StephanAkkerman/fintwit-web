@@ -57,6 +57,7 @@ def _row_to_dict(r: TweetRow) -> dict:
         "quoted_sentiment_label": r.quoted_sentiment_label,
         "quoted_sentiment_emoji": r.quoted_sentiment_emoji,
         "quoted_sentiment_score": r.quoted_sentiment_score,
+        "ticker_sentiment": r.ticker_sentiment,
         "quoted_tweet": r.quoted_tweet,
         "has_chart": r.has_chart,
         "chart_extraction": r.chart_extraction,

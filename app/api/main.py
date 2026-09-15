@@ -520,12 +520,16 @@ async def debug_tweet(body: DebugTweet, request: Request):
 
     main_sentiment = None
     quoted_sentiment = None
+    ticker_sentiment = {}
     sentiment_model = getattr(request.app.state, "sentiment_model", None)
     if sentiment_model is not None and body.text.strip():
         try:
-            sentiment_parts = await sentiment_model.classify_parts(body.text)
+            sentiment_parts = await sentiment_model.classify_parts(
+                body.text, asset_symbols
+            )
             main_sentiment = sentiment_parts.get("main")
             quoted_sentiment = sentiment_parts.get("quoted")
+            ticker_sentiment = sentiment_parts.get("tickers") or {}
         except Exception as exc:
             logger.warning("[debug-tweet] sentiment classification failed: %r", exc)
 
@@ -555,6 +559,7 @@ async def debug_tweet(body: DebugTweet, request: Request):
         "quoted_sentiment_score": (
             quoted_sentiment["score"] if quoted_sentiment else None
         ),
+        "ticker_sentiment": ticker_sentiment or None,
         "is_options_tweet": options_signal["is_options_tweet"],
         "options_context": (
             options_signal["options_context"]

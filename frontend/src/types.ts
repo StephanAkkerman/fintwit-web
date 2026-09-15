@@ -177,6 +177,10 @@ export type Tweet = {
   quoted_sentiment_label?: 'BULLISH' | 'BEARISH' | 'NEUTRAL' | string | null;
   quoted_sentiment_emoji?: string | null;
   quoted_sentiment_score?: number | null;
+  // Signed sentiment per ticker, present only for the tickers a tweet says
+  // something different about than `sentiment_score` ("long $NVDA, short
+  // $INTC"). Read it through a fallback to `sentiment_score`.
+  ticker_sentiment?: Record<string, number> | null;
   has_chart?: boolean | null;
   chart_extraction?: ChartExtraction | null;
   assets?: Asset[];
