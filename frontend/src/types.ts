@@ -880,11 +880,15 @@ export interface SectorMentionTicker {
   mentions: number;
 }
 
+/** Momentum classification for a sector/industry's mentions vs. the prior window (issue #146). */
+export type SectorTrend = 'hot' | 'rising' | 'cooling' | 'rare' | 'steady';
+
 export interface SectorMentionIndustry {
   industry: string;
   mentions: number;
   unique_tickers: number;
   top_tickers: SectorMentionTicker[];
+  trend?: SectorTrend;
 }
 
 export interface SectorMentionItem {
@@ -897,6 +901,9 @@ export interface SectorMentionItem {
   sentiment_label_24h: SentimentLabel;
   top_tickers: SectorMentionTicker[];
   industries: SectorMentionIndustry[];
+  trend?: SectorTrend;
+  prev_mentions?: number;
+  pct_change?: number | null;
 }
 
 export interface HiddenGemItem {

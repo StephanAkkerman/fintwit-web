@@ -268,6 +268,83 @@ async def test_sector_mentions_fair_score_caps_single_spammy_author(Session):
     assert rows[0]["sector"] == "Financials"  # ranked ahead despite fewer raw mentions
 
 
+async def test_sector_mentions_trend_classification(Session):
+    """issue #146: each sector/industry carries a momentum `trend` derived
+    from mentions this window vs. the same-length window immediately
+    before it."""
+    from app.services.mention_aggregator import get_sector_mentions
+
+    # Technology: 25 mentions now (>= SECTOR_HOT_MENTIONS) vs 10 prior
+    # (pct_change 1.5 >= SECTOR_TREND_THRESHOLD) -> hot.
+    tech_now = [
+        _tweet(i, ["NVDA"], "NEUTRAL", 0.0, 1, sector="Technology", industry="Semis")
+        for i in range(1, 26)
+    ]
+    tech_prev = [
+        _tweet(
+            i + 100, ["NVDA"], "NEUTRAL", 0.0, 30, sector="Technology", industry="Semis"
+        )
+        for i in range(1, 11)
+    ]
+    # Energy: 5 now vs 20 prior (pct_change -0.75) -> cooling.
+    energy_now = [
+        _tweet(i + 200, ["XOM"], "NEUTRAL", 0.0, 1, sector="Energy", industry="Oil")
+        for i in range(1, 6)
+    ]
+    energy_prev = [
+        _tweet(i + 300, ["XOM"], "NEUTRAL", 0.0, 30, sector="Energy", industry="Oil")
+        for i in range(1, 21)
+    ]
+    # Utilities: 10 now vs 5 prior (pct_change 1.0, below hot's absolute
+    # mention floor) -> rising.
+    util_now = [
+        _tweet(i + 400, ["NEE"], "NEUTRAL", 0.0, 1, sector="Utilities", industry="Elec")
+        for i in range(1, 11)
+    ]
+    util_prev = [
+        _tweet(
+            i + 500, ["NEE"], "NEUTRAL", 0.0, 30, sector="Utilities", industry="Elec"
+        )
+        for i in range(1, 6)
+    ]
+    # Materials: 1 mention -> below SECTOR_RARE_MENTIONS -> rare.
+    materials_now = [
+        _tweet(600, ["LIN"], "NEUTRAL", 0.0, 1, sector="Materials", industry="Chem")
+    ]
+
+    await _insert(
+        Session,
+        tech_now
+        + tech_prev
+        + energy_now
+        + energy_prev
+        + util_now
+        + util_prev
+        + materials_now,
+    )
+
+    rows = await get_sector_mentions(Session, window_hours=24)
+    by_sector = {r["sector"]: r for r in rows}
+
+    tech = by_sector["Technology"]
+    assert tech["prev_mentions"] == 10
+    assert tech["trend"] == "hot"
+    assert tech["industries"][0]["trend"] == "hot"
+
+    energy = by_sector["Energy"]
+    assert energy["prev_mentions"] == 20
+    assert energy["trend"] == "cooling"
+    assert energy["industries"][0]["trend"] == "cooling"
+
+    util = by_sector["Utilities"]
+    assert util["prev_mentions"] == 5
+    assert util["trend"] == "rising"
+
+    materials = by_sector["Materials"]
+    assert materials["prev_mentions"] == 0
+    assert materials["trend"] == "rare"
+
+
 async def test_volume_baseline_multiplier(Session):
     from app.services.mention_aggregator import get_volume_baseline
 

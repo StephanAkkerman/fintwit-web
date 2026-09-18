@@ -598,6 +598,32 @@ async def get_hidden_gems(
     ]
 
 
+# Sector/industry trend classification (issue #146): compares the active
+# window's mention count against the same-length window immediately before
+# it. Kept deliberately simple (absolute + relative thresholds) rather than
+# reusing `_derive_stat`'s per-ticker machinery, since sectors only need the
+# four buckets the issue asks for plus a quiet default.
+SECTOR_RARE_MENTIONS = 3  # fewer than this in the window barely registers
+SECTOR_HOT_MENTIONS = 20  # high absolute volume this window
+SECTOR_TREND_THRESHOLD = 0.3  # |Δ| vs prior window to flag rising/cooling
+
+
+def _sector_trend(mentions: int, prev_mentions: int) -> str:
+    """Classify a sector/industry's momentum: hot, rising, cooling, rare, or steady."""
+    if mentions < SECTOR_RARE_MENTIONS:
+        return "rare"
+    if prev_mentions <= 0:
+        return "hot" if mentions >= SECTOR_HOT_MENTIONS else "rising"
+    pct_change = (mentions - prev_mentions) / prev_mentions
+    if mentions >= SECTOR_HOT_MENTIONS and pct_change >= SECTOR_TREND_THRESHOLD:
+        return "hot"
+    if pct_change >= SECTOR_TREND_THRESHOLD:
+        return "rising"
+    if pct_change <= -SECTOR_TREND_THRESHOLD:
+        return "cooling"
+    return "steady"
+
+
 async def get_sector_mentions(
     Session: async_sessionmaker,
     window_hours: int = 24,
@@ -620,9 +646,16 @@ async def get_sector_mentions(
     sector is capped at ``AUTHOR_MENTION_CAP`` before summing, so one
     account spamming a sector's tickers can't out-rank a sector genuinely
     discussed by several distinct authors.
+
+    Each sector and industry also carries a momentum ``trend`` (issue #146:
+    ``hot``/``rising``/``cooling``/``rare``/``steady``) derived from
+    ``mentions`` vs. ``prev_mentions`` — the same-length window immediately
+    before the active one — so the frontend can render an emoji/colour cue
+    without re-deriving it client-side.
     """
     now = _now()
     cutoff = now - timedelta(hours=window_hours)
+    prev_cutoff = cutoff - timedelta(hours=window_hours)
     user_c = _user_clause(user_screen_name)
     sub_c = _subscriber_clause(subscriber_only)
 
@@ -678,6 +711,28 @@ async def get_sector_mentions(
         JOIN fair_score fs ON fs.sector = tr.sector
     """)
 
+    # Prior-window mention counts per sector/industry, for the `trend` field.
+    # A separate, lighter query rather than folding into the main one above:
+    # it only needs raw counts (no fairness score, no ticker breakdown), so
+    # it stays a simple GROUP BY over the same-length window immediately
+    # before `cutoff`.
+    prior_sql = text(f"""
+        SELECT
+            json_extract(ae.value, '$.sector') AS sector,
+            COALESCE(NULLIF(json_extract(ae.value, '$.industry'), ''), 'Other') AS industry,
+            CAST(COUNT(*) AS INTEGER) AS mentions
+        FROM tweets t, json_each(t.tickers) j
+        LEFT JOIN json_each(t.assets) ae
+               ON json_extract(ae.value, '$.symbol') = j.value
+        WHERE t.created_at >= :prev_cutoff AND t.created_at < :cutoff
+          AND t.tickers IS NOT NULL AND t.tickers != '[]'
+          AND json_extract(ae.value, '$.sector') IS NOT NULL
+          AND json_extract(ae.value, '$.sector') != ''
+          {user_c}
+          {sub_c}
+        GROUP BY sector, industry
+    """)
+
     params: dict = {"cutoff": cutoff, "author_cap": AUTHOR_MENTION_CAP}
     if user_screen_name:
         params["user_name_pat"] = f"%{user_screen_name.lower()}%"
@@ -685,6 +740,18 @@ async def get_sector_mentions(
     async with Session() as s:
         result = await s.execute(sql, params)
         rows = result.mappings().all()
+        result = await s.execute(prior_sql, {**params, "prev_cutoff": prev_cutoff})
+        prior_rows = result.mappings().all()
+
+    prior_sector_mentions: dict[str, int] = {}
+    prior_industry_mentions: dict[tuple[str, str], int] = {}
+    for r in prior_rows:
+        mentions = int(r["mentions"])
+        prior_sector_mentions[r["sector"]] = (
+            prior_sector_mentions.get(r["sector"], 0) + mentions
+        )
+        key = (r["sector"], r["industry"])
+        prior_industry_mentions[key] = prior_industry_mentions.get(key, 0) + mentions
 
     sectors: dict[str, dict] = {}
     for r in rows:
@@ -727,6 +794,7 @@ async def get_sector_mentions(
         industries = sorted(
             sector["industries"].values(), key=lambda i: i["mentions"], reverse=True
         )
+        sector_prev = prior_sector_mentions.get(sector["sector"], 0)
         out.append(
             {
                 "sector": sector["sector"],
@@ -737,12 +805,25 @@ async def get_sector_mentions(
                 "avg_sentiment_24h": avg_sentiment,
                 "sentiment_label_24h": _score_to_label(avg_sentiment),
                 "top_tickers": _top_tickers(sector["tickers"], 5),
+                "prev_mentions": sector_prev,
+                "pct_change": (
+                    (sector["mentions"] - sector_prev) / sector_prev
+                    if sector_prev > 0
+                    else None
+                ),
+                "trend": _sector_trend(sector["mentions"], sector_prev),
                 "industries": [
                     {
                         "industry": i["industry"],
                         "mentions": i["mentions"],
                         "unique_tickers": len(i["tickers"]),
                         "top_tickers": _top_tickers(i["tickers"], 3),
+                        "trend": _sector_trend(
+                            i["mentions"],
+                            prior_industry_mentions.get(
+                                (sector["sector"], i["industry"]), 0
+                            ),
+                        ),
                     }
                     for i in industries
                 ],

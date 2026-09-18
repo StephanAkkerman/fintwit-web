@@ -163,6 +163,7 @@ Last updated: 2026-09-04 (multi-market TradingView movers explorer)
 - Mention-volume anomaly detection: `/api/overview/volume-baseline` -> `useVolumeBaseline` -> `VolumeBaselineWidget` (`/` via `OverviewDashboard`).
 - Hidden-gem detection: `/api/overview/hidden-gems` -> `useHiddenGems` -> `HiddenGemWidget` (`/` via `OverviewDashboard`).
 - Sector/industry mentions: `/api/overview/sector-mentions` -> `useSectorMentions` -> `SectorMentionsWidget` (shown on `/` via `OverviewDashboard`, below the mention-heat/sentiment/volume/hidden-gem row; expand a sector for its industry breakdown, click a ticker chip to apply the sidebar ticker filter) (issue #104).
+- Sector/industry emojis + trend colors: each sector/industry carries a fixed emoji + colour badge (`utils/sectorStyle.ts`) on `SectorMentionsWidget`, `SectorOverviewWidget`, and each tweet card's asset block (`AssetFundamentals`); `SectorMentionsWidget` additionally shows a momentum badge (🔥 Hot / 📈 Rising / 📉 Cooling down / 🌱 Rarely mentioned / ➖ Steady) driven by the `trend` field `get_sector_mentions` now computes from mentions vs. the prior window (issue #146).
 - Ticker detail modal: `/api/overview/ticker-timeseries` -> `useTickerTimeseries` -> `TickerDetailModal` (mentions-over-time chart, bullish/bearish sentiment breakdown, and summary stats; opened by clicking any ticker across `TweetCard`, `MentionHeatmap`).
 - Debug admin panel: `/api/debug/tweet` -> `DebugAdminPanel` (`/admin`).
 - Portfolio panel: `/api/portfolio/positions` + `/api/portfolio/summary` -> `PortfolioPanel` (`/portfolio`).

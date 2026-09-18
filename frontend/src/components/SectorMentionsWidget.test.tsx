@@ -31,8 +31,12 @@ const techSector: SectorMentionItem = {
         { ticker: 'NVDA', mentions: 7 },
         { ticker: 'MU', mentions: 5 },
       ],
+      trend: 'hot',
     },
   ],
+  trend: 'hot',
+  prev_mentions: 4,
+  pct_change: 2,
 }
 
 const singleIndustrySector: SectorMentionItem = {
@@ -106,5 +110,13 @@ describe('SectorMentionsWidget', () => {
 
     fireEvent.click(screen.getByText('$NVDA'))
     expect(onTickerClick).toHaveBeenCalledWith('NVDA')
+  })
+
+  it('shows a trend badge with an emoji for a hot sector', () => {
+    mockUseSectorMentions.mockReturnValue({ data: [techSector], loading: false, error: false })
+    render(<SectorMentionsWidget />)
+
+    expect(screen.getAllByText('Hot').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('🔥').length).toBeGreaterThan(0)
   })
 })

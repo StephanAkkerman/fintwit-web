@@ -132,7 +132,7 @@ Route-level sections:
 
 - `SectorMentionsWidget` + `useSectorMentions` (`/` only, inside `OverviewDashboard`)
   - Fetches: `/api/overview/sector-mentions?window_hours=...` (plus the sidebar user filter).
-  - Purpose: most-mentioned equity sectors (issue #104) — proportional bars ranked by the fairness-adjusted `mention_score`, top mentioned tickers per sector, expandable per-sector industry breakdown (e.g. "Technology > Semiconductors"). Equity-only: crypto/forex tickers carry no sector metadata, so it is not asset-kind scoped like the other overview widgets.
+  - Purpose: most-mentioned equity sectors (issue #104) — proportional bars ranked by the fairness-adjusted `mention_score`, top mentioned tickers per sector, expandable per-sector industry breakdown (e.g. "Technology > Semiconductors"). Equity-only: crypto/forex tickers carry no sector metadata, so it is not asset-kind scoped like the other overview widgets. Each sector/industry row also shows a fixed emoji + colour badge (via `utils/sectorStyle.ts`, shared with `AssetFundamentals`/`SectorOverviewWidget`) and a momentum badge (🔥 Hot / 📈 Rising / 📉 Cooling down / 🌱 Rarely mentioned / ➖ Steady) from the backend's `trend` field, so hot/cooling sectors are visible at a glance (issue #146).
   - Interaction: expand/collapse a sector row for its industries; clicking a ticker chip applies sidebar ticker filtering and opens `TickerDetailModal` via the shared `onTickerClick` callback.
 
 - `MacroStrip` + `useMacroStrip` (`/` only, inside `OverviewDashboard`)
