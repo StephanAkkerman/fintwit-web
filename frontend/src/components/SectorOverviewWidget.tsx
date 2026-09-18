@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useSectorOverview } from '../hooks/useSectorOverview'
 import type { SectorPerformance, SectorSubsectorPerformance, SpyHeatmapDateRange } from '../types'
+import { getSectorStyle } from '../utils/sectorStyle'
 
 const RANGE_OPTIONS: Array<{ key: SpyHeatmapDateRange; label: string }> = [
   { key: 'one_day', label: '1D' },
@@ -71,6 +72,7 @@ function SubsectorRow({ subsector }: { subsector: SectorSubsectorPerformance }) 
 function SectorRow({ sector }: { sector: SectorPerformance }) {
   const expandable = hasSubsectorBreakdown(sector)
   const [open, setOpen] = useState(false)
+  const sectorStyle = getSectorStyle(sector.sector)
 
   return (
     <div className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
@@ -87,8 +89,14 @@ function SectorRow({ sector }: { sector: SectorPerformance }) {
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-3">
-            <span className="truncate text-sm font-medium text-zinc-800 dark:text-zinc-100">
-              {sector.sector}
+            <span className="flex min-w-0 items-center gap-1.5 truncate text-sm font-medium text-zinc-800 dark:text-zinc-100">
+              <span
+                aria-hidden="true"
+                className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-[10px] ${sectorStyle.className}`}
+              >
+                {sectorStyle.emoji}
+              </span>
+              <span className="truncate">{sector.sector}</span>
             </span>
             <div className="flex shrink-0 items-center gap-3 text-xs">
               <span className="text-zinc-500">{formatMarketCap(sector.market_cap)}</span>

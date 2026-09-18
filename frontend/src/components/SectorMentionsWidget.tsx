@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useSectorMentions } from '../hooks/useSectorMentions'
 import type { SectorMentionIndustry, SectorMentionItem, SectorMentionTicker } from '../types'
+import { getSectorStyle, getTrendMeta } from '../utils/sectorStyle'
 
 interface Props {
   windowHours?: number
@@ -33,6 +34,19 @@ function TickerChips({
   )
 }
 
+function TrendBadge({ trend }: { trend: string | null | undefined }) {
+  const meta = getTrendMeta(trend)
+  return (
+    <span
+      title={meta.label}
+      className={`inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${meta.className}`}
+    >
+      <span aria-hidden="true">{meta.emoji}</span>
+      <span>{meta.label}</span>
+    </span>
+  )
+}
+
 function IndustryRow({
   industry,
   onTickerClick,
@@ -44,9 +58,12 @@ function IndustryRow({
     <div className="flex flex-col gap-1 py-1.5 pl-5 border-b border-zinc-900 last:border-0">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[11px] text-zinc-400 truncate">{industry.industry}</span>
-        <span className="font-mono text-[10px] text-zinc-500 shrink-0">
-          {industry.mentions} · {industry.unique_tickers} {industry.unique_tickers === 1 ? 'ticker' : 'tickers'}
-        </span>
+        <div className="flex shrink-0 items-center gap-2">
+          <TrendBadge trend={industry.trend} />
+          <span className="font-mono text-[10px] text-zinc-500">
+            {industry.mentions} · {industry.unique_tickers} {industry.unique_tickers === 1 ? 'ticker' : 'tickers'}
+          </span>
+        </div>
       </div>
       <TickerChips tickers={industry.top_tickers} onTickerClick={onTickerClick} />
     </div>
@@ -70,6 +87,7 @@ function SectorRow({
   const [open, setOpen] = useState(false)
   const expandable = hasIndustryBreakdown(sector)
   const barWidth = `${Math.min(100, (sector.mention_score / maxScore) * 100).toFixed(1)}%`
+  const sectorStyle = getSectorStyle(sector.sector)
 
   return (
     <div className="border-b border-zinc-900 last:border-0">
@@ -84,10 +102,21 @@ function SectorRow({
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
-            <span className="truncate text-[12px] font-semibold text-zinc-100">{sector.sector}</span>
-            <span className="font-mono text-[10px] text-zinc-500 shrink-0">
-              {sector.mentions} mentions · {sector.unique_tickers} {sector.unique_tickers === 1 ? 'ticker' : 'tickers'}
+            <span className="flex min-w-0 items-center gap-1.5 truncate text-[12px] font-semibold text-zinc-100">
+              <span
+                aria-hidden="true"
+                className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-[10px] ${sectorStyle.className}`}
+              >
+                {sectorStyle.emoji}
+              </span>
+              <span className="truncate">{sector.sector}</span>
             </span>
+            <div className="flex shrink-0 items-center gap-2">
+              <TrendBadge trend={sector.trend} />
+              <span className="font-mono text-[10px] text-zinc-500">
+                {sector.mentions} mentions · {sector.unique_tickers} {sector.unique_tickers === 1 ? 'ticker' : 'tickers'}
+              </span>
+            </div>
           </div>
           <div className="mt-1 h-1.5 rounded-full bg-zinc-900">
             <div className="h-1.5 rounded-full bg-sky-500" style={{ width: barWidth }} />

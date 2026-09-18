@@ -1747,6 +1747,8 @@ def _sample_tweets() -> list[dict]:
                 {
                     "symbol": "NVDA",
                     "kind": "EQUITY",
+                    "sector": "Technology",
+                    "industry": "Semiconductors",
                     "financials": {"price": 184.20, "change_percent": 4.06},
                 }
             ],
@@ -1792,6 +1794,8 @@ def _sample_tweets() -> list[dict]:
                 {
                     "symbol": "TSLA",
                     "kind": "EQUITY",
+                    "sector": "Consumer Cyclical",
+                    "industry": "Auto Manufacturers",
                     "financials": {"price": 186.40, "change_percent": 0.37},
                 }
             ],
@@ -1992,6 +1996,10 @@ def fixtures_for(scenario: str) -> dict[str, object]:
                     {"ticker": "MU", "mentions": 15},
                     {"ticker": "MSFT", "mentions": 6},
                 ],
+                # issue #146: momentum cues shown alongside the sector emoji.
+                "prev_mentions": 16,
+                "pct_change": 1.5625,
+                "trend": "hot",
                 "industries": [
                     {
                         "industry": "Semiconductors",
@@ -2001,12 +2009,14 @@ def fixtures_for(scenario: str) -> dict[str, object]:
                             {"ticker": "NVDA", "mentions": 20},
                             {"ticker": "MU", "mentions": 15},
                         ],
+                        "trend": "hot",
                     },
                     {
                         "industry": "Software",
                         "mentions": 6,
                         "unique_tickers": 1,
                         "top_tickers": [{"ticker": "MSFT", "mentions": 6}],
+                        "trend": "steady",
                     },
                 ],
             },
@@ -2022,6 +2032,9 @@ def fixtures_for(scenario: str) -> dict[str, object]:
                     {"ticker": "JPM", "mentions": 11},
                     {"ticker": "GS", "mentions": 7},
                 ],
+                "prev_mentions": 26,
+                "pct_change": -0.3077,
+                "trend": "cooling",
                 "industries": [
                     {
                         "industry": "Banks",
@@ -2031,24 +2044,29 @@ def fixtures_for(scenario: str) -> dict[str, object]:
                             {"ticker": "JPM", "mentions": 11},
                             {"ticker": "GS", "mentions": 7},
                         ],
+                        "trend": "cooling",
                     },
                 ],
             },
             {
                 "sector": "Energy",
-                "mentions": 9,
-                "mention_score": 9,
-                "unique_authors": 9,
+                "mentions": 2,
+                "mention_score": 2,
+                "unique_authors": 2,
                 "unique_tickers": 1,
                 "avg_sentiment_24h": -0.18,
                 "sentiment_label_24h": "BEAR",
-                "top_tickers": [{"ticker": "XOM", "mentions": 9}],
+                "top_tickers": [{"ticker": "XOM", "mentions": 2}],
+                "prev_mentions": 0,
+                "pct_change": None,
+                "trend": "rare",
                 "industries": [
                     {
                         "industry": "Other",
-                        "mentions": 9,
+                        "mentions": 2,
                         "unique_tickers": 1,
-                        "top_tickers": [{"ticker": "XOM", "mentions": 9}],
+                        "top_tickers": [{"ticker": "XOM", "mentions": 2}],
+                        "trend": "rare",
                     },
                 ],
             },

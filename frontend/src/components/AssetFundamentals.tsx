@@ -1,6 +1,7 @@
 import type { Asset } from '../types'
 import type { MetricQuality, MetricScale } from '../utils/metricQuality'
 import { metricQualityTextClass, scoreMetric } from '../utils/metricQuality'
+import { getSectorStyle } from '../utils/sectorStyle'
 
 /**
  * Conventional generic P/E bands: cheap at or under 15x earnings, expensive at
@@ -143,6 +144,10 @@ export default function AssetFundamentals({
   const classification = industry ?? sector
   const classificationTooltip =
     sector && industry && sector !== industry ? `${sector} · ${industry}` : (classification ?? '')
+  // The emoji/colour cue always reflects the broad sector (issue #146) so the
+  // same sector reads as the same colour across every tweet card, even when
+  // the label itself shows the more specific industry.
+  const sectorStyle = sector ? getSectorStyle(sector) : null
 
   if (metrics.length === 0 && !classification) {
     return null
@@ -178,10 +183,20 @@ export default function AssetFundamentals({
       )}
       {classification && (
         <div
-          title={classificationTooltip}
-          className={`truncate text-zinc-500 dark:text-zinc-400 ${metrics.length > 0 ? 'mt-0.5' : ''}`.trim()}
+          className={`flex items-center gap-1 truncate text-zinc-500 dark:text-zinc-400 ${metrics.length > 0 ? 'mt-0.5' : ''}`.trim()}
         >
-          {classification}
+          {sectorStyle && (
+            <span
+              aria-hidden="true"
+              title={classificationTooltip}
+              className={`inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded text-[9px] ${sectorStyle.className}`}
+            >
+              {sectorStyle.emoji}
+            </span>
+          )}
+          <span title={classificationTooltip} className="truncate">
+            {classification}
+          </span>
         </div>
       )}
     </div>
