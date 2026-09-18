@@ -1,24 +1,85 @@
 # fintwit-web
 
-<!-- Add a banner here like: https://github.com/StephanAkkerman/fintwit-bot/blob/main/img/logo/fintwit-banner.png -->
-
 ---
-<!-- Adjust the link of the first and second badges to your own repo -->
 <p align="center">
-  <img alt="GitHub Actions Workflow Status" src="https://img.shields.io/github/actions/workflow/status/StephanAkkerman/template/pyversions.yml?label=python%203.10%20%7C%203.11%20%7C%203.12%20%7C%203.13&logo=python&style=flat-square">
-  <img src="https://img.shields.io/github/license/StephanAkkerman/template.svg?color=brightgreen" alt="License">
+  <img alt="GitHub Actions Workflow Status" src="https://img.shields.io/github/actions/workflow/status/StephanAkkerman/fintwit-web/pyversions.yml?label=python%203.11%20%7C%203.12%20%7C%203.13&logo=python&style=flat-square">
+  <img src="https://img.shields.io/github/license/StephanAkkerman/fintwit-web.svg?color=brightgreen" alt="License">
   <a href="https://github.com/psf/black"><img src="https://img.shields.io/badge/code%20style-black-000000.svg" alt="Code style: black"></a>
 </p>
 
 ## Introduction
 
-In this section you can provide a brief introduction to the project. You can also include a brief description of the project and its features.
+`fintwit-web` aggregates financial markets data from Twitter/X, Reddit, Binance, Yahoo Finance,
+TradingView, and more — enriched with ML-based sentiment analysis and chart recognition — and
+surfaces it through a self-hosted React dashboard.
+
+It's a full-stack migration of the [`fintwit-bot`](https://github.com/StephanAkkerman/fintwit-bot)
+Discord bot: same data pipelines and ML models, but without Discord's rate limits, low data
+density, and lack of a custom UI. The dashboard covers crypto, stocks, forex, options, NFTs,
+enriched tweets, and live portfolio tracking. The migration is ongoing and incremental — see
+[Documentation](#documentation) for current coverage.
 
 ## Quick Start Guide 🚀
-You can run both at the same time by using at the root of the repo:
+
+1. Install backend and frontend dependencies (see [Installation](#installation)).
+2. Complete the [Manual Setup](#manual-setup-click-ops) steps below — at minimum, capture
+   `curl.txt` so the tweet stream can authenticate to X.
+3. Copy `.env.example` to `.env` and fill in the values you need.
+4. Run backend and frontend together from the repo root:
+
 ```bash
 npm run dev
 ```
+
+This starts `uvicorn` on `127.0.0.1:7999` and the Vite dev server (which proxies `/api/*` to
+it) at the same time. To run them separately instead, see [Start separately](#start-separately).
+
+## Manual Setup (Click-Ops)
+
+A few one-time steps can't be automated by Terraform or Docker — they involve logging into a
+third-party dashboard or an interactive login flow. Do these before your first deploy; you
+only need the ones for features you actually want to use.
+
+### Capture `curl.txt` for the X/Twitter stream (required)
+
+The tweet stream authenticates as your own logged-in X session via a captured request, not an
+official API key. The backend won't start streaming — and the Docker image won't even build,
+since it `COPY`s `curl.txt` in — without this file at the repo root:
+
+1. Log into [x.com](https://x.com) in your browser and open the Following timeline.
+2. Open DevTools (F12) → **Network** tab, and find a `HomeTimeline` or `HomeLatestTimeline`
+   request (reload the timeline if you don't see one yet).
+3. Right-click the request → **Copy** → **Copy as cURL** (bash for Chrome/Edge, posix for
+   Firefox).
+4. Paste the copied command into a new file named `curl.txt` at the repo root.
+
+`curl.txt` contains your session cookies — it's already gitignored, never commit it, and treat
+it like a password. The session will eventually expire and need to be recaptured.
+
+### Cloudflare account, API token, and domain delegation (for public hosting)
+
+Only needed if you're exposing the dashboard publicly via the Cloudflare Tunnel setup below:
+
+1. Create a free [Cloudflare](https://dash.cloudflare.com/sign-up) account and add your domain.
+2. At your domain registrar, switch its nameservers to the ones Cloudflare assigns. This is a
+   registrar-level step; it isn't managed by Terraform.
+3. Create an API token at
+   [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens)
+   with **Account: Cloudflare Tunnel Edit** and **Zone: DNS Edit** permissions — Terraform uses
+   this to provision the tunnel and DNS record (see [infra/README.md](infra/README.md)).
+
+### Interactive Brokers login (for portfolio sync)
+
+Only needed if you're enabling `IBKR_ENABLED=true`. IB Gateway runs headless most days, but
+still requires occasional interactive login/2FA approval — see
+[IBKR on Raspberry Pi](#32-ibkr-on-raspberry-pi-headless--local-vnc) below for the VNC login flow.
+
+### Reddit app credentials (optional)
+
+Only needed for more reliable `/api/reddit/wsb` access; without it, the service falls back to
+an unauthenticated HTTP client. Create an app at
+[reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) (type "script") to get a client ID
+and secret — see [Optional: Reddit API Credentials](#optional-reddit-api-credentials) below.
 
 ## Deploy On Raspberry Pi + Cloudflare Tunnel
 
@@ -39,9 +100,11 @@ docker compose version
 ```bash
 git clone https://github.com/StephanAkkerman/fintwit-web.git
 cd fintwit-web
+cp .env.example .env
 ```
 
-Use your `.env` file at repo root.
+Place your captured `curl.txt` at the repo root (see [Manual Setup](#manual-setup-click-ops))
+and fill in `.env` at repo root.
 
 Important: keep env formatting as `KEY=value` (no spaces around `=`) for max compatibility.
 
@@ -182,8 +245,8 @@ docker compose up -d --build
 
 ### 4) Cloudflare DNS delegation
 
-Make sure your domain is delegated to Cloudflare nameservers from your registrar.
-This nameserver switch is a registrar-level step and is not managed by Terraform in this repo.
+Make sure your domain is delegated to Cloudflare nameservers and you have an API token ready —
+see [Manual Setup](#manual-setup-click-ops) above if you haven't done this yet.
 
 ### 5) Provision tunnel + DNS with Terraform
 
@@ -213,11 +276,11 @@ export CLOUDFLARE_TUNNEL_TOKEN="<terraform tunnel_token output>"
 docker compose up -d
 ```
 
-Public hostname defaults to `fintwit.akkerman.ai` (configurable in `infra/terraform.tfvars`).
+Public hostname is `<subdomain>.<zone_name>` from `infra/terraform.tfvars` (e.g. `fintwit.example.com`).
 
 ### 7) Verify
 
-- `https://fintwit.akkerman.ai` serves the frontend
+- Your configured hostname (`https://<subdomain>.<zone_name>`) serves the frontend
 - API calls and stream work through frontend proxy paths (`/api/*`, `/api/stream`)
 
 ### Start separately
@@ -277,17 +340,26 @@ REDDIT_PASSWORD=...
 
 ## Table of Contents 🗂
 
+- [Manual Setup (Click-Ops)](#manual-setup-click-ops)
 - [Key Features](#key-features)
 - [Documentation](#documentation)
 - [Installation](#installation)
+- [Environment Variables](#environment-variables)
 - [Usage](#usage)
-- [Citation](#citation)
 - [Contributing](#contributing)
 - [License](#license)
 
 ## Key Features 🔑
 
-This section is optional. If your project has a lot of features, consider adding a list of key features here.
+- **Enriched tweet timeline** — streamed from X, classified by ticker, scored for sentiment
+  (FinTwitBERT), and flagged for chart images (chart-recognizer)
+- **Crypto & stocks** — price index, trending, gainers/losers, funding rates, liquidations,
+  earnings calendar, halts, StockTwits, TradingView ideas
+- **Options, forex, NFTs** — overview/volume/SPACs/short interest, economic events and yield
+  curve, top/trending/upcoming collections
+- **Reddit** — WallStreetBets scraping
+- **Portfolio tracking** — live trade tracking, including optional Interactive Brokers sync
+- **Self-hosted** — SQLite or PostgreSQL storage, runs via Docker Compose, no Discord required
 
 ## Documentation
 
@@ -298,41 +370,40 @@ This section is optional. If your project has a lot of features, consider adding
 - [Cloudflare Terraform Notes](infra/README.md)
 
 ## Installation ⚙️
-<!-- Adjust the link of the second command to your own repo -->
-
-The required packages to run this code can be found in the requirements.txt file. To run this file, execute the following code block after cloning the repository:
 
 ```bash
+git clone https://github.com/StephanAkkerman/fintwit-web.git
+cd fintwit-web
+
+# Backend
 pip install -r requirements.txt
+
+# Frontend
+cd frontend && npm install && cd ..
 ```
 
-or
+Then follow the [Quick Start Guide](#quick-start-guide) above, or
+[Deploy On Raspberry Pi + Cloudflare Tunnel](#deploy-on-raspberry-pi--cloudflare-tunnel) to
+run it with Docker.
 
-```bash
-pip install git+https://github.com/StephanAkkerman/template.git
-```
+## Environment Variables
+
+All environment variables are documented in [`.env.example`](.env.example) — copy it to `.env`
+and fill in what you need. Everything besides the X/Twitter stream (see
+[Manual Setup](#manual-setup-click-ops)) is optional and has a sensible default.
 
 ## Usage ⌨️
 
-## Citation ✍️
-<!-- Be sure to adjust everything here so it matches your name and repo -->
-If you use this project in your research, please cite as follows:
-
-```bibtex
-@misc{project_name,
-  author  = {Stephan Akkerman},
-  title   = {Project Name},
-  year    = {2024},
-  publisher = {GitHub},
-  journal = {GitHub repository},
-  howpublished = {\url{https://github.com/StephanAkkerman/template}}
-}
-```
+Once running, the dashboard is served at `http://127.0.0.1:3000` in dev (`npm run dev`) or at
+your configured public hostname when deployed. The backend API lives under `/api/*`, and
+`/api/stream` carries the live SSE tweet feed.
 
 ## Contributing 🛠
-<!-- Be sure to adjust the repo name here for both the URL and GitHub link -->
-Contributions are welcome! If you have a feature request, bug report, or proposal for code refactoring, please feel free to open an issue on GitHub. We appreciate your help in improving this project.\
-![https://github.com/StephanAkkerman/template/graphs/contributors](https://contributors-img.firebaseapp.com/image?repo=StephanAkkerman/template)
+
+Contributions are welcome! If you have a feature request, bug report, or proposal for code
+refactoring, please feel free to open an issue on GitHub. See [CONTRIBUTING.md](CONTRIBUTING.md)
+for code style and PR guidelines. We appreciate your help in improving this project.\
+![https://github.com/StephanAkkerman/fintwit-web/graphs/contributors](https://contributors-img.firebaseapp.com/image?repo=StephanAkkerman/fintwit-web)
 
 ## License 📜
 

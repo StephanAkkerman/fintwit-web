@@ -10,9 +10,8 @@ variable "cloudflare_account_id" {
 }
 
 variable "zone_name" {
-  description = "Cloudflare zone name"
+  description = "Cloudflare zone name (your own domain, delegated to Cloudflare nameservers)"
   type        = string
-  default     = "akkerman.ai"
 }
 
 variable "subdomain" {

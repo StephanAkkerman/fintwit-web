@@ -1,7 +1,8 @@
-# Get it from https://dash.cloudflare.com/profile/api-tokensf
+# Get it from https://dash.cloudflare.com/profile/api-tokens
 cloudflare_api_token = "paste-your-cloudflare-api-token"
 cloudflare_account_id = "paste-your-account-id"
-zone_name             = "akkerman.ai"
+# Replace with your own domain, delegated to Cloudflare nameservers.
+zone_name             = "example.com"
 subdomain             = "fintwit"
 tunnel_name           = "fintwit-pi"
 # If cloudflared runs outside docker compose on the Pi host, use http://localhost:3000
