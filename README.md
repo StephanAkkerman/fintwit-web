@@ -72,7 +72,8 @@ Only needed if you're exposing the dashboard publicly via the Cloudflare Tunnel 
 
 Only needed if you're enabling `IBKR_ENABLED=true`. IB Gateway runs headless most days, but
 still requires occasional interactive login/2FA approval — see
-[IBKR on Raspberry Pi](#32-ibkr-on-raspberry-pi-headless--local-vnc) below for the VNC login flow.
+[Optional: Interactive Brokers portfolio sync](#4-optional-interactive-brokers-portfolio-sync)
+below for the VNC login flow.
 
 ### Reddit app credentials (optional)
 
@@ -81,11 +82,15 @@ an unauthenticated HTTP client. Create an app at
 [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) (type "script") to get a client ID
 and secret — see [Optional: Reddit API Credentials](#optional-reddit-api-credentials) below.
 
-## Deploy On Raspberry Pi + Cloudflare Tunnel
+## Deploy with Docker
 
-### 1) Prepare your Raspberry Pi
+Works on a Raspberry Pi, a home server, or any Linux/macOS host. **The stack is
+localhost-only by default** — `ibgateway` (IBKR) and `cloudflared` (public tunnel) are Compose
+[profiles](https://docs.docker.com/compose/how-tos/profiles/) that sit out unless you opt in,
+so plain `docker compose up` never exposes anything beyond `127.0.0.1`, and never requires IBKR
+or Cloudflare credentials.
 
-Install Docker and the Compose plugin:
+### 1) Install Docker
 
 ```bash
 curl -fsSL https://get.docker.com | sh
@@ -104,71 +109,26 @@ cp .env.example .env
 ```
 
 Place your captured `curl.txt` at the repo root (see [Manual Setup](#manual-setup-click-ops))
-and fill in `.env` at repo root.
+and fill in `.env`. Keep env formatting as `KEY=value` (no spaces around `=`) for max
+compatibility.
 
-Important: keep env formatting as `KEY=value` (no spaces around `=`) for max compatibility.
-
-Minimum IBKR-related values for Pi deployments:
-
-```bash
-TRADING_MODE=live
-IBKR_PORT=4003
-VNC_SERVER_PASSWORD=change-me-to-a-strong-password
-TWS_USERID=your-ibkr-username
-TWS_PASSWORD=your-ibkr-password
-```
-
-If your backend crashes on Raspberry Pi with a PyTorch `Illegal instruction`
-error in chart recognition, temporarily disable chart inference:
-
-```bash
-CHART_ENABLED=false
-```
-
-Chart data extraction (OCR of symbol/price off chart screenshots, run only
-when a chart tweet's text has no ticker) shares the same PyTorch stack via
-`ultralytics`. Disable it independently with:
-
-```bash
-CHART_EXTRACTION_ENABLED=false
-```
-
-To pin/downgrade PyTorch used by the backend Docker image, set:
-
-```bash
-TORCH_VERSION=2.8.0
-```
-
-and rebuild:
-
-```bash
-docker compose up -d --build backend
-```
-
-To isolate the exact failing stage (PyTorch conv vs timm vs chart model), run
-the chart stack probe inside the backend container:
-
-```bash
-docker exec -it fintwit-backend python -m app.runtime.probe_chart_stack
-```
-
-This prints the first failing probe and whether it crashed with `SIGILL`.
-
-If you use paper trading instead of live:
-
-```bash
-TRADING_MODE=paper
-IBKR_PORT=4004
-```
-
-### 3) Build and run locally on Pi
+### 3) Build and run (localhost-only)
 
 ```bash
 docker compose down # stop any existing containers first to avoid conflicts
 docker compose up -d --build
 ```
 
-Build speed tips on Raspberry Pi:
+This runs just two services, both bound to `127.0.0.1` only:
+
+- Frontend (Nginx + React build) on `127.0.0.1:3000`
+- Backend (FastAPI) on `127.0.0.1:7999`
+
+The frontend container proxies `/api/*` and `/api/stream` to the backend container. This is a
+complete, working deployment on its own — stop here if you don't need IBKR sync or public
+access, and skip straight to [Verify](#verify).
+
+Build speed tips (useful on constrained hardware like a Pi):
 
 - For day-to-day restarts, use `docker compose up -d` (without `--build`).
 - Rebuild only when dependencies or Dockerfile change: `docker compose build backend`.
@@ -179,29 +139,71 @@ export DOCKER_BUILDKIT=1
 export COMPOSE_DOCKER_CLI_BUILD=1
 ```
 
-The backend Docker image installs CPU-only PyTorch wheels (`download.pytorch.org/whl/cpu`) to avoid pulling large CUDA runtime packages on Linux hosts.
+The backend Docker image installs CPU-only PyTorch wheels (`download.pytorch.org/whl/cpu`) to
+avoid pulling large CUDA runtime packages on Linux hosts.
 
-This stack runs:
+#### Backend tuning (PyTorch / chart recognition)
 
-- Frontend (Nginx + React build) on `127.0.0.1:3000`
-- Backend (FastAPI) on `127.0.0.1:7999`
-
-The frontend container proxies `/api/*` and `/api/stream` to the backend container.
-
-##### 3.2) IBKR on Raspberry Pi (headless + local VNC)
-
-The compose file starts an `ibgateway` container and a backend sync worker. Most days this can run headless, but IBKR may still require occasional interactive login/2FA approval.
-
-Start IBKR + backend:
+If your backend crashes with a PyTorch `Illegal instruction` error in chart recognition
+(common on Raspberry Pi and other ARM/older CPUs), temporarily disable chart inference in
+`.env`:
 
 ```bash
-docker compose up -d --build ibgateway backend
+CHART_ENABLED=false
 ```
 
-If you already use RealVNC to access your Pi desktop, keep using it. Then, inside the Pi desktop session, open a local VNC client connection to the IB Gateway container:
+Chart data extraction (OCR of symbol/price off chart screenshots, run only when a chart
+tweet's text has no ticker) shares the same PyTorch stack via `ultralytics`. Disable it
+independently with:
 
 ```bash
-# install once on the Pi if needed
+CHART_EXTRACTION_ENABLED=false
+```
+
+To pin/downgrade PyTorch used by the backend Docker image, set `TORCH_VERSION` in `.env` and
+rebuild:
+
+```bash
+docker compose up -d --build backend
+```
+
+To isolate the exact failing stage (PyTorch conv vs timm vs chart model), run the chart stack
+probe inside the backend container:
+
+```bash
+docker exec -it fintwit-backend python -m app.runtime.probe_chart_stack
+```
+
+This prints the first failing probe and whether it crashed with `SIGILL`.
+
+### 4) Optional: Interactive Brokers portfolio sync
+
+Adds the `ibgateway` container and a backend sync worker. In `.env`, set:
+
+```bash
+IBKR_ENABLED=true
+TRADING_MODE=live       # or paper
+IBKR_PORT=4003           # live=4003, paper=4004
+VNC_SERVER_PASSWORD=change-me-to-a-strong-password
+TWS_USERID=your-ibkr-username
+TWS_PASSWORD=your-ibkr-password
+COMPOSE_PROFILES=ibkr    # add ",tunnel" too if combining with step 5
+```
+
+Then bring the `ibkr` profile up (either works once `COMPOSE_PROFILES` is set in `.env`):
+
+```bash
+docker compose up -d --build
+# or, without setting COMPOSE_PROFILES:
+docker compose --profile ibkr up -d --build
+```
+
+IB Gateway runs headless most days, but may still require occasional interactive login/2FA
+approval — see [Manual Setup](#manual-setup-click-ops) above. If you already use RealVNC to
+access your host's desktop, keep using it; otherwise, open a local VNC client:
+
+```bash
+# install once on the host if needed
 sudo apt update
 sudo apt install -y remmina remmina-plugin-vnc
 ```
@@ -233,24 +235,18 @@ Notes:
 
 - Backend in Docker connects to host `ibgateway` (container network), not `localhost`.
 - For `ghcr.io/gnzsnz/ib-gateway`, backend should use socat ports: live `4003`, paper `4004`.
-- The IB Gateway settings are persisted in a Docker named volume (`ibgateway-settings`) to avoid host filesystem permission issues on Raspberry Pi.
-- If you see `connection refused on ibgateway:4003`, IB Gateway is up but not fully logged in/authorized yet, or login/2FA is incomplete.
+- The IB Gateway settings are persisted in a Docker named volume (`ibgateway-settings`) to
+  avoid host filesystem permission issues on Raspberry Pi.
+- If you see `connection refused on ibgateway:4003`, IB Gateway is up but not fully logged
+  in/authorized yet, or login/2FA is incomplete.
 
-##### 3.1) Start all at once with Cloudflare tunnel
-If you have your Cloudflare tunnel configured (see next section), start the stack with:
+### 5) Optional: expose it publicly via Cloudflare Tunnel
 
-```bash
-docker compose up -d --build
-```
+Adds the `cloudflared` container. Requires a Cloudflare account, API token, and a domain
+delegated to Cloudflare nameservers — see [Manual Setup](#manual-setup-click-ops) above if you
+haven't done that yet.
 
-### 4) Cloudflare DNS delegation
-
-Make sure your domain is delegated to Cloudflare nameservers and you have an API token ready —
-see [Manual Setup](#manual-setup-click-ops) above if you haven't done this yet.
-
-### 5) Provision tunnel + DNS with Terraform
-
-From `infra/`:
+Provision the tunnel + DNS record with Terraform, from `infra/`:
 
 ```bash
 cp terraform.tfvars.example terraform.tfvars
@@ -259,28 +255,30 @@ cp terraform.tfvars.example terraform.tfvars
 terraform init
 terraform plan
 terraform apply
-```
-
-Then fetch the tunnel token:
-
-```bash
 terraform output -raw tunnel_token
 ```
 
-### 6) Start cloudflared
-
-From repo root:
+Back in the repo root, set the token and profile in `.env`:
 
 ```bash
-export CLOUDFLARE_TUNNEL_TOKEN="<terraform tunnel_token output>"
-docker compose up -d
+CLOUDFLARE_TUNNEL_TOKEN=<terraform tunnel_token output>
+COMPOSE_PROFILES=tunnel   # add "ibkr," too if combining with step 4
 ```
 
-Public hostname is `<subdomain>.<zone_name>` from `infra/terraform.tfvars` (e.g. `fintwit.example.com`).
+```bash
+docker compose up -d --build
+# or, without setting COMPOSE_PROFILES:
+docker compose --profile tunnel up -d --build
+```
 
-### 7) Verify
+Public hostname is `<subdomain>.<zone_name>` from `infra/terraform.tfvars` (e.g.
+`fintwit.example.com`).
 
-- Your configured hostname (`https://<subdomain>.<zone_name>`) serves the frontend
+### Verify
+
+- Local-only: `http://127.0.0.1:3000` serves the frontend
+- With the `tunnel` profile: your configured hostname (`https://<subdomain>.<zone_name>`)
+  serves the frontend too
 - API calls and stream work through frontend proxy paths (`/api/*`, `/api/stream`)
 
 ### Start separately
@@ -341,6 +339,7 @@ REDDIT_PASSWORD=...
 ## Table of Contents 🗂
 
 - [Manual Setup (Click-Ops)](#manual-setup-click-ops)
+- [Deploy with Docker](#deploy-with-docker)
 - [Key Features](#key-features)
 - [Documentation](#documentation)
 - [Installation](#installation)
@@ -383,8 +382,8 @@ cd frontend && npm install && cd ..
 ```
 
 Then follow the [Quick Start Guide](#quick-start-guide) above, or
-[Deploy On Raspberry Pi + Cloudflare Tunnel](#deploy-on-raspberry-pi--cloudflare-tunnel) to
-run it with Docker.
+[Deploy with Docker](#deploy-with-docker) to run it self-contained (localhost-only by
+default — no IBKR or Cloudflare account needed).
 
 ## Environment Variables
 

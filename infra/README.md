@@ -28,9 +28,11 @@ serving fintwit-web from your Raspberry Pi.
    - `terraform apply`
 4. Read tunnel token:
    - `terraform output -raw tunnel_token`
-5. Start app + tunnel from repo root:
-   - `docker compose up -d --build`
-   - `CLOUDFLARE_TUNNEL_TOKEN=<token> docker compose up -d`
+5. Start app + tunnel from repo root. `cloudflared` is behind the `tunnel` Compose profile
+   (see the root [README](../README.md#deploy-with-docker)), so either set
+   `CLOUDFLARE_TUNNEL_TOKEN` and `COMPOSE_PROFILES=tunnel` in `.env` and run
+   `docker compose up -d --build`, or:
+   - `CLOUDFLARE_TUNNEL_TOKEN=<token> docker compose --profile tunnel up -d --build`
 
 ## Notes
 

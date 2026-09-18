@@ -10,6 +10,10 @@ x-logging: &default-logging
 
 services:
   ibgateway:
+    # Optional: only needed for Interactive Brokers portfolio sync. Started
+    # with `docker compose --profile ibkr up -d` (also set IBKR_ENABLED=true
+    # in .env so the backend actually uses it).
+    profiles: ["ibkr"]
     # https://github.com/gnzsnz/ib-gateway-docker — supports ARM64 (Raspberry Pi)
     # Replace with ghcr.io/gnzsnz/ib-gateway:stable for a pinned release
     image: ghcr.io/gnzsnz/ib-gateway:stable
@@ -45,14 +49,15 @@ services:
     container_name: fintwit-backend
     restart: unless-stopped
     logging: *default-logging
-    depends_on:
-      - ibgateway
     environment:
       DB_URL: sqlite+aiosqlite:///./state/data.db
       API_KEY: ${API_KEY:-}
       CHART_ENABLED: ${CHART_ENABLED:-true}
       CHART_EXTRACTION_ENABLED: ${CHART_EXTRACTION_ENABLED:-true}
-      IBKR_ENABLED: "true"
+      # Only takes effect if the ibgateway service is also started (the
+      # `ibkr` profile); the sync worker retries its own connection, so no
+      # container start-order dependency is needed here.
+      IBKR_ENABLED: ${IBKR_ENABLED:-false}
       IBKR_HOST: ibgateway
       # Keep this aligned with TRADING_MODE (live=4003, paper=4004).
       IBKR_PORT: ${IBKR_PORT:-4003}
@@ -79,6 +84,11 @@ services:
       - "127.0.0.1:3000:80"
 
   cloudflared:
+    # Optional: only needed to expose the dashboard publicly. Started with
+    # `docker compose --profile tunnel up -d` once infra/ has provisioned a
+    # tunnel token (see README's Cloudflare Tunnel deploy steps). Leave this
+    # profile off to keep the stack reachable only from localhost/your LAN.
+    profiles: ["tunnel"]
     image: cloudflare/cloudflared:latest
     container_name: fintwit-cloudflared
     command: tunnel run --token ${CLOUDFLARE_TUNNEL_TOKEN}
