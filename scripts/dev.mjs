@@ -1,4 +1,5 @@
 import { execSync, spawn } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { createInterface } from 'node:readline'
 
@@ -143,7 +144,16 @@ function reclaimBackendPort() {
 
 reclaimBackendPort()
 
-const pythonExe = resolve(root, '.venv', 'Scripts', 'python.exe')
+function resolvePythonExe() {
+  // venv layout differs by platform; fall back to whatever `python`/`python3`
+  // is on PATH if no local .venv is present.
+  const winVenv = resolve(root, '.venv', 'Scripts', 'python.exe')
+  const posixVenv = resolve(root, '.venv', 'bin', 'python')
+  if (isWindows) return existsSync(winVenv) ? winVenv : 'python'
+  return existsSync(posixVenv) ? posixVenv : 'python3'
+}
+
+const pythonExe = resolvePythonExe()
 const backend = streamProcess(
   'backend',
   colors.backend,
