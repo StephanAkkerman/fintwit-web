@@ -10,6 +10,8 @@ from .db import (
     IbkrTradeRow,
     PortfolioPositionRow,
     PortfolioSnapshotRow,
+    RedditTickerTrendRow,
+    RedditTrendRunRow,
     TraderCallResultRow,
     TraderCallRow,
     TweetRow,
@@ -57,6 +59,7 @@ def _row_to_dict(r: TweetRow) -> dict:
         "quoted_sentiment_label": r.quoted_sentiment_label,
         "quoted_sentiment_emoji": r.quoted_sentiment_emoji,
         "quoted_sentiment_score": r.quoted_sentiment_score,
+        "ticker_sentiment": r.ticker_sentiment,
         "quoted_tweet": r.quoted_tweet,
         "has_chart": r.has_chart,
         "chart_extraction": r.chart_extraction,
@@ -510,3 +513,211 @@ class TraderCallRepo:
         async with self.Session() as s:
             rows = (await s.execute(stmt)).scalars().all()
         return [_result_row_to_dict(r) for r in rows]
+
+
+def _epoch_to_naive_utc(value) -> datetime:
+    """Convert the report's epoch-seconds timestamp to this project's convention.
+
+    Timestamps are stored naive-UTC throughout (see the other repos here);
+    ``TrendReport.generated_at`` is epoch seconds, so it needs converting
+    rather than passing through.
+    """
+    try:
+        return datetime.fromtimestamp(float(value), tz=timezone.utc).replace(
+            tzinfo=None
+        )
+    except (TypeError, ValueError, OSError, OverflowError):
+        return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _reddit_trend_row_to_dict(r: RedditTickerTrendRow) -> dict:
+    return {
+        "symbol": r.symbol,
+        "rank": r.rank,
+        "mentions": r.mentions,
+        "previous_mentions": r.previous_mentions,
+        "unique_authors": r.unique_authors,
+        "score_sum": r.score_sum,
+        "comment_sum": r.comment_sum,
+        "engagement": r.engagement,
+        "mentions_per_hour": r.mentions_per_hour,
+        "momentum": r.momentum,
+        "change_ratio": r.change_ratio,
+        "spike_score": r.spike_score,
+        "heat_score": r.heat_score,
+        "sentiment": r.sentiment,
+        "sentiment_score": r.sentiment_score,
+        "sentiment_breakdown": r.sentiment_breakdown or {},
+        "is_emerging": bool(r.is_emerging),
+        "subreddits": r.subreddits or {},
+        "sample_posts": r.sample_posts or [],
+        "captured_at": _iso_utc(r.captured_at),
+    }
+
+
+def _reddit_run_row_to_dict(r: RedditTrendRunRow) -> dict:
+    return {
+        "id": r.id,
+        "captured_at": _iso_utc(r.captured_at),
+        "window_hours": r.window_hours,
+        "baseline_hours": r.baseline_hours,
+        "subreddits": r.subreddits or [],
+        "posts_analyzed": r.posts_analyzed,
+        "posts_in_window": r.posts_in_window,
+        "mood": r.mood,
+        "sentiment_score": r.sentiment_score,
+        "sentiment_breakdown": r.sentiment_breakdown or {},
+        "rising": r.rising or [],
+        "fading": r.fading or [],
+        "emerging": r.emerging or [],
+        "by_subreddit": r.by_subreddit or [],
+        "timeline": r.timeline or {},
+    }
+
+
+class RedditTrendRepo:
+    """Async repo for stored Reddit trend runs and their ticker rankings."""
+
+    def __init__(self, session_factory: async_sessionmaker):
+        self.Session = session_factory
+
+    async def save_report(self, report: dict) -> int:
+        """Persist one trend report as a run plus its ranked tickers.
+
+        :param report: A ``TrendReport.to_dict()`` payload.
+        :return: The new run's id.
+        """
+        captured_at = _epoch_to_naive_utc(report.get("generated_at"))
+
+        async with self.Session() as s:
+            async with s.begin():
+                run = RedditTrendRunRow(
+                    captured_at=captured_at,
+                    window_hours=float(report.get("window_hours") or 0.0),
+                    baseline_hours=float(report.get("baseline_hours") or 0.0),
+                    subreddits=list(report.get("subreddits") or []),
+                    posts_analyzed=int(report.get("posts_analyzed") or 0),
+                    posts_in_window=int(report.get("posts_in_window") or 0),
+                    mood=report.get("mood"),
+                    sentiment_score=report.get("sentiment_score"),
+                    sentiment_breakdown=report.get("sentiment_breakdown") or {},
+                    rising=list(report.get("rising") or []),
+                    fading=list(report.get("fading") or []),
+                    emerging=list(report.get("emerging") or []),
+                    by_subreddit=list(report.get("by_subreddit") or []),
+                    timeline=report.get("timeline") or {},
+                )
+                s.add(run)
+                await s.flush()
+
+                tickers = report.get("tickers") or []
+                if tickers:
+                    s.add_all(
+                        [
+                            RedditTickerTrendRow(
+                                run_id=run.id,
+                                captured_at=captured_at,
+                                symbol=str(t.get("symbol") or ""),
+                                rank=index,
+                                mentions=int(t.get("mentions") or 0),
+                                previous_mentions=int(t.get("previous_mentions") or 0),
+                                unique_authors=int(t.get("unique_authors") or 0),
+                                score_sum=int(t.get("score_sum") or 0),
+                                comment_sum=int(t.get("comment_sum") or 0),
+                                engagement=int(t.get("engagement") or 0),
+                                mentions_per_hour=float(
+                                    t.get("mentions_per_hour") or 0.0
+                                ),
+                                momentum=float(t.get("momentum") or 0.0),
+                                change_ratio=t.get("change_ratio"),
+                                spike_score=float(t.get("spike_score") or 0.0),
+                                heat_score=float(t.get("heat_score") or 0.0),
+                                sentiment=t.get("sentiment"),
+                                sentiment_score=float(t.get("sentiment_score") or 0.0),
+                                sentiment_breakdown=t.get("sentiment_breakdown") or {},
+                                is_emerging=bool(t.get("is_emerging")),
+                                subreddits=t.get("subreddits") or {},
+                                sample_posts=t.get("sample_posts") or [],
+                            )
+                            for index, t in enumerate(tickers)
+                            if t.get("symbol")
+                        ]
+                    )
+                run_id = run.id
+        return run_id
+
+    async def latest_run(self, limit: int = 25) -> dict | None:
+        """The most recent run with its ranked tickers, or ``None`` if never run."""
+        run_stmt = (
+            select(RedditTrendRunRow)
+            .order_by(RedditTrendRunRow.captured_at.desc())
+            .limit(1)
+        )
+        async with self.Session() as s:
+            run = (await s.execute(run_stmt)).scalars().first()
+            if run is None:
+                return None
+
+            ticker_stmt = (
+                select(RedditTickerTrendRow)
+                .where(RedditTickerTrendRow.run_id == run.id)
+                .order_by(RedditTickerTrendRow.rank.asc())
+                .limit(max(1, limit))
+            )
+            tickers = (await s.execute(ticker_stmt)).scalars().all()
+
+        return {
+            **_reddit_run_row_to_dict(run),
+            "tickers": [_reddit_trend_row_to_dict(t) for t in tickers],
+        }
+
+    async def ticker_history(self, symbol: str, days: int = 30) -> list[dict]:
+        """One ticker's ranking across recent runs, oldest first.
+
+        This is the reason runs are kept rather than overwritten: a live scrape
+        only reaches as far back as the listing pages still hold.
+        """
+        cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
+            days=max(1, days)
+        )
+        stmt = (
+            select(RedditTickerTrendRow)
+            .where(
+                RedditTickerTrendRow.symbol == str(symbol).upper(),
+                RedditTickerTrendRow.captured_at >= cutoff,
+            )
+            .order_by(RedditTickerTrendRow.captured_at.asc())
+        )
+        async with self.Session() as s:
+            rows = (await s.execute(stmt)).scalars().all()
+        return [_reddit_trend_row_to_dict(r) for r in rows]
+
+    async def prune(self, keep_days: int = 90) -> int:
+        """Drop runs older than *keep_days*, and the tickers that belong to them."""
+        cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
+            days=max(1, keep_days)
+        )
+        async with self.Session() as s:
+            async with s.begin():
+                stale = (
+                    (
+                        await s.execute(
+                            select(RedditTrendRunRow.id).where(
+                                RedditTrendRunRow.captured_at < cutoff
+                            )
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+                if not stale:
+                    return 0
+                await s.execute(
+                    delete(RedditTickerTrendRow).where(
+                        RedditTickerTrendRow.run_id.in_(stale)
+                    )
+                )
+                await s.execute(
+                    delete(RedditTrendRunRow).where(RedditTrendRunRow.id.in_(stale))
+                )
+        return len(stale)

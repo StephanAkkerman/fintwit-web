@@ -70,12 +70,20 @@ def extract_calls(tweet: dict) -> list[dict]:
     :return: Call dicts ready for ``TraderCallRepo.insert_calls`` (missing
         only ``created_at``, which the repo stamps).
     """
-    direction = _direction(tweet.get("sentiment_score"))
-    if direction is None:
-        return []
-
     tickers = tweet.get("tickers") or []
     if not tickers:
+        return []
+
+    # A tweet is not one opinion. "Long $NVDA, short $INTC" is a bullish call
+    # on one and a bearish call on the other; grading both as bullish would
+    # credit or punish the trader for a call they never made. The classifier
+    # attributes a score per ticker where the tweet says different things
+    # about them, and the tweet's own score stands for the rest.
+    tweet_score = tweet.get("sentiment_score")
+    per_ticker = tweet.get("ticker_sentiment") or {}
+    if _direction(tweet_score) is None and not any(
+        _direction(score) for score in per_ticker.values()
+    ):
         return []
 
     called_at = _as_naive_utc(tweet.get("created_at"))
@@ -104,6 +112,11 @@ def extract_calls(tweet: dict) -> list[dict]:
             continue
         seen.add(ticker)
 
+        score = per_ticker.get(ticker, tweet_score)
+        direction = _direction(score)
+        if direction is None:
+            continue
+
         asset = assets_by_symbol.get(ticker)
         if not asset:
             continue
@@ -119,7 +132,7 @@ def extract_calls(tweet: dict) -> list[dict]:
                 "ticker": ticker,
                 "user_screen_name": user_screen_name,
                 "direction": direction,
-                "sentiment_score": float(tweet["sentiment_score"]),
+                "sentiment_score": float(score),
                 "asset_kind": str(kind).upper() if kind else None,
                 "price_at_call": float(price),
                 "called_at": called_at,

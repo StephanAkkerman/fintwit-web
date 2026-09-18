@@ -1559,6 +1559,116 @@ def _trader_leaderboard() -> list[dict]:
     ]
 
 
+def _reddit_trends() -> dict:
+    """Ranked tickers from the Reddit trend worker (issue #6).
+
+    Object-shaped, so it must be fixtured in every scenario that renders it —
+    the catch-all answers with a list and the widget reads `.tickers` off it.
+    """
+    now = datetime.now(timezone.utc)
+    return {
+        "available": True,
+        "captured_at": now.isoformat(),
+        "window_hours": 24.0,
+        "subreddits": ["wallstreetbets", "stocks", "StockMarket", "options"],
+        "posts_analyzed": 780,
+        "posts_in_window": 412,
+        "mood": "bullish",
+        "sentiment_score": 0.21,
+        "rising": ["NVDA", "SMCI"],
+        "emerging": ["RKLB"],
+        "fading": ["AMC"],
+        "tickers": [
+            {
+                "symbol": "NVDA",
+                "rank": 0,
+                "mentions": 41,
+                "previous_mentions": 18,
+                "unique_authors": 33,
+                "engagement": 1320,
+                "mentions_per_hour": 1.71,
+                "momentum": 1.21,
+                "change_ratio": 2.28,
+                "spike_score": 2.84,
+                "heat_score": 0.912,
+                "sentiment": "bullish",
+                "sentiment_score": 0.44,
+                "sentiment_breakdown": {"bullish": 30, "neutral": 8, "bearish": 3},
+                "is_emerging": False,
+                "subreddits": {"wallstreetbets": 30, "stocks": 11},
+                "sample_posts": [],
+            },
+            {
+                "symbol": "SPY",
+                "rank": 1,
+                "mentions": 33,
+                "previous_mentions": 35,
+                "unique_authors": 28,
+                "engagement": 640,
+                "mentions_per_hour": 1.38,
+                "momentum": -0.06,
+                "change_ratio": 0.94,
+                "spike_score": 2.01,
+                "heat_score": 0.604,
+                "sentiment": "neutral",
+                "sentiment_score": 0.03,
+                "sentiment_breakdown": {"neutral": 20, "bullish": 8, "bearish": 5},
+                "is_emerging": False,
+                "subreddits": {"options": 18, "wallstreetbets": 15},
+                "sample_posts": [],
+            },
+            {
+                "symbol": "RKLB",
+                "rank": 2,
+                "mentions": 12,
+                "previous_mentions": 0,
+                "unique_authors": 11,
+                "engagement": 380,
+                "mentions_per_hour": 0.5,
+                "momentum": 12.0,
+                "change_ratio": None,
+                "spike_score": 0.94,
+                "heat_score": 0.511,
+                "sentiment": "bullish",
+                "sentiment_score": 0.62,
+                "sentiment_breakdown": {"bullish": 10, "neutral": 2},
+                "is_emerging": True,
+                "subreddits": {"wallstreetbets": 12},
+                "sample_posts": [],
+            },
+            {
+                "symbol": "INTC",
+                "rank": 3,
+                "mentions": 9,
+                "previous_mentions": 21,
+                "unique_authors": 8,
+                "engagement": 150,
+                "mentions_per_hour": 0.38,
+                "momentum": -0.55,
+                "change_ratio": 0.43,
+                "spike_score": -0.4,
+                "heat_score": 0.212,
+                "sentiment": "bearish",
+                "sentiment_score": -0.51,
+                "sentiment_breakdown": {"bearish": 7, "neutral": 2},
+                "is_emerging": False,
+                "subreddits": {"stocks": 6, "StockMarket": 3},
+                "sample_posts": [],
+            },
+        ],
+    }
+
+
+def _empty_reddit_trends() -> dict:
+    """The state a first-time visitor sees: worker installed, nothing scraped."""
+    return {
+        "available": True,
+        "captured_at": None,
+        "subreddits": ["wallstreetbets", "stocks"],
+        "tickers": [],
+    }
+
+
 def _reddit_wsb() -> list[dict]:
     now = int(datetime.now(timezone.utc).timestamp())
     return [
@@ -1757,6 +1867,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             "/api/earnings/calendar": _empty_earnings_calendar(),
             "/api/options/chain": _empty_options_chain(),
             "/api/news/company": _empty_company_news(),
+            "/api/reddit/trends": _empty_reddit_trends(),
         }
 
     insights = _portfolio_insights()
@@ -1980,6 +2091,8 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         "/api/traders/credibility": _trader_credibility(),
         # Reddit (WSB) widget.
         "/api/reddit/wsb": _reddit_wsb(),
+        # Reddit trend ranking (issue #6), on the home overview.
+        "/api/reddit/trends": _reddit_trends(),
         # Timeline: without this every route's tweet feed (and the ticker /
         # user filter demo) sits on "No tweets in this filter yet."
         "/api/posts": _sample_tweets(),

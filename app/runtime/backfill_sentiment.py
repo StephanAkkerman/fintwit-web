@@ -16,11 +16,13 @@ from ..ml.sentiment import FinTwitSentiment
 class SentimentModelLike(Protocol):
     async def warmup(self) -> None: ...
 
-    async def classify(self, text: str) -> dict[str, str | float] | None: ...
+    async def classify(
+        self, text: str, tickers: list[str] | None = None
+    ) -> dict[str, str | float] | None: ...
 
     async def classify_parts(
-        self, text: str
-    ) -> dict[str, dict[str, str | float] | None]: ...
+        self, text: str, tickers: list[str] | None = None
+    ) -> dict[str, dict | None]: ...
 
 
 @dataclass
@@ -54,7 +56,9 @@ async def backfill_tweet_sentiment(
     while remaining is None or remaining > 0:
         current_batch_size = min(batch_size, remaining) if remaining else batch_size
 
-        stmt = select(TweetRow.id, TweetRow.text).where(TweetRow.id > last_id)
+        stmt = select(TweetRow.id, TweetRow.text, TweetRow.tickers).where(
+            TweetRow.id > last_id
+        )
         if not include_existing:
             stmt = stmt.where(TweetRow.sentiment_label.is_(None))
         # Only classify tweets that contain financial signals (cashtags or hashtags)
@@ -68,18 +72,23 @@ async def backfill_tweet_sentiment(
             break
 
         updates: list[dict] = []
-        for tweet_id, text in rows:
+        for tweet_id, text, tickers in rows:
             stats.scanned += 1
             last_id = max(last_id, int(tweet_id))
 
             if not text or not str(text).strip():
                 continue
 
+            ticker_list = [str(t) for t in (tickers or []) if t]
+            ticker_sentiment: dict = {}
             try:
                 if hasattr(sentiment_model, "classify_parts"):
-                    sentiment_parts = await sentiment_model.classify_parts(str(text))
+                    sentiment_parts = await sentiment_model.classify_parts(
+                        str(text), ticker_list
+                    )
                     main_sentiment = sentiment_parts.get("main")
                     quoted_sentiment = sentiment_parts.get("quoted")
+                    ticker_sentiment = sentiment_parts.get("tickers") or {}
                 else:
                     main_sentiment = await sentiment_model.classify(str(text))
                     quoted_sentiment = None
@@ -112,6 +121,7 @@ async def backfill_tweet_sentiment(
                     "quoted_sentiment_score": (
                         quoted_sentiment.get("score") if quoted_sentiment else None
                     ),
+                    "ticker_sentiment": ticker_sentiment or None,
                 }
             )
 
@@ -135,6 +145,7 @@ async def backfill_tweet_sentiment(
                                 quoted_sentiment_score=payload[
                                     "quoted_sentiment_score"
                                 ],
+                                ticker_sentiment=payload["ticker_sentiment"],
                             )
                         )
             stats.updated += len(updates)

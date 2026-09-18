@@ -177,6 +177,10 @@ export type Tweet = {
   quoted_sentiment_label?: 'BULLISH' | 'BEARISH' | 'NEUTRAL' | string | null;
   quoted_sentiment_emoji?: string | null;
   quoted_sentiment_score?: number | null;
+  // Signed sentiment per ticker, present only for the tickers a tweet says
+  // something different about than `sentiment_score` ("long $NVDA, short
+  // $INTC"). Read it through a fallback to `sentiment_score`.
+  ticker_sentiment?: Record<string, number> | null;
   has_chart?: boolean | null;
   chart_extraction?: ChartExtraction | null;
   assets?: Asset[];
@@ -641,6 +645,50 @@ export type RedditPost = {
   created_utc: number;
   url: string;
   image_urls: string[];
+};
+
+// Reddit trend analysis (issue #6), from `reddit-stock-analyzer` via
+// /api/reddit/trends. Mirrors TickerTrend / TrendReport in that package.
+export type RedditTickerTrend = {
+  symbol: string;
+  rank: number;
+  mentions: number;
+  previous_mentions: number;
+  unique_authors: number;
+  engagement: number;
+  mentions_per_hour: number;
+  // (now - prev) / (prev + 1): smoothed so a 0 -> 5 ticker is finite and
+  // outranks one that went 50 -> 60.
+  momentum: number;
+  change_ratio: number | null;
+  // Standard deviations above this run's mean mention count.
+  spike_score: number;
+  // 0-1 blend of mentions, engagement, unique authors and momentum. Default sort.
+  heat_score: number;
+  sentiment: 'bullish' | 'bearish' | 'neutral' | string | null;
+  sentiment_score: number;
+  sentiment_breakdown: Record<string, number>;
+  is_emerging: boolean;
+  subreddits: Record<string, number>;
+  sample_posts: Array<Record<string, unknown>>;
+  captured_at?: string | null;
+};
+
+export type RedditTrendReport = {
+  // False when `reddit-stock-analyzer` is not installed in the deployment;
+  // distinct from captured_at === null, which means "not scraped yet".
+  available: boolean;
+  captured_at: string | null;
+  subreddits: string[];
+  tickers: RedditTickerTrend[];
+  window_hours?: number;
+  posts_analyzed?: number;
+  posts_in_window?: number;
+  mood?: 'bullish' | 'bearish' | 'neutral' | string | null;
+  sentiment_score?: number | null;
+  rising?: string[];
+  fading?: string[];
+  emerging?: string[];
 };
 
 export type StockMarketHoursItem = {

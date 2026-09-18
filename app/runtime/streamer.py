@@ -152,13 +152,15 @@ async def run_stream(
 
                     main_sentiment = None
                     quoted_sentiment = None
+                    ticker_sentiment = {}
                     if sentiment_model is not None and symbols:
                         try:
                             sentiment_parts = await sentiment_model.classify_parts(
-                                t_dict.get("text") or ""
+                                t_dict.get("text") or "", asset_symbols
                             )
                             main_sentiment = sentiment_parts.get("main")
                             quoted_sentiment = sentiment_parts.get("quoted")
+                            ticker_sentiment = sentiment_parts.get("tickers") or {}
                         except Exception as exc:
                             logger.warning(
                                 "[stream] sentiment classification failed: %r", exc
@@ -182,6 +184,7 @@ async def run_stream(
                     t_dict["quoted_sentiment_score"] = (
                         quoted_sentiment["score"] if quoted_sentiment else None
                     )
+                    t_dict["ticker_sentiment"] = ticker_sentiment or None
 
                     # 1) persist (idempotent)
                     await repo.upsert_many([t_dict])
