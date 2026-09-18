@@ -1749,7 +1749,13 @@ def _sample_tweets() -> list[dict]:
                     "kind": "EQUITY",
                     "sector": "Technology",
                     "industry": "Semiconductors",
-                    "financials": {"price": 184.20, "change_percent": 4.06},
+                    "financials": {
+                        "price": 184.20,
+                        "change_percent": 4.06,
+                        "session": "pre-market",
+                        "extended_price": 186.75,
+                        "extended_change_percent": 5.44,
+                    },
                 }
             ],
         ),
@@ -1811,7 +1817,13 @@ def _sample_tweets() -> list[dict]:
                 {
                     "symbol": "AAPL",
                     "kind": "EQUITY",
-                    "financials": {"price": 212.55, "change_percent": -0.76},
+                    "financials": {
+                        "price": 212.55,
+                        "change_percent": -0.76,
+                        "session": "after-hours",
+                        "extended_price": 210.90,
+                        "extended_change_percent": -0.78,
+                    },
                 }
             ],
             sentiment_label="BEARISH",
