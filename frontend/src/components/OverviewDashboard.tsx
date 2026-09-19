@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { AssetKind } from '../types'
 import type { PortfolioTickerLookup } from '../hooks/usePortfolioTickers'
 import { MacroStrip } from './MacroStrip'
+import MarketOverview from './MarketOverview'
 import { AssetFilterTabs } from './AssetFilterTabs'
 import { MentionHeatmap, MENTION_WINDOWS, type MentionWindowHours } from './MentionHeatmap'
 import { RedditTrendsWidget } from './RedditTrendsWidget'
@@ -35,6 +36,7 @@ export function OverviewDashboard({ onTickerClick, userFilter = null, subscriber
   return (
     <div className="flex flex-col gap-3">
       <MacroStrip />
+      <MarketOverview />
 
       {/* Dashboard header */}
       <div className="flex flex-wrap items-center gap-2">

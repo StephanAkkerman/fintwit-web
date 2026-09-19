@@ -16,11 +16,28 @@ export default function AssetBadge({ asset }: { asset: Asset }) {
     )
   }
 
-  const { price, change_percent, website, technical_analysis, signa, stocktwits_sentiment } =
-    asset.financials
+  const {
+    price,
+    change_percent,
+    website,
+    technical_analysis,
+    signa,
+    stocktwits_sentiment,
+    session,
+    extended_price,
+    extended_change_percent,
+  } = asset.financials
   const isPositive = (change_percent ?? 0) >= 0
   const changeColor = isPositive ? 'text-green-500' : 'text-red-500'
   const changeSign = isPositive ? '+' : ''
+
+  const hasExtended =
+    extended_price != null && extended_change_percent != null && session !== 'regular'
+  const extIsPositive = (extended_change_percent ?? 0) >= 0
+  const extChangeColor = extIsPositive ? 'text-green-500' : 'text-red-500'
+  const extChangeSign = extIsPositive ? '+' : ''
+  const sessionLabel =
+    session === 'pre-market' ? 'Pre-Market' : session === 'after-hours' ? 'After Hours' : null
 
   return (
     <a
@@ -46,7 +63,22 @@ export default function AssetBadge({ asset }: { asset: Asset }) {
               {change_percent.toFixed(2)}%
             </span>
           )}
-
+          {hasExtended && sessionLabel && (
+            <span className="mt-0.5 flex items-center gap-1 text-[10px] text-zinc-500 dark:text-zinc-400">
+              <span>{sessionLabel}</span>
+              <span className="font-mono">
+                $
+                {extended_price!.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 4,
+                })}
+              </span>
+              <span className={`font-bold ${extChangeColor}`}>
+                {extChangeSign}
+                {extended_change_percent!.toFixed(2)}%
+              </span>
+            </span>
+          )}
         </div>
       </div>
       <AssetFundamentals asset={asset} />
