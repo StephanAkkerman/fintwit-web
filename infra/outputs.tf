@@ -19,3 +19,8 @@ output "cloudflared_env_line" {
   value       = "CLOUDFLARE_TUNNEL_TOKEN=${cloudflare_zero_trust_tunnel_cloudflared.fintwit.tunnel_token}"
   sensitive   = true
 }
+
+output "access_application_id" {
+  description = "Cloudflare Access application ID protecting the public hostname"
+  value       = cloudflare_zero_trust_access_application.fintwit.id
+}

@@ -8,12 +8,17 @@ serving fintwit-web from your Raspberry Pi.
 - Cloudflare tunnel (`cloudflare_zero_trust_tunnel_cloudflared`)
 - Tunnel ingress config (`cloudflare_zero_trust_tunnel_cloudflared_config`)
 - DNS CNAME record: `<subdomain>.<zone_name>` -> `<tunnel-id>.cfargotunnel.com`
+- Access application + allow policy (`cloudflare_zero_trust_access_application`,
+  `cloudflare_zero_trust_access_policy`) gating the public hostname behind a login —
+  only the emails listed in `access_allowed_emails` can get in, via Cloudflare's
+  hosted one-time-PIN screen. No separate identity provider needed.
 
 ## Prerequisites
 
 - Domain delegated to Cloudflare nameservers
 - Cloudflare API token with:
   - Account: Cloudflare Tunnel Edit
+  - Account: Access: Apps and Policies Edit
   - Zone: DNS Edit
 - Docker + Docker Compose on the Pi
 
@@ -40,3 +45,7 @@ serving fintwit-web from your Raspberry Pi.
   `http://frontend:80`.
 - If you run cloudflared directly on the host instead of Compose, set
   `tunnel_origin_url = "http://localhost:3000"`.
+- To let someone else in later, add their email to `access_allowed_emails` in
+  `terraform.tfvars` and re-run `terraform apply` — no redeploy of the app itself.
+- Access enforcement lives entirely at Cloudflare's edge; the backend and frontend
+  containers have no awareness of it and stay unauthenticated on localhost/LAN.
