@@ -1916,6 +1916,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             "/api/news/company": _empty_company_news(),
             "/api/reddit/trends": _empty_reddit_trends(),
             "/api/reddit/categories": _empty_reddit_categories(),
+            "/api/admin/access-emails": {"emails": []},
         }
 
     insights = _portfolio_insights()
@@ -2160,6 +2161,9 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         # Timeline: without this every route's tweet feed (and the ticker /
         # user filter demo) sits on "No tweets in this filter yet."
         "/api/posts": _sample_tweets(),
+        # Admin route: object-shaped, the catch-all's `[]` has no `.emails`
+        # and AccessAllowlistPanel throws reading it during render.
+        "/api/admin/access-emails": {"emails": ["you@example.com"]},
     }
 
 

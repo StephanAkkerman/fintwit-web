@@ -1,3 +1,5 @@
+export type AccessAllowlist = { emails: string[] };
+
 export type MediaItem = { url: string; type: string };
 
 export type AssetTradingViewSummary = {

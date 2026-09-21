@@ -31,3 +31,14 @@ variable "tunnel_origin_url" {
   type        = string
   default     = "http://frontend:80"
 }
+
+variable "access_allowed_emails" {
+  description = "Email addresses allowed to log in via Cloudflare Access (one-time PIN)"
+  type        = list(string)
+}
+
+variable "access_session_duration" {
+  description = "How long an Access login stays valid before re-authenticating"
+  type        = string
+  default     = "24h"
+}

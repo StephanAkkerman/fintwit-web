@@ -54,6 +54,7 @@ from ..runtime.trader_evaluator import (
 )
 from ..services.binance_service import get_gainers_losers
 from ..services.cmc import get_trending_crypto
+from ..services import cloudflare_access
 from ..services.coin360_service import get_treemap_data
 from ..services.earnings_service import get_earnings_calendar
 from ..services.events_service import get_economic_events
@@ -680,6 +681,54 @@ async def debug_tweet(body: DebugTweet, request: Request):
     if calls:
         await TRADER_CALL_REPO.insert_calls(calls)
     return tweet
+
+
+class AccessEmailRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+
+
+def _normalize_access_email(email: str) -> str:
+    normalized = email.strip().lower()
+    local, _, domain = normalized.partition("@")
+    if not local or not domain or "." not in domain or "/" in normalized:
+        raise HTTPException(status_code=422, detail="Not a valid email address")
+    return normalized
+
+
+@app.get("/api/admin/access-emails")
+async def list_access_emails(request: Request, _=Depends(api_key_dep)):
+    """Who can log in to the publicly-tunneled dashboard via Cloudflare Access."""
+    client: httpx.AsyncClient = request.app.state.http_client
+    try:
+        emails = await cloudflare_access.list_allowed_emails(client)
+    except cloudflare_access.CloudflareAccessError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"emails": emails}
+
+
+@app.post("/api/admin/access-emails")
+async def add_access_email(
+    request: Request, body: AccessEmailRequest, _=Depends(api_key_dep)
+):
+    client: httpx.AsyncClient = request.app.state.http_client
+    email = _normalize_access_email(body.email)
+    try:
+        emails = await cloudflare_access.add_allowed_email(client, email)
+    except cloudflare_access.CloudflareAccessError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"emails": emails}
+
+
+@app.delete("/api/admin/access-emails/{email}")
+async def remove_access_email(request: Request, email: str, _=Depends(api_key_dep)):
+    client: httpx.AsyncClient = request.app.state.http_client
+    try:
+        emails = await cloudflare_access.remove_allowed_email(
+            client, email.strip().lower()
+        )
+    except cloudflare_access.CloudflareAccessError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"emails": emails}
 
 
 @app.get("/api/portfolio/positions")

@@ -19,3 +19,13 @@ output "cloudflared_env_line" {
   value       = "CLOUDFLARE_TUNNEL_TOKEN=${cloudflare_zero_trust_tunnel_cloudflared.fintwit.tunnel_token}"
   sensitive   = true
 }
+
+output "access_application_id" {
+  description = "Cloudflare Access application ID protecting the public hostname"
+  value       = cloudflare_zero_trust_access_application.fintwit.id
+}
+
+output "access_policy_id" {
+  description = "Cloudflare Access policy ID — needed by the app's Admin panel to manage the allowlist at runtime (see CLOUDFLARE_ACCESS_POLICY_ID in .env.example)"
+  value       = cloudflare_zero_trust_access_policy.fintwit_allowed_users.id
+}
