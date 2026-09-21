@@ -6,6 +6,7 @@ from typing import Dict, List
 from ticker_classifier.classifier import TickerClassifier
 from ticker_price_data import price_from_classification
 
+from ..services.fundamentals_service import get_fundamentals
 from ..services.signa import get_signa_signal
 from ..services.stocktwits_service import get_stocktwits_sentiment
 from ..services.tradingview_ta_service import get_tradingview_ta_summary
@@ -15,6 +16,10 @@ logger = logging.getLogger(__name__)
 _YAHOO_PRICED_KINDS = {"EQUITY", "ETF", "INDEX", "FUTURE", "FOREX", "COMMODITY"}
 # Signa's signal universe is stock-focused; only fetch for equity-like kinds.
 _SIGNA_KINDS = {"EQUITY", "ETF", "INDEX", "FUTURE"}
+# Valuation fundamentals (P/E, EPS, NAV, avg volume) only exist for
+# individual companies and funds — indices, futures, forex and commodities
+# have no such quote fields on Yahoo.
+_FUNDAMENTALS_KINDS = {"EQUITY", "ETF"}
 _FOREX_CODES = {
     "USD",
     "EUR",
@@ -143,7 +148,6 @@ def _build_local_cache_entry(symbol: str, override: dict) -> dict:
         "sector": None,
         "industry": None,
         "company_profile": None,
-        "fundamentals": None,
         "meta": None,
         "yahoo_lookup": yahoo_lookup,
     }
@@ -213,15 +217,6 @@ class AssetEnricher:
                     if not isinstance(company_profile, dict):
                         company_profile = None
 
-                    fundamentals = getattr(r, "fundamentals", None)
-                    if not isinstance(fundamentals, dict):
-                        try:
-                            fundamentals = r.get("fundamentals")
-                        except Exception:
-                            fundamentals = None
-                    if not isinstance(fundamentals, dict):
-                        fundamentals = None
-
                     yahoo_lookup_value = getattr(r, "yahoo_lookup", None)
                     if not isinstance(yahoo_lookup_value, str):
                         try:
@@ -244,7 +239,6 @@ class AssetEnricher:
                         "sector": sector,
                         "industry": industry,
                         "company_profile": company_profile,
-                        "fundamentals": fundamentals,
                         "meta": meta,
                         "yahoo_lookup": yahoo_lookup,
                     }
@@ -299,13 +293,30 @@ class AssetEnricher:
             *stocktwits_tasks, return_exceptions=True
         )
 
+        # Fetch valuation fundamentals (P/E, EPS, NAV, avg volume) concurrently,
+        # for equities and ETFs only.
+        fundamentals_tasks = []
+        for entry in classified:
+            if entry["kind"] in _FUNDAMENTALS_KINDS:
+                lookup_symbol = (
+                    entry.get("yahoo_lookup") or entry["symbol"] or ""
+                ).upper()
+                fundamentals_tasks.append(get_fundamentals(lookup_symbol))
+            else:
+                fundamentals_tasks.append(self._dummy_info())
+
+        fundamentals_results = await asyncio.gather(
+            *fundamentals_tasks, return_exceptions=True
+        )
+
         # Attach fresh financials to the result
-        for entry, fin, ta, signa, stocktwits in zip(
+        for entry, fin, ta, signa, stocktwits, fundamentals in zip(
             classified,
             financials,
             technical_analysis,
             signa_signals,
             stocktwits_sentiments,
+            fundamentals_results,
         ):
             if isinstance(fin, BaseException):
                 logger.debug("[enricher] %s financials error: %r", entry["symbol"], fin)
@@ -324,6 +335,18 @@ class AssetEnricher:
                     entry["symbol"],
                     entry["kind"],
                     financial_payload,
+                )
+
+            if isinstance(fundamentals, BaseException):
+                logger.debug(
+                    "[enricher] %s fundamentals error: %r",
+                    entry["symbol"],
+                    fundamentals,
+                )
+                entry["fundamentals"] = None
+            else:
+                entry["fundamentals"] = (
+                    fundamentals if isinstance(fundamentals, dict) else None
                 )
 
         return classified
