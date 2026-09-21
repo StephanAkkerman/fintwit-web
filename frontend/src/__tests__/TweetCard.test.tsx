@@ -457,6 +457,29 @@ describe('TweetCard', () => {
     expect(screen.queryByLabelText(/^Sentiment for \$/)).not.toBeInTheDocument()
   })
 
+  it('replaces the footer sentiment badge with a Mixed indicator when tickers diverge', () => {
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          sentiment_label: 'BULLISH',
+          sentiment_emoji: '🐂',
+          sentiment_score: 0.6,
+          ticker_sentiment: { INTC: -0.85 },
+          assets: [
+            { symbol: 'NVDA', kind: 'EQUITY', financials: { price: 128.4, change_percent: 2.3 } },
+            { symbol: 'INTC', kind: 'EQUITY', financials: { price: 22.1, change_percent: -1.1 } },
+          ],
+        }}
+      />
+    )
+
+    const mixedBadge = screen.getByLabelText('Tweet sentiment: mixed by ticker')
+    expect(mixedBadge).toBeInTheDocument()
+    expect(mixedBadge).toHaveAttribute('title', 'INTC: Bearish')
+    expect(screen.queryByLabelText('Tweet sentiment')).not.toBeInTheDocument()
+  })
+
   it('renders subscribers-only icon for quoted tweet embeds', () => {
     const quoteText = '> [@writer](https://x.com/writer/status/800):\n> Subscribers-only update'
 

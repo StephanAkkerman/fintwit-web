@@ -806,19 +806,35 @@ export default function TweetCard({
               🔎 {chartExtractionLabel}
             </span>
           )}
-          {(sentimentLabel || sentimentEmoji) && (
+          {hasTickerSentimentSplit ? (
             <span
-              aria-label="Tweet sentiment"
-              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${sentimentClass}`}
-              title={
-                typeof t.sentiment_score === 'number'
-                  ? `Sentiment confidence: ${(t.sentiment_score * 100).toFixed(1)}%`
-                  : undefined
-              }
+              aria-label="Tweet sentiment: mixed by ticker"
+              title={Object.entries(t.ticker_sentiment ?? {})
+                .map(([sym, score]) => {
+                  const label = labelFromScore(score)
+                  return `${sym}: ${label.charAt(0)}${label.slice(1).toLowerCase()}`
+                })
+                .join(' · ')}
+              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200"
             >
-              <span>{sentimentEmoji ?? '🦆'}</span>
-              <span>{sentimentLabel ?? 'SENTIMENT'}</span>
+              <span>🔀</span>
+              <span>MIXED</span>
             </span>
+          ) : (
+            (sentimentLabel || sentimentEmoji) && (
+              <span
+                aria-label="Tweet sentiment"
+                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${sentimentClass}`}
+                title={
+                  typeof t.sentiment_score === 'number'
+                    ? `Sentiment confidence: ${(t.sentiment_score * 100).toFixed(1)}%`
+                    : undefined
+                }
+              >
+                <span>{sentimentEmoji ?? '🦆'}</span>
+                <span>{sentimentLabel ?? 'SENTIMENT'}</span>
+              </span>
+            )
           )}
           {tickerBadges.map((sym) =>
             onTickerSelect ? (
