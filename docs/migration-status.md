@@ -115,7 +115,6 @@ Last updated: 2026-09-04 (multi-market TradingView movers explorer)
 - Portfolio route now leads with a value-over-time area chart (`PortfolioValueChart`, Recharts) with selectable ranges (1W-MAX), a cost-basis reference line, hover tooltip, and a table view so no value is hover-only.
 - Portfolio route also shows per-asset context (`PortfolioAssetInsights`): distance from all-time high/low, 52-week range position, and highlight badges for assets at/near — or recently at — an ATH or ATL.
 - Portfolio route now shows sector allocation and a balance score (`PortfolioDiversification`): a sector-by-sector weight breakdown with constituent symbols, a diversification label (unrated/concentrated/moderate/diversified), and the largest holding/sector.
-- Home route includes a WallStreetBets radar widget with latest Reddit post momentum signals.
 - Home route includes a Reddit Trends widget (issue #6): tickers ranked by `heat_score` with now/previous mention counts, per-ticker sentiment, momentum, an emerging badge, and the emerging/fading shortlists. It has three distinct empty states because the fix for each differs — package not installed, no scrape yet, or no tickers recognised.
 - Stocks route now includes a market-hours banner showing major exchange session state (open/pre-market/after-hours/closed) with explicit holiday closure labels when applicable.
 - Crypto route now includes a Binance movers widget (top gainers/losers).
@@ -139,6 +138,7 @@ Last updated: 2026-09-04 (multi-market TradingView movers explorer)
 - New `/traders` route (`TraderLeaderboardWidget`, sidebar entry between Signa and Portfolio): a horizon tab (1/7/30 days) over a ranked table of trader hit-rate, graded-call count, and signed average return. Self-contained like `/signa` — excluded from the shared tweet timeline and the cross-route mention-heat/signals panel.
 - Trader credibility badge on tweet cards: every `TweetCard` header now shows a compact `🎯 69%` pill next to the author's `@handle` when they have a graded track record (7d horizon), via `useTraderCredibility` batching all visible authors into one `POST /api/traders/credibility` request per load (mirrors `useMentionFrequency`'s batching pattern) instead of one request per card. Color-coded green/red by hit-rate (shared `utils/traderFormat.ts`, also used by `TraderLeaderboardWidget`); silently absent when a trader has fewer than 3 graded calls, so missing never reads as "0% accurate."
 - New `/movers` route (`MarketMoversExplorer`, sidebar entry between Options and Signa, issue #79): a market dropdown (USA/UK/India/Australia/Canada/Crypto) and a category tab row (Gainers/Losers/Most Active/Penny Stocks) over a ranked table (symbol, name, price, change%, volume, market cap), backed by `useMoversExplorer` polling `GET /api/markets/movers`. Self-contained like `/signa` and `/traders` — no tweet timeline on this route.
+- New `/reddit` route (`RedditSection`, sidebar entry between Signa and Traders): the reddit-stock-analyzer integration (issue #6) previously only surfaced as one widget on the home dashboard now has its own section. A "Trends"/"Posts" tab switcher — Trends reuses `RedditTrendsWidget`, Posts reuses `RedditWsbWidget` — plus a subreddit filter (`<select>`, backed by `GET /api/reddit/categories` via `useRedditCategories`) that scopes the Posts tab, defaulting to r/wallstreetbets since that is the only subreddit `/api/reddit/wsb` has been exercised against so far. More subreddits become selectable as the catalogue is expanded. Self-contained like `/signa` and `/traders` — no tweet timeline on this route.
 
 ## Connected End-to-End Today
 
@@ -174,8 +174,9 @@ Last updated: 2026-09-04 (multi-market TradingView movers explorer)
 - Portfolio value chart: `/api/portfolio/history` -> `usePortfolioHistory` -> `PortfolioValueChart` (`/portfolio`).
 - Portfolio asset context: `/api/portfolio/insights` -> `usePortfolioInsights` -> `PortfolioAssetInsights` (`/portfolio`).
 - Portfolio balance/sectors: `/api/portfolio/insights` -> `usePortfolioInsights` -> `PortfolioDiversification` (`/portfolio`).
-- WallStreetBets panel: `/api/reddit/wsb` -> `RedditWsbWidget` (`/`).
-- Reddit trend ranking: `/api/reddit/trends` -> `RedditTrendsWidget` (`/`).
+- WallStreetBets panel: `/api/reddit/wsb` -> `useRedditWsb` -> `RedditWsbWidget` (`/reddit`, "Posts" tab).
+- Reddit trend ranking: `/api/reddit/trends` -> `RedditTrendsWidget` (`/`, and `/reddit` "Trends" tab).
+- Reddit subreddit catalogue: `/api/reddit/categories` -> `useRedditCategories` -> `RedditSection` subreddit filter (`/reddit`).
 - Stock market-hours banner: `/api/stocks/market-hours` -> `StockMarketHoursBanner` (`/stocks`).
 - Economic events panel: `/api/events/economic` -> `EconomicEventsWidget` (`/forex`).
 - Macro snapshot panel: `/api/forex/macro` -> `ForexMacroWidget` (`/forex`).
@@ -187,6 +188,8 @@ Last updated: 2026-09-04 (multi-market TradingView movers explorer)
 ## Backend APIs Not Yet Connected in Main UI
 
 - `GET /api/traders/user/{screen_name}` (per-trader horizon breakdown + recent calls) has no frontend consumer yet — the leaderboard is the v1 surface; a per-trader detail view (e.g. click a leaderboard row) is a natural follow-up.
+- `GET /api/reddit/trends/{symbol}/history` (per-ticker mention/sentiment history across stored runs) has no frontend consumer yet — a natural follow-up for a ticker detail view on the `/reddit` route.
+- `GET /api/reddit/summary/{subreddit}` (live ticker/sentiment snapshot for one subreddit, no baseline window) has no frontend consumer yet — `/reddit`'s subreddit filter currently only drives the raw-posts feed (`/api/reddit/wsb`), not a live per-subreddit trend summary.
 
 ## Suggested Next Connections
 

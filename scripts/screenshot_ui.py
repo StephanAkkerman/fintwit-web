@@ -1699,6 +1699,37 @@ def _reddit_wsb() -> list[dict]:
     ]
 
 
+def _reddit_categories() -> dict:
+    """The subreddit catalogue behind the Reddit section's subreddit filter."""
+    return {
+        "available": True,
+        "default": [
+            "wallstreetbets",
+            "stocks",
+            "StockMarket",
+            "investing",
+            "options",
+            "pennystocks",
+        ],
+        "categories": {
+            "retail": [
+                "wallstreetbets",
+                "smallstreetbets",
+                "WallStreetbetsELITE",
+                "Shortsqueeze",
+                "pennystocks",
+            ],
+            "stocks": ["stocks", "StockMarket", "investing", "dividends"],
+            "trading": ["Daytrading", "swingtrading", "options", "thetagang"],
+        },
+    }
+
+
+def _empty_reddit_categories() -> dict:
+    """The state when `reddit-stock-analyzer` isn't installed in this deployment."""
+    return {"available": False, "default": [], "categories": {}}
+
+
 def _sample_tweet(
     id_: int,
     text: str,
@@ -1884,6 +1915,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             "/api/options/chain": _empty_options_chain(),
             "/api/news/company": _empty_company_news(),
             "/api/reddit/trends": _empty_reddit_trends(),
+            "/api/reddit/categories": _empty_reddit_categories(),
         }
 
     insights = _portfolio_insights()
@@ -2119,10 +2151,12 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         # Traders route + tweet-card credibility badge.
         "/api/traders/leaderboard": _trader_leaderboard(),
         "/api/traders/credibility": _trader_credibility(),
-        # Reddit (WSB) widget.
+        # Reddit route + WSB widget on the home overview.
         "/api/reddit/wsb": _reddit_wsb(),
-        # Reddit trend ranking (issue #6), on the home overview.
+        # Reddit trend ranking (issue #6), on the home overview and Reddit route.
         "/api/reddit/trends": _reddit_trends(),
+        # Reddit route's subreddit filter.
+        "/api/reddit/categories": _reddit_categories(),
         # Timeline: without this every route's tweet feed (and the ticker /
         # user filter demo) sits on "No tweets in this filter yet."
         "/api/posts": _sample_tweets(),

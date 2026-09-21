@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   LineChart,
   Menu,
+  MessagesSquare,
   Radar,
   ShieldCheck,
   SlidersHorizontal,
@@ -34,6 +35,7 @@ import PortfolioAssetInsights from './components/PortfolioAssetInsights'
 import PortfolioDiversification from './components/PortfolioDiversification'
 import PortfolioPanel from './components/PortfolioPanel'
 import PortfolioValueChart from './components/PortfolioValueChart'
+import RedditSection from './components/RedditSection'
 import SignaSection from './components/SignaSection'
 import SpyHeatmapWidget from './components/SpyHeatmapWidget'
 import SectorOverviewWidget from './components/SectorOverviewWidget'
@@ -63,6 +65,7 @@ type RouteKey =
   | 'options'
   | 'movers'
   | 'signa'
+  | 'reddit'
   | 'traders'
   | 'portfolio'
   | 'admin'
@@ -83,6 +86,7 @@ const SECTIONS: Array<{ key: RouteKey; label: string; path: string; subtitle: st
   { key: 'options', label: 'Options', path: '/options', subtitle: 'Flow activity and put/call balance', icon: SlidersHorizontal },
   { key: 'movers', label: 'Movers', path: '/movers', subtitle: 'Gainers, losers, most active and penny stocks across markets', icon: TrendingUp },
   { key: 'signa', label: 'Signa', path: '/signa', subtitle: 'Best trades + live model signals from getsigna.ai', icon: Radar },
+  { key: 'reddit', label: 'Reddit', path: '/reddit', subtitle: 'WallStreetBets posts and cross-subreddit ticker trends', icon: MessagesSquare },
   { key: 'traders', label: 'Traders', path: '/traders', subtitle: 'Credibility leaderboard: whose calls actually work out', icon: Trophy },
   { key: 'portfolio', label: 'Portfolio', path: '/portfolio', subtitle: 'Value over time, asset context and PnL', icon: Wallet },
   { key: 'admin', label: 'Admin', path: '/admin', subtitle: 'Debug tweet injection and verification', icon: ShieldCheck },
@@ -95,6 +99,7 @@ function routeFromPath(pathname: string): RouteKey {
   if (pathname.startsWith('/options')) return 'options'
   if (pathname.startsWith('/movers')) return 'movers'
   if (pathname.startsWith('/signa')) return 'signa'
+  if (pathname.startsWith('/reddit')) return 'reddit'
   if (pathname.startsWith('/traders')) return 'traders'
   if (pathname.startsWith('/portfolio')) return 'portfolio'
   if (pathname.startsWith('/admin')) return 'admin'
@@ -108,6 +113,7 @@ function pathFromRoute(route: RouteKey): string {
   if (route === 'options') return '/options'
   if (route === 'movers') return '/movers'
   if (route === 'signa') return '/signa'
+  if (route === 'reddit') return '/reddit'
   if (route === 'traders') return '/traders'
   if (route === 'portfolio') return '/portfolio'
   if (route === 'admin') return '/admin'
@@ -654,7 +660,7 @@ export default function App() {
               <p className="text-sm text-zinc-500">{activeSection.subtitle}</p>
             </header>
 
-            {route !== 'admin' && route !== 'signa' && route !== 'home' && route !== 'traders' && route !== 'movers' && (
+            {route !== 'admin' && route !== 'signa' && route !== 'reddit' && route !== 'home' && route !== 'traders' && route !== 'movers' && (
               <>
                 <ErrorBoundary label="Mention heat">
                   <MentionHeatmap
@@ -785,6 +791,12 @@ export default function App() {
               </ErrorBoundary>
             )}
 
+            {route === 'reddit' && (
+              <ErrorBoundary label="Reddit">
+                <RedditSection />
+              </ErrorBoundary>
+            )}
+
             {route === 'traders' && (
               <ErrorBoundary label="Trader credibility">
                 <TraderLeaderboardWidget />
@@ -825,7 +837,7 @@ export default function App() {
               </ErrorBoundary>
             )}
 
-            {route !== 'signa' && route !== 'traders' && route !== 'movers' && (
+            {route !== 'signa' && route !== 'reddit' && route !== 'traders' && route !== 'movers' && (
               <>
                 {displayedTweets.map((t) => (
                   // Per card: tweet payloads vary with upstream, and one
