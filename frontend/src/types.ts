@@ -693,6 +693,12 @@ export type RedditTrendReport = {
   emerging?: string[];
 };
 
+export type RedditCategories = {
+  available: boolean;
+  default: string[];
+  categories: Record<string, string[]>;
+};
+
 export type StockMarketHoursItem = {
   exchange: string;
   session: string;

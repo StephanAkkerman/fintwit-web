@@ -10,15 +10,25 @@ function formatAgo(createdUtc: number): string {
   return `${Math.floor(deltaSeconds / 86400)}d ago`
 }
 
-export default function RedditWsbWidget() {
-  const { data, loading, error } = useRedditWsb(8)
+interface Props {
+  subreddit?: string
+  limit?: number
+}
+
+function subredditLabel(subreddit: string): string {
+  return subreddit.toLowerCase() === 'wallstreetbets' ? 'WallStreetBets' : `r/${subreddit}`
+}
+
+export default function RedditWsbWidget({ subreddit = 'wallstreetbets', limit = 8 }: Props) {
+  const { data, loading, error } = useRedditWsb(limit, subreddit)
 
   const posts = useMemo(() => data.slice(0, 6), [data])
+  const label = subredditLabel(subreddit)
 
   return (
     <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">WallStreetBets Radar</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">{label} Radar</h2>
         <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
           Reddit
         </span>
@@ -31,9 +41,9 @@ export default function RedditWsbWidget() {
           ))}
         </div>
       ) : error ? (
-        <p className="text-sm text-red-500">Could not load WallStreetBets posts.</p>
+        <p className="text-sm text-red-500">Could not load {label} posts.</p>
       ) : posts.length === 0 ? (
-        <p className="text-sm text-zinc-500">No WallStreetBets posts available right now.</p>
+        <p className="text-sm text-zinc-500">No {label} posts available right now.</p>
       ) : (
         <div className="space-y-2">
           {posts.map((post) => (

@@ -19,7 +19,6 @@ Route-level sections:
 
 - `/` (home)
   - `FearGreedWidget`
-  - `RedditWsbWidget`
   - `RedditTrendsWidget`
   - `MarketOverview`
   - `OverviewDashboard` — macro strip (`MacroStrip`), the `all`-scoped `MentionHeatmap`, a three-column analytics row (`SentimentShiftWidget`, `VolumeBaselineWidget`, `HiddenGemWidget`), and `SectorMentionsWidget`, with shared asset-kind (`all`/`EQUITY`/`CRYPTO`/`FOREX`) and lookback-window (24h/48h/7d) controls
@@ -84,6 +83,13 @@ Route-level sections:
   - Purpose: browse TradingView regular-session market movers by market and category. A market dropdown (USA/UK/India/Australia/Canada/Crypto) plus a category tab row (Gainers/Losers/Most Active/Penny Stocks) over a ranked table (symbol, name, price, change%, volume, market cap). Self-contained like `/signa` and `/traders` — not wired into the shared tweet timeline, ticker/user filters, or the cross-route `MentionHeatmap`/`RouteSignalsPanel` block.
   - Fetches: `/api/markets/movers?market=...&category=...` via `useMoversExplorer`, re-fetched on every market/category change.
   - Out of scope for this slice: forex, bonds, and futures markets — see `docs/migration-status.md` for why.
+
+- `/reddit`
+  - `RedditSection`
+  - Purpose: dedicated Reddit section (issue #6), previously only surfaced as one widget on the home dashboard. Self-contained like `/signa`, `/traders` and `/movers` — not wired into the shared tweet timeline, ticker/user filters, or the cross-route `MentionHeatmap`/`RouteSignalsPanel` block.
+  - Tabs: "Trends" (`RedditTrendsWidget`, ranked cross-subreddit ticker mentions) and "Posts" (`RedditWsbWidget`, one subreddit's hot posts).
+  - Subreddit filter: a `<select>` shown on the "Posts" tab, populated from `/api/reddit/categories` via `useRedditCategories` (falls back to just `wallstreetbets` while loading or when the `reddit-stock-analyzer` package isn't installed). Defaults to r/wallstreetbets; more subreddits become selectable as the catalogue is expanded.
+  - Fetches: `/api/reddit/trends?limit=20`, `/api/reddit/wsb?limit=10&subreddit=...`, `/api/reddit/categories`.
 
 - `/admin`
   - `DebugAdminPanel`
@@ -175,13 +181,17 @@ Route-level sections:
   - Fetches: `/api/posts` + `/api/stream` (derived live assets)
   - Purpose: top streamed assets with live current-price links, last-close context, and optional TradingView TA summary rows.
 
-- `RedditWsbWidget` + `useRedditWsb`
-  - Fetches: `/api/reddit/wsb?limit=...`
-  - Purpose: latest WallStreetBets Reddit hot-post radar for headline and engagement context.
+- `RedditWsbWidget` + `useRedditWsb` (`/reddit`, "Posts" tab)
+  - Fetches: `/api/reddit/wsb?limit=...&subreddit=...`
+  - Purpose: latest hot-post radar for one subreddit (headline, author, upvotes, comments, age) for headline and engagement context. Subreddit is chosen via `RedditSection`'s filter, defaulting to r/wallstreetbets.
 
-- `RedditTrendsWidget` + `useRedditTrends`
+- `RedditTrendsWidget` + `useRedditTrends` (`/`, and `/reddit` "Trends" tab)
   - Fetches: `/api/reddit/trends?limit=...`
   - Purpose: what finance subreddits are talking about and which way it is moving (issue #6) — tickers ranked by `heat_score`, each row showing a mention bar (share of the loudest ticker), now/previous counts, per-ticker sentiment and smoothed momentum, with a NEW badge for a ticker absent from the previous window and an emerging/fading footer. Unlike the other overview widgets it ignores the dashboard's asset-kind/window/user controls: those filter tweets, and none of them apply to a subreddit scrape. Clicking a ticker opens the same `TickerDetailModal` as everywhere else.
+
+- `RedditSection` + `useRedditCategories` (`/reddit`)
+  - Fetches: `/api/reddit/categories`
+  - Purpose: tab switcher between `RedditTrendsWidget` and `RedditWsbWidget`, plus the subreddit `<select>` that drives the "Posts" tab's `subreddit` param.
 
 - `StocktwitsWidget` + `useStocktwits`
   - Fetches: `/api/stocktwits?keyword=...`
