@@ -65,8 +65,9 @@ Only needed if you're exposing the dashboard publicly via the Cloudflare Tunnel 
    registrar-level step; it isn't managed by Terraform.
 3. Create an API token at
    [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens)
-   with **Account: Cloudflare Tunnel Edit** and **Zone: DNS Edit** permissions — Terraform uses
-   this to provision the tunnel and DNS record (see [infra/README.md](infra/README.md)).
+   with **Account: Cloudflare Tunnel Edit**, **Account: Access: Apps and Policies Edit**, and
+   **Zone: DNS Edit** permissions — Terraform uses this to provision the tunnel, DNS record, and
+   Access login gate (see [infra/README.md](infra/README.md)).
 
 ### Interactive Brokers login (for portfolio sync)
 
@@ -240,17 +241,18 @@ Notes:
 - If you see `connection refused on ibgateway:4003`, IB Gateway is up but not fully logged
   in/authorized yet, or login/2FA is incomplete.
 
-### 5) Optional: expose it publicly via Cloudflare Tunnel
+### 5) Optional: expose it publicly via Cloudflare Tunnel + Access login
 
 Adds the `cloudflared` container. Requires a Cloudflare account, API token, and a domain
 delegated to Cloudflare nameservers — see [Manual Setup](#manual-setup-click-ops) above if you
 haven't done that yet.
 
-Provision the tunnel + DNS record with Terraform, from `infra/`:
+Provision the tunnel, DNS record, and an Access login gate with Terraform, from `infra/`:
 
 ```bash
 cp terraform.tfvars.example terraform.tfvars
-# edit terraform.tfvars with your Cloudflare token/account values
+# edit terraform.tfvars with your Cloudflare token/account values and
+# access_allowed_emails (only these addresses will be able to log in)
 
 terraform init
 terraform plan
@@ -264,6 +266,14 @@ Back in the repo root, set the token and profile in `.env`:
 CLOUDFLARE_TUNNEL_TOKEN=<terraform tunnel_token output>
 COMPOSE_PROFILES=tunnel   # add "ibkr," too if combining with step 4
 ```
+
+Once the tunnel is up, visiting the public hostname shows Cloudflare's hosted login page
+first — anyone not on the allowlist is blocked at Cloudflare's edge before the request ever
+reaches your Pi. Allowed visitors verify with a one-time code emailed to them; no account or
+password to manage. `access_allowed_emails` only seeds the list on the first `terraform
+apply` — after that, add or remove people from the **Admin** page in the dashboard itself
+(it edits the same Cloudflare policy through the API) rather than editing `terraform.tfvars`.
+That needs a few more `.env` values; see [infra/README.md](infra/README.md#admin-page-invites).
 
 ```bash
 docker compose up -d --build

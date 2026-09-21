@@ -59,3 +59,38 @@ resource "cloudflare_record" "fintwit" {
   proxied = true
   ttl     = 1
 }
+
+# Gates the public hostname behind Cloudflare Access so the tunnel above isn't
+# open to anyone who finds the URL. Login is Cloudflare's hosted one-time-PIN
+# screen (email code, no separate identity provider needed) — allowed
+# addresses are listed in var.access_allowed_emails.
+resource "cloudflare_zero_trust_access_application" "fintwit" {
+  account_id       = var.cloudflare_account_id
+  name             = "fintwit-web"
+  domain           = local.public_hostname
+  type             = "self_hosted"
+  session_duration = var.access_session_duration
+}
+
+resource "cloudflare_zero_trust_access_policy" "fintwit_allowed_users" {
+  account_id     = var.cloudflare_account_id
+  application_id = cloudflare_zero_trust_access_application.fintwit.id
+  name           = "Allowed users"
+  precedence     = 1
+  decision       = "allow"
+
+  include {
+    email = var.access_allowed_emails
+  }
+
+  # The app's Admin > Access panel edits this policy's allowlist directly
+  # through the Cloudflare API (see app/services/cloudflare_access.py) so
+  # you can invite friends without a Terraform run. Once that happens this
+  # policy's `include` no longer matches access_allowed_emails, and without
+  # `ignore_changes` the next `terraform apply` would silently revert
+  # whoever was added at runtime. access_allowed_emails still seeds the
+  # policy on first apply.
+  lifecycle {
+    ignore_changes = [include]
+  }
+}
