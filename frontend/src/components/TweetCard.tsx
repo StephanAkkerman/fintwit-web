@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Tweet } from '../types'
 import { hasChartSignal } from '../utils/tweetSignals'
+import { sentimentBadgeClass } from '../utils/sentiment'
 import type { MentionLookup } from '../hooks/useMentionFrequency'
 import type { PortfolioTickerLookup, PortfolioTickerStatus } from '../hooks/usePortfolioTickers'
 import type { TraderCredibilityLookup } from '../hooks/useTraderCredibility'
@@ -405,18 +406,8 @@ export default function TweetCard({
   const isSubscriberOnly = Boolean(headerTweet.is_subscriber_only)
   const isQuotedSubscriberOnly = Boolean(t.quoted_tweet?.is_subscriber_only)
   const headerUserFilterValue = headerTweet.user_screen_name || headerTweet.user_name
-  const sentimentClass =
-    sentimentLabel === 'BULLISH'
-      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
-      : sentimentLabel === 'BEARISH'
-        ? 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300'
-        : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200'
-  const quotedSentimentClass =
-    quotedSentimentLabel === 'BULLISH'
-      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
-      : quotedSentimentLabel === 'BEARISH'
-        ? 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300'
-        : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200'
+  const sentimentClass = sentimentBadgeClass(sentimentLabel)
+  const quotedSentimentClass = sentimentBadgeClass(quotedSentimentLabel)
 
   return (
     <article className="rounded-2xl shadow p-4 bg-white dark:bg-zinc-900">
