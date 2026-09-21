@@ -3,7 +3,12 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Tweet } from '../types'
 import { hasChartSignal } from '../utils/tweetSignals'
-import { sentimentBadgeClass } from '../utils/sentiment'
+import {
+  effectiveTickerScore,
+  emojiForLabel,
+  labelFromScore,
+  sentimentBadgeClass,
+} from '../utils/sentiment'
 import type { MentionLookup } from '../hooks/useMentionFrequency'
 import type { PortfolioTickerLookup, PortfolioTickerStatus } from '../hooks/usePortfolioTickers'
 import type { TraderCredibilityLookup } from '../hooks/useTraderCredibility'
@@ -391,6 +396,7 @@ export default function TweetCard({
   const sentimentEmoji = t.sentiment_emoji ?? null
   const quotedSentimentLabel = t.quoted_sentiment_label?.toUpperCase() ?? null
   const quotedSentimentEmoji = t.quoted_sentiment_emoji ?? null
+  const hasTickerSentimentSplit = Object.keys(t.ticker_sentiment ?? {}).length > 0
   const quoteMeta = hasQuoteEmbed ? extractQuoteMeta(t) : null
   const quotedTimeLabel = quoteMeta?.createdAt
     ? quoteMeta.createdAt.toLocaleString(undefined, {
@@ -672,6 +678,14 @@ export default function TweetCard({
             const sessionEmoji = session === 'pre-market' ? '🌅' : session === 'after-hours' ? '🌙' : null
             const sessionLabel = session === 'pre-market' ? 'Pre-Market' : session === 'after-hours' ? 'After Hours' : null
             const portfolioStatus = portfolioLookup?.(asset.symbol) ?? null
+            const tickerSentimentScore = effectiveTickerScore(
+              t.sentiment_score,
+              t.ticker_sentiment,
+              asset.symbol
+            )
+            const tickerSentimentLabel = labelFromScore(tickerSentimentScore)
+            const tickerSentimentDisplay =
+              tickerSentimentLabel.charAt(0) + tickerSentimentLabel.slice(1).toLowerCase()
 
             return (
               <div
@@ -679,20 +693,31 @@ export default function TweetCard({
                 className="rounded-xl border border-zinc-200 bg-zinc-50/70 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800/50"
               >
                 <div className="flex items-center justify-between gap-2">
-                  {onTickerSelect ? (
-                    <button
-                      type="button"
-                      onClick={() => onTickerSelect(asset.symbol.toUpperCase())}
-                      aria-label={`Filter by $${asset.symbol.toUpperCase()}`}
-                      className="truncate text-left font-semibold text-zinc-800 underline-offset-2 hover:underline dark:text-zinc-100"
-                    >
-                      {ticker}
-                    </button>
-                  ) : (
-                    <div className="truncate font-semibold text-zinc-800 dark:text-zinc-100">
-                      {ticker}
-                    </div>
-                  )}
+                  <div className="flex min-w-0 items-center gap-1">
+                    {onTickerSelect ? (
+                      <button
+                        type="button"
+                        onClick={() => onTickerSelect(asset.symbol.toUpperCase())}
+                        aria-label={`Filter by $${asset.symbol.toUpperCase()}`}
+                        className="truncate text-left font-semibold text-zinc-800 underline-offset-2 hover:underline dark:text-zinc-100"
+                      >
+                        {ticker}
+                      </button>
+                    ) : (
+                      <div className="truncate font-semibold text-zinc-800 dark:text-zinc-100">
+                        {ticker}
+                      </div>
+                    )}
+                    {hasTickerSentimentSplit && (
+                      <span
+                        aria-label={`Sentiment for $${asset.symbol.toUpperCase()}: ${tickerSentimentDisplay}`}
+                        title={`Confidence: ${(Math.abs(tickerSentimentScore) * 100).toFixed(1)}%`}
+                        className="shrink-0 text-sm"
+                      >
+                        {emojiForLabel(tickerSentimentLabel)}
+                      </span>
+                    )}
+                  </div>
                   <div className="flex shrink-0 items-center gap-1">
                     <PortfolioStatusBadge status={portfolioStatus} />
                     {typeLabel && (
