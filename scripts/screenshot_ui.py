@@ -1739,10 +1739,11 @@ def _sample_tweets() -> list[dict]:
     return [
         _sample_tweet(
             1,
-            "$NVDA breaking out on huge volume, semis leading the tape today.",
+            "$NVDA breaking out on huge volume, semis leading the tape today. "
+            "Trimming $INTC here though, chart's rolling over.",
             "Chart Trader",
             "chart_trader",
-            ["NVDA"],
+            ["NVDA", "INTC"],
             [
                 {
                     "symbol": "NVDA",
@@ -1756,8 +1757,16 @@ def _sample_tweets() -> list[dict]:
                         "extended_price": 186.75,
                         "extended_change_percent": 5.44,
                     },
-                }
+                },
+                {
+                    "symbol": "INTC",
+                    "kind": "EQUITY",
+                    "sector": "Technology",
+                    "industry": "Semiconductors",
+                    "financials": {"price": 22.10, "change_percent": -1.14},
+                },
             ],
+            ticker_sentiment={"INTC": -0.72},
         ),
         _sample_tweet(
             2,
