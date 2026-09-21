@@ -89,9 +89,23 @@ time, exactly as `sentiment_score` is already bucketed into `sentiment_label` to
 
 ### 2. `TweetCard.tsx` changes
 
-- `hasSplit = Object.keys(t.ticker_sentiment ?? {}).length > 0`, computed once per
-  tweet alongside the existing `sentimentLabel`/`sentimentEmoji` derivations
-  (`TweetCard.tsx:389-392`).
+- `hasSplit` is **not** `Object.keys(t.ticker_sentiment ?? {}).length > 0`. Presence
+  in `ticker_sentiment` only means a ticker's mean *score* differs from the overall
+  score (`app/ml/sentiment.py`'s `mean != round(overall, 4)` check) — it says nothing
+  about whether the two *labels* differ, and two different scores routinely bucket to
+  the same label through `labelFromScore`'s ±0.1 threshold (e.g. overall `0.455`
+  BULLISH, ticker `0.91` also BULLISH). So `hasSplit` must independently recompute
+  `labelFromScore` for the overall score and for each ticker's score and compare
+  those labels:
+  ```ts
+  const overallLabel = labelFromScore(t.sentiment_score ?? 0)
+  const diverging = Object.entries(t.ticker_sentiment ?? {}).filter(
+    ([, score]) => labelFromScore(score) !== overallLabel
+  )
+  const hasSplit = diverging.length > 0
+  ```
+  computed once per tweet alongside the existing `sentimentLabel`/`sentimentEmoji`
+  derivations (`TweetCard.tsx:389-392`).
 - Replace the three inline `sentimentClass`/`quotedSentimentClass` ternaries
   (`TweetCard.tsx:408-419`) with calls to `sentimentBadgeClass`.
 - **Per-ticker chip** — in the `assets.map(...)` block (`TweetCard.tsx:651-767`),
@@ -119,10 +133,10 @@ time, exactly as `sentiment_score` is already bucketed into `sentiment_label` to
   {hasSplit ? (
     <span
       aria-label="Tweet sentiment: mixed by ticker"
-      title={Object.entries(t.ticker_sentiment!)
-        .map(([sym, sc]) => `${sym}: ${labelFromScore(sc)[0]}${labelFromScore(sc).slice(1).toLowerCase()}`)
+      title={diverging
+        .map(([sym, sc]) => `${sym}: ${displayLabel(labelFromScore(sc))}`)
         .join(' · ')}
-      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200"
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${sentimentBadgeClass(null)}`}
     >
       <span>🔀</span>
       <span>MIXED</span>
@@ -131,8 +145,14 @@ time, exactly as `sentiment_score` is already bucketed into `sentiment_label` to
     (sentimentLabel || sentimentEmoji) && ( /* unchanged existing badge */ )
   )}
   ```
-  The tooltip lists only the tickers actually present in `ticker_sentiment` (the
-  ones that diverge — that's *why* it's mixed), not every mentioned ticker.
+  The tooltip lists only the tickers in `diverging` — i.e. the ones whose
+  `labelFromScore` actually disagrees with the overall label, which is why the post
+  reads as mixed. This is **not** the same set as "keys present in `ticker_sentiment`":
+  that map is sparse by score, not by label, so it can (and in practice does) contain
+  tickers whose score differs from the overall score but whose label does not. Those
+  tickers are not divergent, are not counted toward `hasSplit`, and are not listed in
+  the tooltip — the frontend must filter by label before treating anything as
+  "mixed," never trust key-presence alone.
 - The quoted-tweet badge (`quotedSentimentLabel`/`quotedSentimentEmoji`) is
   untouched — splitting only ever applies to the author's own text.
 - Non-split tweets (`hasSplit === false`, the common case): zero rendered

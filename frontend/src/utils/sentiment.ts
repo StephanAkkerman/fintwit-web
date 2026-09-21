@@ -41,6 +41,11 @@ export function sentimentBadgeClass(label: string | null | undefined): string {
   return LABEL_TO_BADGE_CLASS[label as SentimentLabel] ?? LABEL_TO_BADGE_CLASS.NEUTRAL
 }
 
+/** Title-cases a SentimentLabel for display, e.g. 'BULLISH' -> 'Bullish'. */
+export function displayLabel(label: SentimentLabel): string {
+  return label.charAt(0) + label.slice(1).toLowerCase()
+}
+
 /**
  * A ticker absent from `tickerSentiment` reads as the post's own overall
  * score — the sparse-override contract documented on `Tweet.ticker_sentiment`.

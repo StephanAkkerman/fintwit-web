@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm'
 import type { Tweet } from '../types'
 import { hasChartSignal } from '../utils/tweetSignals'
 import {
+  displayLabel,
   effectiveTickerScore,
   emojiForLabel,
   labelFromScore,
@@ -396,7 +397,11 @@ export default function TweetCard({
   const sentimentEmoji = t.sentiment_emoji ?? null
   const quotedSentimentLabel = t.quoted_sentiment_label?.toUpperCase() ?? null
   const quotedSentimentEmoji = t.quoted_sentiment_emoji ?? null
-  const hasTickerSentimentSplit = Object.keys(t.ticker_sentiment ?? {}).length > 0
+  const overallSentimentLabel = labelFromScore(t.sentiment_score ?? 0)
+  const divergingTickerSentiment = Object.entries(t.ticker_sentiment ?? {}).filter(
+    ([, score]) => labelFromScore(score) !== overallSentimentLabel
+  )
+  const hasTickerSentimentSplit = divergingTickerSentiment.length > 0
   const quoteMeta = hasQuoteEmbed ? extractQuoteMeta(t) : null
   const quotedTimeLabel = quoteMeta?.createdAt
     ? quoteMeta.createdAt.toLocaleString(undefined, {
@@ -684,8 +689,7 @@ export default function TweetCard({
               asset.symbol
             )
             const tickerSentimentLabel = labelFromScore(tickerSentimentScore)
-            const tickerSentimentDisplay =
-              tickerSentimentLabel.charAt(0) + tickerSentimentLabel.slice(1).toLowerCase()
+            const tickerSentimentDisplay = displayLabel(tickerSentimentLabel)
 
             return (
               <div
@@ -809,13 +813,10 @@ export default function TweetCard({
           {hasTickerSentimentSplit ? (
             <span
               aria-label="Tweet sentiment: mixed by ticker"
-              title={Object.entries(t.ticker_sentiment ?? {})
-                .map(([sym, score]) => {
-                  const label = labelFromScore(score)
-                  return `${sym}: ${label.charAt(0)}${label.slice(1).toLowerCase()}`
-                })
+              title={divergingTickerSentiment
+                .map(([sym, score]) => `${sym}: ${displayLabel(labelFromScore(score))}`)
                 .join(' · ')}
-              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200"
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${sentimentBadgeClass(null)}`}
             >
               <span>🔀</span>
               <span>MIXED</span>
@@ -827,7 +828,7 @@ export default function TweetCard({
                 className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${sentimentClass}`}
                 title={
                   typeof t.sentiment_score === 'number'
-                    ? `Sentiment confidence: ${(t.sentiment_score * 100).toFixed(1)}%`
+                    ? `Sentiment confidence: ${(Math.abs(t.sentiment_score) * 100).toFixed(1)}%`
                     : undefined
                 }
               >

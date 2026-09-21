@@ -49,6 +49,8 @@ MIN_SEGMENT_CHARS = 12
 #: Mirrors the BULL/BEAR split used in `mention_aggregator` and
 #: `trader_scoring`. Any single segment clears it: a 3-class argmax is never
 #: less confident than 1/3, so a short tweet keeps the label it always had.
+#: `frontend/src/utils/sentiment.ts`'s `labelFromScore` mirrors this constant —
+#: update both sides if it ever changes.
 SENTIMENT_THRESHOLD = 0.1
 
 

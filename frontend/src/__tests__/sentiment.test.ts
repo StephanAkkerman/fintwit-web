@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  displayLabel,
   effectiveTickerScore,
   emojiForLabel,
   labelFromScore,
@@ -43,6 +44,14 @@ describe('sentimentBadgeClass', () => {
     expect(sentimentBadgeClass('weird-value')).toContain('zinc')
     expect(sentimentBadgeClass(null)).toContain('zinc')
     expect(sentimentBadgeClass(undefined)).toContain('zinc')
+  })
+})
+
+describe('displayLabel', () => {
+  it('title-cases a sentiment label for display', () => {
+    expect(displayLabel('BULLISH')).toBe('Bullish')
+    expect(displayLabel('BEARISH')).toBe('Bearish')
+    expect(displayLabel('NEUTRAL')).toBe('Neutral')
   })
 })
 

@@ -480,6 +480,25 @@ describe('TweetCard', () => {
     expect(screen.queryByLabelText('Tweet sentiment')).not.toBeInTheDocument()
   })
 
+  it('does not show Mixed or per-ticker chips when ticker_sentiment differs in score but not in label', () => {
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          sentiment_label: 'BULLISH',
+          sentiment_emoji: '🐂',
+          sentiment_score: 0.455,
+          ticker_sentiment: { NVDA: 0.91 }, // higher score, but still BULLISH — not a real split
+          assets: [{ symbol: 'NVDA', kind: 'EQUITY', financials: { price: 128.4, change_percent: 2.3 } }],
+        }}
+      />
+    )
+
+    expect(screen.getByLabelText('Tweet sentiment')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Tweet sentiment: mixed by ticker')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^Sentiment for \$/)).not.toBeInTheDocument()
+  })
+
   it('renders subscribers-only icon for quoted tweet embeds', () => {
     const quoteText = '> [@writer](https://x.com/writer/status/800):\n> Subscribers-only update'
 
