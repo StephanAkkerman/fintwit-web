@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import AccessAllowlistPanel from './components/AccessAllowlistPanel'
 import BinanceGainersLosersWidget from './components/BinanceGainersLosersWidget'
 import CompanyNewsWidget from './components/CompanyNewsWidget'
 import DebugAdminPanel from './components/DebugAdminPanel'
@@ -85,7 +86,7 @@ const SECTIONS: Array<{ key: RouteKey; label: string; path: string; subtitle: st
   { key: 'signa', label: 'Signa', path: '/signa', subtitle: 'Best trades + live model signals from getsigna.ai', icon: Radar },
   { key: 'traders', label: 'Traders', path: '/traders', subtitle: 'Credibility leaderboard: whose calls actually work out', icon: Trophy },
   { key: 'portfolio', label: 'Portfolio', path: '/portfolio', subtitle: 'Value over time, asset context and PnL', icon: Wallet },
-  { key: 'admin', label: 'Admin', path: '/admin', subtitle: 'Debug tweet injection and verification', icon: ShieldCheck },
+  { key: 'admin', label: 'Admin', path: '/admin', subtitle: 'Debug tweet injection, Access allowlist', icon: ShieldCheck },
 ]
 
 function routeFromPath(pathname: string): RouteKey {
@@ -820,9 +821,14 @@ export default function App() {
             )}
 
             {route === 'admin' && (
-              <ErrorBoundary label="Debug admin">
-                <DebugAdminPanel />
-              </ErrorBoundary>
+              <>
+                <ErrorBoundary label="Access allowlist">
+                  <AccessAllowlistPanel />
+                </ErrorBoundary>
+                <ErrorBoundary label="Debug admin">
+                  <DebugAdminPanel />
+                </ErrorBoundary>
+              </>
             )}
 
             {route !== 'signa' && route !== 'traders' && route !== 'movers' && (

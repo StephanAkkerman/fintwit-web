@@ -268,10 +268,12 @@ COMPOSE_PROFILES=tunnel   # add "ibkr," too if combining with step 4
 ```
 
 Once the tunnel is up, visiting the public hostname shows Cloudflare's hosted login page
-first — anyone not in `access_allowed_emails` is blocked at Cloudflare's edge before the
-request ever reaches your Pi. Allowed visitors verify with a one-time code emailed to them;
-no account or password to manage. Add or remove people by editing `access_allowed_emails`
-and re-running `terraform apply`.
+first — anyone not on the allowlist is blocked at Cloudflare's edge before the request ever
+reaches your Pi. Allowed visitors verify with a one-time code emailed to them; no account or
+password to manage. `access_allowed_emails` only seeds the list on the first `terraform
+apply` — after that, add or remove people from the **Admin** page in the dashboard itself
+(it edits the same Cloudflare policy through the API) rather than editing `terraform.tfvars`.
+That needs a few more `.env` values; see [infra/README.md](infra/README.md#admin-page-invites).
 
 ```bash
 docker compose up -d --build

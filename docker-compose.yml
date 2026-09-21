@@ -64,6 +64,12 @@ services:
       IBKR_SYNC_INTERVAL: "60"
       # How often the portfolio value snapshot worker records total value.
       PORTFOLIO_SNAPSHOT_INTERVAL: ${PORTFOLIO_SNAPSHOT_INTERVAL:-1800}
+      # Optional: lets the Admin page's Access panel manage who can log in
+      # through the Cloudflare Tunnel. Leave unset if not using that panel.
+      CLOUDFLARE_ACCESS_API_TOKEN: ${CLOUDFLARE_ACCESS_API_TOKEN:-}
+      CLOUDFLARE_ACCOUNT_ID: ${CLOUDFLARE_ACCOUNT_ID:-}
+      CLOUDFLARE_ACCESS_APP_ID: ${CLOUDFLARE_ACCESS_APP_ID:-}
+      CLOUDFLARE_ACCESS_POLICY_ID: ${CLOUDFLARE_ACCESS_POLICY_ID:-}
     volumes:
       - ./state:/app/state
       - ./logs:/app/logs
