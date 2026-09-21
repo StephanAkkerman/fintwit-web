@@ -116,7 +116,8 @@ For equities/ETFs, `tweet.assets[*].company_profile` may include curated finance
   - `is_options_tweet` and `options_context` for options-intent route filtering and structured options tweet metadata,
   - tweet `text` is rendered with preserved user-authored line breaks and blank lines,
   - `sentiment_*` for main-post sentiment rendering,
-  - `quoted_sentiment_*` for quote-post sentiment rendering.
+  - `quoted_sentiment_*` for quote-post sentiment rendering,
+  - `ticker_sentiment` (falling back to `sentiment_score` per ticker) for a per-ticker sentiment chip on each asset card in `TweetCard`, replacing the single footer sentiment badge with a "Mixed" indicator when any ticker's reading diverges from the post's overall score.
   - media URLs are rendered as in-page image previews (lightbox) in `TweetCard` rather than opening directly in a new tab on image click.
   - `created_at` is serialized with explicit UTC offset and rendered in the viewer's local timezone in `TweetCard`.
   - quote embeds in `TweetCard` display quoted author identity and quoted timestamp in the embed header (using API-provided quote fields when available, with markdown/URL inference fallback).
