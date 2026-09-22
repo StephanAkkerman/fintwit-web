@@ -9,7 +9,7 @@ exchange_calendars
 pandas
 aiohttp
 pydantic
-ticker-classifier
+ticker-classifier==0.1.5
 Pillow==12.2.0
 requests
 transformers==5.5.4

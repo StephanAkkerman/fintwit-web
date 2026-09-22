@@ -17,6 +17,7 @@ const TOOLTIPS = {
     'Forward P/E — share price ÷ forecast earnings per share for the next 12 months. Lower means you pay less per unit of expected profit; it is omitted when analysts do not forecast a profit. Green at or under 15x, red at or over 30x — a valuation cue only, and not adjusted for sector or growth.',
   trailingPE:
     'P/E (TTM) — share price ÷ reported earnings per share over the trailing twelve months. Shown when no forward estimate is available. Coloured on the same 15x/30x scale as forward P/E.',
+  nav: 'Net Asset Value — the fund’s per-share value based on its underlying holdings. Shown for ETFs and other funds only; most individual stocks don’t report one.',
   avgVolume: 'Average daily volume over the last 3 months, in shares. Compare it against today’s volume to gauge unusual activity.',
 } as const
 
@@ -44,6 +45,14 @@ function fmtMoney(value: number, code?: string | null): string {
   if (abs >= 1e9) return `${prefix}${(value / 1e9).toFixed(2)}B`
   if (abs >= 1e6) return `${prefix}${(value / 1e6).toFixed(1)}M`
   return `${prefix}${Math.round(value).toLocaleString()}`
+}
+
+function fmtPerShare(value: number, code?: string | null): string {
+  const prefix = currencyPrefix(code)
+  return `${prefix}${value.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`
 }
 
 function fmtShares(value: number): string {
@@ -125,6 +134,15 @@ export default function AssetFundamentals({
       value: fundamentals.trailing_pe.toFixed(1),
       tooltip: TOOLTIPS.trailingPE,
       quality: scoreMetric(fundamentals.trailing_pe, PE_SCALE),
+    })
+  }
+
+  if (isUsable(fundamentals?.nav)) {
+    metrics.push({
+      key: 'nav',
+      label: 'NAV',
+      value: fmtPerShare(fundamentals.nav, currency),
+      tooltip: TOOLTIPS.nav,
     })
   }
 

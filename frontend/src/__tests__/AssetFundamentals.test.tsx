@@ -161,6 +161,28 @@ describe('AssetFundamentals', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
+  it('renders NAV for a fund-like asset', () => {
+    render(
+      <AssetFundamentals
+        asset={{
+          symbol: 'SPY',
+          kind: 'ETF',
+          name: 'SPDR S&P 500 ETF Trust',
+          fundamentals: { market_cap: 500_000_000_000, nav: 645.12, currency: 'USD' },
+        }}
+      />
+    )
+
+    expect(screen.getByText('NAV')).toBeInTheDocument()
+    expect(screen.getByText('$645.12')).toBeInTheDocument()
+    expect(screen.getByText('NAV').getAttribute('title')).toContain('Net Asset Value')
+  })
+
+  it('omits NAV for an ordinary stock that has none', () => {
+    render(<AssetFundamentals asset={equity} />)
+    expect(screen.queryByText('NAV')).not.toBeInTheDocument()
+  })
+
   it('renders the sector alone when no industry is known', () => {
     render(
       <AssetFundamentals
