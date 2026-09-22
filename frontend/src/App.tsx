@@ -40,6 +40,7 @@ import RedditSection from './components/RedditSection'
 import SignaSection from './components/SignaSection'
 import SpyHeatmapWidget from './components/SpyHeatmapWidget'
 import SectorOverviewWidget from './components/SectorOverviewWidget'
+import SectorRotationWidget from './components/SectorRotationWidget'
 import StockFearGreedWidget from './components/StockFearGreedWidget'
 import StockHaltsWidget from './components/StockHaltsWidget'
 import StockMarketHoursBanner from './components/StockMarketHoursBanner'
@@ -743,6 +744,11 @@ export default function App() {
                 <div className="sm:col-span-2">
                   <ErrorBoundary label="Sector overview">
                     <SectorOverviewWidget />
+                  </ErrorBoundary>
+                </div>
+                <div className="sm:col-span-2">
+                  <ErrorBoundary label="Sector rotation">
+                    <SectorRotationWidget />
                   </ErrorBoundary>
                 </div>
                 <div className="sm:col-span-2">

@@ -88,6 +88,43 @@ const DEFAULT_SECTOR_STYLE = {
   className: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300',
 }
 
+/**
+ * One fixed hex per GICS sector for SVG chart marks (Tailwind classes only
+ * apply to DOM elements, not `stroke`/`fill` attributes). Colors are the same
+ * hue family as `SECTOR_STYLES` above so a sector reads the same everywhere,
+ * and — following this app's other charts (see `PortfolioValueChart`) — a
+ * single hex is used in both themes rather than swapping per mode.
+ */
+const SECTOR_CHART_COLORS: Record<string, string> = {
+  technology: '#0ea5e9', // sky-500
+  'information technology': '#0ea5e9',
+  'financial services': '#6366f1', // indigo-500
+  financials: '#6366f1',
+  healthcare: '#f43f5e', // rose-500
+  'health care': '#f43f5e',
+  'consumer cyclical': '#f59e0b', // amber-500
+  'consumer discretionary': '#f59e0b',
+  'consumer defensive': '#65a30d', // lime-600
+  'consumer staples': '#65a30d',
+  energy: '#f97316', // orange-500
+  industrials: '#334155', // slate-700
+  'basic materials': '#a8a29e', // stone-400
+  materials: '#a8a29e',
+  'real estate': '#14b8a6', // teal-500
+  utilities: '#eab308', // yellow-500
+  'communication services': '#8b5cf6', // violet-500
+  telecommunications: '#8b5cf6',
+}
+
+const DEFAULT_SECTOR_CHART_COLOR = '#71717a' // zinc-500
+
+/** Fixed hex for a sector's chart marks (lines/dots); see {@link SECTOR_CHART_COLORS}. */
+export function getSectorChartColor(sector: string | null | undefined): string {
+  const normalized = (sector ?? '').trim().toLowerCase()
+  if (!normalized) return DEFAULT_SECTOR_CHART_COLOR
+  return SECTOR_CHART_COLORS[normalized] ?? DEFAULT_SECTOR_CHART_COLOR
+}
+
 /** Emoji + Tailwind badge classes for a sector name; falls back to a neutral chart icon for anything unrecognized. */
 export function getSectorStyle(sector: string | null | undefined): { emoji: string; className: string } {
   const normalized = (sector ?? '').trim().toLowerCase()

@@ -468,6 +468,76 @@ def _spy_heatmap_data() -> dict:
     return {"data": rows}
 
 
+# (sector, etf, start_rs_ratio, start_rs_momentum, drift_ratio, drift_momentum)
+# Drift signs are chosen so the ten-point trail lands in every quadrant at
+# least once, so the screenshot shows the RRG doing its job.
+_SECTOR_ROTATION_ROWS: list[tuple[str, str, float, float, float, float]] = [
+    ("Technology", "XLK", 102.0, 100.5, 0.35, 0.15),  # -> leading
+    ("Communication Services", "XLC", 101.0, 99.5, 0.25, 0.2),  # -> leading
+    ("Industrials", "XLI", 100.5, 100.8, 0.15, 0.05),  # -> leading
+    ("Financials", "XLF", 101.5, 101.5, 0.1, -0.3),  # -> weakening
+    ("Consumer Discretionary", "XLY", 100.8, 100.2, 0.05, -0.25),  # -> weakening
+    ("Health Care", "XLV", 98.5, 99.0, -0.2, -0.15),  # -> lagging
+    ("Consumer Staples", "XLP", 97.5, 98.0, -0.1, -0.05),  # -> lagging
+    ("Materials", "XLB", 98.8, 99.5, -0.15, 0.05),  # -> lagging
+    ("Energy", "XLE", 99.0, 98.0, -0.05, 0.35),  # -> improving
+    ("Real Estate", "XLRE", 98.2, 99.2, 0.1, 0.3),  # -> improving
+    ("Utilities", "XLU", 99.5, 97.8, -0.1, 0.4),  # -> improving
+]
+
+
+def _rrg_quadrant(rs_ratio: float, rs_momentum: float) -> str:
+    if rs_ratio >= 100:
+        return "leading" if rs_momentum >= 100 else "weakening"
+    return "improving" if rs_momentum >= 100 else "lagging"
+
+
+def _sector_rotation_data(timeframe: str = "daily") -> dict:
+    points = 10
+    start = date(2026, 9, 8)
+    sectors = []
+    for (
+        sector,
+        etf,
+        ratio0,
+        momentum0,
+        drift_ratio,
+        drift_momentum,
+    ) in _SECTOR_ROTATION_ROWS:
+        trail = []
+        for i in range(points):
+            wobble = 0.12 if i % 2 == 0 else -0.08
+            ratio = ratio0 + drift_ratio * i + wobble
+            momentum = momentum0 + drift_momentum * i - wobble
+            trail.append(
+                {
+                    "date": (start + timedelta(days=i)).isoformat(),
+                    "rs_ratio": round(ratio, 3),
+                    "rs_momentum": round(momentum, 3),
+                }
+            )
+        sectors.append(
+            {
+                "sector": sector,
+                "etf": etf,
+                "quadrant": _rrg_quadrant(
+                    trail[-1]["rs_ratio"], trail[-1]["rs_momentum"]
+                ),
+                "trail": trail,
+            }
+        )
+    return {
+        "timeframe": timeframe,
+        "benchmark": "SPY",
+        "window": 14,
+        "sectors": sectors,
+    }
+
+
+def _empty_sector_rotation() -> dict:
+    return {"timeframe": "daily", "benchmark": "SPY", "window": 14, "sectors": []}
+
+
 # ---------------------------------------------------------------------------
 # Market data fixtures (stocks/crypto/forex/options/home overview)
 #
@@ -1920,6 +1990,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             "/api/treemap": _empty_treemap(),
             "/api/forex/macro": _empty_forex_macro(),
             "/api/spy-heatmap?": {"data": []},
+            "/api/sector-rotation": _empty_sector_rotation(),
             "/api/earnings/calendar": _empty_earnings_calendar(),
             "/api/options/chain": _empty_options_chain(),
             "/api/news/company": _empty_company_news(),
@@ -1976,6 +2047,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         # The trailing "?" keeps this from also matching the /sectors
         # sub-route below, since fragment matching is a plain substring test.
         "/api/spy-heatmap?": _spy_heatmap_data(),
+        "/api/sector-rotation": _sector_rotation_data(),
         "/api/spy-heatmap/sectors": {
             "sectors": [
                 {

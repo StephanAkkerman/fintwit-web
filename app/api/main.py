@@ -73,6 +73,7 @@ from ..services.price_history_service import (
 )
 from ..services.reddit_service import get_reddit_hot_posts, is_valid_subreddit_name
 from ..services import reddit_trends_service
+from ..services.sector_rotation_service import get_sector_rotation
 from ..services.signa import get_signa_best_trades, get_signa_live_feed
 from ..services.stock_fear_greed_service import get_stock_feargreed
 from ..services.stocktwits_service import get_stocktwits_data
@@ -470,6 +471,17 @@ async def spy_heatmap_sectors(
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return {"sectors": summarize_spy_sectors(data)}
+
+
+_SECTOR_ROTATION_TIMEFRAMES = ["daily", "weekly"]
+
+
+@app.get("/api/sector-rotation")
+async def sector_rotation(
+    timeframe: str = Query("daily", enum=_SECTOR_ROTATION_TIMEFRAMES),
+    _=Depends(api_key_dep),
+):
+    return await get_sector_rotation(timeframe=timeframe)
 
 
 @app.get("/api/treemap")

@@ -463,6 +463,30 @@ export type SectorOverviewResponse = {
   sectors: SectorPerformance[];
 };
 
+export type SectorRotationTimeframe = 'daily' | 'weekly';
+
+export type SectorRotationQuadrant = 'leading' | 'weakening' | 'lagging' | 'improving';
+
+export type SectorRotationPoint = {
+  date: string;
+  rs_ratio: number;
+  rs_momentum: number;
+};
+
+export type SectorRotationSeries = {
+  sector: string;
+  etf: string;
+  quadrant: SectorRotationQuadrant;
+  trail: SectorRotationPoint[];
+};
+
+export type SectorRotationResponse = {
+  timeframe: SectorRotationTimeframe;
+  benchmark: string;
+  window: number;
+  sectors: SectorRotationSeries[];
+};
+
 export type PortfolioPosition = {
   id: number;
   broker: 'IBKR';
