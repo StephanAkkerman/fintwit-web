@@ -3,6 +3,13 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Tweet } from '../types'
 import { hasChartSignal } from '../utils/tweetSignals'
+import {
+  displayLabel,
+  effectiveTickerScore,
+  emojiForLabel,
+  labelFromScore,
+  sentimentBadgeClass,
+} from '../utils/sentiment'
 import type { MentionLookup } from '../hooks/useMentionFrequency'
 import type { PortfolioTickerLookup, PortfolioTickerStatus } from '../hooks/usePortfolioTickers'
 import type { TraderCredibilityLookup } from '../hooks/useTraderCredibility'
@@ -390,6 +397,11 @@ export default function TweetCard({
   const sentimentEmoji = t.sentiment_emoji ?? null
   const quotedSentimentLabel = t.quoted_sentiment_label?.toUpperCase() ?? null
   const quotedSentimentEmoji = t.quoted_sentiment_emoji ?? null
+  const overallSentimentLabel = labelFromScore(t.sentiment_score ?? 0)
+  const divergingTickerSentiment = Object.entries(t.ticker_sentiment ?? {}).filter(
+    ([, score]) => labelFromScore(score) !== overallSentimentLabel
+  )
+  const hasTickerSentimentSplit = divergingTickerSentiment.length > 0
   const quoteMeta = hasQuoteEmbed ? extractQuoteMeta(t) : null
   const quotedTimeLabel = quoteMeta?.createdAt
     ? quoteMeta.createdAt.toLocaleString(undefined, {
@@ -405,18 +417,8 @@ export default function TweetCard({
   const isSubscriberOnly = Boolean(headerTweet.is_subscriber_only)
   const isQuotedSubscriberOnly = Boolean(t.quoted_tweet?.is_subscriber_only)
   const headerUserFilterValue = headerTweet.user_screen_name || headerTweet.user_name
-  const sentimentClass =
-    sentimentLabel === 'BULLISH'
-      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
-      : sentimentLabel === 'BEARISH'
-        ? 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300'
-        : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200'
-  const quotedSentimentClass =
-    quotedSentimentLabel === 'BULLISH'
-      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
-      : quotedSentimentLabel === 'BEARISH'
-        ? 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300'
-        : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200'
+  const sentimentClass = sentimentBadgeClass(sentimentLabel)
+  const quotedSentimentClass = sentimentBadgeClass(quotedSentimentLabel)
 
   return (
     <article className="rounded-2xl shadow p-4 bg-white dark:bg-zinc-900">
@@ -681,6 +683,13 @@ export default function TweetCard({
             const sessionEmoji = session === 'pre-market' ? '🌅' : session === 'after-hours' ? '🌙' : null
             const sessionLabel = session === 'pre-market' ? 'Pre-Market' : session === 'after-hours' ? 'After Hours' : null
             const portfolioStatus = portfolioLookup?.(asset.symbol) ?? null
+            const tickerSentimentScore = effectiveTickerScore(
+              t.sentiment_score,
+              t.ticker_sentiment,
+              asset.symbol
+            )
+            const tickerSentimentLabel = labelFromScore(tickerSentimentScore)
+            const tickerSentimentDisplay = displayLabel(tickerSentimentLabel)
 
             return (
               <div
@@ -688,20 +697,31 @@ export default function TweetCard({
                 className="rounded-xl border border-zinc-200 bg-zinc-50/70 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800/50"
               >
                 <div className="flex items-center justify-between gap-2">
-                  {onTickerSelect ? (
-                    <button
-                      type="button"
-                      onClick={() => onTickerSelect(asset.symbol.toUpperCase())}
-                      aria-label={`Filter by $${asset.symbol.toUpperCase()}`}
-                      className="truncate text-left font-semibold text-zinc-800 underline-offset-2 hover:underline dark:text-zinc-100"
-                    >
-                      {ticker}
-                    </button>
-                  ) : (
-                    <div className="truncate font-semibold text-zinc-800 dark:text-zinc-100">
-                      {ticker}
-                    </div>
-                  )}
+                  <div className="flex min-w-0 items-center gap-1">
+                    {onTickerSelect ? (
+                      <button
+                        type="button"
+                        onClick={() => onTickerSelect(asset.symbol.toUpperCase())}
+                        aria-label={`Filter by $${asset.symbol.toUpperCase()}`}
+                        className="truncate text-left font-semibold text-zinc-800 underline-offset-2 hover:underline dark:text-zinc-100"
+                      >
+                        {ticker}
+                      </button>
+                    ) : (
+                      <div className="truncate font-semibold text-zinc-800 dark:text-zinc-100">
+                        {ticker}
+                      </div>
+                    )}
+                    {hasTickerSentimentSplit && (
+                      <span
+                        aria-label={`Sentiment for $${asset.symbol.toUpperCase()}: ${tickerSentimentDisplay}`}
+                        title={`Confidence: ${(Math.abs(tickerSentimentScore) * 100).toFixed(1)}%`}
+                        className="shrink-0 text-sm"
+                      >
+                        {emojiForLabel(tickerSentimentLabel)}
+                      </span>
+                    )}
+                  </div>
                   <div className="flex shrink-0 items-center gap-1">
                     <PortfolioStatusBadge status={portfolioStatus} />
                     {typeLabel && (
@@ -790,19 +810,32 @@ export default function TweetCard({
               🔎 {chartExtractionLabel}
             </span>
           )}
-          {(sentimentLabel || sentimentEmoji) && (
+          {hasTickerSentimentSplit ? (
             <span
-              aria-label="Tweet sentiment"
-              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${sentimentClass}`}
-              title={
-                typeof t.sentiment_score === 'number'
-                  ? `Sentiment confidence: ${(t.sentiment_score * 100).toFixed(1)}%`
-                  : undefined
-              }
+              aria-label="Tweet sentiment: mixed by ticker"
+              title={divergingTickerSentiment
+                .map(([sym, score]) => `${sym}: ${displayLabel(labelFromScore(score))}`)
+                .join(' · ')}
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${sentimentBadgeClass(null)}`}
             >
-              <span>{sentimentEmoji ?? '🦆'}</span>
-              <span>{sentimentLabel ?? 'SENTIMENT'}</span>
+              <span>🔀</span>
+              <span>MIXED</span>
             </span>
+          ) : (
+            (sentimentLabel || sentimentEmoji) && (
+              <span
+                aria-label="Tweet sentiment"
+                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${sentimentClass}`}
+                title={
+                  typeof t.sentiment_score === 'number'
+                    ? `Sentiment confidence: ${(Math.abs(t.sentiment_score) * 100).toFixed(1)}%`
+                    : undefined
+                }
+              >
+                <span>{sentimentEmoji ?? '🦆'}</span>
+                <span>{sentimentLabel ?? 'SENTIMENT'}</span>
+              </span>
+            )
           )}
           {tickerBadges.map((sym) =>
             onTickerSelect ? (

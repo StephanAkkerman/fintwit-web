@@ -421,6 +421,84 @@ describe('TweetCard', () => {
     expect(screen.getByLabelText('Quoted tweet sentiment')).toBeInTheDocument()
   })
 
+  it('shows a per-ticker sentiment chip on every asset card when the tweet has a ticker sentiment split', () => {
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          text: 'Long $NVDA here, short $INTC into earnings',
+          sentiment_score: 0.6,
+          ticker_sentiment: { INTC: -0.85 },
+          assets: [
+            { symbol: 'NVDA', kind: 'EQUITY', financials: { price: 128.4, change_percent: 2.3 } },
+            { symbol: 'INTC', kind: 'EQUITY', financials: { price: 22.1, change_percent: -1.1 } },
+          ],
+        }}
+      />
+    )
+
+    // NVDA has no override, so it reads the post's overall (bullish) score.
+    expect(screen.getByLabelText('Sentiment for $NVDA: Bullish')).toBeInTheDocument()
+    // INTC has its own override, and it disagrees with the overall reading.
+    expect(screen.getByLabelText('Sentiment for $INTC: Bearish')).toBeInTheDocument()
+  })
+
+  it('does not show per-ticker sentiment chips when the tweet has no ticker sentiment split', () => {
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          sentiment_score: 0.6,
+          assets: [{ symbol: 'NVDA', kind: 'EQUITY', financials: { price: 128.4, change_percent: 2.3 } }],
+        }}
+      />
+    )
+
+    expect(screen.queryByLabelText(/^Sentiment for \$/)).not.toBeInTheDocument()
+  })
+
+  it('replaces the footer sentiment badge with a Mixed indicator when tickers diverge', () => {
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          sentiment_label: 'BULLISH',
+          sentiment_emoji: '🐂',
+          sentiment_score: 0.6,
+          ticker_sentiment: { INTC: -0.85 },
+          assets: [
+            { symbol: 'NVDA', kind: 'EQUITY', financials: { price: 128.4, change_percent: 2.3 } },
+            { symbol: 'INTC', kind: 'EQUITY', financials: { price: 22.1, change_percent: -1.1 } },
+          ],
+        }}
+      />
+    )
+
+    const mixedBadge = screen.getByLabelText('Tweet sentiment: mixed by ticker')
+    expect(mixedBadge).toBeInTheDocument()
+    expect(mixedBadge).toHaveAttribute('title', 'INTC: Bearish')
+    expect(screen.queryByLabelText('Tweet sentiment')).not.toBeInTheDocument()
+  })
+
+  it('does not show Mixed or per-ticker chips when ticker_sentiment differs in score but not in label', () => {
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          sentiment_label: 'BULLISH',
+          sentiment_emoji: '🐂',
+          sentiment_score: 0.455,
+          ticker_sentiment: { NVDA: 0.91 }, // higher score, but still BULLISH — not a real split
+          assets: [{ symbol: 'NVDA', kind: 'EQUITY', financials: { price: 128.4, change_percent: 2.3 } }],
+        }}
+      />
+    )
+
+    expect(screen.getByLabelText('Tweet sentiment')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Tweet sentiment: mixed by ticker')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^Sentiment for \$/)).not.toBeInTheDocument()
+  })
+
   it('renders subscribers-only icon for quoted tweet embeds', () => {
     const quoteText = '> [@writer](https://x.com/writer/status/800):\n> Subscribers-only update'
 
