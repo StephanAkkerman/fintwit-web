@@ -148,6 +148,7 @@ def _build_local_cache_entry(symbol: str, override: dict) -> dict:
         "sector": None,
         "industry": None,
         "company_profile": None,
+        "fundamentals": None,
         "meta": None,
         "yahoo_lookup": yahoo_lookup,
     }
@@ -217,6 +218,21 @@ class AssetEnricher:
                     if not isinstance(company_profile, dict):
                         company_profile = None
 
+                    # ticker-classifier>=0.1.5 reads this off the same Yahoo
+                    # quote it fetches for classification, so it's free —
+                    # but it's a snapshot from whenever this symbol was first
+                    # classified in this process (this cache never expires),
+                    # so it's only used as a fallback for the fresh per-call
+                    # fetch in get_fundamentals() below.
+                    classifier_fundamentals = getattr(r, "fundamentals", None)
+                    if not isinstance(classifier_fundamentals, dict):
+                        try:
+                            classifier_fundamentals = r.get("fundamentals")
+                        except Exception:
+                            classifier_fundamentals = None
+                    if not isinstance(classifier_fundamentals, dict):
+                        classifier_fundamentals = None
+
                     yahoo_lookup_value = getattr(r, "yahoo_lookup", None)
                     if not isinstance(yahoo_lookup_value, str):
                         try:
@@ -239,6 +255,7 @@ class AssetEnricher:
                         "sector": sector,
                         "industry": industry,
                         "company_profile": company_profile,
+                        "fundamentals": classifier_fundamentals,
                         "meta": meta,
                         "yahoo_lookup": yahoo_lookup,
                     }
@@ -337,17 +354,30 @@ class AssetEnricher:
                     financial_payload,
                 )
 
+            # entry["fundamentals"] currently holds whatever ticker-classifier
+            # captured at classification time (or None) — a fine fallback,
+            # but a stale one, since this process's classification cache
+            # never expires. Prefer the fresh, hourly-refreshed fetch and
+            # only fall back to that snapshot when the fresh fetch comes up
+            # empty (e.g. yfinance is rate-limited or briefly unavailable).
+            classifier_fundamentals = entry.get("fundamentals")
             if isinstance(fundamentals, BaseException):
                 logger.debug(
                     "[enricher] %s fundamentals error: %r",
                     entry["symbol"],
                     fundamentals,
                 )
-                entry["fundamentals"] = None
+                fresh_fundamentals = None
             else:
-                entry["fundamentals"] = (
+                fresh_fundamentals = (
                     fundamentals if isinstance(fundamentals, dict) else None
                 )
+
+            entry["fundamentals"] = fresh_fundamentals or (
+                classifier_fundamentals
+                if isinstance(classifier_fundamentals, dict)
+                else None
+            )
 
         return classified
 

@@ -71,6 +71,7 @@ def _mock_classifier_result(
     sector=None,
     industry=None,
     company_profile=None,
+    fundamentals=None,
 ):
     """Return a mock object that looks like a TickerClassifier result row."""
     r = MagicMock()
@@ -82,6 +83,7 @@ def _mock_classifier_result(
     r.sector = sector
     r.industry = industry
     r.company_profile = company_profile
+    r.fundamentals = fundamentals
     return r
 
 
@@ -554,8 +556,42 @@ async def test_classify_preserves_static_fields():
 
 
 @pytest.mark.asyncio
+async def test_classify_preserves_classifier_fundamentals_as_fallback():
+    """ticker-classifier>=0.1.5 reads a snapshot off its own Yahoo quote.
+
+    It's carried onto the entry but not used unless the fresh fetch (mocked
+    to None by the autouse fixture here) comes up empty.
+    """
+    enricher = AssetEnricher()
+    snapshot = {
+        "market_cap": 3_000_000_000_000,
+        "forward_pe": 30.7,
+        "trailing_pe": 41.1,
+        "avg_volume": 54_321_000,
+        "currency": "USD",
+    }
+    mock_result = _mock_classifier_result(
+        "AAPL", "EQUITY", "Apple Inc.", fundamentals=snapshot
+    )
+    with patch.object(enricher._cls, "classify_async", return_value=[mock_result]):
+        result = await enricher.classify(["AAPL"])
+    assert result[0]["fundamentals"] == snapshot
+
+
+@pytest.mark.asyncio
+async def test_classify_fundamentals_ignores_non_dict_classifier_payload():
+    enricher = AssetEnricher()
+    mock_result = _mock_classifier_result(
+        "AAPL", "EQUITY", "Apple Inc.", fundamentals="not-a-dict"
+    )
+    with patch.object(enricher._cls, "classify_async", return_value=[mock_result]):
+        result = await enricher.classify(["AAPL"])
+    assert result[0]["fundamentals"] is None
+
+
+@pytest.mark.asyncio
 async def test_classify_attaches_fundamentals_for_equity():
-    """Fundamentals now come from a dedicated Yahoo fetch, not the classifier."""
+    """The fresh, hourly-cached Yahoo fetch is the primary source."""
     enricher = AssetEnricher()
     mock_result = _mock_classifier_result("AAPL", "EQUITY", "Apple Inc.")
     fundamentals_payload = {
@@ -578,18 +614,33 @@ async def test_classify_attaches_fundamentals_for_equity():
 
 
 @pytest.mark.asyncio
-async def test_classify_fundamentals_absent_when_service_returns_none():
+async def test_classify_prefers_fresh_fundamentals_over_classifier_snapshot():
+    """A stale classifier snapshot never overrides a successful fresh fetch."""
     enricher = AssetEnricher()
-    mock_result = _mock_classifier_result("AAPL", "EQUITY", "Apple Inc.")
-    with patch.object(enricher._cls, "classify_async", return_value=[mock_result]):
+    stale_snapshot = {"forward_pe": 999.0}
+    fresh_payload = {"forward_pe": 30.7, "trailing_pe": 41.1}
+    mock_result = _mock_classifier_result(
+        "AAPL", "EQUITY", "Apple Inc.", fundamentals=stale_snapshot
+    )
+    with (
+        patch.object(enricher._cls, "classify_async", return_value=[mock_result]),
+        patch(
+            "app.runtime.enricher.get_fundamentals",
+            new=AsyncMock(return_value=fresh_payload),
+        ),
+    ):
         result = await enricher.classify(["AAPL"])
-    assert result[0]["fundamentals"] is None
+    assert result[0]["fundamentals"] == fresh_payload
 
 
 @pytest.mark.asyncio
-async def test_classify_fundamentals_error_is_swallowed():
+async def test_classify_falls_back_to_classifier_snapshot_when_fetch_fails():
+    """A yfinance outage still leaves the classifier's own quote to show."""
     enricher = AssetEnricher()
-    mock_result = _mock_classifier_result("AAPL", "EQUITY", "Apple Inc.")
+    snapshot = {"forward_pe": 30.7, "trailing_pe": 41.1}
+    mock_result = _mock_classifier_result(
+        "AAPL", "EQUITY", "Apple Inc.", fundamentals=snapshot
+    )
     with (
         patch.object(enricher._cls, "classify_async", return_value=[mock_result]),
         patch(
@@ -597,6 +648,27 @@ async def test_classify_fundamentals_error_is_swallowed():
             new=AsyncMock(side_effect=RuntimeError("boom")),
         ),
     ):
+        result = await enricher.classify(["AAPL"])
+    assert result[0]["fundamentals"] == snapshot
+
+
+@pytest.mark.asyncio
+async def test_classify_falls_back_to_classifier_snapshot_when_fetch_returns_none():
+    enricher = AssetEnricher()
+    snapshot = {"forward_pe": 30.7}
+    mock_result = _mock_classifier_result(
+        "AAPL", "EQUITY", "Apple Inc.", fundamentals=snapshot
+    )
+    with patch.object(enricher._cls, "classify_async", return_value=[mock_result]):
+        result = await enricher.classify(["AAPL"])
+    assert result[0]["fundamentals"] == snapshot
+
+
+@pytest.mark.asyncio
+async def test_classify_fundamentals_absent_when_both_sources_are_empty():
+    enricher = AssetEnricher()
+    mock_result = _mock_classifier_result("AAPL", "EQUITY", "Apple Inc.")
+    with patch.object(enricher._cls, "classify_async", return_value=[mock_result]):
         result = await enricher.classify(["AAPL"])
     assert result[0]["fundamentals"] is None
 
