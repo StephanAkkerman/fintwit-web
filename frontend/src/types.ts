@@ -68,6 +68,7 @@ export type AssetFundamentals = {
   eps_forward?: number | null;
   eps_trailing?: number | null;
   nav?: number | null; // net asset value per share; funds and ETFs only
+  day_volume?: number | null; // today's regular-session volume, in shares
   avg_volume?: number | null; // 3-month average daily volume, in shares
   avg_volume_10d?: number | null; // 10-day average daily volume, in shares
   currency?: string | null;

@@ -1,5 +1,7 @@
 curl.txt
 *.db
+/.vscode
+/.playwright-mcp
 node_modules/
 /state
 /ibgateway-settings

@@ -20,6 +20,7 @@ def _info(**overrides):
         "trailingPE": 41.1,
         "epsForward": 6.5,
         "epsTrailingTwelveMonths": 4.5,
+        "volume": 19_626_088,
         "averageDailyVolume3Month": 54_321_000,
         "averageDailyVolume10Day": 48_000_000,
         "currency": "usd",
@@ -43,10 +44,24 @@ async def test_get_fundamentals_maps_yahoo_quote_fields():
         "trailing_pe": 41.1,
         "eps_forward": 6.5,
         "eps_trailing": 4.5,
+        "day_volume": 19_626_088,
         "avg_volume": 54_321_000,
         "avg_volume_10d": 48_000_000,
         "currency": "USD",
     }
+
+
+@pytest.mark.asyncio
+async def test_get_fundamentals_falls_back_to_regular_market_volume():
+    ticker = MagicMock()
+    info = _info(regularMarketVolume=12_345_000)
+    del info["volume"]
+    ticker.info = info
+
+    with patch("yfinance.Ticker", return_value=ticker):
+        result = await get_fundamentals("AAPL")
+
+    assert result["day_volume"] == 12_345_000
 
 
 @pytest.mark.asyncio

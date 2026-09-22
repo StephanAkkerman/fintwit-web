@@ -55,6 +55,9 @@ def _fetch_fundamentals_sync(symbol: str) -> dict | None:
         "eps_forward": _clean_number(info.get("epsForward")),
         "eps_trailing": _clean_number(info.get("epsTrailingTwelveMonths")),
         "nav": _clean_number(info.get("navPrice")),
+        "day_volume": _clean_number(
+            info.get("volume") or info.get("regularMarketVolume")
+        ),
         "avg_volume": _clean_number(
             info.get("averageDailyVolume3Month") or info.get("averageVolume")
         ),
@@ -77,9 +80,12 @@ async def get_fundamentals(symbol: str) -> dict | None:
     """Fetch slow-moving valuation fundamentals from Yahoo Finance via yfinance.
 
     Covers market cap, forward/trailing P/E, forward/trailing EPS, NAV (funds
-    and ETFs only), and average daily volume. Cached per symbol for an hour —
-    these move slowly enough that a tight TTL would only add load without
-    changing what is shown.
+    and ETFs only), and volume (today's regular-session volume alongside the
+    3-month/10-day averages). Cached per symbol for an hour — the valuation
+    fields move slowly enough that a tight TTL would only add load without
+    changing what is shown; today's volume rides along in the same cache, so
+    it can lag up to an hour behind the live session rather than being exact
+    to the minute.
     """
     normalized = (symbol or "").strip().upper()
     if not normalized:

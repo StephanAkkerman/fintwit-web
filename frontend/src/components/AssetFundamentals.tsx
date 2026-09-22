@@ -18,7 +18,9 @@ const TOOLTIPS = {
   trailingPE:
     'P/E (TTM) — share price ÷ reported earnings per share over the trailing twelve months. Shown when no forward estimate is available. Coloured on the same 15x/30x scale as forward P/E.',
   nav: 'Net Asset Value — the fund’s per-share value based on its underlying holdings. Shown for ETFs and other funds only; most individual stocks don’t report one.',
-  avgVolume: 'Average daily volume over the last 3 months, in shares. Compare it against today’s volume to gauge unusual activity.',
+  dayVolume:
+    'Regular-session volume so far today, in shares. Compare it against the average below to gauge unusual activity — can lag up to an hour behind the live session.',
+  avgVolume: 'Average daily volume over the last 3 months, in shares.',
 } as const
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
@@ -143,6 +145,15 @@ export default function AssetFundamentals({
       label: 'NAV',
       value: fmtPerShare(fundamentals.nav, currency),
       tooltip: TOOLTIPS.nav,
+    })
+  }
+
+  if (isUsable(fundamentals?.day_volume)) {
+    metrics.push({
+      key: 'day-volume',
+      label: 'Volume',
+      value: fmtShares(fundamentals.day_volume),
+      tooltip: TOOLTIPS.dayVolume,
     })
   }
 

@@ -183,6 +183,30 @@ describe('AssetFundamentals', () => {
     expect(screen.queryByText('NAV')).not.toBeInTheDocument()
   })
 
+  it("renders today's volume next to the average for comparison", () => {
+    render(
+      <AssetFundamentals
+        asset={{
+          ...equity,
+          fundamentals: { ...equity.fundamentals, day_volume: 320_000_000 },
+        }}
+      />
+    )
+
+    expect(screen.getByText('Volume')).toBeInTheDocument()
+    expect(screen.getByText('320.0M')).toBeInTheDocument()
+    expect(screen.getByText('Avg vol')).toBeInTheDocument()
+    expect(screen.getByText('215.0M')).toBeInTheDocument()
+    expect(screen.getByText('Volume').getAttribute('title')).toContain(
+      'Compare it against the average'
+    )
+  })
+
+  it('omits volume when Yahoo reports no session volume yet', () => {
+    render(<AssetFundamentals asset={equity} />)
+    expect(screen.queryByText('Volume')).not.toBeInTheDocument()
+  })
+
   it('renders the sector alone when no industry is known', () => {
     render(
       <AssetFundamentals
