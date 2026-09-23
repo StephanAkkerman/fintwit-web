@@ -39,6 +39,8 @@ Route-level sections:
   - `MarketMoversPanel`
   - Always-visible top-10 pre-market/after-hours gainers and losers (whichever session is current), via `useMarketMovers` polling `/api/stocks/market-movers` every 5 minutes
   - `SpyHeatmapWidget`
+  - `SectorOverviewWidget`
+  - `SectorRotationWidget`
   - `EarningsCalendarWidget`
   - `CompanyNewsWidget`
   - Recent per-symbol news headlines (title/source/date/excerpt) via `yfinance`, defaults to `AAPL`; auto-loads whichever ticker is currently clicked/filtered app-wide (`tickerFilter`), still overridable via its own symbol input
@@ -224,6 +226,10 @@ Route-level sections:
 - `SectorOverviewWidget` + `useSectorOverview`
   - Fetches: `/api/spy-heatmap/sectors?date=...`
   - Purpose: SPY sector/subsector performance trends (e.g. Technology, and within it Semiconductors vs Software) with selectable date ranges; each sector expands to its subsector breakdown.
+
+- `SectorRotationWidget` + `useSectorRotation` (`/stocks`)
+  - Fetches: `/api/sector-rotation?timeframe=daily|weekly`
+  - Purpose: Relative Rotation Graph — each of the 11 SPDR sector ETFs' JdK RS-Ratio/RS-Momentum trail vs. SPY, plotted as a quadrant scatter (leading/weakening/lagging/improving) with a legend that toggles sectors, a quadrant summary, and a table-view twin for the same data without hovering.
 
 - `EarningsCalendarWidget` + `useEarningsCalendar` (`/stocks`)
   - Fetches: `/api/earnings/calendar?days=7`.
