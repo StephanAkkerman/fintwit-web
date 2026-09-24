@@ -468,21 +468,26 @@ def _spy_heatmap_data() -> dict:
     return {"data": rows}
 
 
-# (sector, etf, start_rs_ratio, start_rs_momentum, drift_ratio, drift_momentum)
-# Drift signs are chosen so the ten-point trail lands in every quadrant at
-# least once, so the screenshot shows the RRG doing its job.
+# (sector, etf, orbit_centre_ratio, orbit_centre_momentum, radius, end_angle_deg)
+# Each trail is a clockwise arc (improving -> leading -> weakening -> lagging,
+# the way sectors rotate on a real RRG) ending at ``end_angle_deg`` around its
+# orbit centre, 0 deg = due right. The step size matches what the smoothed JdK
+# formula in `sector_rotation_service` produces on realistic daily prices
+# (~0.5 units per bar), so the screenshot shows trails as long as users will
+# see; real trails wobble a little more than these arcs. End angles spread the
+# sectors over all four quadrants.
 _SECTOR_ROTATION_ROWS: list[tuple[str, str, float, float, float, float]] = [
-    ("Technology", "XLK", 102.0, 100.5, 0.35, 0.15),  # -> leading
-    ("Communication Services", "XLC", 101.0, 99.5, 0.25, 0.2),  # -> leading
-    ("Industrials", "XLI", 100.5, 100.8, 0.15, 0.05),  # -> leading
-    ("Financials", "XLF", 101.5, 101.5, 0.1, -0.3),  # -> weakening
-    ("Consumer Discretionary", "XLY", 100.8, 100.2, 0.05, -0.25),  # -> weakening
-    ("Health Care", "XLV", 98.5, 99.0, -0.2, -0.15),  # -> lagging
-    ("Consumer Staples", "XLP", 97.5, 98.0, -0.1, -0.05),  # -> lagging
-    ("Materials", "XLB", 98.8, 99.5, -0.15, 0.05),  # -> lagging
-    ("Energy", "XLE", 99.0, 98.0, -0.05, 0.35),  # -> improving
-    ("Real Estate", "XLRE", 98.2, 99.2, 0.1, 0.3),  # -> improving
-    ("Utilities", "XLU", 99.5, 97.8, -0.1, 0.4),  # -> improving
+    ("Technology", "XLK", 101.0, 100.2, 2.4, 40.0),  # -> leading
+    ("Communication Services", "XLC", 100.4, 99.6, 2.0, 70.0),  # -> leading
+    ("Industrials", "XLI", 100.2, 100.0, 1.2, 15.0),  # -> leading
+    ("Financials", "XLF", 100.0, 100.4, 2.2, -35.0),  # -> weakening
+    ("Consumer Discretionary", "XLY", 100.6, 100.4, 1.8, -75.0),  # -> weakening
+    ("Health Care", "XLV", 99.6, 100.2, 2.4, -140.0),  # -> lagging
+    ("Consumer Staples", "XLP", 99.2, 99.8, 1.5, -165.0),  # -> lagging
+    ("Materials", "XLB", 100.0, 99.8, 1.3, -120.0),  # -> lagging
+    ("Energy", "XLE", 99.2, 99.4, 2.6, 125.0),  # -> improving
+    ("Real Estate", "XLRE", 99.6, 99.8, 1.6, 160.0),  # -> improving
+    ("Utilities", "XLU", 99.8, 100.0, 1.9, 105.0),  # -> improving
 ]
 
 
@@ -494,21 +499,22 @@ def _rrg_quadrant(rs_ratio: float, rs_momentum: float) -> str:
 
 def _sector_rotation_data(timeframe: str = "daily") -> dict:
     points = 10
+    step = 0.5  # units of RS-Ratio/RS-Momentum travelled per bar
     start = date(2026, 9, 8)
     sectors = []
-    for (
-        sector,
-        etf,
-        ratio0,
-        momentum0,
-        drift_ratio,
-        drift_momentum,
-    ) in _SECTOR_ROTATION_ROWS:
+    for index, (sector, etf, cx, cy, radius, end_deg) in enumerate(
+        _SECTOR_ROTATION_ROWS
+    ):
         trail = []
         for i in range(points):
-            wobble = 0.12 if i % 2 == 0 else -0.08
-            ratio = ratio0 + drift_ratio * i + wobble
-            momentum = momentum0 + drift_momentum * i - wobble
+            bars_left = points - 1 - i
+            # Clockwise motion = angle decreasing over time, so earlier bars
+            # sit at larger angles.
+            angle = math.radians(end_deg) + bars_left * step / radius
+            # Deterministic jitter: the smoothed formula still wobbles.
+            jitter = 0.18 * math.sin(i * 2.3 + index)
+            ratio = cx + (radius + jitter) * math.cos(angle)
+            momentum = cy + (radius - jitter) * math.sin(angle)
             trail.append(
                 {
                     "date": (start + timedelta(days=i)).isoformat(),

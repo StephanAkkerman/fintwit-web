@@ -40,7 +40,7 @@ beforeEach(() => {
 })
 
 describe('SectorRotationWidget', () => {
-  it('renders sector legend chips and quadrant summary from the API payload', async () => {
+  it('renders a quadrant-grouped sector legend from the API payload', async () => {
     render(<SectorRotationWidget />)
 
     await waitFor(() => {
@@ -53,18 +53,33 @@ describe('SectorRotationWidget', () => {
     expect(screen.getByTestId('quadrant-summary-lagging')).toHaveTextContent('Health Care')
   })
 
-  it('toggles a sector out of the chart/summary when its legend chip is clicked', async () => {
+  it('toggles a sector off and back on when its legend entry is clicked', async () => {
     render(<SectorRotationWidget />)
 
     await waitFor(() => expect(screen.getByRole('button', { name: /XLK/ })).toBeInTheDocument())
 
-    const techChip = screen.getByRole('button', { name: /XLK/ })
-    expect(techChip).toHaveAttribute('aria-pressed', 'true')
+    const techEntry = screen.getByRole('button', { name: /XLK/ })
+    expect(techEntry).toHaveAttribute('aria-pressed', 'true')
 
-    fireEvent.click(techChip)
+    fireEvent.click(techEntry)
 
-    expect(techChip).toHaveAttribute('aria-pressed', 'false')
-    expect(screen.getByTestId('quadrant-summary-leading')).toHaveTextContent('—')
+    expect(techEntry).toHaveAttribute('aria-pressed', 'false')
+    // A hidden sector stays in the legend (dimmed) so it can be switched back on.
+    expect(screen.getByTestId('quadrant-summary-leading')).toHaveTextContent('Technology')
+
+    fireEvent.click(techEntry)
+    expect(techEntry).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('shortens the trail by default and can show the full trail', async () => {
+    render(<SectorRotationWidget />)
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /XLK/ })).toBeInTheDocument())
+
+    const full = screen.getByRole('button', { name: 'Full tail' })
+    expect(screen.getByRole('button', { name: 'Short tail' })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(full)
+    expect(full).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('fetches a new timeframe when the Weekly button is clicked', async () => {
