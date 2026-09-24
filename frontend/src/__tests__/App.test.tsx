@@ -145,10 +145,10 @@ beforeEach(() => {
 })
 
 describe('App', () => {
-  it('renders the X Stream heading', async () => {
+  it('renders the fintwit-web heading', async () => {
     render(<App />)
     await waitFor(() =>
-      expect(screen.getByRole('heading', { name: /x stream/i })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /fintwit-web/i })).toBeInTheDocument()
     )
   })
 
@@ -163,7 +163,7 @@ describe('App', () => {
     render(<App />)
 
     await waitFor(() =>
-      expect(screen.getByRole('heading', { name: /x stream/i })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /fintwit-web/i })).toBeInTheDocument()
     )
 
     expect(screen.queryByText('Filters')).not.toBeInTheDocument()
