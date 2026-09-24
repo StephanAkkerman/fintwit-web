@@ -1,12 +1,16 @@
 import { useMacroStrip } from '../hooks/useMacroStrip'
 import type { MacroTickerItem } from '../types'
 
-function Sparkline({ data, up }: { data: number[]; up: boolean }) {
+function Sparkline({ data }: { data: number[] }) {
   if (data.length < 2) return null
   const min = Math.min(...data)
   const max = Math.max(...data)
   const range = max - min || 1
   const W = 48, H = 18
+  // Color reflects the sparkline's own start-to-end movement, not the day's
+  // change_pct (a different timeframe) - otherwise the line's color can
+  // contradict the direction it visibly draws.
+  const up = data[data.length - 1] >= data[0]
   const pts = data.map((v, i) => {
     const x = (i / (data.length - 1)) * W
     const y = H - ((v - min) / range) * (H - 2) - 1
@@ -41,7 +45,7 @@ function MacroTile({ item }: { item: MacroTickerItem }) {
       </div>
       <div className="mt-0.5 flex items-center justify-between gap-2">
         <span className="font-mono text-sm text-zinc-100 font-bold truncate">{fmtPrice(item.price)}</span>
-        <Sparkline data={item.sparkline} up={up} />
+        <Sparkline data={item.sparkline} />
       </div>
     </div>
   )
