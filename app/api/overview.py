@@ -109,6 +109,46 @@ async def _get_strip() -> list[dict]:
         return payload
 
 
+# ─── Per-ticker daily price chart ──────────────────────────────────────────
+# Powers the price chart in TickerDetailModal (opened by clicking a ticker
+# in a post). Separate from the macro strip above: fetched lazily per ticker
+# on modal open rather than polled for a fixed watchlist, so it takes an
+# arbitrary symbol and doesn't know its asset kind up front.
+
+_TICKER_HISTORY_CACHE_TTL = 60  # seconds
+_ticker_history_cache: dict[str, tuple[float, list[dict]]] = {}
+_ticker_history_lock = asyncio.Lock()
+
+
+async def _fetch_ticker_history(ticker: str) -> list[dict]:
+    # Try the ticker as a Yahoo symbol directly (stocks, indices, forex), then
+    # as "<ticker>-USD" (crypto) — mirrors ticker_price_data.coingecko's own
+    # Yahoo fallback, without needing a classifier call just to pick a route.
+    for candidate in (ticker, f"{ticker}-USD"):
+        try:
+            history = await get_price_history(candidate, range_="1d", interval="5m")
+        except Exception as exc:
+            logger.debug("[ticker-price-history] %s failed: %r", candidate, exc)
+            continue
+        if history:
+            return history
+    return []
+
+
+async def _get_ticker_history(ticker: str) -> list[dict]:
+    now = time.time()
+    async with _ticker_history_lock:
+        cached = _ticker_history_cache.get(ticker)
+        if cached and now - cached[0] < _TICKER_HISTORY_CACHE_TTL:
+            return cached[1]
+
+    points = await _fetch_ticker_history(ticker)
+
+    async with _ticker_history_lock:
+        _ticker_history_cache[ticker] = (time.time(), points)
+    return points
+
+
 # ─── Endpoints ──────────────────────────────────────────────────────────────
 
 
@@ -213,6 +253,19 @@ async def ticker_timeseries(
         user_screen_name=user_screen_name or None,
         subscriber_only=subscriber_only,
     )
+
+
+@router.get("/ticker-price-history")
+async def ticker_price_history(ticker: str = Query(...)):
+    """Today's intraday price series for a single ticker (5-min closes).
+
+    Powers the price chart in the ticker detail modal opened from a post.
+    """
+    ticker = ticker.strip().upper()
+    if not ticker:
+        raise HTTPException(status_code=422, detail="ticker is required")
+
+    return {"ticker": ticker, "points": await _get_ticker_history(ticker)}
 
 
 @router.get("/sector-mentions")

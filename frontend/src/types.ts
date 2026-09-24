@@ -1032,6 +1032,18 @@ export interface TickerTimeseries {
   summary: TickerTimeseriesSummary;
 }
 
+export interface TickerPriceHistoryPoint {
+  t: string; // ISO timestamp (intraday) or date
+  close: number;
+  high: number;
+  low: number;
+}
+
+export interface TickerPriceHistory {
+  ticker: string;
+  points: TickerPriceHistoryPoint[];
+}
+
 export type ExtendedHoursFuture = {
   label: string
   symbol: string
