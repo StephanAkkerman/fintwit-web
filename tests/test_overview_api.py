@@ -13,6 +13,15 @@ def client():
             yield c
 
 
+@pytest.fixture(autouse=True)
+def _reset_strip_cache():
+    import app.api.overview as overview
+
+    overview._strip_cache = None
+    yield
+    overview._strip_cache = None
+
+
 def test_mention_heat_returns_list(client):
     resp = client.get("/api/overview/mention-heat")
     assert resp.status_code == 200
@@ -86,17 +95,80 @@ def test_ticker_timeseries_rejects_blank_ticker(client):
 
 def test_macro_strip_returns_list(client):
     mock_quote = {"price": 5000.0, "change_percent": 0.5}
-    with patch(
-        "app.api.overview.get_tradingview_quote",
-        new_callable=AsyncMock,
-        return_value=mock_quote,
+    mock_history = [
+        {
+            "t": "2024-01-01T00:00:00+00:00",
+            "close": 4990.0,
+            "high": 4995.0,
+            "low": 4985.0,
+        },
+        {
+            "t": "2024-01-01T00:05:00+00:00",
+            "close": 5000.0,
+            "high": 5002.0,
+            "low": 4995.0,
+        },
+    ]
+    with (
+        patch(
+            "app.api.overview.get_tradingview_quote",
+            new_callable=AsyncMock,
+            return_value=mock_quote,
+        ),
+        patch(
+            "app.api.overview.get_price_history",
+            new_callable=AsyncMock,
+            return_value=mock_history,
+        ),
     ):
         resp = client.get("/api/overview/macro-strip")
     assert resp.status_code == 200
     data = resp.json()
     assert isinstance(data, list)
-    if data:
-        assert "label" in data[0]
-        assert "price" in data[0]
-        assert "change_pct" in data[0]
-        assert "sparkline" in data[0]
+    assert len(data) == 7
+    for item in data:
+        assert "label" in item
+        assert "price" in item
+        assert "change_pct" in item
+        assert item["sparkline"] == [4990.0, 5000.0]
+
+
+def test_macro_strip_sparkline_empty_when_history_unavailable(client):
+    mock_quote = {"price": 5000.0, "change_percent": 0.5}
+    with (
+        patch(
+            "app.api.overview.get_tradingview_quote",
+            new_callable=AsyncMock,
+            return_value=mock_quote,
+        ),
+        patch(
+            "app.api.overview.get_price_history",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+    ):
+        resp = client.get("/api/overview/macro-strip")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert all(item["sparkline"] == [] for item in data)
+
+
+def test_macro_strip_tile_survives_history_exception(client):
+    mock_quote = {"price": 5000.0, "change_percent": 0.5}
+    with (
+        patch(
+            "app.api.overview.get_tradingview_quote",
+            new_callable=AsyncMock,
+            return_value=mock_quote,
+        ),
+        patch(
+            "app.api.overview.get_price_history",
+            new_callable=AsyncMock,
+            side_effect=Exception("yahoo down"),
+        ),
+    ):
+        resp = client.get("/api/overview/macro-strip")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 7
+    assert all(item["sparkline"] == [] for item in data)

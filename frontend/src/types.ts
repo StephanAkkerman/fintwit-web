@@ -888,7 +888,7 @@ export interface MacroTickerItem {
   symbol: string;
   price: number;
   change_pct: number;
-  sparkline: number[]; // in-memory history, one point per ~5min server-side fetch; empty until the first few fetches land
+  sparkline: number[]; // today's intraday series (5-min closes) from Yahoo Finance; empty when unavailable
 }
 
 export interface MentionHeatCell {

@@ -3,11 +3,10 @@
 import asyncio
 import logging
 import time
-from collections import deque
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
-from ticker_price_data import get_tradingview_quote
+from ticker_price_data import get_price_history, get_tradingview_quote
 
 from ..services.mention_aggregator import (
     get_hidden_gems,
@@ -34,15 +33,38 @@ _STRIP_TICKERS: list[tuple[str, str, str]] = [
     ("GOLD", "TVC:GOLD", "index"),
 ]
 
+# Yahoo Finance symbols for the sparkline series, keyed by strip label. Kept
+# separate from the TradingView symbols above (used for the live price/%
+# change) since Yahoo's lookup namespace differs; SPX/DXY/VIX are plain
+# labels because ticker_price_data.get_price_history already maps those to
+# their real Yahoo symbols internally.
+_STRIP_YAHOO_SYMBOLS: dict[str, str] = {
+    "SPX": "SPX",
+    "NDX": "^NDX",
+    "BTC": "BTC-USD",
+    "ETH": "ETH-USD",
+    "DXY": "DXY",
+    "VIX": "VIX",
+    "GOLD": "GC=F",
+}
+
 _STRIP_CACHE_TTL = 300  # seconds
 _strip_cache: tuple[float, list[dict]] | None = None
 _strip_lock = asyncio.Lock()
 
-# Rolling per-label price history, one point appended per real fetch (i.e.
-# once per _STRIP_CACHE_TTL). 48 points * 5min = ~4h of trend for the strip
-# sparklines; in-memory only, so it resets on restart like _strip_cache.
-_STRIP_HISTORY_MAXLEN = 48
-_strip_history: dict[str, deque[float]] = {}
+
+async def _fetch_sparkline(label: str) -> list[float]:
+    yahoo_symbol = _STRIP_YAHOO_SYMBOLS.get(label)
+    if not yahoo_symbol:
+        return []
+    try:
+        history = await get_price_history(yahoo_symbol, range_="1d", interval="5m")
+    except Exception as exc:
+        logger.debug("[macro-strip] history for %s failed: %r", label, exc)
+        return []
+    if not history:
+        return []
+    return [point["close"] for point in history]
 
 
 async def _build_strip() -> list[dict]:
@@ -58,16 +80,12 @@ async def _build_strip() -> list[dict]:
                 if not isinstance(price, (int, float)):
                     return None
                 price = float(price)
-                history = _strip_history.setdefault(
-                    label, deque(maxlen=_STRIP_HISTORY_MAXLEN)
-                )
-                history.append(price)
                 return {
                     "label": label,
                     "symbol": symbol,
                     "price": price,
                     "change_pct": float(result.get("change_percent") or 0.0),
-                    "sparkline": list(history),
+                    "sparkline": await _fetch_sparkline(label),
                 }
             except Exception as exc:
                 logger.debug("[macro-strip] %s failed: %r", symbol, exc)
