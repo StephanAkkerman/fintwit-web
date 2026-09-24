@@ -107,7 +107,7 @@ const SECTOR_CHART_COLORS: Record<string, string> = {
   'consumer defensive': '#65a30d', // lime-600
   'consumer staples': '#65a30d',
   energy: '#f97316', // orange-500
-  industrials: '#334155', // slate-700
+  industrials: '#64748b', // slate-500 (slate-700 disappears on the dark card)
   'basic materials': '#a8a29e', // stone-400
   materials: '#a8a29e',
   'real estate': '#14b8a6', // teal-500
