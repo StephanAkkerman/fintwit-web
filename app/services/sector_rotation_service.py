@@ -9,6 +9,11 @@ reference implementation of the same JdK formulas this module follows,
 adapted here to use a rolling (rather than fixed-anchor) rate of change so it
 stays well-behaved over long trails.
 
+Both the relative-strength line and its rate of change are EMA-smoothed before
+normalization, as the JdK method prescribes. Without that, one day's noise
+decides each step's direction and a trail is a random zig-zag instead of the
+rotation the chart is meant to show.
+
 `ticker-price-data` only exposes live quotes, so history comes from
 `price_history_service`, which already fetches and caches it -- this module
 does no fetching of its own.
@@ -49,6 +54,10 @@ DEFAULT_TIMEFRAME = "daily"
 _FETCH_RANGE_BY_TIMEFRAME = {"daily": "1Y", "weekly": "5Y"}
 
 RS_WINDOW = 14
+#: EMA span applied to relative strength and to its rate of change. 5 bars
+#: halves the per-step jitter of the trail without lagging turns by more than a
+#: couple of bars.
+RS_SMOOTHING = 5
 DEFAULT_TAIL = 10
 MIN_TAIL = 3
 MAX_TAIL = 20
@@ -87,10 +96,31 @@ def _rolling(
     return out
 
 
+def _ema(values: list[Optional[float]], span: int) -> list[Optional[float]]:
+    """Exponential moving average with ``alpha = 2 / (span + 1)``.
+
+    ``None`` passes through and restarts the average, so a gap never blends
+    values from either side of it. ``span <= 1`` returns the input unchanged.
+    """
+    if span <= 1:
+        return list(values)
+    alpha = 2.0 / (span + 1)
+    out: list[Optional[float]] = []
+    prev: Optional[float] = None
+    for v in values:
+        if v is None:
+            prev = None
+        else:
+            prev = v if prev is None else alpha * v + (1 - alpha) * prev
+        out.append(prev)
+    return out
+
+
 def compute_rs_ratio_momentum(
     sector_closes: list[float],
     benchmark_closes: list[float],
     window: int = RS_WINDOW,
+    smoothing: int = RS_SMOOTHING,
 ) -> tuple[list[Optional[float]], list[Optional[float]]]:
     """Return the JdK RS-Ratio and RS-Momentum series for aligned closes.
 
@@ -98,11 +128,15 @@ def compute_rs_ratio_momentum(
         with ``benchmark_closes``.
     :param benchmark_closes: Benchmark closes.
     :param window: Rolling window used for both normalization stages.
+    :param smoothing: EMA span applied to relative strength and to its rate of
+        change before each is normalized; ``1`` disables smoothing.
     :return: ``(rs_ratio, rs_momentum)``, each the same length as the inputs;
         ``None`` wherever there isn't yet enough history to normalize.
     """
     n = len(sector_closes)
-    rs = [100.0 * s / b for s, b in zip(sector_closes, benchmark_closes)]
+    rs = _ema(
+        [100.0 * s / b for s, b in zip(sector_closes, benchmark_closes)], smoothing
+    )
 
     rs_mean = _rolling(rs, window, fmean)
     rs_std = _rolling(rs, window, pstdev)
@@ -119,6 +153,7 @@ def compute_rs_ratio_momentum(
     for i in range(1, n):
         prev, curr = rs_ratio[i - 1], rs_ratio[i]
         roc.append(100.0 * (curr / prev - 1) if prev and curr is not None else None)
+    roc = _ema(roc, smoothing)
 
     roc_mean = _rolling(roc, window, fmean)
     roc_std = _rolling(roc, window, pstdev)

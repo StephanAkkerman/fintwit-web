@@ -83,6 +83,44 @@ def test_compute_rs_ratio_momentum_flat_relative_strength_centers_near_100():
             assert value == pytest.approx(100.0)
 
 
+def test_ema_passes_through_gaps_and_can_be_disabled():
+    assert svc._ema([1.0, 2.0, 3.0], 1) == [1.0, 2.0, 3.0]
+
+    smoothed = svc._ema([10.0, 20.0, None, 30.0, 40.0], 3)
+
+    assert smoothed[0] == 10.0
+    assert smoothed[1] == pytest.approx(15.0)  # alpha = 0.5
+    assert smoothed[2] is None
+    # Restarts after the gap instead of blending across it.
+    assert smoothed[3] == 30.0
+    assert smoothed[4] == pytest.approx(35.0)
+
+
+def test_smoothing_makes_a_noisy_trail_step_less_erratically():
+    import math
+    import random
+
+    rng = random.Random(7)
+    benchmark, sector = [100.0], [100.0]
+    for _ in range(200):
+        move = rng.gauss(0, 0.01)
+        benchmark.append(benchmark[-1] * (1 + move))
+        sector.append(sector[-1] * (1 + move + rng.gauss(0, 0.007)))
+
+    def mean_step(smoothing: int) -> float:
+        ratio, momentum = svc.compute_rs_ratio_momentum(
+            sector, benchmark, smoothing=smoothing
+        )
+        points = [
+            (r, m) for r, m in zip(ratio, momentum) if r is not None and m is not None
+        ][-60:]
+        return sum(math.dist(a, b) for a, b in zip(points, points[1:])) / (
+            len(points) - 1
+        )
+
+    assert mean_step(svc.RS_SMOOTHING) < 0.75 * mean_step(1)
+
+
 async def test_get_sector_rotation_builds_trails_per_sector(monkeypatch):
     n = 40
     benchmark_series = _series([100.0 + i * 0.3 for i in range(n)])
