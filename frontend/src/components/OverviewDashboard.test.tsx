@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { OverviewDashboard } from './OverviewDashboard'
 
 vi.mock('./MacroStrip', () => ({ MacroStrip: () => <div data-testid="macro-strip" /> }))
-vi.mock('./MarketOverview', () => ({ default: () => <div data-testid="market-overview" /> }))
+vi.mock('./ActivityPulseWidget', () => ({ ActivityPulseWidget: () => <div data-testid="activity-pulse" /> }))
 vi.mock('./AssetFilterTabs', () => ({
   AssetFilterTabs: ({ active }: { active: string }) => <div data-testid="filter-tabs" data-active={active} />
 }))
@@ -20,7 +20,7 @@ describe('OverviewDashboard', () => {
   it('renders all child components', () => {
     render(<OverviewDashboard />)
     expect(screen.getByTestId('macro-strip')).toBeInTheDocument()
-    expect(screen.getByTestId('market-overview')).toBeInTheDocument()
+    expect(screen.getByTestId('activity-pulse')).toBeInTheDocument()
     expect(screen.getByTestId('filter-tabs')).toBeInTheDocument()
     expect(screen.getByTestId('mention-heatmap')).toBeInTheDocument()
     expect(screen.getByTestId('sentiment-shift')).toBeInTheDocument()

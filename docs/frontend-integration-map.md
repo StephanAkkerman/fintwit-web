@@ -20,8 +20,7 @@ Route-level sections:
 - `/` (home)
   - `FearGreedWidget`
   - `RedditTrendsWidget`
-  - `MarketOverview`
-  - `OverviewDashboard` — macro strip (`MacroStrip`), the `all`-scoped `MentionHeatmap`, a three-column analytics row (`SentimentShiftWidget`, `VolumeBaselineWidget`, `HiddenGemWidget`), and `SectorMentionsWidget`, with shared asset-kind (`all`/`EQUITY`/`CRYPTO`/`FOREX`) and lookback-window (24h/48h/7d) controls
+  - `OverviewDashboard` — macro strip (`MacroStrip`), the `ActivityPulseWidget` summary card, the `all`-scoped `MentionHeatmap`, a three-column analytics row (`SentimentShiftWidget`, `VolumeBaselineWidget`, `HiddenGemWidget`), and `SectorMentionsWidget`, with shared asset-kind (`all`/`EQUITY`/`CRYPTO`/`FOREX`) and lookback-window (24h/48h/7d) controls
   - Tweet timeline (`useTweets` + `TweetCard`)
 
 - `/crypto`
@@ -148,6 +147,11 @@ Route-level sections:
   - Fetches: `/api/overview/macro-strip` (5-minute server-side cache).
   - Purpose: at-a-glance macro tape — live price + % change + sparkline tiles for SPX, NDX, BTC, ETH, DXY, VIX, and GOLD — above the rest of the home dashboard.
 
+- `ActivityPulseWidget` + `useActivitySummary` (`/` only, inside `OverviewDashboard`)
+  - Fetches: `/api/overview/activity-summary`, scoped by the dashboard's asset-kind/window controls and the sidebar user filter.
+  - Purpose: at-a-glance summary of recent activity (issue #161) — tweets tracked, distinct accounts, net bull/bear sentiment (each with its change vs the previous equal-length window), the most-talked-about ticker and the biggest price mover among mentioned tickers. Clicking a ticker opens `TickerDetailModal` via the shared `onTickerClick` callback.
+  - Replaces the old `MarketOverview` "Top Streamed Assets" row, which only listed the last few distinct tickers seen in the stream and ignored the dashboard's filters.
+
 - `SentimentShiftWidget` + `useSentimentShift` (`/` only, inside `OverviewDashboard`)
   - Fetches: `/api/overview/sentiment-shift`, scoped by the dashboard's asset-kind/window controls and the sidebar user filter.
   - Purpose: rank tickers by the biggest swing in average tweet sentiment between the active window and the prior baseline, each row showing a prev→current sentiment sparkline and signed delta — surfaces sentiment momentum, not just mention volume.
@@ -178,10 +182,6 @@ Route-level sections:
 - `BinanceGainersLosersWidget` + `useBinanceGainersLosers`
   - Fetches: `/api/binance/gainers-losers`
   - Purpose: short-horizon crypto momentum panel with top gainers and losers from Binance USDT pairs.
-
-- `MarketOverview` + `useMarketAssets` + `AssetBadge`
-  - Fetches: `/api/posts` + `/api/stream` (derived live assets)
-  - Purpose: top streamed assets with live current-price links, last-close context, and optional TradingView TA summary rows.
 
 - `RedditWsbWidget` + `useRedditWsb` (`/reddit`, "Posts" tab)
   - Fetches: `/api/reddit/wsb?limit=...&subreddit=...`

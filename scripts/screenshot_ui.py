@@ -947,6 +947,44 @@ def _mention_heat() -> list[dict]:
     ]
 
 
+def _activity_summary() -> dict:
+    return {
+        "window_hours": 24,
+        "tweets": {"current": 312, "previous": 264},
+        "authors": {"current": 48, "previous": 44},
+        "sentiment": {"bull": 124, "bear": 76, "bull_pct": 62.0, "prev_bull_pct": 55.3},
+        "top_ticker": {
+            "ticker": "NVDA",
+            "mentions": 41,
+            "unique_authors": 19,
+            "avg_sentiment": 0.42,
+            "sentiment_label": "BULL",
+            "asset_kind": "EQUITY",
+            "price_direction": 2.4,
+        },
+        "top_mover": {
+            "ticker": "SOL",
+            "mentions": 9,
+            "unique_authors": 6,
+            "avg_sentiment": 0.31,
+            "sentiment_label": "BULL",
+            "asset_kind": "CRYPTO",
+            "price_direction": 8.2,
+        },
+    }
+
+
+def _empty_activity_summary() -> dict:
+    return {
+        "window_hours": 24,
+        "tweets": {"current": 0, "previous": 0},
+        "authors": {"current": 0, "previous": 0},
+        "sentiment": {"bull": 0, "bear": 0, "bull_pct": None, "prev_bull_pct": None},
+        "top_ticker": None,
+        "top_mover": None,
+    }
+
+
 def _sentiment_shift() -> list[dict]:
     return [
         {
@@ -2003,6 +2041,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             "/api/reddit/trends": _empty_reddit_trends(),
             "/api/reddit/categories": _empty_reddit_categories(),
             "/api/admin/access-emails": {"emails": []},
+            "/api/overview/activity-summary": _empty_activity_summary(),
         }
 
     insights = _portfolio_insights()
@@ -2220,6 +2259,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         "/api/treemap": _treemap(),
         "/api/fear-greed": _crypto_fear_greed(),
         # Home / overview dashboard.
+        "/api/overview/activity-summary": _activity_summary(),
         "/api/overview/mention-heat": _mention_heat(),
         "/api/overview/sentiment-shift": _sentiment_shift(),
         "/api/overview/volume-baseline": _volume_baseline(),
