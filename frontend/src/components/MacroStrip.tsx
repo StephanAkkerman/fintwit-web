@@ -1,30 +1,6 @@
 import { useMacroStrip } from '../hooks/useMacroStrip'
 import type { MacroTickerItem } from '../types'
-
-function Sparkline({ data }: { data: number[] }) {
-  if (data.length < 2) return null
-  const min = Math.min(...data)
-  const max = Math.max(...data)
-  const range = max - min || 1
-  const W = 48, H = 18
-  // Color reflects the sparkline's own start-to-end movement, not the day's
-  // change_pct (a different timeframe) - otherwise the line's color can
-  // contradict the direction it visibly draws.
-  const up = data[data.length - 1] >= data[0]
-  const pts = data.map((v, i) => {
-    const x = (i / (data.length - 1)) * W
-    const y = H - ((v - min) / range) * (H - 2) - 1
-    return `${x.toFixed(1)},${y.toFixed(1)}`
-  }).join(' ')
-  const lastPt = pts.split(' ').at(-1)?.split(',') ?? ['48', '1']
-  return (
-    <svg width={W} height={H} className="shrink-0 block">
-      <polyline points={pts} fill="none"
-        stroke={up ? '#34d399' : '#fb7185'} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
-      <circle cx={lastPt[0]} cy={lastPt[1]} r="1.8" fill={up ? '#34d399' : '#fb7185'} />
-    </svg>
-  )
-}
+import { Sparkline } from './Sparkline'
 
 function MacroTile({ item }: { item: MacroTickerItem }) {
   const up = item.change_pct >= 0

@@ -127,6 +127,38 @@ describe('TickerDetailModal', () => {
     expect(screen.getByText('+1.30%')).toBeInTheDocument()
   })
 
+  it('colors the price badge with the exact color the chart line uses, not a separate Tailwind shade', () => {
+    mockUseTickerTimeseries.mockReturnValue({ data: SAMPLE, loading: false, error: false })
+    render(<TickerDetailModal ticker="AAPL" onClose={onClose} />)
+
+    const badge = screen.getByText('+1.30%')
+    // rgb(52, 211, 153) is #34d399, the same hex Sparkline.tsx uses for "up".
+    // Tailwind's text-emerald-600/dark:text-emerald-400 classes render a
+    // visibly different shade than that fixed chart-line color.
+    expect(badge).toHaveStyle({ color: 'rgb(52, 211, 153)' })
+    expect(badge.className).not.toMatch(/text-emerald|text-rose/)
+  })
+
+  it('colors the badge red to match a declining line', () => {
+    mockUseTickerPriceHistory.mockReturnValue({
+      data: {
+        ticker: 'AAPL',
+        points: [
+          { t: '2026-01-07T14:30:00Z', close: 186.0, high: 186.4, low: 185.5 },
+          { t: '2026-01-07T14:35:00Z', close: 184.0, high: 184.5, low: 183.5 },
+        ],
+      },
+      loading: false,
+      error: false,
+    })
+    mockUseTickerTimeseries.mockReturnValue({ data: SAMPLE, loading: false, error: false })
+    render(<TickerDetailModal ticker="AAPL" onClose={onClose} />)
+
+    const badge = screen.getByText(/-1\.08%/)
+    // rgb(251, 113, 133) is #fb7185, the same hex Sparkline.tsx uses for "down".
+    expect(badge).toHaveStyle({ color: 'rgb(251, 113, 133)' })
+  })
+
   it('shows a loading skeleton for the price chart while it fetches', () => {
     mockUseTickerTimeseries.mockReturnValue({ data: SAMPLE, loading: false, error: false })
     mockUseTickerPriceHistory.mockReturnValue({ data: null, loading: true, error: false })

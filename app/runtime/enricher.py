@@ -4,7 +4,7 @@ from collections import OrderedDict
 from typing import Dict, List
 
 from ticker_classifier.classifier import TickerClassifier
-from ticker_price_data import price_from_classification
+from ticker_price_data import get_price_history, price_from_classification
 
 from ..services.fundamentals_service import get_fundamentals
 from ..services.signa import get_signa_signal
@@ -326,14 +326,33 @@ class AssetEnricher:
             *fundamentals_tasks, return_exceptions=True
         )
 
+        # Fetch a short intraday price series concurrently, for the small
+        # sparkline shown next to the price in a post's asset card. Yahoo
+        # lookup, same routing as the technical-analysis fetch above.
+        sparkline_tasks = []
+        for entry in classified:
+            kind = entry["kind"]
+            if _is_crypto_kind(kind):
+                sparkline_tasks.append(self._fetch_sparkline(f"{entry['symbol']}-USD"))
+            elif _should_use_yahoo(kind):
+                lookup_symbol = (
+                    entry.get("yahoo_lookup") or entry["symbol"] or ""
+                ).upper()
+                sparkline_tasks.append(self._fetch_sparkline(lookup_symbol))
+            else:
+                sparkline_tasks.append(self._dummy_info())
+
+        sparklines = await asyncio.gather(*sparkline_tasks, return_exceptions=True)
+
         # Attach fresh financials to the result
-        for entry, fin, ta, signa, stocktwits, fundamentals in zip(
+        for entry, fin, ta, signa, stocktwits, fundamentals, sparkline in zip(
             classified,
             financials,
             technical_analysis,
             signa_signals,
             stocktwits_sentiments,
             fundamentals_results,
+            sparklines,
         ):
             if isinstance(fin, BaseException):
                 logger.debug("[enricher] %s financials error: %r", entry["symbol"], fin)
@@ -346,6 +365,12 @@ class AssetEnricher:
                     financial_payload["signa"] = signa
                 if isinstance(financial_payload, dict) and isinstance(stocktwits, dict):
                     financial_payload["stocktwits_sentiment"] = stocktwits
+                if (
+                    isinstance(financial_payload, dict)
+                    and isinstance(sparkline, list)
+                    and sparkline
+                ):
+                    financial_payload["sparkline"] = sparkline
                 entry["financials"] = financial_payload
                 logger.debug(
                     "[enricher] %s (%s) financials: %s",
@@ -383,3 +408,13 @@ class AssetEnricher:
 
     async def _dummy_info(self):
         return None
+
+    async def _fetch_sparkline(self, yahoo_symbol: str) -> list[float]:
+        try:
+            history = await get_price_history(yahoo_symbol, range_="1d", interval="5m")
+        except Exception as exc:
+            logger.debug("[enricher] sparkline for %s failed: %r", yahoo_symbol, exc)
+            return []
+        if not history:
+            return []
+        return [point["close"] for point in history]

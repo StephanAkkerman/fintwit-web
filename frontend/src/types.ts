@@ -54,6 +54,9 @@ export type AssetFinancials = {
   technical_analysis?: AssetTechnicalAnalysis | null;
   signa?: AssetSignaSignal | null;
   stocktwits_sentiment?: AssetStocktwitsSentiment | null;
+  // Today's intraday series (5-min closes) captured when the tweet was
+  // enriched; absent when it couldn't be fetched. Not live-refreshed.
+  sparkline?: number[] | null;
 };
 
 /**

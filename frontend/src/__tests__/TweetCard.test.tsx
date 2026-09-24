@@ -443,6 +443,44 @@ describe('TweetCard', () => {
     expect(screen.getByLabelText('Sentiment for $INTC: Bearish')).toBeInTheDocument()
   })
 
+  it('renders a sparkline in the asset card when financials include one', () => {
+    const { container } = render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          assets: [
+            {
+              symbol: 'NVDA',
+              kind: 'EQUITY',
+              financials: {
+                price: 128.4,
+                change_percent: 2.3,
+                sparkline: [125.0, 126.5, 128.4],
+              },
+            },
+          ],
+        }}
+      />
+    )
+
+    expect(container.querySelector('svg polyline')).not.toBeNull()
+  })
+
+  it('does not render a sparkline when financials have no sparkline data', () => {
+    const { container } = render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          assets: [
+            { symbol: 'NVDA', kind: 'EQUITY', financials: { price: 128.4, change_percent: 2.3 } },
+          ],
+        }}
+      />
+    )
+
+    expect(container.querySelector('svg polyline')).toBeNull()
+  })
+
   it('does not show per-ticker sentiment chips when the tweet has no ticker sentiment split', () => {
     render(
       <TweetCard

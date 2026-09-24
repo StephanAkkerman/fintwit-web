@@ -53,6 +53,10 @@ def _enricher_defaults():
             "app.runtime.enricher.get_fundamentals",
             new=AsyncMock(return_value=None),
         ),
+        patch(
+            "app.runtime.enricher.get_price_history",
+            new=AsyncMock(return_value=None),
+        ),
     ):
         yield
 
@@ -265,6 +269,66 @@ async def test_classify_crypto_also_fetches_stocktwits_sentiment():
 
     mock_stocktwits.assert_awaited_once_with("BTC")
     assert result[0]["financials"]["stocktwits_sentiment"] == crypto_sentiment
+
+
+@pytest.mark.asyncio
+async def test_classify_equity_attaches_sparkline():
+    enricher = AssetEnricher()
+    mock_result = _mock_classifier_result(
+        "AAPL", "EQUITY", "Apple Inc.", 3_000_000_000_000
+    )
+    price_history = [
+        {"t": "2026-01-07T14:30:00Z", "close": 184.0, "high": 184.5, "low": 183.5},
+        {"t": "2026-01-07T14:35:00Z", "close": 185.0, "high": 185.5, "low": 184.0},
+    ]
+    with (
+        patch.object(enricher._cls, "classify_async", return_value=[mock_result]),
+        patch(
+            "app.runtime.enricher.get_price_history",
+            new=AsyncMock(return_value=price_history),
+        ) as mock_history,
+    ):
+        result = await enricher.classify(["AAPL"])
+
+    mock_history.assert_awaited_once_with("AAPL", range_="1d", interval="5m")
+    assert result[0]["financials"]["sparkline"] == [184.0, 185.0]
+
+
+@pytest.mark.asyncio
+async def test_classify_crypto_sparkline_uses_usd_lookup():
+    enricher = AssetEnricher()
+    mock_result = _mock_classifier_result("BTC", "CRYPTO", "Bitcoin")
+    price_history = [
+        {
+            "t": "2026-01-07T14:30:00Z",
+            "close": 94_000.0,
+            "high": 94_500.0,
+            "low": 93_500.0,
+        },
+    ]
+    with (
+        patch.object(enricher._cls, "classify_async", return_value=[mock_result]),
+        patch(
+            "app.runtime.enricher.get_price_history",
+            new=AsyncMock(return_value=price_history),
+        ) as mock_history,
+    ):
+        result = await enricher.classify(["BTC"])
+
+    mock_history.assert_awaited_once_with("BTC-USD", range_="1d", interval="5m")
+    assert result[0]["financials"]["sparkline"] == [94_000.0]
+
+
+@pytest.mark.asyncio
+async def test_classify_omits_sparkline_when_history_unavailable():
+    enricher = AssetEnricher()
+    mock_result = _mock_classifier_result(
+        "AAPL", "EQUITY", "Apple Inc.", 3_000_000_000_000
+    )
+    with patch.object(enricher._cls, "classify_async", return_value=[mock_result]):
+        result = await enricher.classify(["AAPL"])
+
+    assert "sparkline" not in result[0]["financials"]
 
 
 @pytest.mark.asyncio

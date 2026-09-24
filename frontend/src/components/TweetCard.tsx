@@ -16,6 +16,7 @@ import type { TraderCredibilityLookup } from '../hooks/useTraderCredibility'
 import AssetFundamentals from './AssetFundamentals'
 import AssetMentions from './AssetMentions'
 import SignaSignal from './SignaSignal'
+import { Sparkline } from './Sparkline'
 import StocktwitsSentiment from './StocktwitsSentiment'
 import TradingViewAnalysis from './TradingViewAnalysis'
 import { TraderCredibilityBadge } from './TraderCredibilityBadge'
@@ -659,6 +660,7 @@ export default function TweetCard({
               typeof asset.name === 'string' && asset.name.trim().length > 0 ? asset.name : ticker
             const typeLabel = formatAssetKind(asset.kind)
             const hasPrice = typeof financials?.price === 'number'
+            const sparkline = financials?.sparkline ?? []
             const hasChange = typeof financials?.change_percent === 'number'
             const change = hasChange ? (financials?.change_percent as number) : 0
             const changeClass =
@@ -735,21 +737,24 @@ export default function TweetCard({
                 <div className="truncate text-[11px] text-zinc-500 dark:text-zinc-400">{fullName}</div>
 
                 <div className="mt-1 flex items-center justify-between gap-2 text-sm">
-                  {hasPrice && financials?.website ? (
-                    <a
-                      href={financials.website}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="font-semibold text-zinc-900 underline-offset-2 hover:underline dark:text-zinc-100"
-                    >
-                      {fmtPrice(financials?.price as number)}
-                    </a>
-                  ) : (
-                    <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                      {hasPrice ? fmtPrice(financials?.price as number) : 'N/A'}
-                    </span>
-                  )}
-                  <span className={`font-semibold ${changeClass}`}>
+                  <div className="flex min-w-0 items-center gap-2">
+                    {hasPrice && financials?.website ? (
+                      <a
+                        href={financials.website}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="shrink-0 font-semibold text-zinc-900 underline-offset-2 hover:underline dark:text-zinc-100"
+                      >
+                        {fmtPrice(financials?.price as number)}
+                      </a>
+                    ) : (
+                      <span className="shrink-0 font-semibold text-zinc-900 dark:text-zinc-100">
+                        {hasPrice ? fmtPrice(financials?.price as number) : 'N/A'}
+                      </span>
+                    )}
+                    <Sparkline data={sparkline} width={40} height={16} />
+                  </div>
+                  <span className={`shrink-0 font-semibold ${changeClass}`}>
                     {hasChange ? fmtChangePercent(change) : 'N/A'}
                   </span>
                 </div>

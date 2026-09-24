@@ -19,6 +19,13 @@ const MENTIONS_COLOR = '#6366f1' // indigo-500
 const BULL_COLOR = '#10b981' // emerald-500
 const BEAR_COLOR = '#f43f5e' // rose-500
 const NEUTRAL_COLOR = '#a1a1aa' // zinc-400
+// Same pair the Sparkline component uses, so a ticker's price line always
+// matches the % badge sitting next to it exactly - not just in the same
+// direction, but the same literal color (Tailwind's separate light/dark
+// text-emerald-600/text-emerald-400 classes render visibly different
+// shades than a chart line drawn with a single fixed color).
+const PRICE_UP_COLOR = '#34d399' // emerald-400
+const PRICE_DOWN_COLOR = '#fb7185' // rose-400
 
 type TickerDetailModalProps = {
   ticker: string
@@ -149,7 +156,7 @@ export default function TickerDetailModal({ ticker, onClose }: TickerDetailModal
   // Line color follows its own start-to-end movement (like the macro strip
   // sparkline), not some other day-change metric - so it never contradicts
   // the direction it visibly draws.
-  const priceColor = (priceChangePct ?? 0) < 0 ? BEAR_COLOR : BULL_COLOR
+  const priceColor = (priceChangePct ?? 0) < 0 ? PRICE_DOWN_COLOR : PRICE_UP_COLOR
   const bucketHours = data?.bucket_hours ?? 1
 
   return (
@@ -208,13 +215,7 @@ export default function TickerDetailModal({ ticker, onClose }: TickerDetailModal
               Price today
             </h3>
             {priceChangePct != null && (
-              <span
-                className={`font-mono text-xs font-semibold ${
-                  priceChangePct >= 0
-                    ? 'text-emerald-600 dark:text-emerald-400'
-                    : 'text-rose-600 dark:text-rose-400'
-                }`}
-              >
+              <span className="font-mono text-xs font-semibold" style={{ color: priceColor }}>
                 {pct(priceChangePct)}
               </span>
             )}
