@@ -3,11 +3,10 @@
 import asyncio
 import logging
 import time
-from collections import deque
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
-from ticker_price_data import get_tradingview_quote
+from ticker_price_data import get_price_history, get_tradingview_quote
 
 from ..services.mention_aggregator import (
     get_activity_summary,
@@ -35,15 +34,38 @@ _STRIP_TICKERS: list[tuple[str, str, str]] = [
     ("GOLD", "TVC:GOLD", "index"),
 ]
 
+# Yahoo Finance symbols for the sparkline series, keyed by strip label. Kept
+# separate from the TradingView symbols above (used for the live price/%
+# change) since Yahoo's lookup namespace differs; SPX/DXY/VIX are plain
+# labels because ticker_price_data.get_price_history already maps those to
+# their real Yahoo symbols internally.
+_STRIP_YAHOO_SYMBOLS: dict[str, str] = {
+    "SPX": "SPX",
+    "NDX": "^NDX",
+    "BTC": "BTC-USD",
+    "ETH": "ETH-USD",
+    "DXY": "DXY",
+    "VIX": "VIX",
+    "GOLD": "GC=F",
+}
+
 _STRIP_CACHE_TTL = 300  # seconds
 _strip_cache: tuple[float, list[dict]] | None = None
 _strip_lock = asyncio.Lock()
 
-# Rolling per-label price history, one point appended per real fetch (i.e.
-# once per _STRIP_CACHE_TTL). 48 points * 5min = ~4h of trend for the strip
-# sparklines; in-memory only, so it resets on restart like _strip_cache.
-_STRIP_HISTORY_MAXLEN = 48
-_strip_history: dict[str, deque[float]] = {}
+
+async def _fetch_sparkline(label: str) -> list[float]:
+    yahoo_symbol = _STRIP_YAHOO_SYMBOLS.get(label)
+    if not yahoo_symbol:
+        return []
+    try:
+        history = await get_price_history(yahoo_symbol, range_="1d", interval="5m")
+    except Exception as exc:
+        logger.debug("[macro-strip] history for %s failed: %r", label, exc)
+        return []
+    if not history:
+        return []
+    return [point["close"] for point in history]
 
 
 async def _build_strip() -> list[dict]:
@@ -59,16 +81,12 @@ async def _build_strip() -> list[dict]:
                 if not isinstance(price, (int, float)):
                     return None
                 price = float(price)
-                history = _strip_history.setdefault(
-                    label, deque(maxlen=_STRIP_HISTORY_MAXLEN)
-                )
-                history.append(price)
                 return {
                     "label": label,
                     "symbol": symbol,
                     "price": price,
                     "change_pct": float(result.get("change_percent") or 0.0),
-                    "sparkline": list(history),
+                    "sparkline": await _fetch_sparkline(label),
                 }
             except Exception as exc:
                 logger.debug("[macro-strip] %s failed: %r", symbol, exc)
@@ -90,6 +108,46 @@ async def _get_strip() -> list[dict]:
         payload = await _build_strip()
         _strip_cache = (time.time(), payload)
         return payload
+
+
+# ─── Per-ticker daily price chart ──────────────────────────────────────────
+# Powers the price chart in TickerDetailModal (opened by clicking a ticker
+# in a post). Separate from the macro strip above: fetched lazily per ticker
+# on modal open rather than polled for a fixed watchlist, so it takes an
+# arbitrary symbol and doesn't know its asset kind up front.
+
+_TICKER_HISTORY_CACHE_TTL = 60  # seconds
+_ticker_history_cache: dict[str, tuple[float, list[dict]]] = {}
+_ticker_history_lock = asyncio.Lock()
+
+
+async def _fetch_ticker_history(ticker: str) -> list[dict]:
+    # Try the ticker as a Yahoo symbol directly (stocks, indices, forex), then
+    # as "<ticker>-USD" (crypto) — mirrors ticker_price_data.coingecko's own
+    # Yahoo fallback, without needing a classifier call just to pick a route.
+    for candidate in (ticker, f"{ticker}-USD"):
+        try:
+            history = await get_price_history(candidate, range_="1d", interval="5m")
+        except Exception as exc:
+            logger.debug("[ticker-price-history] %s failed: %r", candidate, exc)
+            continue
+        if history:
+            return history
+    return []
+
+
+async def _get_ticker_history(ticker: str) -> list[dict]:
+    now = time.time()
+    async with _ticker_history_lock:
+        cached = _ticker_history_cache.get(ticker)
+        if cached and now - cached[0] < _TICKER_HISTORY_CACHE_TTL:
+            return cached[1]
+
+    points = await _fetch_ticker_history(ticker)
+
+    async with _ticker_history_lock:
+        _ticker_history_cache[ticker] = (time.time(), points)
+    return points
 
 
 # ─── Endpoints ──────────────────────────────────────────────────────────────
@@ -214,6 +272,19 @@ async def ticker_timeseries(
         user_screen_name=user_screen_name or None,
         subscriber_only=subscriber_only,
     )
+
+
+@router.get("/ticker-price-history")
+async def ticker_price_history(ticker: str = Query(...)):
+    """Today's intraday price series for a single ticker (5-min closes).
+
+    Powers the price chart in the ticker detail modal opened from a post.
+    """
+    ticker = ticker.strip().upper()
+    if not ticker:
+        raise HTTPException(status_code=422, detail="ticker is required")
+
+    return {"ticker": ticker, "points": await _get_ticker_history(ticker)}
 
 
 @router.get("/sector-mentions")

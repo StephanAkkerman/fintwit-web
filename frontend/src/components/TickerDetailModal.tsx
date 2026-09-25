@@ -11,13 +11,21 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import { useTickerPriceHistory } from '../hooks/useTickerPriceHistory'
 import { useTickerTimeseries } from '../hooks/useTickerTimeseries'
-import type { TickerTimeseriesPoint } from '../types'
+import type { TickerPriceHistoryPoint, TickerTimeseriesPoint } from '../types'
 
 const MENTIONS_COLOR = '#6366f1' // indigo-500
 const BULL_COLOR = '#10b981' // emerald-500
 const BEAR_COLOR = '#f43f5e' // rose-500
 const NEUTRAL_COLOR = '#a1a1aa' // zinc-400
+// Same pair the Sparkline component uses, so a ticker's price line always
+// matches the % badge sitting next to it exactly - not just in the same
+// direction, but the same literal color (Tailwind's separate light/dark
+// text-emerald-600/text-emerald-400 classes render visibly different
+// shades than a chart line drawn with a single fixed color).
+const PRICE_UP_COLOR = '#34d399' // emerald-400
+const PRICE_DOWN_COLOR = '#fb7185' // rose-400
 
 type TickerDetailModalProps = {
   ticker: string
@@ -56,6 +64,40 @@ function sentimentTone(label: string | null | undefined): string {
   return 'text-zinc-500 dark:text-zinc-400'
 }
 
+function formatIntradayTick(value: string): string {
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+  return parsed.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+}
+
+function fmtPricePoint(value: number): string {
+  return value.toLocaleString(undefined, {
+    minimumFractionDigits: value < 1 ? 4 : 2,
+    maximumFractionDigits: value < 1 ? 4 : 2,
+  })
+}
+
+function PriceTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean
+  payload?: Array<{ payload: TickerPriceHistoryPoint }>
+}) {
+  if (!active || !payload?.length) return null
+  const point = payload[0].payload
+  return (
+    <div className="rounded-lg border border-zinc-200 bg-white/95 px-3 py-2 text-xs shadow-lg dark:border-zinc-700 dark:bg-zinc-900/95">
+      <div className="font-semibold text-zinc-700 dark:text-zinc-200">
+        {formatIntradayTick(point.t)}
+      </div>
+      <div className="mt-1 font-mono text-zinc-900 dark:text-zinc-100">
+        ${fmtPricePoint(point.close)}
+      </div>
+    </div>
+  )
+}
+
 function MentionsTooltip({
   active,
   payload,
@@ -87,6 +129,11 @@ function MentionsTooltip({
 export default function TickerDetailModal({ ticker, onClose }: TickerDetailModalProps) {
   const [windowHours, setWindowHours] = useState(168)
   const { data, loading, error } = useTickerTimeseries(ticker, windowHours)
+  const {
+    data: priceData,
+    loading: priceLoading,
+    error: priceError,
+  } = useTickerPriceHistory(ticker)
 
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
@@ -98,6 +145,18 @@ export default function TickerDetailModal({ ticker, onClose }: TickerDetailModal
 
   const points = data?.points ?? []
   const summary = data?.summary
+
+  const pricePoints = priceData?.points ?? []
+  const priceChangePct =
+    pricePoints.length >= 2
+      ? ((pricePoints[pricePoints.length - 1].close - pricePoints[0].close) /
+          pricePoints[0].close) *
+        100
+      : null
+  // Line color follows its own start-to-end movement (like the macro strip
+  // sparkline), not some other day-change metric - so it never contradicts
+  // the direction it visibly draws.
+  const priceColor = (priceChangePct ?? 0) < 0 ? PRICE_DOWN_COLOR : PRICE_UP_COLOR
   const bucketHours = data?.bucket_hours ?? 1
 
   return (
@@ -118,7 +177,7 @@ export default function TickerDetailModal({ ticker, onClose }: TickerDetailModal
               ${ticker}
             </h2>
             <p className="text-xs text-zinc-500">
-              Mentions and sentiment over time from the tracked tweet history.
+              Today's price, plus mentions and sentiment from the tracked tweet history.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -147,6 +206,73 @@ export default function TickerDetailModal({ ticker, onClose }: TickerDetailModal
             >
               Close
             </button>
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <div className="flex items-baseline justify-between">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              Price today
+            </h3>
+            {priceChangePct != null && (
+              <span className="font-mono text-xs font-semibold" style={{ color: priceColor }}>
+                {pct(priceChangePct)}
+              </span>
+            )}
+          </div>
+          <div className="mt-2 h-40 w-full">
+            {priceLoading ? (
+              <div className="h-full w-full animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />
+            ) : priceError || pricePoints.length < 2 ? (
+              <div className="flex h-full items-center justify-center rounded-lg bg-zinc-50 text-xs text-zinc-500 dark:bg-zinc-900">
+                No intraday price data available for ${ticker}.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={pricePoints} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
+                  <defs>
+                    <linearGradient id="ticker-price-fill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={priceColor} stopOpacity={0.28} />
+                      <stop offset="100%" stopColor={priceColor} stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid
+                    stroke="currentColor"
+                    className="text-zinc-200 dark:text-zinc-800"
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="t"
+                    tickFormatter={formatIntradayTick}
+                    tick={{ fontSize: 11 }}
+                    stroke="currentColor"
+                    className="text-zinc-400"
+                    minTickGap={48}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    domain={['auto', 'auto']}
+                    tick={{ fontSize: 11 }}
+                    stroke="currentColor"
+                    className="text-zinc-400"
+                    width={52}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={fmtPricePoint}
+                  />
+                  <Tooltip content={<PriceTooltip />} />
+                  <Area
+                    type="monotone"
+                    dataKey="close"
+                    name="Price"
+                    stroke={priceColor}
+                    strokeWidth={2}
+                    fill="url(#ticker-price-fill)"
+                    isAnimationActive={false}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 

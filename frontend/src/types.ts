@@ -54,6 +54,9 @@ export type AssetFinancials = {
   technical_analysis?: AssetTechnicalAnalysis | null;
   signa?: AssetSignaSignal | null;
   stocktwits_sentiment?: AssetStocktwitsSentiment | null;
+  // Today's intraday series (5-min closes) captured when the tweet was
+  // enriched; absent when it couldn't be fetched. Not live-refreshed.
+  sparkline?: number[] | null;
 };
 
 /**
@@ -888,7 +891,7 @@ export interface MacroTickerItem {
   symbol: string;
   price: number;
   change_pct: number;
-  sparkline: number[]; // in-memory history, one point per ~5min server-side fetch; empty until the first few fetches land
+  sparkline: number[]; // today's intraday series (5-min closes) from Yahoo Finance; empty when unavailable
 }
 
 export interface MentionHeatCell {
@@ -1055,6 +1058,18 @@ export interface TickerTimeseries {
   bucket_hours: number;
   points: TickerTimeseriesPoint[];
   summary: TickerTimeseriesSummary;
+}
+
+export interface TickerPriceHistoryPoint {
+  t: string; // ISO timestamp (intraday) or date
+  close: number;
+  high: number;
+  low: number;
+}
+
+export interface TickerPriceHistory {
+  ticker: string;
+  points: TickerPriceHistoryPoint[];
 }
 
 export type ExtendedHoursFuture = {
