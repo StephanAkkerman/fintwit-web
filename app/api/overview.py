@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from ticker_price_data import get_price_history, get_tradingview_quote
 
 from ..services.mention_aggregator import (
+    get_activity_summary,
     get_hidden_gems,
     get_mention_frequency,
     get_mention_heat,
@@ -155,6 +156,24 @@ async def _get_ticker_history(ticker: str) -> list[dict]:
 @router.get("/macro-strip")
 async def macro_strip():
     return await _get_strip()
+
+
+@router.get("/activity-summary")
+async def activity_summary(
+    asset_kind: str = Query(default="all"),
+    window_hours: int = Query(default=24, ge=1, le=168),
+    user_screen_name: str | None = Query(default=None),
+    subscriber_only: bool = Query(default=False),
+):
+    from . import main as _main
+
+    return await get_activity_summary(
+        _main.Session,
+        asset_kind=asset_kind,
+        window_hours=window_hours,
+        user_screen_name=user_screen_name or None,
+        subscriber_only=subscriber_only,
+    )
 
 
 @router.get("/mention-heat")

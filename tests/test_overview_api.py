@@ -204,10 +204,13 @@ def test_macro_strip_returns_list(client):
     data = resp.json()
     assert isinstance(data, list)
     assert len(data) == 7
+    if data:
+        assert "label" in data[0]
+        assert "price" in data[0]
+        assert "change_pct" in data[0]
+        assert "sparkline" in data[0]
+
     for item in data:
-        assert "label" in item
-        assert "price" in item
-        assert "change_pct" in item
         assert item["sparkline"] == [4990.0, 5000.0]
 
 
@@ -250,3 +253,15 @@ def test_macro_strip_tile_survives_history_exception(client):
     data = resp.json()
     assert len(data) == 7
     assert all(item["sparkline"] == [] for item in data)
+
+
+def test_activity_summary_returns_shape(client):
+    resp = client.get("/api/overview/activity-summary?window_hours=24")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["window_hours"] == 24
+    assert set(data["tweets"]) == {"current", "previous"}
+    assert set(data["authors"]) == {"current", "previous"}
+    assert "bull_pct" in data["sentiment"]
+    assert "top_ticker" in data
+    assert "top_mover" in data

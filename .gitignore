@@ -12,7 +12,11 @@ data.db-journal
 *tfvars
 .superpowers
 .designkit
-.claude
+# Claude Code: keep personal/local state out, but share the project settings
+# and the web SessionStart hook (see CLAUDE.md).
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -1,13 +1,17 @@
 # fintwit-web
 
+**Self-hosted dashboard for crypto, stocks, forex and options — enriched Twitter/X streams,
+sentiment analysis, and market signals.**
+
+![banner](docs/imgs/banner.png)
+
 ---
+
 <p align="center">
   <img alt="GitHub Actions Workflow Status" src="https://img.shields.io/github/actions/workflow/status/StephanAkkerman/fintwit-web/pyversions.yml?label=python%203.11%20%7C%203.12%20%7C%203.13&logo=python&style=flat-square">
   <img src="https://img.shields.io/github/license/StephanAkkerman/fintwit-web.svg?color=brightgreen" alt="License">
   <a href="https://github.com/psf/black"><img src="https://img.shields.io/badge/code%20style-black-000000.svg" alt="Code style: black"></a>
 </p>
-
-## Introduction
 
 `fintwit-web` aggregates financial markets data from Twitter/X, Reddit, Binance, Yahoo Finance,
 TradingView, and more — enriched with ML-based sentiment analysis and chart recognition — and
@@ -19,9 +23,74 @@ density, and lack of a custom UI. The dashboard covers crypto, stocks, forex, op
 enriched tweets, and live portfolio tracking. The migration is ongoing and incremental — see
 [Documentation](#documentation) for current coverage.
 
+## Key Features 🔑
+
+- **Enriched tweet timeline** — streamed live from X/Twitter, classified by ticker, scored for
+  sentiment (FinTwitBERT), and flagged for chart images (chart-recognizer)
+- **Crypto markets** — price index, trending coins, gainers/losers, funding rates, liquidations,
+  exchange listings, TradingView ideas
+- **Stock markets** — price index, earnings calendar, halts, StockTwits, TradingView ideas,
+  gainers/losers
+- **Options, forex & NFTs** — options overview/volume/SPACs/short interest, forex index with
+  economic events and yield curve, NFT top/trending/upcoming/P2E collections
+- **Reddit** — WallStreetBets scraping for cross-subreddit ticker trends
+- **Portfolio tracking** — live trade tracking, with optional Interactive Brokers sync
+- **Self-hosted** — SQLite or PostgreSQL storage, runs via Docker Compose, no Discord required
+
+### Machine Learning Models 🤖
+
+Multiple custom-trained models power the enrichment pipeline. All are lightweight and load
+automatically when the backend starts:
+
+- [FinTwitBERT-sentiment](https://huggingface.co/StephanAkkerman/FinTwitBERT-sentiment) —
+  classifies the sentiment of financial tweets
+- [FinTwitBERT-wsb-sentiment](https://huggingface.co/StephanAkkerman/FinTwitBERT-wsb-sentiment) —
+  classifies the sentiment of WallStreetBets posts
+- [chart-recognizer](https://huggingface.co/StephanAkkerman/chart-recognizer) — 
+  recognizes if an image is a financial chart
+- [chart-info-detector](https://huggingface.co/StephanAkkerman/chart-info-detector) — 
+  extracts the ticker and price from a chart image if the post text doesn't contain it
+- [stock-recognizer-model](https://huggingface.co/StephanAkkerman/stock-recognizer-model) — 
+  recognizes the mentioned stocks in reddit posts
+
+## Screenshots 📸
+
+<p align="center">
+  <img src="docs/imgs/screenshots/home.png" width="860" alt="fintwit-web home — enriched tweet timeline">
+</p>
+
+The enriched tweet timeline (above) is the flagship view — each tweet is ticker-classified,
+sentiment-scored, and matched with a live price card, alongside cross-market overview panels
+(mention heat, sentiment shift, sector rotation) built from Twitter, Reddit, and StockTwits data.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/imgs/screenshots/crypto.png" alt="Crypto dashboard"><br><sub>Crypto — trending coins, Binance movers, market cap</sub></td>
+    <td width="50%"><img src="docs/imgs/screenshots/stocks.png" alt="Stocks dashboard"><br><sub>Stocks — fear/greed index, halts, StockTwits signals</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/imgs/screenshots/portfolio.png" alt="Portfolio dashboard"><br><sub>Portfolio — value over time, asset context, IBKR sync</sub></td>
+    <td width="50%"><img src="docs/imgs/screenshots/options.png" alt="Options dashboard"><br><sub>Options — overview, put/call ratio, live options chain</sub></td>
+  </tr>
+</table>
+
+## Table of Contents 🗂
+
+- [Key Features](#key-features-)
+- [Screenshots](#screenshots-)
+- [Quick Start Guide](#quick-start-guide-)
+- [Manual Setup (Click-Ops)](#manual-setup-click-ops)
+- [Deploy with Docker](#deploy-with-docker)
+- [Documentation](#documentation)
+- [Installation](#installation-)
+- [Environment Variables](#environment-variables)
+- [Usage](#usage-)
+- [Contributing](#contributing-)
+- [License](#license-)
+
 ## Quick Start Guide 🚀
 
-1. Install backend and frontend dependencies (see [Installation](#installation)).
+1. Install backend and frontend dependencies (see [Installation](#installation-)).
 2. Complete the [Manual Setup](#manual-setup-click-ops) steps below — at minimum, capture
    `curl.txt` so the tweet stream can authenticate to X.
 3. Copy `.env.example` to `.env` and fill in the values you need.
@@ -83,7 +152,7 @@ an unauthenticated HTTP client. Create an app at
 [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) (type "script") to get a client ID
 and secret — see [Optional: Reddit API Credentials](#optional-reddit-api-credentials) below.
 
-## Deploy with Docker
+## Deploy with Docker (recommended)
 
 Works on a Raspberry Pi, a home server, or any Linux/macOS host. **The stack is
 localhost-only by default** — `ibgateway` (IBKR) and `cloudflared` (public tunnel) are Compose
@@ -303,27 +372,6 @@ npm install
 npm run dev
 ```
 
-### Backfill Sentiment For Existing Tweets
-Sentiment is computed for newly ingested tweets in the stream worker. To classify
-older tweets already stored in the database (main post and quoted post sentiment), run:
-
-```bash
-python -m app.runtime.backfill_sentiment
-```
-
-Useful options:
-
-```bash
-# Preview without writing changes
-python -m app.runtime.backfill_sentiment --dry-run
-
-# Process at most 200 tweets in batches of 50
-python -m app.runtime.backfill_sentiment --limit 200 --batch-size 50
-
-# Recompute sentiment even when tweets already have values
-python -m app.runtime.backfill_sentiment --include-existing
-```
-
 ### Optional: Reddit API Credentials
 The `/api/reddit/wsb` service uses an `asyncpraw` client first (legacy-style)
 to avoid Reddit anti-bot blocks, with HTTP fallback when credentials are missing.
@@ -346,30 +394,6 @@ REDDIT_USERNAME=...
 REDDIT_PASSWORD=...
 ```
 
-## Table of Contents 🗂
-
-- [Manual Setup (Click-Ops)](#manual-setup-click-ops)
-- [Deploy with Docker](#deploy-with-docker)
-- [Key Features](#key-features)
-- [Documentation](#documentation)
-- [Installation](#installation)
-- [Environment Variables](#environment-variables)
-- [Usage](#usage)
-- [Contributing](#contributing)
-- [License](#license)
-
-## Key Features 🔑
-
-- **Enriched tweet timeline** — streamed from X, classified by ticker, scored for sentiment
-  (FinTwitBERT), and flagged for chart images (chart-recognizer)
-- **Crypto & stocks** — price index, trending, gainers/losers, funding rates, liquidations,
-  earnings calendar, halts, StockTwits, TradingView ideas
-- **Options, forex, NFTs** — overview/volume/SPACs/short interest, economic events and yield
-  curve, top/trending/upcoming collections
-- **Reddit** — WallStreetBets scraping
-- **Portfolio tracking** — live trade tracking, including optional Interactive Brokers sync
-- **Self-hosted** — SQLite or PostgreSQL storage, runs via Docker Compose, no Discord required
-
 ## Documentation
 
 - [Documentation Index](docs/README.md)
@@ -391,7 +415,7 @@ pip install -r requirements.txt
 cd frontend && npm install && cd ..
 ```
 
-Then follow the [Quick Start Guide](#quick-start-guide) above, or
+Then follow the [Quick Start Guide](#quick-start-guide-) above, or
 [Deploy with Docker](#deploy-with-docker) to run it self-contained (localhost-only by
 default — no IBKR or Cloudflare account needed).
 
@@ -411,7 +435,8 @@ your configured public hostname when deployed. The backend API lives under `/api
 
 Contributions are welcome! If you have a feature request, bug report, or proposal for code
 refactoring, please feel free to open an issue on GitHub. See [CONTRIBUTING.md](CONTRIBUTING.md)
-for code style and PR guidelines. We appreciate your help in improving this project.\
+for code style and PR guidelines. We appreciate your help in improving this project.
+
 ![https://github.com/StephanAkkerman/fintwit-web/graphs/contributors](https://contributors-img.firebaseapp.com/image?repo=StephanAkkerman/fintwit-web)
 
 ## License 📜

@@ -903,6 +903,31 @@ export interface MentionHeatCell {
   price_direction: number | null;
 }
 
+export interface ActivityTickerSummary {
+  ticker: string;
+  mentions: number;
+  unique_authors: number;
+  avg_sentiment: number;
+  sentiment_label: SentimentLabel;
+  asset_kind: string;
+  price_direction: number | null;
+}
+
+/** GET /api/overview/activity-summary — current window vs the equal-length one before it. */
+export interface ActivitySummary {
+  window_hours: number;
+  tweets: { current: number; previous: number };
+  authors: { current: number; previous: number };
+  sentiment: {
+    bull: number;
+    bear: number;
+    bull_pct: number | null;
+    prev_bull_pct: number | null;
+  };
+  top_ticker: ActivityTickerSummary | null;
+  top_mover: ActivityTickerSummary | null;
+}
+
 export interface SentimentShiftItem {
   ticker: string;
   mentions_24h: number;

@@ -658,7 +658,10 @@ export default function App() {
 
           <section className="space-y-3 min-w-0">
             <header className="sticky top-0 z-10 bg-inherit/60 backdrop-blur p-2 -mx-2">
-              <h1 className="text-2xl font-bold">X Stream</h1>
+              <div className="flex items-center gap-2">
+                <img src="/favicon.png" alt="" className="h-7 w-7 rounded-md" />
+                <h1 className="text-2xl font-bold">fintwit-web</h1>
+              </div>
               <p className="text-sm text-zinc-500">{activeSection.subtitle}</p>
             </header>
 

@@ -122,7 +122,8 @@ for exactly this reason.
 `make check` runs every one of these gates, exactly as CI does — prefer it
 over running them individually. `make install` sets the environment up; in a
 Claude Code on the web session `.claude/hooks/session-start.sh` has already
-done that for you.
+done that for you, into a `.venv` that is first on `PATH` (the image's system
+Python is Debian-managed and can't build some transitive deps, e.g. odfpy).
 
 `main` should be green on all of these checks. If something fails before you have
 changed anything, say so rather than working around it — a red baseline makes
