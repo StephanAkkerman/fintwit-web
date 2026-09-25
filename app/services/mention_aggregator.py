@@ -397,6 +397,135 @@ async def get_volume_baseline(
     ]
 
 
+# Tweet-level counterpart of _KIND_FILTER: a tweet belongs to an asset kind
+# when any of its assets does. Used where rows are tweets, not tickers.
+_TWEET_KIND_FILTER = {
+    "CRYPTO": "('CRYPTO', 'CRYPTOCURRENCY')",
+    "EQUITY": "('EQUITY', 'ETF', 'INDEX', 'FUTURE', 'COMMODITY', 'MUTUALFUND')",
+    "FOREX": "('FOREX')",
+}
+
+
+def _tweet_kind_clause(asset_kind: str) -> str:
+    kinds = _TWEET_KIND_FILTER.get(asset_kind.upper())
+    if kinds is None:
+        return ""
+    return (
+        "AND EXISTS ("
+        "  SELECT 1 FROM json_each(t.assets) ae"
+        f"  WHERE UPPER(json_extract(ae.value, '$.kind')) IN {kinds}"
+        ")"
+    )
+
+
+def _bull_pct(bull: int, bear: int) -> float | None:
+    directional = bull + bear
+    if directional == 0:
+        return None
+    return bull / directional * 100.0
+
+
+def _ticker_summary(item: dict) -> dict:
+    return {
+        "ticker": item["ticker"],
+        "mentions": item["mentions"],
+        "unique_authors": item["unique_authors"],
+        "avg_sentiment": item["avg_sentiment_24h"],
+        "sentiment_label": item["sentiment_label_24h"],
+        "asset_kind": item["asset_kind"],
+        "price_direction": item["price_direction"],
+    }
+
+
+async def get_activity_summary(
+    Session: async_sessionmaker,
+    asset_kind: str = "all",
+    window_hours: int = 24,
+    user_screen_name: str | None = None,
+    subscriber_only: bool = False,
+) -> dict:
+    """Summarise tweet activity in the active window against the one before.
+
+    Returns tweet and distinct-author counts plus the bull/bear split for both
+    the current window ``[now - window_hours, now)`` and the equal-length
+    previous one, so the frontend can show deltas. Tweets are classified by
+    ``sentiment_score`` with the same thresholds as ``_score_to_label``;
+    ``bull_pct`` is bull / (bull + bear), ``None`` when no tweet was
+    directional.
+
+    ``top_ticker`` is the leader of ``get_mention_heat`` (fairness-adjusted
+    ranking), and ``top_mover`` is the ticker with the largest absolute
+    ``price_direction`` among the heat list, so both answer to the same
+    filters as the rest of the overview. Either is ``None`` when there is
+    nothing to show.
+    """
+    now = _now()
+    c_now = now - timedelta(hours=window_hours)
+    c_prev = now - timedelta(hours=window_hours * 2)
+    kind_c = _tweet_kind_clause(asset_kind)
+    user_c = _user_clause(user_screen_name)
+    sub_c = _subscriber_clause(subscriber_only)
+
+    sql = text(f"""
+        SELECT
+            CAST(SUM(CASE WHEN t.created_at >= :c_now THEN 1 ELSE 0 END) AS INTEGER) AS tweets_now,
+            CAST(SUM(CASE WHEN t.created_at <  :c_now THEN 1 ELSE 0 END) AS INTEGER) AS tweets_prev,
+            COUNT(DISTINCT CASE WHEN t.created_at >= :c_now THEN LOWER(t.user_screen_name) END) AS authors_now,
+            COUNT(DISTINCT CASE WHEN t.created_at <  :c_now THEN LOWER(t.user_screen_name) END) AS authors_prev,
+            CAST(SUM(CASE WHEN t.created_at >= :c_now AND t.sentiment_score >  0.1 THEN 1 ELSE 0 END) AS INTEGER) AS bull_now,
+            CAST(SUM(CASE WHEN t.created_at >= :c_now AND t.sentiment_score < -0.1 THEN 1 ELSE 0 END) AS INTEGER) AS bear_now,
+            CAST(SUM(CASE WHEN t.created_at <  :c_now AND t.sentiment_score >  0.1 THEN 1 ELSE 0 END) AS INTEGER) AS bull_prev,
+            CAST(SUM(CASE WHEN t.created_at <  :c_now AND t.sentiment_score < -0.1 THEN 1 ELSE 0 END) AS INTEGER) AS bear_prev
+        FROM tweets t
+        WHERE t.created_at >= :c_prev
+          {kind_c}
+          {user_c}
+          {sub_c}
+    """)
+
+    params: dict = {"c_now": c_now, "c_prev": c_prev}
+    if user_screen_name:
+        params["user_name_pat"] = f"%{user_screen_name.lower()}%"
+
+    async with Session() as s:
+        result = await s.execute(sql, params)
+        row = result.mappings().one()
+
+    counts = {k: row[k] or 0 for k in row.keys()}
+
+    heat = await get_mention_heat(
+        Session,
+        asset_kind=asset_kind,
+        window_hours=window_hours,
+        user_screen_name=user_screen_name,
+        subscriber_only=subscriber_only,
+    )
+    top_ticker = _ticker_summary(heat[0]) if heat else None
+    priced = [h for h in heat if h["price_direction"] is not None]
+    top_mover = (
+        _ticker_summary(max(priced, key=lambda h: abs(h["price_direction"])))
+        if priced
+        else None
+    )
+
+    return {
+        "window_hours": window_hours,
+        "tweets": {"current": counts["tweets_now"], "previous": counts["tweets_prev"]},
+        "authors": {
+            "current": counts["authors_now"],
+            "previous": counts["authors_prev"],
+        },
+        "sentiment": {
+            "bull": counts["bull_now"],
+            "bear": counts["bear_now"],
+            "bull_pct": _bull_pct(counts["bull_now"], counts["bear_now"]),
+            "prev_bull_pct": _bull_pct(counts["bull_prev"], counts["bear_prev"]),
+        },
+        "top_ticker": top_ticker,
+        "top_mover": top_mover,
+    }
+
+
 async def get_hidden_gems(
     Session: async_sessionmaker,
     asset_kind: str = "all",

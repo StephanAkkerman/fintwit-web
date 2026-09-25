@@ -800,3 +800,65 @@ async def test_ticker_timeseries_bucket_width_scales_with_window(Session):
 
     assert daily["bucket_hours"] == 24
     assert weekly["bucket_hours"] == 6
+
+
+async def test_activity_summary_compares_windows(Session):
+    from app.services.mention_aggregator import get_activity_summary
+
+    await _insert(
+        Session,
+        [
+            # Current 24h window: 3 tweets, 2 authors, 2 bull / 1 bear.
+            _tweet(1, ["NVDA"], "BULL", 0.8, 1, price=110.0, author="a"),
+            _tweet(2, ["NVDA"], "BULL", 0.5, 2, price=110.0, author="b"),
+            _tweet(3, ["BTC"], "BEAR", -0.6, 3, "CRYPTO", price=90.0, author="A"),
+            # Previous window: 1 tweet, 1 bear.
+            _tweet(4, ["NVDA"], "BEAR", -0.4, 30, price=100.0, author="c"),
+            # Outside both windows.
+            _tweet(5, ["BTC"], "BULL", 0.9, 60, "CRYPTO", author="d"),
+        ],
+    )
+
+    out = await get_activity_summary(Session, window_hours=24)
+
+    assert out["tweets"] == {"current": 3, "previous": 1}
+    # Author matching is case-insensitive ("a" and "A").
+    assert out["authors"] == {"current": 2, "previous": 1}
+    assert out["sentiment"]["bull"] == 2
+    assert out["sentiment"]["bear"] == 1
+    assert out["sentiment"]["bull_pct"] == pytest.approx(200 / 3)
+    assert out["sentiment"]["prev_bull_pct"] == 0.0
+    assert out["top_ticker"]["ticker"] == "NVDA"
+    assert out["top_ticker"]["mentions"] == 2
+    assert out["top_mover"]["ticker"] == "NVDA"
+    assert out["top_mover"]["price_direction"] == pytest.approx(10.0)
+
+
+async def test_activity_summary_filters_by_kind(Session):
+    from app.services.mention_aggregator import get_activity_summary
+
+    await _insert(
+        Session,
+        [
+            _tweet(1, ["NVDA"], "BULL", 0.8, 1, author="a"),
+            _tweet(2, ["BTC"], "BEAR", -0.6, 2, "crypto", author="b"),
+        ],
+    )
+
+    out = await get_activity_summary(Session, asset_kind="CRYPTO", window_hours=24)
+
+    assert out["tweets"]["current"] == 1
+    assert out["top_ticker"]["ticker"] == "BTC"
+
+
+async def test_activity_summary_empty(Session):
+    from app.services.mention_aggregator import get_activity_summary
+
+    out = await get_activity_summary(Session)
+
+    assert out["tweets"] == {"current": 0, "previous": 0}
+    assert out["authors"] == {"current": 0, "previous": 0}
+    assert out["sentiment"]["bull_pct"] is None
+    assert out["sentiment"]["prev_bull_pct"] is None
+    assert out["top_ticker"] is None
+    assert out["top_mover"] is None

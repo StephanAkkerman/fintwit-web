@@ -2,8 +2,8 @@ import { useState } from 'react'
 import type { AssetKind } from '../types'
 import type { PortfolioTickerLookup } from '../hooks/usePortfolioTickers'
 import { MacroStrip } from './MacroStrip'
-import MarketOverview from './MarketOverview'
 import { AssetFilterTabs } from './AssetFilterTabs'
+import { ActivityPulseWidget } from './ActivityPulseWidget'
 import { MentionHeatmap, MENTION_WINDOWS, type MentionWindowHours } from './MentionHeatmap'
 import { RedditTrendsWidget } from './RedditTrendsWidget'
 import { SentimentShiftWidget } from './SentimentShiftWidget'
@@ -36,7 +36,6 @@ export function OverviewDashboard({ onTickerClick, userFilter = null, subscriber
   return (
     <div className="flex flex-col gap-3">
       <MacroStrip />
-      <MarketOverview />
 
       {/* Dashboard header */}
       <div className="flex flex-wrap items-center gap-2">
@@ -72,6 +71,13 @@ export function OverviewDashboard({ onTickerClick, userFilter = null, subscriber
         </div>
       </div>
 
+      <ActivityPulseWidget
+        assetKind={assetKind}
+        windowHours={windowHours}
+        userFilter={userFilter}
+        subscriberOnly={subscriberOnly}
+        onTickerClick={onTickerClick}
+      />
       <MentionHeatmap
         assetKind={assetKind}
         windowHours={windowHours}
