@@ -4,6 +4,8 @@ import asyncio
 import logging
 import time
 
+from typing import Literal
+
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 from ticker_price_data import get_price_history, get_tradingview_quote
@@ -16,6 +18,7 @@ from ..services.mention_aggregator import (
     get_sector_mentions,
     get_sentiment_shift,
     get_ticker_timeseries,
+    get_trend_summary,
     get_volume_baseline,
 )
 
@@ -321,3 +324,42 @@ async def hidden_gems(
         user_screen_name=user_screen_name or None,
         subscriber_only=subscriber_only,
     )
+
+
+# The trend summary scans up to 60 days of tweets (the 30d window plus the
+# one before it) and every visitor to the home page asks for it, so share one
+# result per filter combination for a minute.
+_TREND_CACHE_TTL = 60  # seconds
+_trend_cache: dict[tuple, tuple[float, dict]] = {}
+_trend_lock = asyncio.Lock()
+
+
+@router.get("/trend-summary")
+async def trend_summary(
+    window: Literal["1d", "7d", "30d"] = Query(default="7d"),
+    asset_kind: str = Query(default="all"),
+    user_screen_name: str | None = Query(default=None),
+    subscriber_only: bool = Query(default=False),
+):
+    """Per-bucket mention, sentiment and price trends for the home page."""
+    from . import main as _main
+
+    key = (
+        window,
+        asset_kind.upper(),
+        (user_screen_name or "").lower(),
+        subscriber_only,
+    )
+    async with _trend_lock:
+        cached = _trend_cache.get(key)
+        if cached and time.time() - cached[0] < _TREND_CACHE_TTL:
+            return cached[1]
+        result = await get_trend_summary(
+            _main.Session,
+            window=window,
+            asset_kind=asset_kind,
+            user_screen_name=user_screen_name or None,
+            subscriber_only=subscriber_only,
+        )
+        _trend_cache[key] = (time.time(), result)
+    return result

@@ -947,41 +947,265 @@ def _mention_heat() -> list[dict]:
     ]
 
 
-def _activity_summary() -> dict:
+# Trend summary stories, one per ticker: a volume shape and a sentiment path
+# over t in [0, 1] across the window, plus previous-window volume relative to
+# this one and a start price with its drift over the window.
+_TREND_STORIES = [
+    (
+        "NVDA",
+        "EQUITY",
+        34,
+        lambda t: 0.7 + 2.2 * t**2.2,
+        lambda t: 0.15 + 0.5 * t,
+        0.55,
+        178.0,
+        0.09,
+    ),
+    (
+        "TSLA",
+        "EQUITY",
+        30,
+        lambda t: 1.0 + 0.25 * math.sin(t * 6),
+        lambda t: 0.35 if t < 0.45 else 0.35 - 1.6 * (t - 0.45),
+        1.0,
+        342.0,
+        -0.08,
+    ),
+    (
+        "BTC",
+        "CRYPTO",
+        38,
+        lambda t: 1.0 + 0.1 * math.sin(t * 9),
+        lambda t: 0.2 + 0.05 * math.sin(t * 5),
+        1.05,
+        112_400.0,
+        0.02,
+    ),
+    (
+        "SMCI",
+        "EQUITY",
+        5,
+        lambda t: 0.3 if t < 0.6 else 0.3 + 11 * (t - 0.6) ** 1.3,
+        lambda t: 0.55,
+        0.12,
+        48.2,
+        0.21,
+    ),
+    (
+        "ETH",
+        "CRYPTO",
+        20,
+        lambda t: 1.25 - 0.55 * t,
+        lambda t: 0.05 - 0.3 * t,
+        1.35,
+        4120.0,
+        -0.05,
+    ),
+    (
+        "SOL",
+        "CRYPTO",
+        12,
+        lambda t: 0.6 + 1.2 * t,
+        lambda t: 0.3 + 0.25 * t,
+        0.55,
+        231.0,
+        0.11,
+    ),
+    ("AAPL", "EQUITY", 16, lambda t: 1.0, lambda t: 0.05, 1.05, 251.0, 0.01),
+    (
+        "PLTR",
+        "EQUITY",
+        13,
+        lambda t: 0.8 + 3.2 * t * (1 - t),
+        lambda t: 0.6 - 0.45 * t,
+        0.8,
+        181.0,
+        0.04,
+    ),
+    (
+        "AMD",
+        "EQUITY",
+        11,
+        lambda t: 0.9 + 0.2 * t,
+        lambda t: -0.2 - 0.1 * t,
+        0.95,
+        158.0,
+        -0.03,
+    ),
+    (
+        "XRP",
+        "CRYPTO",
+        7,
+        lambda t: 0.6 if t < 0.7 else 0.6 + 7 * (t - 0.7),
+        lambda t: -0.1 - 0.5 * t,
+        0.45,
+        2.91,
+        -0.12,
+    ),
+    ("HOOD", "EQUITY", 8, lambda t: 0.7 + 0.7 * t, lambda t: 0.4, 0.7, 118.0, 0.07),
+    (
+        "MSTR",
+        "EQUITY",
+        10,
+        lambda t: 1.4 - 0.9 * t,
+        lambda t: 0.1 - 0.2 * t,
+        1.6,
+        338.0,
+        -0.06,
+    ),
+    (
+        "SPY",
+        "EQUITY",
+        18,
+        lambda t: 1.0 + 0.3 * math.sin(t * 4),
+        lambda t: -0.15 + 0.1 * math.sin(t * 3),
+        1.0,
+        661.0,
+        -0.01,
+    ),
+    ("DOGE", "CRYPTO", 6, lambda t: 1.0 - 0.3 * t, lambda t: 0.25, 1.1, 0.27, -0.02),
+]
+
+# window -> (hours, bucket hours, share of the story's price drift it covers)
+_TREND_WINDOWS = {"1d": (24, 1, 0.25), "7d": (168, 6, 1.0), "30d": (720, 24, 2.0)}
+
+
+def _trend_summary(window: str = "7d") -> dict:
+    import random
+
+    hours, bucket_hours, drift_share = _TREND_WINDOWS[window]
+    n = hours // bucket_hours
+    # A story's `base` is its mentions per two hours, so wider buckets hold more.
+    per_bucket = 0.5 * bucket_hours
+    bs = bucket_hours * 3600
+    now_epoch = int(datetime.now(timezone.utc).timestamp())
+    start = now_epoch // bs * bs - (n - 1) * bs
+    buckets = [
+        datetime.fromtimestamp(start + i * bs, tz=timezone.utc).isoformat()
+        for i in range(n)
+    ]
+
+    tickers = []
+    for name, kind, base, vol, sent, prev, px, drift in _TREND_STORIES:
+        rnd = random.Random(f"{name}-{window}")
+        price = px / (1 + drift * drift_share)
+        mentions, bull, bear, prices = [], [], [], []
+        for i in range(n):
+            t = i / (n - 1)
+            m = max(0, round(base * per_bucket * vol(t) * (0.7 + 0.6 * rnd.random())))
+            s = max(-0.95, min(0.95, sent(t) + (rnd.random() - 0.5) * 0.3))
+            labelled = round(m * 0.75)
+            b = round(labelled * (1 + s) / 2)
+            price += (px - price) / (n - i) + (rnd.random() - 0.5) * px * 0.012
+            mentions.append(m)
+            bull.append(b)
+            bear.append(labelled - b)
+            prices.append(round(price, 4) if m else None)
+        total = sum(mentions)
+        avg_vol = sum(vol(i / (n - 1)) for i in range(n)) / n
+        tickers.append(
+            {
+                "ticker": name,
+                "asset_kind": kind,
+                "mentions": total,
+                "previous_mentions": max(1, round(total / avg_vol * prev)),
+                "previous_rank": None,
+                "unique_authors": max(1, total // 4),
+                "bull": sum(bull),
+                "bear": sum(bear),
+                "net_sentiment": (sum(bull) - sum(bear))
+                / max(1, sum(bull) + sum(bear)),
+                "series": {
+                    "mentions": mentions,
+                    "bull": bull,
+                    "bear": bear,
+                    "price": prices,
+                },
+            }
+        )
+    by_prev = sorted(tickers, key=lambda t: -t["previous_mentions"])
+    for rank, t in enumerate(by_prev, start=1):
+        t["previous_rank"] = rank
+    tickers.sort(key=lambda t: -t["mentions"])
+
+    def share(key: str) -> dict:
+        out = {"EQUITY": 0, "CRYPTO": 0, "FOREX": 0}
+        for t in tickers:
+            out[t["asset_kind"]] += t[key]
+        return out
+
+    totals_now = sum(t["mentions"] for t in tickers)
+    totals_prev = sum(t["previous_mentions"] for t in tickers)
+    tweets = [
+        round(sum(t["series"]["mentions"][i] for t in tickers) * 0.8) for i in range(n)
+    ]
+    bull = [sum(t["series"]["bull"][i] for t in tickers) for i in range(n)]
+    bear = [sum(t["series"]["bear"][i] for t in tickers) for i in range(n)]
+    net_now = (sum(bull) - sum(bear)) / max(1, sum(bull) + sum(bear))
     return {
-        "window_hours": 24,
-        "tweets": {"current": 312, "previous": 264},
-        "authors": {"current": 48, "previous": 44},
-        "sentiment": {"bull": 124, "bear": 76, "bull_pct": 62.0, "prev_bull_pct": 55.3},
-        "top_ticker": {
-            "ticker": "NVDA",
-            "mentions": 41,
-            "unique_authors": 19,
-            "avg_sentiment": 0.42,
-            "sentiment_label": "BULL",
-            "asset_kind": "EQUITY",
-            "price_direction": 2.4,
+        "window": window,
+        "window_hours": hours,
+        "bucket_hours": bucket_hours,
+        "buckets": buckets,
+        "data_since": "2025-06-01T00:00:00+00:00",
+        "totals": {
+            "tweets": {
+                "current": round(totals_now * 0.8),
+                "previous": round(totals_prev * 0.8),
+            },
+            "authors": {
+                "current": round(totals_now / 3.4),
+                "previous": round(totals_prev / 3.6),
+            },
+            "tickers": {
+                "current": 126 + totals_now // 90,
+                "previous": 126 + totals_prev // 95,
+            },
+            "net_sentiment": {"current": net_now, "previous": net_now - 0.04},
+            "series": {
+                "tweets": tweets,
+                "authors": [round(v / 3.4) for v in tweets],
+                "bull": bull,
+                "bear": bear,
+                "tickers": [30 + round(math.sqrt(v) * 3) for v in tweets],
+            },
         },
-        "top_mover": {
-            "ticker": "SOL",
-            "mentions": 9,
-            "unique_authors": 6,
-            "avg_sentiment": 0.31,
-            "sentiment_label": "BULL",
-            "asset_kind": "CRYPTO",
-            "price_direction": 8.2,
+        "kind_share": {
+            "current": share("mentions"),
+            "previous": share("previous_mentions"),
         },
+        "tickers": tickers,
     }
 
 
-def _empty_activity_summary() -> dict:
+def _empty_trend_summary() -> dict:
+    n = 28
+    bs = 6 * 3600
+    start = int(datetime.now(timezone.utc).timestamp()) // bs * bs - (n - 1) * bs
+    zeros = [0] * n
     return {
-        "window_hours": 24,
-        "tweets": {"current": 0, "previous": 0},
-        "authors": {"current": 0, "previous": 0},
-        "sentiment": {"bull": 0, "bear": 0, "bull_pct": None, "prev_bull_pct": None},
-        "top_ticker": None,
-        "top_mover": None,
+        "window": "7d",
+        "window_hours": 168,
+        "bucket_hours": 6,
+        "buckets": [
+            datetime.fromtimestamp(start + i * bs, tz=timezone.utc).isoformat()
+            for i in range(n)
+        ],
+        "data_since": None,
+        "totals": {
+            "tweets": {"current": 0, "previous": 0},
+            "authors": {"current": 0, "previous": 0},
+            "tickers": {"current": 0, "previous": 0},
+            "net_sentiment": {"current": None, "previous": None},
+            "series": {
+                k: list(zeros) for k in ("tweets", "authors", "bull", "bear", "tickers")
+            },
+        },
+        "kind_share": {
+            "current": {"EQUITY": 0, "CRYPTO": 0, "FOREX": 0},
+            "previous": {"EQUITY": 0, "CRYPTO": 0, "FOREX": 0},
+        },
+        "tickers": [],
     }
 
 
@@ -1066,53 +1290,6 @@ def _hidden_gems() -> list[dict]:
             "first_seen": "2025-06-02",
             "last_seen": today,
             "asset_kind": "EQUITY",
-        },
-    ]
-
-
-def _macro_strip() -> list[dict]:
-    return [
-        {
-            "label": "SPX",
-            "symbol": "^GSPC",
-            "price": 5920.25,
-            "change_pct": 0.32,
-            "sparkline": [],
-        },
-        {
-            "label": "NDX",
-            "symbol": "^NDX",
-            "price": 21150.50,
-            "change_pct": 0.48,
-            "sparkline": [],
-        },
-        {
-            "label": "BTC",
-            "symbol": "BTC",
-            "price": 96_500.0,
-            "change_pct": 2.14,
-            "sparkline": [],
-        },
-        {
-            "label": "ETH",
-            "symbol": "ETH",
-            "price": 3_420.0,
-            "change_pct": 1.32,
-            "sparkline": [],
-        },
-        {
-            "label": "DXY",
-            "symbol": "DX-Y.NYB",
-            "price": 103.4,
-            "change_pct": -0.12,
-            "sparkline": [],
-        },
-        {
-            "label": "VIX",
-            "symbol": "^VIX",
-            "price": 14.2,
-            "change_pct": -1.8,
-            "sparkline": [],
         },
     ]
 
@@ -2041,7 +2218,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             "/api/reddit/trends": _empty_reddit_trends(),
             "/api/reddit/categories": _empty_reddit_categories(),
             "/api/admin/access-emails": {"emails": []},
-            "/api/overview/activity-summary": _empty_activity_summary(),
+            "/api/overview/trend-summary": _empty_trend_summary(),
         }
 
     insights = _portfolio_insights()
@@ -2259,12 +2436,14 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         "/api/treemap": _treemap(),
         "/api/fear-greed": _crypto_fear_greed(),
         # Home / overview dashboard.
-        "/api/overview/activity-summary": _activity_summary(),
+        # Specific windows first: the first fragment contained in the URL wins.
+        "/api/overview/trend-summary?window=1d": _trend_summary("1d"),
+        "/api/overview/trend-summary?window=30d": _trend_summary("30d"),
+        "/api/overview/trend-summary": _trend_summary("7d"),
         "/api/overview/mention-heat": _mention_heat(),
         "/api/overview/sentiment-shift": _sentiment_shift(),
         "/api/overview/volume-baseline": _volume_baseline(),
         "/api/overview/hidden-gems": _hidden_gems(),
-        "/api/overview/macro-strip": _macro_strip(),
         # Forex route.
         "/api/forex/macro": _forex_macro(),
         "/api/events/economic": _economic_events(),

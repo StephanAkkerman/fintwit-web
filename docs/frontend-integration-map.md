@@ -15,12 +15,10 @@ Route-level sections:
   - Backend-aggregated mention/sentiment/price data from `/api/overview/mention-heat`, reactive to sidebar user filtering.
   - Replaces the old `TickerMentionsPanel` (issue #94: it duplicated the heatmap while showing less useful, client-computed stats from only the currently loaded tweet buffer).
 
-- `/` (home) already renders the same heatmap (assetKind `all`, with asset/window tabs) via `OverviewDashboard`, so no separate top panel is shown there.
+- `/` (home) shows the trend summary (`OverviewDashboard`) instead, so no mention heatmap or `RouteSignalsPanel` is shown there.
 
 - `/` (home)
-  - `FearGreedWidget`
-  - `RedditTrendsWidget`
-  - `OverviewDashboard` — macro strip (`MacroStrip`), the `ActivityPulseWidget` summary card, the `all`-scoped `MentionHeatmap`, a three-column analytics row (`SentimentShiftWidget`, `VolumeBaselineWidget`, `HiddenGemWidget`), and `SectorMentionsWidget`, with shared asset-kind (`all`/`EQUITY`/`CRYPTO`/`FOREX`) and lookback-window (24h/48h/7d) controls
+  - `OverviewDashboard` — the trend summary, all drawn from one `/api/overview/trend-summary` request with shared asset-kind (`all`/`EQUITY`/`CRYPTO`/`FOREX`) and timeframe (`1d`/`7d`/`30d`) controls (see "Trend summary" below)
   - Tweet timeline (`useTweets` + `TweetCard`)
 
 - `/crypto`
@@ -138,38 +136,39 @@ Route-level sections:
   - Interaction: opened from `App.tsx`'s `onTickerSelect` (the same callback every ticker click site already calls), with a 24h/7d/30d window toggle; closes on the Close button, backdrop click, or Escape.
   - Mounted app-wide as a modal overlay (not a route), consistent with the existing tweet-media lightbox pattern in `TweetCard`.
 
-- `SectorMentionsWidget` + `useSectorMentions` (`/` only, inside `OverviewDashboard`)
+- Trend summary: `OverviewDashboard` + `useTrendSummary` (`/` only)
+  - Fetches: `/api/overview/trend-summary?window=1d|7d|30d&asset_kind=...` (plus the sidebar user/subscriber filters); 60-second server-side cache.
+  - Purpose: what happened over the selected timeframe, at a glance. Every chart reads the same payload, and every ticker in it opens `TickerDetailModal` via the shared `onTickerClick` callback.
+  - `trend/TrendHeadline` — a rule-based "what happened" summary (`utils/trendSummary.ts:buildHeadline`: biggest breakout, largest sentiment flip between the two halves of the window, new top-10 entrants, the fastest-cooling ticker, and the change in crypto's share of mentions) next to four KPI tiles (tweets, accounts, net sentiment, tickers) with sparklines and the change vs the previous window. Replaces `ActivityPulseWidget`.
+  - `trend/MomentumScatter` — one bubble per top ticker: x = mention growth vs the previous window (log scale, ×0.25 to ×8), y = net sentiment, size = mentions; labelled quadrants (heating up bullish/bearish, cooling, fading); a dashed outline marks a ticker that is new this window.
+  - `trend/RankRace` — mention rank of the current top 8 per time slot, ranked on a trailing sum so a single noisy slot doesn't reshuffle it; each ticker keeps a stable colour.
+  - `trend/SentimentTimeline` — heatmap of the 10 most-mentioned tickers × time slots, coloured by net sentiment with opacity by mention count.
+  - `trend/ChatterVsPrice` — small multiples for the top 8: the price quoted in each ticker's tweets as a line, mentions per slot as sentiment-coloured bars.
+  - When the stored tweets don't reach back to the start of the previous window, a note says so, since growth figures are then inflated.
+
+- `SectorMentionsWidget` + `useSectorMentions` (`/stocks`, fixed 24h window)
   - Fetches: `/api/overview/sector-mentions?window_hours=...` (plus the sidebar user filter).
   - Purpose: most-mentioned equity sectors (issue #104) — proportional bars ranked by the fairness-adjusted `mention_score`, top mentioned tickers per sector, expandable per-sector industry breakdown (e.g. "Technology > Semiconductors"). Equity-only: crypto/forex tickers carry no sector metadata, so it is not asset-kind scoped like the other overview widgets. Each sector/industry row also shows a fixed emoji + colour badge (via `utils/sectorStyle.ts`, shared with `AssetFundamentals`/`SectorOverviewWidget`) and a momentum badge (🔥 Hot / 📈 Rising / 📉 Cooling down / 🌱 Rarely mentioned / ➖ Steady) from the backend's `trend` field, so hot/cooling sectors are visible at a glance (issue #146).
   - Interaction: expand/collapse a sector row for its industries; clicking a ticker chip applies sidebar ticker filtering and opens `TickerDetailModal` via the shared `onTickerClick` callback.
 
-- `MacroStrip` + `useMacroStrip` (`/` only, inside `OverviewDashboard`)
-  - Fetches: `/api/overview/macro-strip` (5-minute server-side cache).
-  - Purpose: at-a-glance macro tape — live price + % change + sparkline tiles for SPX, NDX, BTC, ETH, DXY, VIX, and GOLD — above the rest of the home dashboard.
-
-- `ActivityPulseWidget` + `useActivitySummary` (`/` only, inside `OverviewDashboard`)
-  - Fetches: `/api/overview/activity-summary`, scoped by the dashboard's asset-kind/window controls and the sidebar user filter.
-  - Purpose: at-a-glance summary of recent activity (issue #161) — tweets tracked, distinct accounts, net bull/bear sentiment (each with its change vs the previous equal-length window), the most-talked-about ticker and the biggest price mover among mentioned tickers. Clicking a ticker opens `TickerDetailModal` via the shared `onTickerClick` callback.
-  - Replaces the old `MarketOverview` "Top Streamed Assets" row, which only listed the last few distinct tickers seen in the stream and ignored the dashboard's filters.
-
-- `SentimentShiftWidget` + `useSentimentShift` (`/` only, inside `OverviewDashboard`)
-  - Fetches: `/api/overview/sentiment-shift`, scoped by the dashboard's asset-kind/window controls and the sidebar user filter.
+- `SentimentShiftWidget` + `useSentimentShift` (inside `RouteSignalsPanel` on the non-home tweet routes)
+  - Fetches: `/api/overview/sentiment-shift`, scoped by the route's asset kind and the sidebar user filter.
   - Purpose: rank tickers by the biggest swing in average tweet sentiment between the active window and the prior baseline, each row showing a prev→current sentiment sparkline and signed delta — surfaces sentiment momentum, not just mention volume.
   - Portfolio awareness: accepts the shared `portfolioLookup` (see below) and renders a `PortfolioTickerBadge` next to any ticker currently or recently held.
 
-- `VolumeBaselineWidget` + `useVolumeBaseline` (`/` only, inside `OverviewDashboard`)
+- `VolumeBaselineWidget` + `useVolumeBaseline` (inside `RouteSignalsPanel` on the non-home tweet routes)
   - Fetches: `/api/overview/volume-baseline`, same scoping as `SentimentShiftWidget`.
   - Purpose: "Unusually loud" — tickers whose mention count in the active window exceeds a multiple of their rolling baseline rate, each row showing mentions vs. baseline and the multiplier — mention-spike/anomaly detection.
   - Portfolio awareness: same `portfolioLookup` badge as `SentimentShiftWidget`.
 
-- `HiddenGemWidget` + `useHiddenGems` (`/` only, inside `OverviewDashboard`)
+- `HiddenGemWidget` + `useHiddenGems` (inside `RouteSignalsPanel` on the non-home tweet routes)
   - Fetches: `/api/overview/hidden-gems`, same scoping as `SentimentShiftWidget`.
   - Purpose: surface tickers being mentioned for the first time (✦ new) or resurfacing after a long gap (↩ resurface) in the active window — catches tickers before they're loud enough to rank on the main mention heatmap.
   - Portfolio awareness: same `portfolioLookup` badge as `SentimentShiftWidget`.
 
 - `PortfolioTickerBadge` (shared by `SentimentShiftWidget`, `VolumeBaselineWidget`, `HiddenGemWidget`)
-  - Consumes: the same `portfolioLookup` function (`usePortfolioTickers`, computed once in `App.tsx` and threaded through `OverviewDashboard`) that already badges tweet-card financial cards as 💼 Held / 🕓 Recently Held.
-  - Purpose: compact emoji-only variant of the same portfolio-status signal for the tighter analytics-row layouts, so a sentiment swing, mention spike, or hidden gem on a held position is visible without leaving the home dashboard.
+  - Consumes: the same `portfolioLookup` function (`usePortfolioTickers`, computed once in `App.tsx` and threaded through `RouteSignalsPanel`) that already badges tweet-card financial cards as 💼 Held / 🕓 Recently Held.
+  - Purpose: compact emoji-only variant of the same portfolio-status signal for the tighter analytics-row layouts, so a sentiment swing, mention spike, or hidden gem on a held position is visible without leaving the route.
 
 - `TreemapWidget` + `useTreemap`
   - Fetches: `/api/treemap`
