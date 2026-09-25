@@ -886,12 +886,61 @@ export type AssetKind = 'all' | 'EQUITY' | 'CRYPTO' | 'FOREX';
 
 export type SentimentLabel = 'BULL' | 'BEAR' | 'NEUTRAL';
 
-export interface MacroTickerItem {
-  label: string; // "SPX" | "NDX" | "BTC" | "ETH" | "DXY" | "VIX" | "GOLD"
-  symbol: string;
-  price: number;
-  change_pct: number;
-  sparkline: number[]; // today's intraday series (5-min closes) from Yahoo Finance; empty when unavailable
+export type TrendWindow = '1d' | '7d' | '30d';
+
+/** A value in the active window next to the same value in the window before it. */
+export interface TrendPair<T = number> {
+  current: T;
+  previous: T;
+}
+
+/** One of the top tickers in GET /api/overview/trend-summary. */
+export interface TrendTicker {
+  ticker: string;
+  asset_kind: 'EQUITY' | 'CRYPTO' | 'FOREX';
+  mentions: number;
+  previous_mentions: number;
+  /** Rank by mentions in the previous window; null when it wasn't mentioned then. */
+  previous_rank: number | null;
+  unique_authors: number;
+  bull: number;
+  bear: number;
+  /** (bull - bear) / (bull + bear); null when no mention was directional. */
+  net_sentiment: number | null;
+  /** Per-bucket series, aligned with TrendSummary.buckets. */
+  series: {
+    mentions: number[];
+    bull: number[];
+    bear: number[];
+    /** Average price quoted in that bucket's tweets; null when none carried one. */
+    price: (number | null)[];
+  };
+}
+
+/** GET /api/overview/trend-summary — everything the home page trend summary draws. */
+export interface TrendSummary {
+  window: TrendWindow;
+  window_hours: number;
+  bucket_hours: number;
+  /** Bucket start times (ISO, UTC); the last one is still in progress. */
+  buckets: string[];
+  /** Oldest stored tweet, so a window reaching further back can be flagged. */
+  data_since: string | null;
+  totals: {
+    tweets: TrendPair;
+    authors: TrendPair;
+    tickers: TrendPair;
+    net_sentiment: TrendPair<number | null>;
+    series: {
+      tweets: number[];
+      authors: number[];
+      bull: number[];
+      bear: number[];
+      tickers: number[];
+    };
+  };
+  kind_share: TrendPair<Record<'EQUITY' | 'CRYPTO' | 'FOREX', number>>;
+  tickers: TrendTicker[];
 }
 
 export interface MentionHeatCell {
@@ -901,31 +950,6 @@ export interface MentionHeatCell {
   sentiment_label_24h: SentimentLabel;
   asset_kind: string;
   price_direction: number | null;
-}
-
-export interface ActivityTickerSummary {
-  ticker: string;
-  mentions: number;
-  unique_authors: number;
-  avg_sentiment: number;
-  sentiment_label: SentimentLabel;
-  asset_kind: string;
-  price_direction: number | null;
-}
-
-/** GET /api/overview/activity-summary — current window vs the equal-length one before it. */
-export interface ActivitySummary {
-  window_hours: number;
-  tweets: { current: number; previous: number };
-  authors: { current: number; previous: number };
-  sentiment: {
-    bull: number;
-    bear: number;
-    bull_pct: number | null;
-    prev_bull_pct: number | null;
-  };
-  top_ticker: ActivityTickerSummary | null;
-  top_mover: ActivityTickerSummary | null;
 }
 
 export interface SentimentShiftItem {

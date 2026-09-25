@@ -41,6 +41,7 @@ import SignaSection from './components/SignaSection'
 import SpyHeatmapWidget from './components/SpyHeatmapWidget'
 import SectorOverviewWidget from './components/SectorOverviewWidget'
 import SectorRotationWidget from './components/SectorRotationWidget'
+import { SectorMentionsWidget } from './components/SectorMentionsWidget'
 import StockFearGreedWidget from './components/StockFearGreedWidget'
 import StockHaltsWidget from './components/StockHaltsWidget'
 import StockMarketHoursBanner from './components/StockMarketHoursBanner'
@@ -692,7 +693,6 @@ export default function App() {
                   onTickerClick={onTickerSelect}
                   userFilter={userFilter}
                   subscriberOnly={subscriberOnlyFilter}
-                  portfolioLookup={portfolioLookup}
                 />
               </ErrorBoundary>
             )}
@@ -752,6 +752,16 @@ export default function App() {
                 <div className="sm:col-span-2">
                   <ErrorBoundary label="Sector rotation">
                     <SectorRotationWidget />
+                  </ErrorBoundary>
+                </div>
+                <div className="sm:col-span-2">
+                  <ErrorBoundary label="Sector mentions">
+                    <SectorMentionsWidget
+                      windowHours={24}
+                      userFilter={userFilter}
+                      subscriberOnly={subscriberOnlyFilter}
+                      onTickerClick={onTickerSelect}
+                    />
                   </ErrorBoundary>
                 </div>
                 <div className="sm:col-span-2">

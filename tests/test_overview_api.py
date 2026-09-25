@@ -19,9 +19,11 @@ def _reset_strip_cache():
 
     overview._strip_cache = None
     overview._ticker_history_cache.clear()
+    overview._trend_cache.clear()
     yield
     overview._strip_cache = None
     overview._ticker_history_cache.clear()
+    overview._trend_cache.clear()
 
 
 def test_mention_heat_returns_list(client):
@@ -51,6 +53,20 @@ def test_sector_mentions_returns_list(client):
     resp = client.get("/api/overview/sector-mentions")
     assert resp.status_code == 200
     assert isinstance(resp.json(), list)
+
+
+def test_trend_summary_returns_object(client):
+    resp = client.get("/api/overview/trend-summary?window=30d")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["window"] == "30d"
+    assert len(body["buckets"]) == 30
+    assert isinstance(body["tickers"], list)
+
+
+def test_trend_summary_rejects_unknown_window(client):
+    resp = client.get("/api/overview/trend-summary?window=2d")
+    assert resp.status_code == 422
 
 
 def test_hidden_gems_returns_list(client):

@@ -1448,3 +1448,285 @@ async def get_mention_frequency(
     }
 
     return {"personal": personal_out, "global": global_out}
+
+
+# Trend summary windows: (window hours, bucket width in hours). The bucket
+# count (24 / 28 / 30) keeps every chart on the home page equally dense.
+TREND_WINDOWS: dict[str, tuple[int, int]] = {
+    "1d": (24, 1),
+    "7d": (168, 6),
+    "30d": (720, 24),
+}
+
+# How many tickers get a full per-bucket series in the trend summary. The
+# widgets show at most this many at once (the scatter), fewer elsewhere.
+TREND_TOP_N = 15
+
+
+def _normalize_kind(kind: str | None) -> str:
+    """Collapse the ticker-classifier's mixed ``kind`` spellings to the
+    frontend's three asset classes (see ``_KIND_FILTER``)."""
+    k = (kind or "").upper()
+    if k in ("CRYPTO", "CRYPTOCURRENCY"):
+        return "CRYPTO"
+    if k == "FOREX":
+        return "FOREX"
+    return "EQUITY"
+
+
+def _net(bull: int, bear: int) -> float | None:
+    directional = bull + bear
+    if directional == 0:
+        return None
+    return (bull - bear) / directional
+
+
+async def get_trend_summary(
+    Session: async_sessionmaker,
+    window: str = "7d",
+    asset_kind: str = "all",
+    user_screen_name: str | None = None,
+    subscriber_only: bool = False,
+    top_n: int = TREND_TOP_N,
+) -> dict:
+    """Everything the home page's trend summary draws, in one payload.
+
+    The window is split into equal buckets (hourly for 1d, 6-hourly for 7d,
+    daily for 30d) aligned to bucket boundaries, the last of which is the
+    in-progress one. The previous window is the stretch of equal *duration*
+    immediately before the first bucket, so ``mentions`` vs
+    ``previous_mentions`` compares like with like even though the current
+    window ends mid-bucket.
+
+    Returns
+    -------
+    dict
+        ``buckets`` (bucket start times), ``totals`` (tweet-level counts for
+        both windows plus per-bucket series), ``kind_share`` (mentions per
+        asset class in both windows), ``tickers`` (the ``top_n``
+        most-mentioned tickers with per-bucket mention, bull/bear and average
+        price series, and their rank in the previous window) and
+        ``data_since`` (the oldest stored tweet, so the UI can flag a window
+        that reaches further back than the data does).
+
+    Sentiment uses the tweet-level ``sentiment_score`` with the same ±0.1
+    thresholds as the rest of this module.
+    """
+    if window not in TREND_WINDOWS:
+        raise ValueError(f"unknown trend window {window!r}")
+    window_hours, bucket_hours = TREND_WINDOWS[window]
+    n = window_hours // bucket_hours
+    bs = bucket_hours * 3600
+
+    now = _now()
+    now_epoch = int(now.replace(tzinfo=timezone.utc).timestamp())
+    start_epoch = now_epoch // bs * bs - (n - 1) * bs
+    start = datetime.fromtimestamp(start_epoch, tz=timezone.utc).replace(tzinfo=None)
+    prev_start = start - (now - start)
+    bucket_epochs = [start_epoch + i * bs for i in range(n)]
+    index_of = {e: i for i, e in enumerate(bucket_epochs)}
+
+    kind_clause = _KIND_FILTER.get(asset_kind.upper(), "")
+    tweet_kind_c = _tweet_kind_clause(asset_kind)
+    user_c = _user_clause(user_screen_name)
+    sub_c = _subscriber_clause(subscriber_only)
+    params: dict = {"start": start, "prev_start": prev_start, "bs": bs}
+    if user_screen_name:
+        params["user_name_pat"] = f"%{user_screen_name.lower()}%"
+
+    tickers_sql = text(f"""
+        SELECT
+            j.value AS ticker,
+            CAST(SUM(CASE WHEN t.created_at >= :start THEN 1 ELSE 0 END) AS INTEGER) AS mentions_now,
+            CAST(SUM(CASE WHEN t.created_at <  :start THEN 1 ELSE 0 END) AS INTEGER) AS mentions_prev,
+            CAST(SUM(CASE WHEN t.created_at >= :start AND t.sentiment_score >  0.1 THEN 1 ELSE 0 END) AS INTEGER) AS bull,
+            CAST(SUM(CASE WHEN t.created_at >= :start AND t.sentiment_score < -0.1 THEN 1 ELSE 0 END) AS INTEGER) AS bear,
+            COUNT(DISTINCT CASE WHEN t.created_at >= :start THEN LOWER(t.user_screen_name) END) AS authors,
+            MAX(json_extract(ae.value, '$.kind')) AS asset_kind
+        FROM tweets t, json_each(t.tickers) j
+        LEFT JOIN json_each(t.assets) ae
+               ON json_extract(ae.value, '$.symbol') = j.value
+        WHERE t.created_at >= :prev_start
+          AND t.tickers IS NOT NULL AND t.tickers != '[]'
+          {user_c}
+          {sub_c}
+        GROUP BY j.value
+        HAVING COUNT(*) > 0
+        {kind_clause}
+    """)
+
+    # Every (ticker, bucket) pair in the current window. The per-bucket
+    # distinct-ticker count needs all of them, not just the top N.
+    series_sql = text(f"""
+        SELECT
+            j.value AS ticker,
+            CAST(strftime('%s', t.created_at) AS INTEGER) / :bs * :bs AS bucket_epoch,
+            CAST(COUNT(*) AS INTEGER) AS mentions,
+            CAST(SUM(CASE WHEN t.sentiment_score >  0.1 THEN 1 ELSE 0 END) AS INTEGER) AS bull,
+            CAST(SUM(CASE WHEN t.sentiment_score < -0.1 THEN 1 ELSE 0 END) AS INTEGER) AS bear,
+            AVG(json_extract(ae.value, '$.financials.price')) AS price
+        FROM tweets t, json_each(t.tickers) j
+        LEFT JOIN json_each(t.assets) ae
+               ON json_extract(ae.value, '$.symbol') = j.value
+        WHERE t.created_at >= :start
+          AND t.tickers IS NOT NULL AND t.tickers != '[]'
+          {user_c}
+          {sub_c}
+        GROUP BY j.value, bucket_epoch
+    """)
+
+    totals_sql = text(f"""
+        SELECT
+            CAST(SUM(CASE WHEN t.created_at >= :start THEN 1 ELSE 0 END) AS INTEGER) AS tweets_now,
+            CAST(SUM(CASE WHEN t.created_at <  :start THEN 1 ELSE 0 END) AS INTEGER) AS tweets_prev,
+            COUNT(DISTINCT CASE WHEN t.created_at >= :start THEN LOWER(t.user_screen_name) END) AS authors_now,
+            COUNT(DISTINCT CASE WHEN t.created_at <  :start THEN LOWER(t.user_screen_name) END) AS authors_prev,
+            CAST(SUM(CASE WHEN t.created_at >= :start AND t.sentiment_score >  0.1 THEN 1 ELSE 0 END) AS INTEGER) AS bull_now,
+            CAST(SUM(CASE WHEN t.created_at >= :start AND t.sentiment_score < -0.1 THEN 1 ELSE 0 END) AS INTEGER) AS bear_now,
+            CAST(SUM(CASE WHEN t.created_at <  :start AND t.sentiment_score >  0.1 THEN 1 ELSE 0 END) AS INTEGER) AS bull_prev,
+            CAST(SUM(CASE WHEN t.created_at <  :start AND t.sentiment_score < -0.1 THEN 1 ELSE 0 END) AS INTEGER) AS bear_prev
+        FROM tweets t
+        WHERE t.created_at >= :prev_start
+          {tweet_kind_c}
+          {user_c}
+          {sub_c}
+    """)
+
+    totals_series_sql = text(f"""
+        SELECT
+            CAST(strftime('%s', t.created_at) AS INTEGER) / :bs * :bs AS bucket_epoch,
+            CAST(COUNT(*) AS INTEGER) AS tweets,
+            COUNT(DISTINCT LOWER(t.user_screen_name)) AS authors,
+            CAST(SUM(CASE WHEN t.sentiment_score >  0.1 THEN 1 ELSE 0 END) AS INTEGER) AS bull,
+            CAST(SUM(CASE WHEN t.sentiment_score < -0.1 THEN 1 ELSE 0 END) AS INTEGER) AS bear
+        FROM tweets t
+        WHERE t.created_at >= :start
+          {tweet_kind_c}
+          {user_c}
+          {sub_c}
+        GROUP BY bucket_epoch
+    """)
+
+    since_sql = text("SELECT MIN(created_at) AS since FROM tweets")
+
+    async with Session() as s:
+        ticker_rows = (await s.execute(tickers_sql, params)).mappings().all()
+        series_rows = (await s.execute(series_sql, params)).mappings().all()
+        totals_row = (await s.execute(totals_sql, params)).mappings().one()
+        totals_series_rows = (
+            (await s.execute(totals_series_sql, params)).mappings().all()
+        )
+        since = (await s.execute(since_sql)).scalar()
+
+    # ── Per-ticker ranking ──────────────────────────────────────────────
+    allowed = {r["ticker"]: r for r in ticker_rows}
+    prev_ranked = sorted(
+        (r for r in ticker_rows if r["mentions_prev"] > 0),
+        key=lambda r: (-r["mentions_prev"], r["ticker"]),
+    )
+    prev_rank = {r["ticker"]: i + 1 for i, r in enumerate(prev_ranked)}
+    current = sorted(
+        (r for r in ticker_rows if r["mentions_now"] > 0),
+        key=lambda r: (-r["mentions_now"], r["ticker"]),
+    )
+    top = current[:top_n]
+    top_set = {r["ticker"] for r in top}
+
+    kind_share = {
+        "current": {"EQUITY": 0, "CRYPTO": 0, "FOREX": 0},
+        "previous": {"EQUITY": 0, "CRYPTO": 0, "FOREX": 0},
+    }
+    for r in ticker_rows:
+        k = _normalize_kind(r["asset_kind"])
+        kind_share["current"][k] += r["mentions_now"]
+        kind_share["previous"][k] += r["mentions_prev"]
+
+    # ── Per-bucket series ───────────────────────────────────────────────
+    per_ticker: dict[str, dict[str, list]] = {
+        t: {
+            "mentions": [0] * n,
+            "bull": [0] * n,
+            "bear": [0] * n,
+            "price": [None] * n,
+        }
+        for t in top_set
+    }
+    tickers_per_bucket = [0] * n
+    for r in series_rows:
+        i = index_of.get(int(r["bucket_epoch"]))
+        if i is None or r["ticker"] not in allowed:
+            continue
+        tickers_per_bucket[i] += 1
+        series = per_ticker.get(r["ticker"])
+        if series is None:
+            continue
+        series["mentions"][i] = r["mentions"]
+        series["bull"][i] = r["bull"] or 0
+        series["bear"][i] = r["bear"] or 0
+        series["price"][i] = r["price"]
+
+    totals_series = {
+        "tweets": [0] * n,
+        "authors": [0] * n,
+        "bull": [0] * n,
+        "bear": [0] * n,
+        "tickers": tickers_per_bucket,
+    }
+    for r in totals_series_rows:
+        i = index_of.get(int(r["bucket_epoch"]))
+        if i is None:
+            continue
+        for key in ("tweets", "authors", "bull", "bear"):
+            totals_series[key][i] = r[key] or 0
+
+    tc = {k: totals_row[k] or 0 for k in totals_row.keys()}
+
+    def _pair(cur: int, prev: int) -> dict:
+        return {"current": cur, "previous": prev}
+
+    return {
+        "window": window,
+        "window_hours": window_hours,
+        "bucket_hours": bucket_hours,
+        "buckets": [
+            datetime.fromtimestamp(e, tz=timezone.utc).isoformat()
+            for e in bucket_epochs
+        ],
+        "data_since": (_iso_naive_utc(since) if since is not None else None),
+        "totals": {
+            "tweets": _pair(tc["tweets_now"], tc["tweets_prev"]),
+            "authors": _pair(tc["authors_now"], tc["authors_prev"]),
+            "tickers": _pair(
+                sum(1 for r in ticker_rows if r["mentions_now"] > 0),
+                sum(1 for r in ticker_rows if r["mentions_prev"] > 0),
+            ),
+            "net_sentiment": _pair(
+                _net(tc["bull_now"], tc["bear_now"]),
+                _net(tc["bull_prev"], tc["bear_prev"]),
+            ),
+            "series": totals_series,
+        },
+        "kind_share": kind_share,
+        "tickers": [
+            {
+                "ticker": r["ticker"],
+                "asset_kind": _normalize_kind(r["asset_kind"]),
+                "mentions": r["mentions_now"],
+                "previous_mentions": r["mentions_prev"],
+                "previous_rank": prev_rank.get(r["ticker"]),
+                "unique_authors": r["authors"],
+                "bull": r["bull"] or 0,
+                "bear": r["bear"] or 0,
+                "net_sentiment": _net(r["bull"] or 0, r["bear"] or 0),
+                "series": per_ticker[r["ticker"]],
+            }
+            for r in top
+        ],
+    }
+
+
+def _iso_naive_utc(value) -> str:
+    """ISO-8601 with an explicit UTC offset for a naive-UTC DB timestamp."""
+    if isinstance(value, str):
+        value = datetime.fromisoformat(value)
+    return value.replace(tzinfo=timezone.utc).isoformat()

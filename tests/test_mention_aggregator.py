@@ -862,3 +862,124 @@ async def test_activity_summary_empty(Session):
     assert out["sentiment"]["prev_bull_pct"] is None
     assert out["top_ticker"] is None
     assert out["top_mover"] is None
+
+
+async def test_trend_summary_buckets_and_window_comparison(Session):
+    from app.services.mention_aggregator import get_trend_summary
+
+    await _insert(
+        Session,
+        [
+            # current 1d window
+            _tweet(1, ["NVDA"], "BULL", 0.8, 0.5, author="a"),
+            _tweet(2, ["NVDA"], "BULL", 0.7, 2.5, author="b"),
+            _tweet(3, ["NVDA"], "BEAR", -0.6, 5.5, author="a"),
+            _tweet(4, ["TSLA"], "BEAR", -0.9, 1.5, author="c"),
+            # previous window
+            _tweet(5, ["TSLA"], "BULL", 0.5, 30, author="c"),
+            _tweet(6, ["TSLA"], "BULL", 0.5, 31, author="c"),
+            _tweet(7, ["AAPL"], "BULL", 0.5, 32, author="d"),
+            # older than both windows: ignored
+            _tweet(8, ["NVDA"], "BULL", 0.5, 80, author="e"),
+        ],
+    )
+
+    out = await get_trend_summary(Session, window="1d")
+
+    assert out["bucket_hours"] == 1
+    assert len(out["buckets"]) == 24
+    by = {t["ticker"]: t for t in out["tickers"]}
+    assert [t["ticker"] for t in out["tickers"]] == ["NVDA", "TSLA"]
+
+    nvda = by["NVDA"]
+    assert nvda["mentions"] == 3
+    assert nvda["previous_mentions"] == 0
+    assert nvda["previous_rank"] is None
+    assert nvda["unique_authors"] == 2
+    assert (nvda["bull"], nvda["bear"]) == (2, 1)
+    assert nvda["net_sentiment"] == pytest.approx(1 / 3)
+    assert sum(nvda["series"]["mentions"]) == 3
+    assert len(nvda["series"]["mentions"]) == 24
+
+    tsla = by["TSLA"]
+    assert tsla["previous_mentions"] == 2
+    assert tsla["previous_rank"] == 1
+    assert tsla["net_sentiment"] == -1
+
+    totals = out["totals"]
+    assert totals["tweets"] == {"current": 4, "previous": 3}
+    assert totals["authors"] == {"current": 3, "previous": 2}
+    assert totals["tickers"] == {"current": 2, "previous": 2}
+    assert sum(totals["series"]["tweets"]) == 4
+    assert sum(totals["series"]["tickers"]) == 4  # 4 distinct (ticker, hour) pairs
+    assert out["data_since"] is not None
+
+
+async def test_trend_summary_series_land_in_the_right_bucket(Session):
+    from app.services.mention_aggregator import get_trend_summary
+
+    await _insert(
+        Session,
+        [
+            _tweet(1, ["BTC"], "BULL", 0.8, 0.01, kind="CRYPTO", price=100.0),
+            _tweet(2, ["BTC"], "BULL", 0.8, 0.02, kind="CRYPTO", price=110.0),
+        ],
+    )
+
+    out = await get_trend_summary(Session, window="7d")
+
+    btc = out["tickers"][0]
+    assert out["bucket_hours"] == 6
+    assert len(btc["series"]["mentions"]) == 28
+    # Both tweets are minutes old, so they sit in the last (in-progress) bucket
+    # unless "now" crossed a bucket boundary between them.
+    assert sum(btc["series"]["mentions"][-2:]) == 2
+    prices = [p for p in btc["series"]["price"] if p is not None]
+    assert prices and all(100.0 <= p <= 110.0 for p in prices)
+    assert btc["asset_kind"] == "CRYPTO"
+
+
+async def test_trend_summary_filters_by_kind_and_reports_share(Session):
+    from app.services.mention_aggregator import get_trend_summary
+
+    await _insert(
+        Session,
+        [
+            _tweet(1, ["BTC"], "BULL", 0.8, 1, kind="cryptocurrency"),
+            _tweet(2, ["ETH"], "BULL", 0.8, 2, kind="crypto"),
+            _tweet(3, ["AAPL"], "BULL", 0.8, 3, kind="EQUITY"),
+            _tweet(4, ["AAPL"], "BULL", 0.8, 30, kind="EQUITY"),
+        ],
+    )
+
+    everything = await get_trend_summary(Session, window="1d")
+    assert everything["kind_share"]["current"] == {"EQUITY": 1, "CRYPTO": 2, "FOREX": 0}
+    assert everything["kind_share"]["previous"] == {
+        "EQUITY": 1,
+        "CRYPTO": 0,
+        "FOREX": 0,
+    }
+
+    crypto = await get_trend_summary(Session, window="1d", asset_kind="CRYPTO")
+    assert sorted(t["ticker"] for t in crypto["tickers"]) == ["BTC", "ETH"]
+    assert crypto["totals"]["tweets"]["current"] == 2
+
+
+async def test_trend_summary_empty(Session):
+    from app.services.mention_aggregator import get_trend_summary
+
+    out = await get_trend_summary(Session, window="30d")
+
+    assert out["bucket_hours"] == 24
+    assert len(out["buckets"]) == 30
+    assert out["tickers"] == []
+    assert out["totals"]["tweets"] == {"current": 0, "previous": 0}
+    assert out["totals"]["net_sentiment"] == {"current": None, "previous": None}
+    assert out["data_since"] is None
+
+
+async def test_trend_summary_rejects_unknown_window(Session):
+    from app.services.mention_aggregator import get_trend_summary
+
+    with pytest.raises(ValueError):
+        await get_trend_summary(Session, window="2d")
