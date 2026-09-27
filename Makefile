@@ -49,7 +49,8 @@ test-backend:
 test-frontend:
 	cd frontend && npm test
 
-# For a deployed stack (see README's "Deploy with Docker"), not local dev.
+# For a deployed stack (see README's "Updating"), not local dev. Rebuilds from
+# source; `docker compose pull && docker compose up -d` uses the prebuilt images.
 # `down` before `up --build` forces a clean restart even when compose.yml,
 # .env, or COMPOSE_PROFILES changed; Make already stops at the first failing
 # line, so a conflicted `git pull` won't tear down a working deployment.

@@ -9,7 +9,8 @@ import os
 
 from .ml.chart import _chart_enabled
 from .runtime.streamer import _credential_source
-from .services.reddit_service import _reddit_credentials_from_env
+from .services.reddit_service import has_reddit_credentials
+from .services.signa import has_signa_key
 
 _CLOUDFLARE_ACCESS_VARS = (
     "CLOUDFLARE_ACCESS_API_TOKEN",
@@ -34,12 +35,10 @@ def integration_status() -> dict[str, str]:
     return {
         "X timeline": _credential_source() or "off (set X_AUTH_TOKEN, X_CT0)",
         "Reddit": (
-            "authenticated"
-            if _reddit_credentials_from_env()
-            else "unauthenticated fallback"
+            "authenticated" if has_reddit_credentials() else "unauthenticated fallback"
         ),
         "IBKR": "on" if _flag("IBKR_ENABLED") else "off",
-        "Signa": "on" if os.getenv("SIGNA_KEY") else "off",
+        "Signa": "on" if has_signa_key() else "off",
         "Access admin": (
             "on" if all(os.getenv(v) for v in _CLOUDFLARE_ACCESS_VARS) else "off"
         ),
