@@ -1,6 +1,6 @@
 # Migration Status
 
-Last updated: 2026-09-22 (ticker-classifier>=0.1.5 fundamentals wired in as a fallback)
+Last updated: 2026-09-27 (screenshot text extraction via OCR, issue #88)
 
 ## Backend: Implemented
 
@@ -60,6 +60,7 @@ Last updated: 2026-09-22 (ticker-classifier>=0.1.5 fundamentals wired in as a fa
 - Deployment scaffolding for self-hosting: backend Docker image, frontend Nginx reverse proxy for `/api/*` + `/api/stream`, Docker Compose stack for Raspberry Pi, and Terraform-managed Cloudflare tunnel + DNS.
 - Frontend proxy resilience hardening: containerized Nginx now uses Docker DNS re-resolution for backend upstream (`backend:7999`) so backend restarts do not leave stale upstream IPs that can surface first-hit `502` responses.
 - Chart data extraction (issue #49): when `chart-recognizer` classifies a tweet's image as a chart (`has_chart=true`) and the tweet text mentions no ticker, `app/ml/chart_extractor.py` (wrapping the external [`chart-extractor`](https://github.com/StephanAkkerman/chart-extractor) YOLO+OCR package) analyzes the image and attaches a `chart_extraction` payload (`symbol`, `exchange`, `timeframe`, `price`, `session`) to the tweet. Skipped entirely when the text already names a ticker, since the mentioned ticker is a stronger, cheaper signal than OCR. Runs lazily/thread-offloaded like `chart-recognizer`, and can be disabled independently via `CHART_EXTRACTION_ENABLED=false`.
+- Screenshot text extraction (issue #88): some posters (options-flow screenshots, etc.) carry little or no tweet text of their own — the informative content is printed inside the image. For a photo `chart-recognizer` did *not* classify as a chart, `app/ml/image_text.py` OCRs it with Tesseract (`pytesseract`) when the tweet text named no ticker, the same gate `chart_extraction` uses. Any `$TICKER`/`#HASHTAG` found in the recognized text is merged into `tickers`/`hashtags` before asset enrichment runs, and the raw text is attached as `image_text` for display. **Off by default** (`IMAGE_OCR_ENABLED=false`): the false-positive rate on real screenshots hasn't been measured yet, so this ships as an opt-in the maintainer can turn on and watch rather than something that runs for everyone from day one. The Docker image installs the `tesseract-ocr` system package regardless, so it's ready the moment the flag flips.
 
 - Sector/industry mention overview (issue #104): `mention_aggregator.get_sector_mentions` aggregates ticker mentions from `tweets.assets[*].sector`/`.industry` (equities/ETFs only — crypto and forex carry no sector metadata and are excluded) into a sector -> industry -> ticker rollup, so a cluster of activity across several related tickers (e.g. "Technology > Semiconductors") surfaces as a sector-level trend. Ranking uses the same fairness-adjusted `mention_score` as `get_mention_heat` (issue #101), capping each author's contribution per sector at `AUTHOR_MENTION_CAP`. Exposed via `GET /api/overview/sector-mentions` (`window_hours`, `limit`, plus the standard `user_screen_name`/`subscriber_only` filters).
 - Home dashboard analytics slice (issue #101): `mention_aggregator.get_mention_heat` ranks the top-mentioned tickers over `window_hours` using a fairness-adjusted `mention_score` (each author's contribution capped at `AUTHOR_MENTION_CAP` before summing, so one spamming account can't out-rank a ticker genuinely spread across several authors) plus a point-to-point `price_direction` return over the window. Exposed via `GET /api/overview/mention-heat` (`asset_kind`, `window_hours`, `user_screen_name`, `subscriber_only`).
@@ -115,6 +116,7 @@ Last updated: 2026-09-22 (ticker-classifier>=0.1.5 fundamentals wired in as a fa
   - Charts only.
 - Tweet cards display a small "Chart" badge only when backend chart classification marks `has_chart=true`.
 - Tweet cards display a "🔎 SYMBOL · TIMEFRAME · PRICE" badge when the backend attaches `chart_extraction` (chart data OCR'd off the image for tickerless chart tweets — issue #49).
+- Tweet cards display a "📄 Image text" badge when the backend attaches `image_text` (screenshot text OCR'd off a non-chart, tickerless image — issue #88, off by default); hovering shows the full recognized text.
 - Tweet cards display separate sentiment badges for the main post and quoted post using backend metadata.
 - Tweet card financial asset blocks display a portfolio-status badge (💼 Held / 🕓 Recently Held) when the ticker matches a current or recently-closed (within 30 days) portfolio position.
 - Portfolio route includes add/list/toggle/delete workflows and summary cards (positions, market value, cost basis, unrealized PnL).

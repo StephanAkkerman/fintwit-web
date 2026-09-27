@@ -394,6 +394,7 @@ export default function TweetCard({
         .filter(Boolean)
         .join(' · ')
     : ''
+  const imageText = t.image_text ?? null
   const sentimentLabel = t.sentiment_label?.toUpperCase() ?? null
   const sentimentEmoji = t.sentiment_emoji ?? null
   const quotedSentimentLabel = t.quoted_sentiment_label?.toUpperCase() ?? null
@@ -813,6 +814,15 @@ export default function TweetCard({
               className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-800 dark:bg-sky-900/40 dark:text-sky-300"
             >
               🔎 {chartExtractionLabel}
+            </span>
+          )}
+          {imageText && (
+            <span
+              aria-label="Image text"
+              title={`Extracted from the image via OCR: ${imageText}`}
+              className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+            >
+              📄 Image text
             </span>
           )}
           {hasTickerSentimentSplit ? (

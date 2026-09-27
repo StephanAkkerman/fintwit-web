@@ -558,6 +558,189 @@ async def test_run_stream_skips_chart_extraction_when_ticker_mentioned(
     mock_extract.assert_not_awaited()
 
 
+@pytest.mark.asyncio
+async def test_run_stream_skips_image_ocr_by_default(tmp_path, monkeypatch):
+    """IMAGE_OCR_ENABLED defaults off, so a textless screenshot tweet is untouched."""
+    monkeypatch.setenv("XTIMELINE_LAST_ID_PATH", str(tmp_path / "last_id.txt"))
+    monkeypatch.delenv("IMAGE_OCR_ENABLED", raising=False)
+
+    tweet = DummyTweet(
+        {
+            "id": 2001,
+            "text": "",
+            "tickers": [],
+            "hashtags": [],
+            "created_at": "2026-04-04T12:00:00+00:00",
+            "media": ["https://example.com/options-screenshot.jpg"],
+            "media_types": ["photo"],
+            "likes": 1,
+            "replies": 0,
+            "views": 10,
+            "retweets": 0,
+        },
+        is_update=False,
+    )
+    client_cls = make_client_class(tweet)
+
+    repo = MagicMock()
+    repo.upsert_many = AsyncMock(return_value=1)
+    repo.update_fields = AsyncMock(return_value=None)
+
+    published_event = asyncio.Event()
+
+    async def _publish(_item):
+        published_event.set()
+
+    bc = MagicMock()
+    bc.publish = AsyncMock(side_effect=_publish)
+
+    with (
+        patch("app.runtime.streamer.xclient.XTimelineClient", client_cls),
+        patch("app.runtime.streamer.merge_symbols", return_value=([], [])),
+        patch("app.runtime.streamer.AssetEnricher") as mock_enricher_cls,
+        patch("app.runtime.streamer.is_chart", new=AsyncMock(return_value=False)),
+    ):
+        mock_enricher = mock_enricher_cls.return_value
+        mock_enricher.classify = AsyncMock(return_value=[])
+
+        task = asyncio.create_task(streamer.run_stream(repo, bc))
+        await asyncio.wait_for(published_event.wait(), timeout=1.0)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    # extract_image_text runs unmocked here: with IMAGE_OCR_ENABLED unset it
+    # short-circuits before any network call, so no real request happens.
+    persisted = repo.upsert_many.await_args.args[0][0]
+    assert persisted["image_text"] is None
+
+
+@pytest.mark.asyncio
+async def test_run_stream_ocrs_non_chart_image_when_enabled_and_no_ticker(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("XTIMELINE_LAST_ID_PATH", str(tmp_path / "last_id.txt"))
+    monkeypatch.setenv("IMAGE_OCR_ENABLED", "true")
+
+    tweet = DummyTweet(
+        {
+            "id": 2002,
+            "text": "",
+            "tickers": [],
+            "hashtags": [],
+            "created_at": "2026-04-04T12:00:00+00:00",
+            "media": ["https://example.com/options-screenshot.jpg"],
+            "media_types": ["photo"],
+            "likes": 1,
+            "replies": 0,
+            "views": 10,
+            "retweets": 0,
+        },
+        is_update=False,
+    )
+    client_cls = make_client_class(tweet)
+
+    repo = MagicMock()
+    repo.upsert_many = AsyncMock(return_value=1)
+    repo.update_fields = AsyncMock(return_value=None)
+
+    published_event = asyncio.Event()
+
+    async def _publish(_item):
+        published_event.set()
+
+    bc = MagicMock()
+    bc.publish = AsyncMock(side_effect=_publish)
+
+    with (
+        patch("app.runtime.streamer.xclient.XTimelineClient", client_cls),
+        patch("app.runtime.streamer.merge_symbols", wraps=streamer.merge_symbols),
+        patch("app.runtime.streamer.AssetEnricher") as mock_enricher_cls,
+        patch("app.runtime.streamer.is_chart", new=AsyncMock(return_value=False)),
+        patch(
+            "app.runtime.streamer.extract_image_text",
+            new=AsyncMock(return_value="Sold $SPY 680C for a nice gain"),
+        ) as mock_extract_image_text,
+    ):
+        mock_enricher = mock_enricher_cls.return_value
+        mock_enricher.classify = AsyncMock(return_value=[{"symbol": "SPY"}])
+
+        task = asyncio.create_task(streamer.run_stream(repo, bc))
+        await asyncio.wait_for(published_event.wait(), timeout=1.0)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    persisted = repo.upsert_many.await_args.args[0][0]
+    assert persisted["image_text"] == "Sold $SPY 680C for a nice gain"
+    assert persisted["tickers"] == ["SPY"]
+    mock_extract_image_text.assert_awaited_once_with(
+        "https://example.com/options-screenshot.jpg"
+    )
+    mock_enricher.classify.assert_awaited_once_with(["SPY"])
+
+
+@pytest.mark.asyncio
+async def test_run_stream_skips_image_ocr_when_ticker_already_mentioned(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("XTIMELINE_LAST_ID_PATH", str(tmp_path / "last_id.txt"))
+    monkeypatch.setenv("IMAGE_OCR_ENABLED", "true")
+
+    tweet = DummyTweet(
+        {
+            "id": 2003,
+            "text": "$TSLA options play",
+            "tickers": [],
+            "hashtags": [],
+            "created_at": "2026-04-04T12:00:00+00:00",
+            "media": ["https://example.com/options-screenshot.jpg"],
+            "media_types": ["photo"],
+            "likes": 1,
+            "replies": 0,
+            "views": 10,
+            "retweets": 0,
+        },
+        is_update=False,
+    )
+    client_cls = make_client_class(tweet)
+
+    repo = MagicMock()
+    repo.upsert_many = AsyncMock(return_value=1)
+    repo.update_fields = AsyncMock(return_value=None)
+
+    published_event = asyncio.Event()
+
+    async def _publish(_item):
+        published_event.set()
+
+    bc = MagicMock()
+    bc.publish = AsyncMock(side_effect=_publish)
+
+    with (
+        patch("app.runtime.streamer.xclient.XTimelineClient", client_cls),
+        patch("app.runtime.streamer.merge_symbols", return_value=(["TSLA"], [])),
+        patch("app.runtime.streamer.AssetEnricher") as mock_enricher_cls,
+        patch("app.runtime.streamer.is_chart", new=AsyncMock(return_value=False)),
+        patch(
+            "app.runtime.streamer.extract_image_text",
+            new=AsyncMock(return_value=None),
+        ) as mock_extract_image_text,
+    ):
+        mock_enricher = mock_enricher_cls.return_value
+        mock_enricher.classify = AsyncMock(return_value=[{"symbol": "TSLA"}])
+
+        task = asyncio.create_task(streamer.run_stream(repo, bc))
+        await asyncio.wait_for(published_event.wait(), timeout=1.0)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    persisted = repo.upsert_many.await_args.args[0][0]
+    assert persisted["image_text"] is None
+    mock_extract_image_text.assert_not_awaited()
+
+
 # ---------------------------------------------------------------------------
 # Credentials and status
 # ---------------------------------------------------------------------------

@@ -190,6 +190,10 @@ export type Tweet = {
   ticker_sentiment?: Record<string, number> | null;
   has_chart?: boolean | null;
   chart_extraction?: ChartExtraction | null;
+  // OCR'd text off a non-chart photo, for tweets whose own text named no
+  // ticker (issue #88). Opt-in backend feature (IMAGE_OCR_ENABLED); null
+  // when disabled, no photo, or nothing recognized.
+  image_text?: string | null;
   assets?: Asset[];
 };
 

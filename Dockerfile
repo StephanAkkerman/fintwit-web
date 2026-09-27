@@ -13,10 +13,13 @@ ARG TORCH_VERSION=2.8.0
 # git is required for requirements that install from GitHub. The libs are for
 # opencv-python (pulled in by ultralytics for chart extraction), which links
 # against X11/GL even when nothing is displayed; without them `import cv2` fails.
+# tesseract-ocr is the system binary pytesseract shells out to for
+# screenshot OCR (app/ml/image_text.py, issue #88; opt-in via
+# IMAGE_OCR_ENABLED, but the binary needs to be present either way).
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update \
-    && apt-get install -y --no-install-recommends git libgl1 libglib2.0-0 libxcb1 \
+    && apt-get install -y --no-install-recommends git libgl1 libglib2.0-0 libxcb1 tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
 
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \

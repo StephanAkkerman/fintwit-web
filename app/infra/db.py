@@ -89,6 +89,15 @@ class TweetRow(Base):
         default=None,
         server_default=sql_text("NULL"),
     )
+    # OCR'd text off a non-chart photo, for tweets whose own text named no
+    # ticker (issue #88) — e.g. a screenshot of an options position with no
+    # caption. Opt-in via IMAGE_OCR_ENABLED; null when disabled or empty.
+    image_text: Mapped[str] = mapped_column(
+        String,
+        nullable=True,
+        default=None,
+        server_default=sql_text("NULL"),
+    )
     is_options_tweet: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
