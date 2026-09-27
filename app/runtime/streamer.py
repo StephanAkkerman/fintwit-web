@@ -9,12 +9,13 @@ import xclient
 from ..infra.repos import TraderCallRepo, TweetRepo
 from ..ml.chart import is_chart
 from ..ml.chart_extractor import extract_chart_data
+from ..ml.image_text import extract_image_text
 from ..ml.sentiment import FinTwitSentiment
 from ..services.trader_scoring import extract_calls
 from .broadcast import Broadcaster
 from .enricher import AssetEnricher
 from .options_intent import classify_options_intent
-from .symbols import merge_symbols
+from .symbols import extract_symbols_from_text, merge_symbols
 from .xclient_compat import apply_xclient_retweet_patch
 
 ENGAGEMENT_FIELDS = ("replies", "likes", "views", "retweets")
@@ -100,6 +101,52 @@ async def run_stream(
                         t_dict.get("tickers"),
                         t_dict.get("hashtags"),
                     )
+
+                    # Run chart detection on all photo tweets so chart filters
+                    # don't fallback to treating every image as a chart.
+                    media_urls = _extract_photo_urls(t_dict)
+                    if media_urls:
+                        results = await asyncio.gather(
+                            *[is_chart(url) for url in media_urls],
+                            return_exceptions=True,
+                        )
+                        chart_urls = [
+                            url
+                            for url, is_chart_result in zip(media_urls, results)
+                            if is_chart_result is True
+                        ]
+                        t_dict["has_chart"] = bool(chart_urls)
+                    else:
+                        chart_urls = []
+                        t_dict["has_chart"] = False
+
+                    # Some posters (options-flow screenshots, etc.) carry no
+                    # tweet text of their own — the only signal is inside a
+                    # non-chart image. OCR those (opt-in, issue #88) so any
+                    # $TICKER/#HASHTAG printed in the screenshot still feeds
+                    # enrichment, the same way it would from the tweet text.
+                    # Gated like chart extraction below: only when the text
+                    # named nothing on its own.
+                    t_dict["image_text"] = None
+                    if not tickers:
+                        non_chart_urls = [u for u in media_urls if u not in chart_urls]
+                        for photo_url in non_chart_urls:
+                            image_text = await extract_image_text(photo_url)
+                            if not image_text:
+                                continue
+
+                            t_dict["image_text"] = image_text
+                            ocr_tickers, ocr_hashtags = extract_symbols_from_text(
+                                image_text
+                            )
+                            if ocr_tickers or ocr_hashtags:
+                                tickers, hashtags = merge_symbols(
+                                    None,
+                                    [*tickers, *ocr_tickers],
+                                    [*hashtags, *ocr_hashtags],
+                                )
+                            break
+
                     t_dict["tickers"] = tickers
                     t_dict["hashtags"] = hashtags
                     symbols = [*tickers, *hashtags]
@@ -120,24 +167,6 @@ async def run_stream(
                         t_dict["assets"] = assets
                     else:
                         t_dict["assets"] = []
-
-                    # Run chart detection on all photo tweets so chart filters
-                    # don't fallback to treating every image as a chart.
-                    media_urls = _extract_photo_urls(t_dict)
-                    if media_urls:
-                        results = await asyncio.gather(
-                            *[is_chart(url) for url in media_urls],
-                            return_exceptions=True,
-                        )
-                        chart_urls = [
-                            url
-                            for url, is_chart_result in zip(media_urls, results)
-                            if is_chart_result is True
-                        ]
-                        t_dict["has_chart"] = bool(chart_urls)
-                    else:
-                        chart_urls = []
-                        t_dict["has_chart"] = False
 
                     # Only extract chart data when the tweet text doesn't already
                     # name a ticker — a mentioned ticker is a stronger, cheaper

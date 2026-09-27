@@ -11,6 +11,7 @@ aiohttp
 pydantic
 ticker-classifier==0.1.5
 Pillow==12.2.0
+pytesseract==0.3.13
 requests
 transformers==5.5.4
 fastapi==0.141.1

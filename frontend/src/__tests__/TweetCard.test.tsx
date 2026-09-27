@@ -384,6 +384,18 @@ describe('TweetCard', () => {
     expect(screen.queryByLabelText('Chart-extracted symbol')).not.toBeInTheDocument()
   })
 
+  it('shows image text badge when image_text is present', () => {
+    render(<TweetCard t={{ ...baseTweet, image_text: 'Sold $SPY 680C for a nice gain' }} />)
+    const badge = screen.getByLabelText('Image text')
+    expect(badge).toHaveTextContent('Image text')
+    expect(badge).toHaveAttribute('title', 'Extracted from the image via OCR: Sold $SPY 680C for a nice gain')
+  })
+
+  it('does not show image text badge when image_text is absent', () => {
+    render(<TweetCard t={{ ...baseTweet, image_text: null }} />)
+    expect(screen.queryByLabelText('Image text')).not.toBeInTheDocument()
+  })
+
   it('renders sentiment badge when sentiment fields are available', () => {
     render(
       <TweetCard

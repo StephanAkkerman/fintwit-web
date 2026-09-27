@@ -63,6 +63,7 @@ def _row_to_dict(r: TweetRow) -> dict:
         "quoted_tweet": r.quoted_tweet,
         "has_chart": r.has_chart,
         "chart_extraction": r.chart_extraction,
+        "image_text": r.image_text,
         "is_options_tweet": r.is_options_tweet,
         "options_context": r.options_context,
         "assets": r.assets,
