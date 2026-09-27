@@ -1,6 +1,6 @@
 # One definition of "done". `make check` runs exactly the gates CI runs, so a
 # green run here means a green run there.
-.PHONY: help install check screenshot check-backend check-frontend format test test-backend test-frontend
+.PHONY: help install check screenshot check-backend check-frontend format test test-backend test-frontend update
 
 help:
 	@echo "make install         install backend test deps + frontend deps"
@@ -10,6 +10,7 @@ help:
 	@echo "make test            tests only, no lint or build"
 	@echo "make format          apply ruff formatting"
 	@echo "make screenshot      capture /portfolio to artifacts/ (ROUTE=/x SCENARIO=empty)"
+	@echo "make update          git pull, then rebuild and restart the Docker Compose stack"
 
 install:
 	python -m pip install -e ".[test]"
@@ -47,3 +48,12 @@ test-backend:
 
 test-frontend:
 	cd frontend && npm test
+
+# For a deployed stack (see README's "Deploy with Docker"), not local dev.
+# `down` before `up --build` forces a clean restart even when compose.yml,
+# .env, or COMPOSE_PROFILES changed; Make already stops at the first failing
+# line, so a conflicted `git pull` won't tear down a working deployment.
+update:
+	git pull
+	docker compose down
+	docker compose up -d --build

@@ -360,6 +360,19 @@ Public hostname is `<subdomain>.<zone_name>` from `infra/terraform.tfvars` (e.g.
   serves the frontend too
 - API calls and stream work through frontend proxy paths (`/api/*`, `/api/stream`)
 
+### Updating
+
+Once deployed, pull the latest code and rebuild with a single command:
+
+```bash
+make update
+```
+
+This runs `git pull`, `docker compose down`, then `docker compose up -d --build` — the same
+three steps as [Build and run](#3-build-and-run-localhost-only) above, so it also picks up any
+`COMPOSE_PROFILES` (e.g. `ibkr`, `tunnel`) set in `.env`. No `make` on your host? Run those
+three commands directly instead.
+
 ### Start separately
 1. Run the backend using:
 ```bash
