@@ -27,6 +27,7 @@ LAZY_ML_PACKAGES = {
     "pillow",
     "chart-extractor",
     "opencv-python",
+    "peft",
 }
 
 _REQUIREMENT = re.compile(
