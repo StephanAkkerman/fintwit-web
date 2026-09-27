@@ -62,6 +62,11 @@ reused across repos; do not re-add local `yahoo.py`/`coingecko.py` modules.
 
 **Database:** SQLite at `./data.db`; override with `DB_URL` env var. PostgreSQL also supported.
 
+**Configuration:** environment variables, read where they are used. Document every new one in
+`docs/configuration.md`; add it to `.env.example` only if a typical install needs to set it
+(keep that file short: it is the first thing a new user reads). If it enables an optional
+integration, add it to `integration_status()` in `app/config.py` so it shows in the startup log.
+
 **ML Models (custom-trained):**
 - [`FinTwitBERT-sentiment`](https://huggingface.co/StephanAkkerman/FinTwitBERT-sentiment) — classifies financial tweet sentiment
 - [`chart-recognizer`](https://huggingface.co/StephanAkkerman/chart-recognizer) — detects if a tweet image is a financial chart

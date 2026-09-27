@@ -41,6 +41,10 @@ services:
       - "127.0.0.1:5901:5900" # VNC (optional inspection)
 
   backend:
+    # Prebuilt by .github/workflows/docker-publish.yml; `up` pulls it and falls
+    # back to building from source, and `up --build` always builds locally
+    # (needed for a custom TORCH_VERSION).
+    image: ghcr.io/stephanakkerman/fintwit-web-backend:latest
     build:
       context: .
       dockerfile: Dockerfile
@@ -58,11 +62,9 @@ services:
       DB_URL: sqlite+aiosqlite:///./state/data.db
       # The `ibkr` profile's service name; IBKR_ENABLED=true in .env turns the
       # sync worker on, which retries its own connection, so no start-order
-      # dependency is needed here.
+      # dependency is needed here. The port follows TRADING_MODE (4003 live,
+      # 4004 paper) unless IBKR_PORT is set.
       IBKR_HOST: ibgateway
-      # Container-side socat port (live=4003, paper=4004); the code's default
-      # of 4001 is the host-side mapping.
-      IBKR_PORT: ${IBKR_PORT:-4003}
       # A curl.txt placed in ./state/ is picked up when X_AUTH_TOKEN/X_CT0
       # are not set (legacy auth; see README).
       X_CURL_PATH: state/curl.txt
@@ -73,6 +75,7 @@ services:
       - "127.0.0.1:7999:7999"
 
   frontend:
+    image: ghcr.io/stephanakkerman/fintwit-web-frontend:latest
     build:
       context: ./frontend
       dockerfile: Dockerfile
