@@ -387,7 +387,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100">
-      <main className="mx-auto max-w-6xl p-4">
+      <main className="mx-auto max-w-6xl p-4 2xl:max-w-[96rem] 3xl:max-w-[120rem] 4xl:max-w-[144rem]">
         <div className="mb-3 flex items-center gap-3 lg:hidden">
           <button
             type="button"
@@ -719,14 +719,14 @@ export default function App() {
             )}
 
             {route === 'crypto' && (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-3">
                 <ErrorBoundary label="Binance movers">
                   <BinanceGainersLosersWidget />
                 </ErrorBoundary>
                 <ErrorBoundary label="Trending crypto">
                   <TrendingCryptoWidget />
                 </ErrorBoundary>
-                <div className="sm:col-span-2">
+                <div className="sm:col-span-2 2xl:col-span-3">
                   <ErrorBoundary label="Crypto treemap">
                     <TreemapWidget />
                   </ErrorBoundary>
@@ -735,14 +735,14 @@ export default function App() {
             )}
 
             {route === 'stocks' && (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-3">
                 <ErrorBoundary label="Fear & Greed index">
                   <StockFearGreedWidget />
                 </ErrorBoundary>
                 <ErrorBoundary label="Trading halts">
                   <StockHaltsWidget />
                 </ErrorBoundary>
-                <div className="sm:col-span-2">
+                <div className="sm:col-span-2 2xl:col-span-3">
                   <ErrorBoundary label="Market hours">
                     <StockMarketHoursBanner />
                   </ErrorBoundary>
@@ -750,32 +750,32 @@ export default function App() {
                 <ErrorBoundary label="StockTwits">
                   <StocktwitsWidget />
                 </ErrorBoundary>
-                <div className="sm:col-span-2">
+                <div className="sm:col-span-2 2xl:col-span-3">
                   <ErrorBoundary label="Market movers">
                     <MarketMoversPanel />
                   </ErrorBoundary>
                 </div>
-                <div className="sm:col-span-2">
+                <div className="sm:col-span-2 2xl:col-span-3">
                   <ErrorBoundary label="Extended hours">
                     <ExtendedHoursPanel />
                   </ErrorBoundary>
                 </div>
-                <div className="sm:col-span-2">
+                <div className="sm:col-span-2 2xl:col-span-3">
                   <ErrorBoundary label="Market heatmap">
                     <SpyHeatmapWidget />
                   </ErrorBoundary>
                 </div>
-                <div className="sm:col-span-2">
+                <div className="sm:col-span-2 2xl:col-span-3">
                   <ErrorBoundary label="Sector overview">
                     <SectorOverviewWidget />
                   </ErrorBoundary>
                 </div>
-                <div className="sm:col-span-2">
+                <div className="sm:col-span-2 2xl:col-span-3">
                   <ErrorBoundary label="Sector rotation">
                     <SectorRotationWidget />
                   </ErrorBoundary>
                 </div>
-                <div className="sm:col-span-2">
+                <div className="sm:col-span-2 2xl:col-span-3">
                   <ErrorBoundary label="Sector mentions">
                     <SectorMentionsWidget
                       windowHours={24}
@@ -785,12 +785,12 @@ export default function App() {
                     />
                   </ErrorBoundary>
                 </div>
-                <div className="sm:col-span-2">
+                <div className="sm:col-span-2 2xl:col-span-3">
                   <ErrorBoundary label="Earnings calendar">
                     <EarningsCalendarWidget portfolioLookup={portfolioLookup} />
                   </ErrorBoundary>
                 </div>
-                <div className="sm:col-span-2">
+                <div className="sm:col-span-2 2xl:col-span-3">
                   <ErrorBoundary label="Company news">
                     <CompanyNewsWidget selectedTicker={tickerFilter} />
                   </ErrorBoundary>
