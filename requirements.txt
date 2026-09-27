@@ -21,7 +21,7 @@ ticker-price-data==0.1.5
 pytest==9.1.1
 pytest-asyncio==1.4.0
 httpx==0.28.1
-asyncpraw==7.8.1
+asyncpraw==8.0.3
 dotenv==0.9.9
 lxml==6.0.4
 python-dateutil==2.9.0
