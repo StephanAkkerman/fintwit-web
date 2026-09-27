@@ -3,9 +3,6 @@ timm==1.0.9
 torch==2.8.0
 chart-extractor @ git+https://github.com/StephanAkkerman/chart-extractor.git
 reddit-stock-analyzer @ git+https://github.com/StephanAkkerman/reddit-stock-analyzer.git
-# gliner2 (via stock-recognizer) imports peft at runtime but only declares it
-# in its `local` extra, which also caps transformers<5; install it directly.
-peft==0.21.0
 opencv-python
 numpy
 exchange_calendars
