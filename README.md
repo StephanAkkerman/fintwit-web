@@ -262,16 +262,15 @@ runtime is downloaded.
 make update
 ```
 
-This runs `git pull`, `docker compose down`, then `docker compose up -d --build`, which rebuilds
-from source and picks up any `COMPOSE_PROFILES` (e.g. `ibkr`, `tunnel`) set in `.env`; BuildKit
-caches package downloads between rebuilds. No `make` on your host? Run those three commands
-directly.
-
-To update to the prebuilt images instead of rebuilding:
+This runs `git pull`, pulls the latest prebuilt images, and restarts the stack, picking up any
+`COMPOSE_PROFILES` (e.g. `ibkr`, `tunnel`) set in `.env`. If the images can't be pulled, it
+builds them from source instead (`docker compose up -d --build`). No `make` on your host? Run
+the same steps directly:
 
 ```bash
 git pull
 docker compose pull
+docker compose down
 docker compose up -d
 ```
 

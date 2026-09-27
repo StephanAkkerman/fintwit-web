@@ -10,7 +10,7 @@ help:
 	@echo "make test            tests only, no lint or build"
 	@echo "make format          apply ruff formatting"
 	@echo "make screenshot      capture /portfolio to artifacts/ (ROUTE=/x SCENARIO=empty)"
-	@echo "make update          git pull, then rebuild and restart the Docker Compose stack"
+	@echo "make update          git pull, then pull (or build) images and restart the Docker stack"
 
 install:
 	python -m pip install -e ".[test]"
@@ -49,12 +49,18 @@ test-backend:
 test-frontend:
 	cd frontend && npm test
 
-# For a deployed stack (see README's "Updating"), not local dev. Rebuilds from
-# source; `docker compose pull && docker compose up -d` uses the prebuilt images.
-# `down` before `up --build` forces a clean restart even when compose.yml,
-# .env, or COMPOSE_PROFILES changed; Make already stops at the first failing
-# line, so a conflicted `git pull` won't tear down a working deployment.
+# For a deployed stack (see README's "Updating"), not local dev. Pulls the
+# prebuilt GHCR images, and builds from source only if that pull fails (images
+# not published or not public yet, registry down), so a Pi doesn't rebuild the
+# PyTorch stack on every update. `down` before `up` forces a clean restart even
+# when compose.yml, .env, or COMPOSE_PROFILES changed; Make already stops at the
+# first failing line, so a conflicted `git pull` won't tear down a working
+# deployment.
 update:
 	git pull
-	docker compose down
-	docker compose up -d --build
+	@if docker compose pull; then \
+		docker compose down && docker compose up -d; \
+	else \
+		echo "Prebuilt images unavailable; building from source instead."; \
+		docker compose down && docker compose up -d --build; \
+	fi
