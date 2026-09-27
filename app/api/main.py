@@ -18,6 +18,7 @@ from ticker_price_data import close_shared_pool, get_stock_info
 
 from ..infra.db import create_engine, init_db
 from ..infra.repos import (
+    GammaExposureRepo,
     IbkrRepo,
     PortfolioRepo,
     RedditTrendRepo,
@@ -27,6 +28,10 @@ from ..infra.repos import (
 from ..ml.sentiment import FinTwitSentiment
 from ..runtime.broadcast import Broadcaster
 from ..runtime.enricher import AssetEnricher
+from ..runtime.gamma_exposure_snapshot import (
+    DEFAULT_INTERVAL as GAMMA_EXPOSURE_INTERVAL,
+    run_gamma_exposure_snapshots,
+)
 from ..runtime.ibkr_sync import run_ibkr_sync
 from ..runtime.options_intent import classify_options_intent
 from ..runtime.reddit_trends import (
@@ -59,6 +64,8 @@ from ..services.coin360_service import get_treemap_data
 from ..services.earnings_service import get_earnings_calendar
 from ..services.events_service import get_economic_events
 from ..services.fear_greed_service import get_feargreed
+from ..services.gamma_exposure_service import DEFAULT_SYMBOL as GAMMA_EXPOSURE_SYMBOL
+from ..services.gamma_exposure_service import get_gamma_exposure
 from ..services.ibkr import IbkrGateway
 from ..services.macro_market import get_macro_snapshot
 from ..services.market_hours_service import get_stock_market_hours
@@ -108,6 +115,7 @@ PORTFOLIO_REPO = PortfolioRepo(Session)
 IBKR_REPO = IbkrRepo(Session)
 TRADER_CALL_REPO = TraderCallRepo(Session)
 REDDIT_TREND_REPO = RedditTrendRepo(Session)
+GAMMA_EXPOSURE_REPO = GammaExposureRepo(Session)
 BROADCAST = Broadcaster()
 logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.INFO)
@@ -194,6 +202,21 @@ async def lifespan(app: FastAPI):
             reddit_interval,
         )
 
+    gamma_exposure_interval = int(
+        os.getenv("GAMMA_EXPOSURE_INTERVAL", GAMMA_EXPOSURE_INTERVAL)
+    )
+    gamma_exposure_task = asyncio.create_task(
+        run_gamma_exposure_snapshots(
+            GAMMA_EXPOSURE_REPO,
+            symbol=GAMMA_EXPOSURE_SYMBOL,
+            interval=gamma_exposure_interval,
+        )
+    )
+    logger.info(
+        "[gamma-exposure] snapshot worker started (interval=%ds)",
+        gamma_exposure_interval,
+    )
+
     try:
         logger.info(
             "[startup] application ready in %.2fs",
@@ -211,6 +234,9 @@ async def lifespan(app: FastAPI):
         trader_eval_task.cancel()
         with suppress(asyncio.CancelledError):
             await trader_eval_task
+        gamma_exposure_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await gamma_exposure_task
         if reddit_task is not None:
             reddit_task.cancel()
             with suppress(asyncio.CancelledError):
@@ -374,6 +400,40 @@ async def options_chain(
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data
+
+
+@app.get("/api/options/gamma-exposure")
+async def options_gamma_exposure(
+    symbol: str = Query(default=GAMMA_EXPOSURE_SYMBOL),
+    _=Depends(api_key_dep),
+):
+    """Live dealer gamma exposure estimate and current regime for ``symbol``.
+
+    Computed on request from the options chain (see
+    `gamma_exposure_service` for the Black-Scholes estimate this is built
+    on); the stored history is served separately from `/history` since it
+    tracks the worker's periodic snapshots rather than this live value.
+    """
+    data = await get_gamma_exposure(symbol)
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
+
+
+@app.get("/api/options/gamma-exposure/history")
+async def options_gamma_exposure_history(
+    symbol: str = Query(default=GAMMA_EXPOSURE_SYMBOL),
+    days: int = Query(30, ge=1, le=365),
+    _=Depends(api_key_dep),
+):
+    """Stored gamma exposure snapshots for ``symbol``, oldest first.
+
+    Powers the negative-gamma-regime timeline (issue #85): each point carries
+    `regime` so the UI can shade positive/negative stretches over price.
+    """
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    points = await GAMMA_EXPOSURE_REPO.list_snapshots(symbol=symbol, since=since)
+    return {"symbol": symbol.upper(), "days": days, "points": points}
 
 
 @app.get("/api/news/company")

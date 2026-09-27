@@ -1675,6 +1675,90 @@ def _empty_options_chain() -> dict:
     }
 
 
+def _gamma_exposure_snapshot() -> dict:
+    return {
+        "symbol": "SPY",
+        "spot_price": 561.40,
+        "net_gex": -1_820_000_000,
+        "call_gex": 3_150_000_000,
+        "put_gex": -4_970_000_000,
+        "flip_point": 566.25,
+        "regime": "negative",
+        "expirations_used": ["2026-09-19", "2026-09-22", "2026-09-24"],
+        "by_strike": [
+            {"strike": 550.0, "net_gamma": -420_000_000},
+            {"strike": 555.0, "net_gamma": -260_000_000},
+            {"strike": 560.0, "net_gamma": -180_000_000},
+            {"strike": 565.0, "net_gamma": 90_000_000},
+            {"strike": 570.0, "net_gamma": 310_000_000},
+        ],
+        "as_of": "2026-09-19T15:30:00+00:00",
+        "source": "yfinance-bs-estimate",
+    }
+
+
+def _gamma_exposure_history() -> dict:
+    return {
+        "symbol": "SPY",
+        "days": 30,
+        "points": [
+            {
+                "id": 1,
+                "symbol": "SPY",
+                "captured_at": "2026-09-19T13:30:00+00:00",
+                "spot_price": 567.80,
+                "net_gex": 2_050_000_000,
+                "call_gex": 4_100_000_000,
+                "put_gex": -2_050_000_000,
+                "flip_point": 566.25,
+                "regime": "positive",
+            },
+            {
+                "id": 2,
+                "symbol": "SPY",
+                "captured_at": "2026-09-19T14:30:00+00:00",
+                "spot_price": 563.10,
+                "net_gex": -410_000_000,
+                "call_gex": 3_600_000_000,
+                "put_gex": -4_010_000_000,
+                "flip_point": 566.25,
+                "regime": "negative",
+            },
+            {
+                "id": 3,
+                "symbol": "SPY",
+                "captured_at": "2026-09-19T15:30:00+00:00",
+                "spot_price": 561.40,
+                "net_gex": -1_820_000_000,
+                "call_gex": 3_150_000_000,
+                "put_gex": -4_970_000_000,
+                "flip_point": 566.25,
+                "regime": "negative",
+            },
+        ],
+    }
+
+
+def _empty_gamma_exposure_snapshot() -> dict:
+    return {
+        "symbol": "SPY",
+        "spot_price": 0,
+        "net_gex": 0,
+        "call_gex": 0,
+        "put_gex": 0,
+        "flip_point": None,
+        "regime": "positive",
+        "expirations_used": [],
+        "by_strike": [],
+        "as_of": "",
+        "source": "yfinance-bs-estimate",
+    }
+
+
+def _empty_gamma_exposure_history() -> dict:
+    return {"symbol": "SPY", "days": 30, "points": []}
+
+
 def _company_news() -> dict:
     return {
         "articles": [
@@ -2214,6 +2298,10 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             "/api/sector-rotation": _empty_sector_rotation(),
             "/api/earnings/calendar": _empty_earnings_calendar(),
             "/api/options/chain": _empty_options_chain(),
+            # Longer fragment first: fixture matching is substring-based, and
+            # "/gamma-exposure" is itself a substring of "/gamma-exposure/history".
+            "/api/options/gamma-exposure/history": _empty_gamma_exposure_history(),
+            "/api/options/gamma-exposure": _empty_gamma_exposure_snapshot(),
             "/api/news/company": _empty_company_news(),
             "/api/reddit/trends": _empty_reddit_trends(),
             "/api/reddit/categories": _empty_reddit_categories(),
@@ -2462,6 +2550,10 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         # Options route.
         "/api/options/overview": _options_overview(),
         "/api/options/chain": _options_chain(),
+        # Longer fragment first: fixture matching is substring-based, and
+        # "/gamma-exposure" is itself a substring of "/gamma-exposure/history".
+        "/api/options/gamma-exposure/history": _gamma_exposure_history(),
+        "/api/options/gamma-exposure": _gamma_exposure_snapshot(),
         # Company news (stocks route).
         "/api/news/company": _company_news(),
         # Signa route.

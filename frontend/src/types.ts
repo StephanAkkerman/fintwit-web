@@ -415,6 +415,45 @@ export type OptionsChainResponse = {
   source: string;
 };
 
+export type GammaRegime = 'positive' | 'negative';
+
+export type GammaStrikePoint = {
+  strike: number;
+  net_gamma: number;
+};
+
+export type GammaExposureSnapshot = {
+  symbol: string;
+  spot_price: number;
+  net_gex: number;
+  call_gex: number;
+  put_gex: number;
+  flip_point: number | null;
+  regime: GammaRegime;
+  expirations_used: string[];
+  by_strike: GammaStrikePoint[];
+  as_of: string;
+  source: string;
+};
+
+export type GammaExposureHistoryPoint = {
+  id: number;
+  symbol: string;
+  captured_at: string;
+  spot_price: number;
+  net_gex: number;
+  call_gex: number | null;
+  put_gex: number | null;
+  flip_point: number | null;
+  regime: GammaRegime;
+};
+
+export type GammaExposureHistory = {
+  symbol: string;
+  days: number;
+  points: GammaExposureHistoryPoint[];
+};
+
 export type CompanyNewsArticle = {
   symbols: string[];
   title: string;

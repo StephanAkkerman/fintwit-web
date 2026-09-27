@@ -417,3 +417,89 @@ async def test_ticker_sentiment_defaults_to_null(tweet_repo):
 
     rows = await tweet_repo.latest()
     assert rows[0]["ticker_sentiment"] is None
+
+
+@pytest.mark.asyncio
+async def test_gamma_exposure_repo_add_and_latest_snapshot(gamma_exposure_repo):
+    stored = await gamma_exposure_repo.add_snapshot(
+        {
+            "symbol": "spy",
+            "spot_price": 500.0,
+            "net_gex": -1.2e9,
+            "call_gex": 3.0e9,
+            "put_gex": -4.2e9,
+            "flip_point": 505.0,
+            "regime": "negative",
+        }
+    )
+
+    assert stored["id"] > 0
+    assert stored["symbol"] == "SPY"
+    assert stored["regime"] == "negative"
+
+    latest = await gamma_exposure_repo.latest_snapshot(symbol="SPY")
+    assert latest is not None
+    assert latest["net_gex"] == -1.2e9
+    assert latest["flip_point"] == 505.0
+
+
+@pytest.mark.asyncio
+async def test_gamma_exposure_repo_list_snapshots_oldest_first(gamma_exposure_repo):
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    await gamma_exposure_repo.add_snapshot(
+        {
+            "symbol": "SPY",
+            "captured_at": now - timedelta(hours=2),
+            "spot_price": 495.0,
+            "net_gex": 1.0e9,
+            "regime": "positive",
+        }
+    )
+    await gamma_exposure_repo.add_snapshot(
+        {
+            "symbol": "SPY",
+            "captured_at": now,
+            "spot_price": 500.0,
+            "net_gex": -1.0e9,
+            "regime": "negative",
+        }
+    )
+
+    points = await gamma_exposure_repo.list_snapshots(symbol="SPY")
+    assert len(points) == 2
+    assert points[0]["regime"] == "positive"
+    assert points[1]["regime"] == "negative"
+
+
+@pytest.mark.asyncio
+async def test_gamma_exposure_repo_prune_drops_stale_snapshots(gamma_exposure_repo):
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    await gamma_exposure_repo.add_snapshot(
+        {
+            "symbol": "SPY",
+            "captured_at": now - timedelta(days=200),
+            "spot_price": 480.0,
+            "net_gex": 1.0,
+            "regime": "positive",
+        }
+    )
+    await gamma_exposure_repo.add_snapshot(
+        {
+            "symbol": "SPY",
+            "captured_at": now,
+            "spot_price": 500.0,
+            "net_gex": 1.0,
+            "regime": "positive",
+        }
+    )
+
+    pruned = await gamma_exposure_repo.prune(symbol="SPY", keep_days=180)
+    assert pruned == 1
+
+    remaining = await gamma_exposure_repo.list_snapshots(symbol="SPY")
+    assert len(remaining) == 1
+    assert remaining[0]["spot_price"] == 500.0

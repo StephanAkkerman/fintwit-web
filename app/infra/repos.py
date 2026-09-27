@@ -6,6 +6,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from .db import (
+    GammaExposureSnapshotRow,
     IbkrPositionRow,
     IbkrTradeRow,
     PortfolioPositionRow,
@@ -358,6 +359,102 @@ class PortfolioRepo:
         async with self.Session() as s:
             row = (await s.execute(stmt)).scalars().first()
         return _snapshot_row_to_dict(row) if row else None
+
+
+def _gamma_exposure_row_to_dict(r: GammaExposureSnapshotRow) -> dict:
+    return {
+        "id": r.id,
+        "symbol": r.symbol,
+        "captured_at": _iso_utc(r.captured_at),
+        "spot_price": float(r.spot_price),
+        "net_gex": float(r.net_gex),
+        "call_gex": float(r.call_gex) if r.call_gex is not None else None,
+        "put_gex": float(r.put_gex) if r.put_gex is not None else None,
+        "flip_point": float(r.flip_point) if r.flip_point is not None else None,
+        "regime": r.regime,
+    }
+
+
+class GammaExposureRepo:
+    """Async repo for stored dealer gamma exposure snapshots (issue #85)."""
+
+    def __init__(self, session_factory: async_sessionmaker):
+        self.Session = session_factory
+
+    async def add_snapshot(self, payload: dict) -> dict:
+        """Persist a point-in-time gamma exposure estimate.
+
+        :param payload: Snapshot fields; ``captured_at`` defaults to now (UTC).
+        :return: The stored snapshot as a dict.
+        """
+        row = GammaExposureSnapshotRow(
+            symbol=str(payload.get("symbol", "SPY")).upper(),
+            captured_at=payload.get("captured_at") or datetime.now(timezone.utc),
+            spot_price=float(payload.get("spot_price", 0.0)),
+            net_gex=float(payload.get("net_gex", 0.0)),
+            call_gex=payload.get("call_gex"),
+            put_gex=payload.get("put_gex"),
+            flip_point=payload.get("flip_point"),
+            regime=payload.get("regime", "positive"),
+        )
+        async with self.Session() as s:
+            async with s.begin():
+                s.add(row)
+            await s.refresh(row)
+        return _gamma_exposure_row_to_dict(row)
+
+    async def list_snapshots(
+        self,
+        *,
+        symbol: str = "SPY",
+        since: datetime | None = None,
+        limit: int = 2000,
+    ) -> list[dict]:
+        """Return snapshots oldest-first, optionally filtered by date.
+
+        :param symbol: Underlying the snapshots were captured for.
+        :param since: Only snapshots captured at or after this moment.
+        :param limit: Maximum number of snapshots to return.
+        """
+        stmt = (
+            select(GammaExposureSnapshotRow)
+            .where(GammaExposureSnapshotRow.symbol == symbol.upper())
+            .order_by(GammaExposureSnapshotRow.captured_at.asc())
+        )
+        if since is not None:
+            stmt = stmt.where(GammaExposureSnapshotRow.captured_at >= since)
+        stmt = stmt.limit(limit)
+
+        async with self.Session() as s:
+            rows = (await s.execute(stmt)).scalars().all()
+        return [_gamma_exposure_row_to_dict(r) for r in rows]
+
+    async def latest_snapshot(self, *, symbol: str = "SPY") -> dict | None:
+        """Return the most recent snapshot for ``symbol``, or ``None``."""
+        stmt = (
+            select(GammaExposureSnapshotRow)
+            .where(GammaExposureSnapshotRow.symbol == symbol.upper())
+            .order_by(GammaExposureSnapshotRow.captured_at.desc())
+            .limit(1)
+        )
+        async with self.Session() as s:
+            row = (await s.execute(stmt)).scalars().first()
+        return _gamma_exposure_row_to_dict(row) if row else None
+
+    async def prune(self, *, symbol: str = "SPY", keep_days: int = 180) -> int:
+        """Drop snapshots older than ``keep_days`` for ``symbol``."""
+        cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
+            days=max(1, keep_days)
+        )
+        async with self.Session() as s:
+            async with s.begin():
+                result = await s.execute(
+                    delete(GammaExposureSnapshotRow).where(
+                        GammaExposureSnapshotRow.symbol == symbol.upper(),
+                        GammaExposureSnapshotRow.captured_at < cutoff,
+                    )
+                )
+        return result.rowcount or 0
 
 
 def _ibkr_position_to_dict(r: IbkrPositionRow) -> dict:
