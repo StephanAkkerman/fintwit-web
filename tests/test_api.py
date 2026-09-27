@@ -328,6 +328,7 @@ async def test_options_chain_returns_503_when_service_unavailable(async_client):
 
 @pytest.mark.asyncio
 async def test_news_company_returns_data(async_client):
+    app.state.sentiment_model = None
     with patch("app.api.main.get_company_news", new_callable=AsyncMock) as mock_get:
         mock_get.return_value = [
             {
@@ -348,7 +349,46 @@ async def test_news_company_returns_data(async_client):
     body = response.json()
     assert body["source"] == "yfinance"
     assert len(body["articles"]) == 1
+    # No model loaded: articles keep their shape, just unscored.
+    assert body["articles"][0]["sentiment_label"] is None
+    assert body["sentiment"]["analyzed"] == 0
     mock_get.assert_awaited_once_with(["AAPL"], 10)
+
+
+@pytest.mark.asyncio
+async def test_news_company_scores_articles_with_sentiment_model(async_client):
+    model = AsyncMock()
+    model.classify_parts.return_value = {
+        "main": {"label": "BEARISH", "score": -0.9},
+        "quoted": None,
+        "tickers": {},
+    }
+    app.state.sentiment_model = model
+    try:
+        with patch("app.api.main.get_company_news", new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = [
+                {
+                    "symbols": ["AAPL"],
+                    "title": "AAPL plunges on probe",
+                    "excerpt": None,
+                    "url": "https://example.com/api-bearish",
+                    "date": "2026-09-01T12:00:00Z",
+                    "source": "Reuters",
+                }
+            ]
+
+            response = await async_client.get(
+                "/api/news/company?symbols=AAPL",
+                headers={"X-API-Key": "test-api-key"},
+            )
+    finally:
+        app.state.sentiment_model = None
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["articles"][0]["sentiment_label"] == "BEARISH"
+    assert body["sentiment"]["bearish"] == 1
+    assert body["sentiment"]["label"] == "BEARISH"
 
 
 @pytest.mark.asyncio

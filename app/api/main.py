@@ -71,7 +71,11 @@ from ..services.ibkr import IbkrGateway
 from ..services.macro_market import get_macro_snapshot
 from ..services.market_hours_service import get_stock_market_hours
 from ..services.nasdaq_service import get_halt_data
-from ..services.news_service import get_company_news
+from ..services.news_service import (
+    annotate_news_sentiment,
+    get_company_news,
+    summarize_news_sentiment,
+)
 from ..services.options_chain_service import get_options_chain
 from ..services.options_service import get_options_overview
 from ..services.price_history_service import (
@@ -439,17 +443,29 @@ async def options_gamma_exposure_history(
 
 @app.get("/api/news/company")
 async def news_company(
+    request: Request,
     symbols: str = Query(...),
     limit: int = Query(default=10, ge=1, le=50),
     _=Depends(api_key_dep),
 ):
+    """Recent headlines per symbol, each scored by FinTwitBERT (issue #180).
+
+    ``sentiment`` summarises the whole batch so the widget can say which way
+    the news is leaning without the reader opening every article.
+    """
     parsed_symbols = [
         part.strip().upper() for part in symbols.split(",") if part.strip()
     ]
     data = await get_company_news(parsed_symbols, limit)
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
-    return {"articles": data, "source": "yfinance"}
+    sentiment_model = getattr(request.app.state, "sentiment_model", None)
+    articles = await annotate_news_sentiment(data, sentiment_model)
+    return {
+        "articles": articles,
+        "sentiment": summarize_news_sentiment(articles),
+        "source": "yfinance",
+    }
 
 
 @app.get("/api/stocks/fear-greed")

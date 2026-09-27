@@ -1,7 +1,20 @@
 import { useEffect, useState } from 'react'
-import type { CompanyNewsResponse } from '../types'
+import type { CompanyNewsResponse, CompanyNewsSentimentSummary } from '../types'
 
-const EMPTY_NEWS: CompanyNewsResponse = { articles: [], source: 'yfinance' }
+export const EMPTY_NEWS_SENTIMENT: CompanyNewsSentimentSummary = {
+  analyzed: 0,
+  bullish: 0,
+  neutral: 0,
+  bearish: 0,
+  mean_score: null,
+  label: null,
+}
+
+const EMPTY_NEWS: CompanyNewsResponse = {
+  articles: [],
+  sentiment: EMPTY_NEWS_SENTIMENT,
+  source: 'yfinance',
+}
 
 function normalizePayload(payload: unknown): CompanyNewsResponse {
   if (!payload || typeof payload !== 'object') return EMPTY_NEWS
@@ -11,6 +24,11 @@ function normalizePayload(payload: unknown): CompanyNewsResponse {
 
   return {
     articles: candidate.articles,
+    // Older backends (and a model-less install) send no summary.
+    sentiment:
+      candidate.sentiment && typeof candidate.sentiment === 'object'
+        ? { ...EMPTY_NEWS_SENTIMENT, ...candidate.sentiment }
+        : EMPTY_NEWS_SENTIMENT,
     source: String(candidate.source ?? 'yfinance'),
   }
 }

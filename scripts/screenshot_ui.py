@@ -1783,37 +1783,95 @@ def _empty_gamma_exposure_history() -> dict:
 
 
 def _company_news() -> dict:
+    def item(title, excerpt, slug, date, source, label, score):
+        return {
+            "symbols": ["AAPL"],
+            "title": title,
+            "excerpt": excerpt,
+            "url": f"https://example.com/news/aapl-{slug}",
+            "date": date,
+            "source": source,
+            "sentiment_label": label,
+            "sentiment_score": score,
+        }
+
+    articles = [
+        item(
+            "Apple unveils new product lineup ahead of holiday season",
+            "The company announced updates across its product line "
+            "during a keynote event.",
+            "lineup",
+            "2026-09-03T14:30:00Z",
+            "Reuters",
+            "BULLISH",
+            0.62,
+        ),
+        item(
+            "EU regulators widen antitrust probe into App Store fees",
+            "Brussels said it would examine whether recent fee changes "
+            "comply with the Digital Markets Act.",
+            "probe",
+            "2026-09-02T17:45:00Z",
+            "Financial Times",
+            "BEARISH",
+            -0.81,
+        ),
+        item(
+            "Analysts raise price targets after strong quarterly guidance",
+            "Several Wall Street analysts increased their price targets "
+            "following the earnings call.",
+            "targets",
+            "2026-09-02T09:15:00Z",
+            "Bloomberg",
+            "BULLISH",
+            0.88,
+        ),
+        item(
+            "Apple to report fiscal fourth-quarter results on Oct. 30",
+            "The company will host a conference call after the close.",
+            "date",
+            "2026-09-01T11:00:00Z",
+            "Business Wire",
+            "NEUTRAL",
+            0.0,
+        ),
+        item(
+            "iPhone shipments in China slip for a second straight month",
+            "Local rivals continued to gain share in the premium segment.",
+            "china",
+            "2026-08-31T06:20:00Z",
+            "CNBC",
+            "BEARISH",
+            -0.54,
+        ),
+    ]
     return {
-        "articles": [
-            {
-                "symbols": ["AAPL"],
-                "title": "Apple unveils new product lineup ahead of holiday season",
-                "excerpt": (
-                    "The company announced updates across its product line "
-                    "during a keynote event."
-                ),
-                "url": "https://example.com/news/aapl-lineup",
-                "date": "2026-09-03T14:30:00Z",
-                "source": "Reuters",
-            },
-            {
-                "symbols": ["AAPL"],
-                "title": "Analysts raise price targets after strong quarterly guidance",
-                "excerpt": (
-                    "Several Wall Street analysts increased their price targets "
-                    "following the earnings call."
-                ),
-                "url": "https://example.com/news/aapl-targets",
-                "date": "2026-09-02T09:15:00Z",
-                "source": "Bloomberg",
-            },
-        ],
+        "articles": articles,
+        "sentiment": {
+            "analyzed": 5,
+            "bullish": 2,
+            "neutral": 1,
+            "bearish": 2,
+            "mean_score": 0.03,
+            "label": "NEUTRAL",
+        },
         "source": "yfinance",
     }
 
 
 def _empty_company_news() -> dict:
-    return {"articles": [], "source": "yfinance"}
+    return {
+        "articles": [],
+        "sentiment": {
+            "analyzed": 0,
+            "bullish": 0,
+            "neutral": 0,
+            "bearish": 0,
+            "mean_score": None,
+            "label": None,
+        },
+        "source": "yfinance",
+    }
 
 
 def _signa_best_trades() -> list[dict]:

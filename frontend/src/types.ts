@@ -465,10 +465,25 @@ export type CompanyNewsArticle = {
   url: string;
   date: string;
   source?: string | null;
+  /** FinTwitBERT read of headline + excerpt; null when the model is not loaded. */
+  sentiment_label?: 'BULLISH' | 'BEARISH' | 'NEUTRAL' | null;
+  /** Signed confidence: +1 confidently bullish, -1 confidently bearish. */
+  sentiment_score?: number | null;
+};
+
+export type CompanyNewsSentimentSummary = {
+  /** Articles that received a score. 0 when the sentiment model is unavailable. */
+  analyzed: number;
+  bullish: number;
+  neutral: number;
+  bearish: number;
+  mean_score: number | null;
+  label: 'BULLISH' | 'BEARISH' | 'NEUTRAL' | null;
 };
 
 export type CompanyNewsResponse = {
   articles: CompanyNewsArticle[];
+  sentiment: CompanyNewsSentimentSummary;
   source: string;
 };
 

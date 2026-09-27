@@ -1,9 +1,24 @@
 import asyncio
 import logging
+from collections import OrderedDict
+from typing import Any, Protocol, Sequence
+
+from ..ml.sentiment import label_from_score
 
 logger = logging.getLogger(__name__)
 
 _DEFAULT_LIMIT = 10
+
+#: Headlines are re-requested every time the widget loads a symbol; the same
+#: article reads the same way every time, so skip the model on a repeat.
+_SENTIMENT_CACHE_MAX = 2000
+_SENTIMENT_CACHE: OrderedDict[tuple[str, str], dict[str, Any]] = OrderedDict()
+
+
+class SentimentModel(Protocol):
+    async def classify_parts(
+        self, text: str, tickers: Sequence[str] | None = None
+    ) -> dict[str, Any]: ...
 
 
 def _normalize_article(item: dict, symbol: str) -> dict | None:
@@ -81,4 +96,100 @@ async def get_company_news(
     if not articles:
         return None
 
+    # Newest first across every requested symbol, so a multi-symbol request is
+    # not truncated down to the first symbol's headlines.
+    articles.sort(key=lambda article: str(article["date"]), reverse=True)
     return articles[:limit]
+
+
+def _article_text(article: dict) -> str:
+    title = str(article.get("title") or "").strip()
+    excerpt = str(article.get("excerpt") or "").strip()
+    if title and not title.endswith((".", "!", "?")):
+        title += "."
+    return f"{title} {excerpt}".strip()
+
+
+async def _classify_article(article: dict, model: SentimentModel) -> dict | None:
+    symbols = [str(sym).upper() for sym in article.get("symbols") or []]
+    key = (str(article.get("url")), ",".join(symbols))
+    cached = _SENTIMENT_CACHE.get(key)
+    if cached is not None:
+        _SENTIMENT_CACHE.move_to_end(key)
+        return cached
+
+    parts = await model.classify_parts(_article_text(article), symbols)
+    main = parts.get("main")
+    if not main:
+        return None
+
+    score = float(main.get("score", 0.0))
+    # An article fetched for one symbol that also discusses others: read the
+    # sentences about that symbol rather than the headline as a whole.
+    per_ticker = parts.get("tickers") or {}
+    for symbol in symbols:
+        if symbol in per_ticker:
+            score = float(per_ticker[symbol])
+            break
+
+    verdict = {"label": label_from_score(score), "score": round(score, 4)}
+    _SENTIMENT_CACHE[key] = verdict
+    while len(_SENTIMENT_CACHE) > _SENTIMENT_CACHE_MAX:
+        _SENTIMENT_CACHE.popitem(last=False)
+    return verdict
+
+
+async def annotate_news_sentiment(
+    articles: list[dict], model: SentimentModel | None
+) -> list[dict]:
+    """Attach FinTwitBERT ``sentiment_label``/``sentiment_score`` to articles.
+
+    Headline and excerpt are classified together. Articles the model could not
+    read (or every article, when no model is loaded) get ``None`` for both, so
+    the response shape never depends on whether the ML stack is installed.
+    """
+    annotated = []
+    for article in articles:
+        verdict = None
+        if model is not None:
+            try:
+                verdict = await _classify_article(article, model)
+            except Exception as exc:
+                logger.warning(
+                    "[news] sentiment failed for %s: %r", article.get("url"), exc
+                )
+        annotated.append(
+            {
+                **article,
+                "sentiment_label": verdict["label"] if verdict else None,
+                "sentiment_score": verdict["score"] if verdict else None,
+            }
+        )
+    return annotated
+
+
+def summarize_news_sentiment(articles: list[dict]) -> dict:
+    """Aggregate per-article sentiment into one read of the news flow.
+
+    :return: ``{analyzed, bullish, neutral, bearish, mean_score, label}``.
+        ``mean_score``/``label`` are ``None`` when no article was scored.
+    """
+    scores = [
+        float(article["sentiment_score"])
+        for article in articles
+        if article.get("sentiment_score") is not None
+    ]
+    labels = [
+        article.get("sentiment_label")
+        for article in articles
+        if article.get("sentiment_score") is not None
+    ]
+    mean = round(sum(scores) / len(scores), 4) if scores else None
+    return {
+        "analyzed": len(scores),
+        "bullish": labels.count("BULLISH"),
+        "neutral": labels.count("NEUTRAL"),
+        "bearish": labels.count("BEARISH"),
+        "mean_score": mean,
+        "label": label_from_score(mean) if mean is not None else None,
+    }
