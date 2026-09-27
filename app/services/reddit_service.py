@@ -110,6 +110,11 @@ def _reddit_credentials_from_env() -> dict[str, str] | None:
     return creds
 
 
+def has_reddit_credentials() -> bool:
+    """Whether Reddit API credentials are configured in the environment."""
+    return _reddit_credentials_from_env() is not None
+
+
 def _normalize_post_payload(data: dict[str, Any], subreddit_name: str) -> dict:
     description = truncate_text(html.unescape(str(data.get("selftext") or "")), 4000)
     description = process_description(description)

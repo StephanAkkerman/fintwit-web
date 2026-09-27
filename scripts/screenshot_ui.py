@@ -2219,6 +2219,15 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             "/api/reddit/categories": _empty_reddit_categories(),
             "/api/admin/access-emails": {"emails": []},
             "/api/overview/trend-summary": _empty_trend_summary(),
+            # First-time visitor with no Signa/Reddit/IBKR setup (issue #169):
+            # both nav sections and the IBKR live-positions panel are hidden.
+            "/api/integrations/status": {"signa": False, "reddit": False},
+            "/api/ibkr/status": {
+                "configured": False,
+                "connected": False,
+                "last_sync": None,
+                "last_error": None,
+            },
         }
 
     insights = _portfolio_insights()
@@ -2259,11 +2268,14 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         ],
         "/api/ibkr/account": {},
         "/api/ibkr/status": {
-            "configured": False,
-            "connected": False,
-            "last_sync": None,
+            "configured": True,
+            "connected": True,
+            "last_sync": "2026-01-01T00:00:00Z",
             "last_error": None,
         },
+        # Whether the self-hosted deployment's own Signa/Reddit API keys are
+        # set (issue #169) — drives whether their nav sections show at all.
+        "/api/integrations/status": {"signa": True, "reddit": True},
         # Object-shaped: the catch-all's `[]` would leave the heatmap and
         # SectorOverviewWidget on their empty states instead of rendering.
         # The trailing "?" keeps this from also matching the /sectors

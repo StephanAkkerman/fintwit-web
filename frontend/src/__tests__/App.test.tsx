@@ -422,7 +422,7 @@ describe('App', () => {
     })
   })
 
-  it('shows debug admin panel when navigating to /admin', async () => {
+  it('shows access allowlist panel when navigating to /admin', async () => {
     fetchMock.mockImplementation((input: string | URL | Request) => {
       const url = String(input)
       if (url.includes('/api/posts')) {
@@ -451,8 +451,8 @@ describe('App', () => {
       if (url.includes('/api/spy-heatmap')) {
         return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response)
       }
-      if (url.includes('/api/debug/tweet')) {
-        return Promise.resolve({ ok: true, json: async () => ({ id: 123, text: 'Debug tweet' }) } as Response)
+      if (url.includes('/api/admin/access-emails')) {
+        return Promise.resolve({ ok: true, json: async () => ({ emails: [] }) } as Response)
       }
       if (url.includes('/api/ibkr/status')) {
         return Promise.resolve(
@@ -479,7 +479,7 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open /admin' }))
 
     await waitFor(() => {
-      expect(screen.getByText(/debug admin panel/i)).toBeInTheDocument()
+      expect(screen.getByText(/cloudflare access allowlist/i)).toBeInTheDocument()
     })
     expect(window.location.pathname).toBe('/admin')
   })
@@ -490,9 +490,144 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open /portfolio' }))
 
     await waitFor(() => {
-      expect(screen.getByText(/ibkr live positions/i)).toBeInTheDocument()
+      expect(screen.getByText(/ibkr portfolio/i)).toBeInTheDocument()
     })
     expect(window.location.pathname).toBe('/portfolio')
+  })
+
+  it('hides the IBKR live positions panel when IBKR is not configured', async () => {
+    render(<App />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open /portfolio' }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/ibkr portfolio/i)).toBeInTheDocument()
+    })
+    expect(screen.queryByText(/ibkr live positions/i)).not.toBeInTheDocument()
+  })
+
+  it('shows the IBKR live positions panel when IBKR is configured', async () => {
+    fetchMock.mockImplementation((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/api/ibkr/status')) {
+        return Promise.resolve(
+          {
+            ok: true,
+            json: async () => ({ configured: true, connected: true, last_sync: null, last_error: null }),
+          } as Response
+        )
+      }
+      if (url.includes('/api/posts')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/portfolio/positions')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/portfolio/summary')) {
+        return Promise.resolve(
+          {
+            ok: true,
+            json: async () => ({
+              totals: {
+                positions: 0,
+                market_value: 0,
+                cost_basis: 0,
+                unrealized_pnl: 0,
+                unrealized_pnl_percent: 0,
+              },
+              positions: [],
+            }),
+          } as Response
+        )
+      }
+      if (url.includes('/api/ibkr/positions')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/ibkr/trades')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/ibkr/account')) {
+        return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
+    })
+
+    render(<App />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open /portfolio' }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/ibkr live positions/i)).toBeInTheDocument()
+    })
+  })
+
+  it('hides the Signa and Reddit nav sections when unconfigured', async () => {
+    fetchMock.mockImplementation((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/api/integrations/status')) {
+        return Promise.resolve({ ok: true, json: async () => ({ signa: false, reddit: false }) } as Response)
+      }
+      if (url.includes('/api/posts')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/ibkr/positions') || url.includes('/api/ibkr/trades')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
+    })
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Open /signa' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Open /reddit' })).not.toBeInTheDocument()
+    })
+  })
+
+  it('shows the Signa and Reddit nav sections when configured', async () => {
+    fetchMock.mockImplementation((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/api/integrations/status')) {
+        return Promise.resolve({ ok: true, json: async () => ({ signa: true, reddit: true }) } as Response)
+      }
+      if (url.includes('/api/posts')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/ibkr/positions') || url.includes('/api/ibkr/trades')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
+    })
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Open /signa' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Open /reddit' })).toBeInTheDocument()
+    })
+  })
+
+  it('redirects home when navigating directly to /signa while unconfigured', async () => {
+    window.history.pushState({}, '', '/signa')
+    fetchMock.mockImplementation((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/api/integrations/status')) {
+        return Promise.resolve({ ok: true, json: async () => ({ signa: false, reddit: true }) } as Response)
+      }
+      if (url.includes('/api/posts')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      if (url.includes('/api/ibkr/positions') || url.includes('/api/ibkr/trades')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response)
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) } as Response)
+    })
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(window.location.pathname).toBe('/')
+    })
   })
 
   it('filters tweets by ticker when a financial ticker is clicked', async () => {

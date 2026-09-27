@@ -21,6 +21,11 @@ def _normalize_ticker(ticker: str) -> str:
     return (ticker or "").strip().upper()
 
 
+def has_signa_key() -> bool:
+    """Whether a ``SIGNA_KEY`` is configured for the authenticated endpoints."""
+    return bool(os.getenv("SIGNA_KEY"))
+
+
 class SignaClient:
     """Minimal Signa REST client with local caching and quota guards.
 

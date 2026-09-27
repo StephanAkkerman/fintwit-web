@@ -71,10 +71,14 @@ from ..services.price_history_service import (
     RANGE_PRESETS,
     normalize_range,
 )
-from ..services.reddit_service import get_reddit_hot_posts, is_valid_subreddit_name
+from ..services.reddit_service import (
+    get_reddit_hot_posts,
+    has_reddit_credentials,
+    is_valid_subreddit_name,
+)
 from ..services import reddit_trends_service
 from ..services.sector_rotation_service import get_sector_rotation
-from ..services.signa import get_signa_best_trades, get_signa_live_feed
+from ..services.signa import get_signa_best_trades, get_signa_live_feed, has_signa_key
 from ..services.stock_fear_greed_service import get_stock_feargreed
 from ..services.stocktwits_service import get_stocktwits_data
 from ..services.trader_scoring import extract_calls
@@ -581,6 +585,19 @@ async def reddit_subreddit_summary(
     except Exception as exc:
         logger.warning("[reddit-trends] subreddit summary failed: %r", exc)
         raise HTTPException(status_code=503, detail="Service Unavailable") from None
+
+
+@app.get("/api/integrations/status")
+async def integrations_status(_=Depends(api_key_dep)):
+    """Whether user-supplied third-party integrations are configured.
+
+    The frontend uses this to hide sections (Signa, Reddit) that need a
+    self-hosted user's own API keys before they show any data.
+    """
+    return {
+        "signa": has_signa_key(),
+        "reddit": has_reddit_credentials(),
+    }
 
 
 class DebugTweet(BaseModel):
