@@ -175,7 +175,7 @@ Last updated: 2026-09-22 (ticker-classifier>=0.1.5 fundamentals wired in as a fa
 - Sector/industry mentions: `/api/overview/sector-mentions` -> `useSectorMentions` -> `SectorMentionsWidget` (shown on `/stocks` with a 24h window; expand a sector for its industry breakdown, click a ticker chip to apply the sidebar ticker filter) (issue #104).
 - Sector/industry emojis + trend colors: each sector/industry carries a fixed emoji + colour badge (`utils/sectorStyle.ts`) on `SectorMentionsWidget`, `SectorOverviewWidget`, and each tweet card's asset block (`AssetFundamentals`); `SectorMentionsWidget` additionally shows a momentum badge (🔥 Hot / 📈 Rising / 📉 Cooling down / 🌱 Rarely mentioned / ➖ Steady) driven by the `trend` field `get_sector_mentions` now computes from mentions vs. the prior window (issue #146).
 - Ticker detail modal: `/api/overview/ticker-timeseries` -> `useTickerTimeseries` -> `TickerDetailModal` (mentions-over-time chart, bullish/bearish sentiment breakdown, and summary stats; opened by clicking any ticker across `TweetCard`, `MentionHeatmap`).
-- Debug admin panel: `/api/debug/tweet` -> `DebugAdminPanel` (`/admin`).
+- Access allowlist panel: `/api/admin/access-emails` -> `AccessAllowlistPanel` (`/admin`).
 - Portfolio panel: `/api/portfolio/positions` + `/api/portfolio/summary` -> `PortfolioPanel` (`/portfolio`).
 - Portfolio ticker badges: `/api/portfolio/positions` -> `usePortfolioTickers` -> `TweetCard` financial asset blocks (all routes).
 - Portfolio value chart: `/api/portfolio/history` -> `usePortfolioHistory` -> `PortfolioValueChart` (`/portfolio`).
@@ -183,6 +183,7 @@ Last updated: 2026-09-22 (ticker-classifier>=0.1.5 fundamentals wired in as a fa
 - Portfolio balance/sectors: `/api/portfolio/insights` -> `usePortfolioInsights` -> `PortfolioDiversification` (`/portfolio`).
 - WallStreetBets panel: `/api/reddit/wsb` -> `useRedditWsb` -> `RedditWsbWidget` (`/reddit`, "Posts" tab).
 - Reddit trend ranking: `/api/reddit/trends` -> `RedditTrendsWidget` (`/`, and `/reddit` "Trends" tab).
+- Hide unconfigured integrations (issue #169): `/api/integrations/status` -> `useIntegrationsStatus` hides the Signa/Reddit nav sections (and redirects home if navigated to directly) when this deployment's own `SIGNA_KEY` / Reddit credentials aren't set; the IBKR live-positions panel on `/portfolio` is likewise omitted (instead of a "not enabled" banner) unless `/api/ibkr/status.configured` is true.
 - Reddit subreddit catalogue: `/api/reddit/categories` -> `useRedditCategories` -> `RedditSection` subreddit filter (`/reddit`).
 - Stock market-hours banner: `/api/stocks/market-hours` -> `StockMarketHoursBanner` (`/stocks`).
 - Economic events panel: `/api/events/economic` -> `EconomicEventsWidget` (`/forex`).

@@ -18,7 +18,6 @@ import type { LucideIcon } from 'lucide-react'
 import AccessAllowlistPanel from './components/AccessAllowlistPanel'
 import BinanceGainersLosersWidget from './components/BinanceGainersLosersWidget'
 import CompanyNewsWidget from './components/CompanyNewsWidget'
-import DebugAdminPanel from './components/DebugAdminPanel'
 import EarningsCalendarWidget from './components/EarningsCalendarWidget'
 import EconomicEventsWidget from './components/EconomicEventsWidget'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -52,6 +51,7 @@ import TreemapWidget from './components/TreemapWidget'
 import TrendingCryptoWidget from './components/TrendingCryptoWidget'
 import TweetCard from './components/TweetCard'
 import { useIbkr } from './hooks/useIbkr'
+import { useIntegrationsStatus } from './hooks/useIntegrationsStatus'
 import { useTweets } from './hooks/useTweets'
 import { useMentionFrequency } from './hooks/useMentionFrequency'
 import { useTraderCredibility } from './hooks/useTraderCredibility'
@@ -92,7 +92,7 @@ const SECTIONS: Array<{ key: RouteKey; label: string; path: string; subtitle: st
   { key: 'reddit', label: 'Reddit', path: '/reddit', subtitle: 'WallStreetBets posts and cross-subreddit ticker trends', icon: MessagesSquare },
   { key: 'traders', label: 'Traders', path: '/traders', subtitle: 'Credibility leaderboard: whose calls actually work out', icon: Trophy },
   { key: 'portfolio', label: 'Portfolio', path: '/portfolio', subtitle: 'Value over time, asset context and PnL', icon: Wallet },
-  { key: 'admin', label: 'Admin', path: '/admin', subtitle: 'Debug tweet injection, Access allowlist', icon: ShieldCheck },
+  { key: 'admin', label: 'Admin', path: '/admin', subtitle: 'Access allowlist', icon: ShieldCheck },
 ]
 
 function routeFromPath(pathname: string): RouteKey {
@@ -232,6 +232,7 @@ export default function App() {
     lastLoadedCount,
   } = useTweets('', 2000, 200, route === 'options', lookbackHours) // same-origin API (proxied in dev)
   const { status: ibkrStatus, positions: ibkrPositions, trades: ibkrTrades, account: ibkrAccount, loading: ibkrLoading, error: ibkrError, reload: reloadIbkr } = useIbkr()
+  const { signa: signaConfigured, reddit: redditConfigured } = useIntegrationsStatus()
   const [tickerFilter, setTickerFilter] = useState<string | null>(null)
   const [tickerInput, setTickerInput] = useState('')
   const [userFilter, setUserFilter] = useState<string | null>(null)
@@ -256,6 +257,22 @@ export default function App() {
     setRoute(nextRoute)
     setMobileNavOpen(false)
   }
+
+  useEffect(() => {
+    if (route === 'signa' && signaConfigured === false) navigateTo('home')
+    if (route === 'reddit' && redditConfigured === false) navigateTo('home')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route, signaConfigured, redditConfigured])
+
+  const visibleSections = useMemo(
+    () =>
+      SECTIONS.filter((section) => {
+        if (section.key === 'signa') return signaConfigured !== false
+        if (section.key === 'reddit') return redditConfigured !== false
+        return true
+      }),
+    [signaConfigured, redditConfigured]
+  )
 
   const effectiveFilter: FilterKey =
     route === 'crypto'
@@ -406,7 +423,7 @@ export default function App() {
               </button>
             </div>
             <div className="mt-2 flex flex-col gap-1">
-              {SECTIONS.map((section) => {
+              {visibleSections.map((section) => {
                 const active = section.key === route
                 const Icon = section.icon
                 return (
@@ -834,17 +851,19 @@ export default function App() {
                 <ErrorBoundary label="Portfolio balance and sectors">
                   <PortfolioDiversification />
                 </ErrorBoundary>
-                <ErrorBoundary label="IBKR live positions">
-                  <IbkrPanel
-                    status={ibkrStatus}
-                    positions={ibkrPositions}
-                    trades={ibkrTrades}
-                    account={ibkrAccount}
-                    loading={ibkrLoading}
-                    error={ibkrError}
-                    reload={reloadIbkr}
-                  />
-                </ErrorBoundary>
+                {ibkrStatus?.configured !== false && (
+                  <ErrorBoundary label="IBKR live positions">
+                    <IbkrPanel
+                      status={ibkrStatus}
+                      positions={ibkrPositions}
+                      trades={ibkrTrades}
+                      account={ibkrAccount}
+                      loading={ibkrLoading}
+                      error={ibkrError}
+                      reload={reloadIbkr}
+                    />
+                  </ErrorBoundary>
+                )}
                 <ErrorBoundary label="Portfolio positions">
                   <PortfolioPanel />
                 </ErrorBoundary>
@@ -852,14 +871,9 @@ export default function App() {
             )}
 
             {route === 'admin' && (
-              <>
-                <ErrorBoundary label="Access allowlist">
-                  <AccessAllowlistPanel />
-                </ErrorBoundary>
-                <ErrorBoundary label="Debug admin">
-                  <DebugAdminPanel />
-                </ErrorBoundary>
-              </>
+              <ErrorBoundary label="Access allowlist">
+                <AccessAllowlistPanel />
+              </ErrorBoundary>
             )}
 
             {route !== 'signa' && route !== 'reddit' && route !== 'traders' && route !== 'movers' && (

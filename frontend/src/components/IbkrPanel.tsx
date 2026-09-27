@@ -34,28 +34,14 @@ function PnlCell({ value }: { value: number }) {
 }
 
 function StatusBadge({
-  configured,
   connected,
   lastSync,
   lastError,
 }: {
-  configured: boolean
   connected: boolean
   lastSync: string | null
   lastError: string | null
 }) {
-  if (!configured) {
-    return (
-      <div className="rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-400">
-        IBKR sync not enabled. Set{' '}
-        <code className="text-zinc-300">IBKR_ENABLED=true</code> and add{' '}
-        <code className="text-zinc-300">TWS_USERID</code> /{' '}
-        <code className="text-zinc-300">TWS_PASSWORD</code> to your{' '}
-        <code className="text-zinc-300">.env</code>.
-      </div>
-    )
-  }
-
   const dotColor = connected ? 'bg-green-500' : 'bg-red-500'
   const label = connected ? 'Connected' : 'Disconnected'
   const syncText = lastSync
@@ -259,7 +245,6 @@ export default function IbkrPanel({
 
       {status && (
         <StatusBadge
-          configured={status.configured}
           connected={status.connected}
           lastSync={status.last_sync}
           lastError={status.last_error}

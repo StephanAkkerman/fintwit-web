@@ -882,6 +882,11 @@ export type IbkrStatus = {
   last_error: string | null;
 };
 
+export type IntegrationsStatus = {
+  signa: boolean;
+  reddit: boolean;
+};
+
 export type AssetKind = 'all' | 'EQUITY' | 'CRYPTO' | 'FOREX';
 
 export type SentimentLabel = 'BULL' | 'BEAR' | 'NEUTRAL';
