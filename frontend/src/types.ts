@@ -1171,3 +1171,11 @@ export type MoversResponse = {
   category: MoverCategory | string
   movers: MoverItem[]
 }
+
+export type XStreamState = 'disabled' | 'connecting' | 'ok' | 'auth_failed' | 'error';
+
+export type XStreamStatus = {
+  state: XStreamState;
+  source: 'cookies' | 'curl' | null;
+  detail: string | null;
+};

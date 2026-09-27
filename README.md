@@ -91,10 +91,10 @@ sentiment-scored, and matched with a live price card, alongside cross-market ove
 ## Quick Start Guide 🚀
 
 1. Install backend and frontend dependencies (see [Installation](#installation-)).
-2. Complete the [Manual Setup](#manual-setup-click-ops) steps below — at minimum, capture
-   `curl.txt` so the tweet stream can authenticate to X.
-3. Copy `.env.example` to `.env` and fill in the values you need.
-4. Run backend and frontend together from the repo root:
+2. Copy `.env.example` to `.env` and set `X_AUTH_TOKEN` and `X_CT0` (see
+   [X session cookies](#x-session-cookies-for-the-tweet-timeline)). Everything else is optional;
+   without these two the dashboard still runs, just without the tweet timeline.
+3. Run backend and frontend together from the repo root:
 
 ```bash
 npm run dev
@@ -109,21 +109,36 @@ A few one-time steps can't be automated by Terraform or Docker — they involve 
 third-party dashboard or an interactive login flow. Do these before your first deploy; you
 only need the ones for features you actually want to use.
 
-### Capture `curl.txt` for the X/Twitter stream (required)
+### X session cookies (for the tweet timeline)
 
-The tweet stream authenticates as your own logged-in X session via a captured request, not an
-official API key. The backend won't start streaming — and the Docker image won't even build,
-since it `COPY`s `curl.txt` in — without this file at the repo root:
+The tweet timeline streams your X **Following** feed as your own logged-in session, not through
+an official API key. It needs two cookies from that session:
 
-1. Log into [x.com](https://x.com) in your browser and open the Following timeline.
-2. Open DevTools (F12) → **Network** tab, and find a `HomeTimeline` or `HomeLatestTimeline`
-   request (reload the timeline if you don't see one yet).
-3. Right-click the request → **Copy** → **Copy as cURL** (bash for Chrome/Edge, posix for
-   Firefox).
-4. Paste the copied command into a new file named `curl.txt` at the repo root.
+1. Log into [x.com](https://x.com) in your browser.
+2. Open DevTools (F12) → **Application** tab (Firefox: **Storage**) → **Cookies** →
+   `https://x.com`.
+3. Copy the values of `auth_token` and `ct0` into `.env`:
 
-`curl.txt` contains your session cookies — it's already gitignored, never commit it, and treat
-it like a password. The session will eventually expire and need to be recaptured.
+```bash
+X_AUTH_TOKEN=...
+X_CT0=...
+```
+
+These cookies grant full access to your X account: `.env` is gitignored, never commit it, and
+treat the values like a password. They stay valid until that browser session is logged out;
+when X starts rejecting them, the timeline shows an "X session expired" notice — recapture
+both values and restart the backend.
+
+Without them the rest of the dashboard works normally and the timeline explains how to connect.
+
+<details>
+<summary>Already have a <code>curl.txt</code>?</summary>
+
+A captured `HomeLatestTimeline` request (DevTools → Network → right-click → Copy as cURL) still
+works when `X_AUTH_TOKEN`/`X_CT0` are unset: put it at the repo root for local runs, or at
+`state/curl.txt` for Docker. `X_CURL_PATH` overrides the location.
+
+</details>
 
 ### Cloudflare account, API token, and domain delegation (for public hosting)
 
@@ -178,9 +193,10 @@ cd fintwit-web
 cp .env.example .env
 ```
 
-Place your captured `curl.txt` at the repo root (see [Manual Setup](#manual-setup-click-ops))
-and fill in `.env`. Keep env formatting as `KEY=value` (no spaces around `=`) for max
-compatibility.
+Fill in `.env` — at minimum `X_AUTH_TOKEN` and `X_CT0` for the tweet timeline (see
+[X session cookies](#x-session-cookies-for-the-tweet-timeline)). Keep env formatting as
+`KEY=value` (no spaces around `=`) for max compatibility. Every `.env` value is passed to the
+backend container.
 
 ### 3) Build and run (localhost-only)
 
@@ -435,8 +451,13 @@ default — no IBKR or Cloudflare account needed).
 ## Environment Variables
 
 All environment variables are documented in [`.env.example`](.env.example) — copy it to `.env`
-and fill in what you need. Everything besides the X/Twitter stream (see
-[Manual Setup](#manual-setup-click-ops)) is optional and has a sensible default.
+and fill in what you need. Only `X_AUTH_TOKEN` and `X_CT0` matter for a first run (see
+[X session cookies](#x-session-cookies-for-the-tweet-timeline)); everything else is optional and
+has a sensible default.
+
+Setting `API_KEY` protects the backend's `/api` with an `X-API-Key` header. The dashboard keeps
+working because the frontend's proxy (nginx in Docker, Vite in dev) attaches the key
+server-side, so it never reaches the browser.
 
 ## Usage ⌨️
 

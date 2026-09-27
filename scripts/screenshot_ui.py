@@ -2228,6 +2228,13 @@ def fixtures_for(scenario: str) -> dict[str, object]:
                 "last_sync": None,
                 "last_error": None,
             },
+            # A first-time visitor has no X session configured yet, so the
+            # timeline shows the "X timeline not connected" notice.
+            "/api/x/status": {
+                "state": "disabled",
+                "source": None,
+                "detail": "X_AUTH_TOKEN and X_CT0 are not set",
+            },
         }
 
     insights = _portfolio_insights()
@@ -2267,6 +2274,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             for index, position in enumerate(insights["positions"])
         ],
         "/api/ibkr/account": {},
+        "/api/x/status": {"state": "ok", "source": "cookies", "detail": None},
         "/api/ibkr/status": {
             "configured": True,
             "connected": True,

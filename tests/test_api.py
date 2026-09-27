@@ -778,3 +778,19 @@ async def test_reddit_summary_returns_the_snapshot(async_client):
 
     assert response.status_code == 200
     assert response.json()["top_tickers"] == {"NVDA": 7}
+
+
+# ---------------------------------------------------------------------------
+# GET /api/x/status
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_x_status_reports_stream_state(async_client):
+    state = {"state": "auth_failed", "source": "cookies", "detail": "HTTP 401"}
+    with patch.dict("app.api.main.STREAM_STATUS", state):
+        response = await async_client.get(
+            "/api/x/status", headers={"X-API-Key": "test-api-key"}
+        )
+    assert response.status_code == 200
+    assert response.json() == state

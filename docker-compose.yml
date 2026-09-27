@@ -49,31 +49,26 @@ services:
     container_name: fintwit-backend
     restart: unless-stopped
     logging: *default-logging
+    # Every .env value reaches the backend; `environment` below only pins the
+    # few that must differ inside the container.
+    env_file:
+      - path: .env
+        required: false
     environment:
       DB_URL: sqlite+aiosqlite:///./state/data.db
-      API_KEY: ${API_KEY:-}
-      CHART_ENABLED: ${CHART_ENABLED:-true}
-      CHART_EXTRACTION_ENABLED: ${CHART_EXTRACTION_ENABLED:-true}
-      # Only takes effect if the ibgateway service is also started (the
-      # `ibkr` profile); the sync worker retries its own connection, so no
-      # container start-order dependency is needed here.
-      IBKR_ENABLED: ${IBKR_ENABLED:-false}
+      # The `ibkr` profile's service name; IBKR_ENABLED=true in .env turns the
+      # sync worker on, which retries its own connection, so no start-order
+      # dependency is needed here.
       IBKR_HOST: ibgateway
-      # Keep this aligned with TRADING_MODE (live=4003, paper=4004).
+      # Container-side socat port (live=4003, paper=4004); the code's default
+      # of 4001 is the host-side mapping.
       IBKR_PORT: ${IBKR_PORT:-4003}
-      IBKR_SYNC_INTERVAL: "60"
-      # How often the portfolio value snapshot worker records total value.
-      PORTFOLIO_SNAPSHOT_INTERVAL: ${PORTFOLIO_SNAPSHOT_INTERVAL:-1800}
-      # Optional: lets the Admin page's Access panel manage who can log in
-      # through the Cloudflare Tunnel. Leave unset if not using that panel.
-      CLOUDFLARE_ACCESS_API_TOKEN: ${CLOUDFLARE_ACCESS_API_TOKEN:-}
-      CLOUDFLARE_ACCOUNT_ID: ${CLOUDFLARE_ACCOUNT_ID:-}
-      CLOUDFLARE_ACCESS_APP_ID: ${CLOUDFLARE_ACCESS_APP_ID:-}
-      CLOUDFLARE_ACCESS_POLICY_ID: ${CLOUDFLARE_ACCESS_POLICY_ID:-}
+      # A curl.txt placed in ./state/ is picked up when X_AUTH_TOKEN/X_CT0
+      # are not set (legacy auth; see README).
+      X_CURL_PATH: state/curl.txt
     volumes:
       - ./state:/app/state
       - ./logs:/app/logs
-      - ./.env:/app/.env:ro
     ports:
       - "127.0.0.1:7999:7999"
 
@@ -82,6 +77,10 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: fintwit-frontend
+    environment:
+      # nginx adds this as X-API-Key to proxied /api calls, so setting
+      # API_KEY protects the backend port without locking out the dashboard.
+      API_KEY: ${API_KEY:-}
     depends_on:
       - backend
     restart: unless-stopped

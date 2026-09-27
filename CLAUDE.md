@@ -58,7 +58,7 @@ The legacy source is at `e:/GitHub/fintwit-bot/`. Key directories:
 `ticker_price_data`. It was extracted from `app/services/` so the pricing pipeline can be
 reused across repos; do not re-add local `yahoo.py`/`coingecko.py` modules.
 
-**Data flow:** Lifespan starts DB + `run_stream()` → polls X/Twitter via `xtimeline` (auth from `curl.txt`) → enriches with `ticker-classifier` + live prices (`ticker-price-data`) → upserts to SQLite → broadcasts to SSE subscribers.
+**Data flow:** Lifespan starts DB + `run_stream()` → polls X/Twitter via `xtimeline` (auth from the `X_AUTH_TOKEN`/`X_CT0` session cookies, or a legacy `curl.txt`; the stream is skipped when neither is set, and `/api/x/status` reports why) → enriches with `ticker-classifier` + live prices (`ticker-price-data`) → upserts to SQLite → broadcasts to SSE subscribers.
 
 **Database:** SQLite at `./data.db`; override with `DB_URL` env var. PostgreSQL also supported.
 

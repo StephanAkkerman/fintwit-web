@@ -50,12 +50,14 @@ import TraderLeaderboardWidget from './components/TraderLeaderboardWidget'
 import TreemapWidget from './components/TreemapWidget'
 import TrendingCryptoWidget from './components/TrendingCryptoWidget'
 import TweetCard from './components/TweetCard'
+import XStreamNotice from './components/XStreamNotice'
 import { useIbkr } from './hooks/useIbkr'
 import { useIntegrationsStatus } from './hooks/useIntegrationsStatus'
 import { useTweets } from './hooks/useTweets'
 import { useMentionFrequency } from './hooks/useMentionFrequency'
 import { useTraderCredibility } from './hooks/useTraderCredibility'
 import { usePortfolioTickers } from './hooks/usePortfolioTickers'
+import { useXStatus } from './hooks/useXStatus'
 import type { AssetKind, Tweet } from './types'
 import { hasChartSignal } from './utils/tweetSignals'
 
@@ -231,6 +233,7 @@ export default function App() {
     lastLoadDurationMs,
     lastLoadedCount,
   } = useTweets('', 2000, 200, route === 'options', lookbackHours) // same-origin API (proxied in dev)
+  const xStatus = useXStatus()
   const { status: ibkrStatus, positions: ibkrPositions, trades: ibkrTrades, account: ibkrAccount, loading: ibkrLoading, error: ibkrError, reload: reloadIbkr } = useIbkr()
   const { signa: signaConfigured, reddit: redditConfigured } = useIntegrationsStatus()
   const [tickerFilter, setTickerFilter] = useState<string | null>(null)
@@ -878,6 +881,7 @@ export default function App() {
 
             {route !== 'signa' && route !== 'reddit' && route !== 'traders' && route !== 'movers' && (
               <>
+                <XStreamNotice status={xStatus} />
                 {displayedTweets.map((t) => (
                   // Per card: tweet payloads vary with upstream, and one
                   // malformed post should cost its own card, not the timeline.

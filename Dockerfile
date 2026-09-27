@@ -48,7 +48,6 @@ if expected and actual != expected:
 PY
 
 COPY app ./app
-COPY curl.txt ./curl.txt
 
 EXPOSE 7999
 

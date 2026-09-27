@@ -46,7 +46,7 @@ from ..runtime.portfolio_valuation import (
     resolve_holdings,
     value_holdings,
 )
-from ..runtime.streamer import run_stream
+from ..runtime.streamer import STREAM_STATUS, run_stream
 from ..runtime.symbols import merge_symbols
 from ..runtime.trader_evaluator import (
     DEFAULT_INTERVAL as TRADER_EVAL_INTERVAL,
@@ -993,6 +993,12 @@ async def portfolio_insights(
         "highlights": highlights,
         **diversification,
     }
+
+
+@app.get("/api/x/status")
+async def x_status(_=Depends(api_key_dep)):
+    """Whether the X timeline stream is configured and authenticating."""
+    return dict(STREAM_STATUS)
 
 
 @app.get("/api/ibkr/status")
