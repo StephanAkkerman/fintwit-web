@@ -16,6 +16,17 @@ class DummyTweet:
         return dict(self._payload)
 
 
+@pytest.fixture(autouse=True)
+def curl_credentials(tmp_path, monkeypatch):
+    """Authenticate via a curl file so run_stream doesn't skip the stream."""
+    curl_path = tmp_path / "curl.txt"
+    curl_path.write_text("curl 'https://x.com/i/api/graphql/q/HomeLatestTimeline'")
+    monkeypatch.delenv("X_AUTH_TOKEN", raising=False)
+    monkeypatch.delenv("X_CT0", raising=False)
+    monkeypatch.setenv("X_CURL_PATH", str(curl_path))
+    return curl_path
+
+
 def make_client_class(tweet: DummyTweet):
     class DummyXTimelineClient:
         instances = []
@@ -728,3 +739,68 @@ async def test_run_stream_skips_image_ocr_when_ticker_already_mentioned(
     persisted = repo.upsert_many.await_args.args[0][0]
     assert persisted["image_text"] is None
     mock_extract_image_text.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# Credentials and status
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_run_stream_without_credentials_is_disabled(tmp_path, monkeypatch):
+    monkeypatch.setenv("X_CURL_PATH", str(tmp_path / "missing.txt"))
+    client_cls = MagicMock()
+
+    with patch("app.runtime.streamer.xclient.XTimelineClient", client_cls):
+        await asyncio.wait_for(
+            streamer.run_stream(MagicMock(), MagicMock()), timeout=1.0
+        )
+
+    client_cls.assert_not_called()
+    client_cls.from_cookies.assert_not_called()
+    assert streamer.STREAM_STATUS["state"] == "disabled"
+
+
+def test_credential_source_prefers_cookies_over_curl(monkeypatch):
+    monkeypatch.setenv("X_AUTH_TOKEN", "tok")
+    monkeypatch.setenv("X_CT0", "csrf")
+    assert streamer._credential_source() == "cookies"
+
+
+def test_credential_source_needs_both_cookies(monkeypatch, tmp_path):
+    monkeypatch.setenv("X_AUTH_TOKEN", "tok")
+    monkeypatch.setenv("X_CURL_PATH", str(tmp_path / "missing.txt"))
+    assert streamer._credential_source() is None
+
+
+def test_open_client_from_cookies_passes_env(monkeypatch):
+    monkeypatch.setenv("X_AUTH_TOKEN", "tok")
+    monkeypatch.setenv("X_CT0", "csrf")
+    monkeypatch.setenv("X_TIMELINE_QUERY_ID", "qid")
+    client_cls = MagicMock()
+
+    with patch("app.runtime.streamer.xclient.XTimelineClient", client_cls):
+        streamer._open_client("cookies", "state/last_id.txt")
+
+    client_cls.from_cookies.assert_called_once_with(
+        "tok", "csrf", query_id="qid", persist_last_id_path="state/last_id.txt"
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "http_status,state",
+    [(200, "ok"), (401, "auth_failed"), (403, "auth_failed"), (429, "error")],
+)
+async def test_watch_status_mirrors_last_http_status(monkeypatch, http_status, state):
+    monkeypatch.setattr(streamer, "STATUS_POLL_INTERVAL_S", 0.01)
+    xc = MagicMock(last_status=http_status)
+
+    task = asyncio.create_task(streamer._watch_status(xc, "cookies"))
+    await asyncio.sleep(0.05)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert streamer.STREAM_STATUS["state"] == state
+    assert streamer.STREAM_STATUS["source"] == "cookies"

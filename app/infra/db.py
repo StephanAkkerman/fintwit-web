@@ -192,6 +192,33 @@ class PortfolioSnapshotRow(Base):
     )
 
 
+class GammaExposureSnapshotRow(Base):
+    """Point-in-time estimate of dealer gamma exposure for an underlying (issue #85).
+
+    OI-derived gamma barely moves intraday, but spot does — and spot is what
+    decides which side of the zero-gamma flip point the market sits on, so
+    the regime can flip through the day even between OI updates. Storing a
+    snapshot each pass (rather than just serving a live computation) is what
+    lets the UI plot the regime over time instead of only the current one.
+    """
+
+    __tablename__ = "gamma_exposure_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(String, index=True, default="SPY")
+    captured_at: Mapped[DateTime] = mapped_column(DateTime, index=True)
+    spot_price: Mapped[float] = mapped_column(Float)
+    net_gex: Mapped[float] = mapped_column(Float)
+    call_gex: Mapped[float] = mapped_column(Float, nullable=True)
+    put_gex: Mapped[float] = mapped_column(Float, nullable=True)
+    flip_point: Mapped[float] = mapped_column(Float, nullable=True)
+    regime: Mapped[str] = mapped_column(String, index=True)
+
+    __table_args__ = (
+        Index("ix_gamma_exposure_symbol_captured", "symbol", "captured_at"),
+    )
+
+
 class IbkrPositionRow(Base):
     __tablename__ = "ibkr_positions"
 

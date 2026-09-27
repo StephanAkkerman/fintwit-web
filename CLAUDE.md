@@ -58,9 +58,14 @@ The legacy source is at `e:/GitHub/fintwit-bot/`. Key directories:
 `ticker_price_data`. It was extracted from `app/services/` so the pricing pipeline can be
 reused across repos; do not re-add local `yahoo.py`/`coingecko.py` modules.
 
-**Data flow:** Lifespan starts DB + `run_stream()` → polls X/Twitter via `xtimeline` (auth from `curl.txt`) → enriches with `ticker-classifier` + live prices (`ticker-price-data`) → upserts to SQLite → broadcasts to SSE subscribers.
+**Data flow:** Lifespan starts DB + `run_stream()` → polls X/Twitter via `xtimeline` (auth from the `X_AUTH_TOKEN`/`X_CT0` session cookies, or a legacy `curl.txt`; the stream is skipped when neither is set, and `/api/x/status` reports why) → enriches with `ticker-classifier` + live prices (`ticker-price-data`) → upserts to SQLite → broadcasts to SSE subscribers.
 
 **Database:** SQLite at `./data.db`; override with `DB_URL` env var. PostgreSQL also supported.
+
+**Configuration:** environment variables, read where they are used. Document every new one in
+`docs/configuration.md`; add it to `.env.example` only if a typical install needs to set it
+(keep that file short: it is the first thing a new user reads). If it enables an optional
+integration, add it to `integration_status()` in `app/config.py` so it shows in the startup log.
 
 **ML Models (custom-trained):**
 - [`FinTwitBERT-sentiment`](https://huggingface.co/StephanAkkerman/FinTwitBERT-sentiment) — classifies financial tweet sentiment

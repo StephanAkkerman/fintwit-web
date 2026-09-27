@@ -40,6 +40,20 @@ _ACCOUNT_TAGS = (
 )
 
 
+def default_ibkr_port(host: str, trading_mode: str | None = None) -> int:
+    """API port for ``host`` when ``IBKR_PORT`` isn't set.
+
+    The ``ibgateway`` compose service (ghcr.io/gnzsnz/ib-gateway) relays the API
+    to other containers on 4003 (live) / 4004 (paper). Anything else is a native
+    IB Gateway or compose's host-side mapping, both on 4001 / 4002.
+    """
+    mode = trading_mode if trading_mode is not None else os.getenv("TRADING_MODE")
+    paper = (mode or "live").strip().lower() == "paper"
+    if host == "ibgateway":
+        return 4004 if paper else 4003
+    return 4002 if paper else 4001
+
+
 class IbkrGateway:
     """Persistent, read-only connection to the IB Gateway."""
 
@@ -50,7 +64,9 @@ class IbkrGateway:
         client_id: int | None = None,
     ) -> None:
         self._host = host or os.getenv("IBKR_HOST", "ibgateway")
-        self._port = port or int(os.getenv("IBKR_PORT", "4001"))
+        self._port = port or int(
+            os.getenv("IBKR_PORT") or default_ibkr_port(self._host)
+        )
         self._client_id = client_id or int(os.getenv("IBKR_CLIENT_ID", "1"))
         self._connect_timeout = float(os.getenv("IBKR_CONNECT_TIMEOUT", "30"))
         self.last_sync: datetime | None = None
@@ -158,6 +174,11 @@ class IbkrGateway:
         if self._ib is not None and self._ib.isConnected():
             return True
         return await self.connect()
+
+    @property
+    def address(self) -> str:
+        """``host:port`` the gateway connects to."""
+        return f"{self._host}:{self._port}"
 
     def is_connected(self) -> bool:
         return self._ib is not None and self._ib.isConnected()

@@ -61,7 +61,9 @@ PROBES: list[Probe] = [
             "m=timm.create_model('efficientnet_b0', pretrained=False); "
             "m.eval(); "
             "x=torch.randn(1,3,224,224); "
-            "with torch.no_grad(): y=m(x); "
+            # A `with` block can't follow `;` in a one-liner; this is its
+            # statement form.
+            "torch.set_grad_enabled(False); y=m(x); "
             "print('ok', tuple(y.shape), float(y.mean()))"
         ),
     ),
@@ -81,7 +83,9 @@ PROBES: list[Probe] = [
             "m=timm.create_model('hf_hub:StephanAkkerman/chart-recognizer', pretrained=True); "
             "m.eval(); "
             "x=torch.randn(1,3,224,224); "
-            "with torch.no_grad(): y=m(x); "
+            # A `with` block can't follow `;` in a one-liner; this is its
+            # statement form.
+            "torch.set_grad_enabled(False); y=m(x); "
             "print('ok', tuple(y.shape), float(y.mean()))"
         ),
     ),
