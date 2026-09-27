@@ -130,13 +130,13 @@ it like a password. The session will eventually expire and need to be recaptured
 Only needed if you're exposing the dashboard publicly via the Cloudflare Tunnel setup below:
 
 1. Create a free [Cloudflare](https://dash.cloudflare.com/sign-up) account and add your domain.
-2. At your domain registrar, switch its nameservers to the ones Cloudflare assigns. This is a
-   registrar-level step; it isn't managed by Terraform.
-3. Create an API token at
-   [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens)
-   with **Account: Cloudflare Tunnel Edit**, **Account: Access: Apps and Policies Edit**, and
-   **Zone: DNS Edit** permissions — Terraform uses this to provision the tunnel, DNS record, and
-   Access login gate (see [infra/README.md](infra/README.md)).
+2. At your domain registrar, switch its nameservers to the ones Cloudflare assigns. This is a registrar-level step; it isn't managed by Terraform.
+3. Create an API token at [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens) with:
+- Account → Access: Apps and Policies → Edit (not - Read)
+- Account → Cloudflare Tunnel → Edit
+- Zone → DNS → Edit
+- Zone → Zone → Read
+4. Optional: Set up Access login gate (see [infra/README.md](infra/README.md)).
 
 ### Interactive Brokers login (for portfolio sync)
 
