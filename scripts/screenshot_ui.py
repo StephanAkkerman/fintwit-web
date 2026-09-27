@@ -1675,6 +1675,113 @@ def _empty_options_chain() -> dict:
     }
 
 
+def _gamma_exposure_history() -> dict:
+    """A realistic multi-day run of 30-minute snapshots (issue #85).
+
+    A handful of hand-picked points made the options-page chart look like a
+    stub rather than the days/weeks of history a deployed worker actually
+    accumulates, so this generates several trading days of snapshots
+    instead: spot drifts on a slow day-over-day trend plus an intraday
+    wiggle, the zero-gamma flip point drifts slowly as OI rolls, and
+    regime/net GEX are derived from spot vs. flip point the same way
+    `gamma_exposure_service.get_gamma_exposure` computes them for real --
+    so the mock crosses the flip point (and flips regime) a few times, the
+    way SPY actually does over a few sessions.
+    """
+    start = datetime(2026, 9, 15, 13, 30, tzinfo=timezone.utc)  # Tue 9:30am ET
+    session_points = 14  # 9:30am-4:00pm ET, every 30 minutes
+    trading_days = 4
+
+    points = []
+    point_id = 1
+    for day in range(trading_days):
+        day_start = start + timedelta(days=day)
+        flip_point = 563.0 + day * 1.8  # drifts as open interest rolls
+        for step in range(session_points):
+            t = day * session_points + step
+            drift = day * 2.4
+            intraday = 4.5 * math.sin(step / session_points * math.pi * 1.6)
+            wiggle = 1.2 * math.sin(t * 0.9)
+            spot_price = round(560.0 + drift + intraday + wiggle, 2)
+
+            distance = spot_price - flip_point
+            regime = "positive" if distance >= 0 else "negative"
+            net_gex = round(distance * 380_000_000, -6)
+            call_gex = round(3_800_000_000 + 150_000_000 * math.sin(t * 0.5), -6)
+            put_gex = round(net_gex - call_gex, -6)
+
+            points.append(
+                {
+                    "id": point_id,
+                    "symbol": "SPY",
+                    "captured_at": (
+                        day_start + timedelta(minutes=30 * step)
+                    ).isoformat(),
+                    "spot_price": spot_price,
+                    "net_gex": net_gex,
+                    "call_gex": call_gex,
+                    "put_gex": put_gex,
+                    "flip_point": flip_point,
+                    "regime": regime,
+                }
+            )
+            point_id += 1
+
+    return {"symbol": "SPY", "days": 30, "points": points}
+
+
+def _gamma_exposure_snapshot() -> dict:
+    # The "live" snapshot is just "now" -- keep it consistent with the last
+    # point of the mocked history rather than a disconnected fixed value.
+    latest = _gamma_exposure_history()["points"][-1]
+    flip_point = latest["flip_point"]
+
+    by_strike = []
+    for offset in (-15.0, -10.0, -5.0, 0.0, 5.0, 10.0, 15.0):
+        strike = round(flip_point + offset, 1)
+        # Dealer gamma swings from short (negative) below the flip point to
+        # long (positive) above it, biggest near the money -- same shape
+        # `_zero_gamma_level` looks for when it interpolates the crossing.
+        magnitude = 480_000_000 * math.exp(-((offset / 12.0) ** 2))
+        by_strike.append(
+            {"strike": strike, "net_gamma": round(math.copysign(magnitude, offset), -6)}
+        )
+
+    return {
+        "symbol": "SPY",
+        "spot_price": latest["spot_price"],
+        "net_gex": latest["net_gex"],
+        "call_gex": latest["call_gex"],
+        "put_gex": latest["put_gex"],
+        "flip_point": flip_point,
+        "regime": latest["regime"],
+        "expirations_used": ["2026-09-18", "2026-09-19", "2026-09-22", "2026-09-24"],
+        "by_strike": by_strike,
+        "as_of": latest["captured_at"],
+        "source": "yfinance-bs-estimate",
+    }
+
+
+def _empty_gamma_exposure_snapshot() -> dict:
+    return {
+        "symbol": "SPY",
+        "spot_price": 0,
+        "net_gex": 0,
+        "call_gex": 0,
+        "put_gex": 0,
+        "flip_point": None,
+        "regime": "positive",
+        "expirations_used": [],
+        "by_strike": [],
+        "as_of": "",
+        "source": "yfinance-bs-estimate",
+    }
+
+
+def _empty_gamma_exposure_history() -> dict:
+    return {"symbol": "SPY", "days": 30, "points": []}
+
+
 def _company_news() -> dict:
     return {
         "articles": [
@@ -2214,6 +2321,10 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             "/api/sector-rotation": _empty_sector_rotation(),
             "/api/earnings/calendar": _empty_earnings_calendar(),
             "/api/options/chain": _empty_options_chain(),
+            # Longer fragment first: fixture matching is substring-based, and
+            # "/gamma-exposure" is itself a substring of "/gamma-exposure/history".
+            "/api/options/gamma-exposure/history": _empty_gamma_exposure_history(),
+            "/api/options/gamma-exposure": _empty_gamma_exposure_snapshot(),
             "/api/news/company": _empty_company_news(),
             "/api/reddit/trends": _empty_reddit_trends(),
             "/api/reddit/categories": _empty_reddit_categories(),
@@ -2470,6 +2581,10 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         # Options route.
         "/api/options/overview": _options_overview(),
         "/api/options/chain": _options_chain(),
+        # Longer fragment first: fixture matching is substring-based, and
+        # "/gamma-exposure" is itself a substring of "/gamma-exposure/history".
+        "/api/options/gamma-exposure/history": _gamma_exposure_history(),
+        "/api/options/gamma-exposure": _gamma_exposure_snapshot(),
         # Company news (stocks route).
         "/api/news/company": _company_news(),
         # Signa route.
