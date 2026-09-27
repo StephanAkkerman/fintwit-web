@@ -1,12 +1,13 @@
 """Stock market Fear & Greed Index client (feargreedmeter.com).
 
 feargreedmeter.com is a CNN-style Fear & Greed Index clone; its backend at
-``api2.mmeter.app`` is undocumented, so the payload shape below is inferred
-rather than recorded from a verified response. ``_find_summary`` is
-deliberately tolerant of a few plausible shapes (a flat top-level object, or
-one nested under a ``fear_and_greed``/``stock``/``stocks`` key) and the
-service returns ``None`` rather than raising if none of them match, so an
-upstream schema change degrades to "unavailable" instead of a crash.
+``api2.mmeter.app`` is undocumented. A recorded response nests today's score
+at ``payload["fgi"]["latest"]["now"]`` (with the prior close alongside it as
+``previous_close``). ``_find_summary`` is deliberately tolerant of a few other
+plausible shapes too (a flat top-level object, or one nested one level under
+a ``fear_and_greed``/``stock``/``stocks`` key) and the service returns
+``None`` rather than raising if none of them match, so an upstream schema
+change degrades to "unavailable" instead of a crash.
 """
 
 import logging
@@ -37,7 +38,16 @@ _BUCKETS = (
     (100, "Extreme Greed"),
 )
 
-_SUMMARY_KEYS = ("fear_and_greed", "stock", "stocks", "data", "summary", "result")
+_SUMMARY_KEYS = (
+    "fear_and_greed",
+    "stock",
+    "stocks",
+    "data",
+    "summary",
+    "result",
+    "fgi",
+)
+_SCORE_KEYS = ("score", "value", "now")
 
 
 def _reset_cache_for_tests() -> None:
@@ -78,9 +88,12 @@ def _find_summary(payload: dict) -> dict | None:
         nested = payload.get(key)
         if isinstance(nested, dict):
             candidates.append(nested)
+            latest = nested.get("latest")
+            if isinstance(latest, dict):
+                candidates.append(latest)
 
     for candidate in candidates:
-        if _first(candidate, "score", "value") is not None:
+        if _first(candidate, *_SCORE_KEYS) is not None:
             return candidate
     return None
 
@@ -135,7 +148,7 @@ async def get_stock_feargreed(client: httpx.AsyncClient) -> dict | None:
         logger.warning(f"Unexpected stock Fear & Greed payload shape: {payload!r}")
         return _cache[1] if _cache is not None else None
 
-    score = _coerce_score(_first(summary, "score", "value"))
+    score = _coerce_score(_first(summary, *_SCORE_KEYS))
     if score is None:
         return _cache[1] if _cache is not None else None
 

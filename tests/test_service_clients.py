@@ -245,12 +245,26 @@ async def test_binance_returns_none_on_http_error():
 # ---------------------------------------------------------------------------
 # Stock Fear & Greed (feargreedmeter.com)
 #
-# Unlike the other fixtures in this file, this payload is NOT a recording of
-# a real response — api2.mmeter.app is unreachable from this sandbox/CI, so
-# the shape is a best-effort guess (see stock_fear_greed_service's module
-# docstring). These tests pin the parser's tolerant behavior rather than a
-# verified upstream contract.
+# _FEARGREEDMETER is a trimmed recording of the real api2.mmeter.app/data/summary
+# response (score under payload["fgi"]["latest"]["now"]). The other payloads in
+# this block are best-effort guesses at alternative shapes predating that
+# recording (see stock_fear_greed_service's module docstring) and only pin the
+# parser's tolerant behavior, not a verified upstream contract.
 # ---------------------------------------------------------------------------
+
+_FEARGREEDMETER = {
+    "fgi": {
+        "latest": {
+            "now": 37,
+            "one_month_ago": 60,
+            "one_week_ago": 30,
+            "one_year_ago": 51,
+            "previous_close": 36,
+            "date": "2026-09-25",
+        },
+        "last_update": "2026-09-25T23:59:59",
+    },
+}
 
 
 @pytest.fixture(autouse=True)
@@ -258,6 +272,13 @@ def _reset_stock_fear_greed_cache():
     stock_fear_greed_service._reset_cache_for_tests()
     yield
     stock_fear_greed_service._reset_cache_for_tests()
+
+
+async def test_stock_fear_greed_parses_the_real_feargreedmeter_payload():
+    async with _client(_responds(_FEARGREEDMETER)) as client:
+        result = await stock_fear_greed_service.get_stock_feargreed(client)
+
+    assert result == {"value": 37, "status": "Fear", "change": "+2.78% 📈"}
 
 
 async def test_stock_fear_greed_parses_a_flat_payload():
