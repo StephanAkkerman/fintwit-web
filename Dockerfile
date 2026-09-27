@@ -10,11 +10,13 @@ WORKDIR /app
 
 ARG TORCH_VERSION=2.8.0
 
-# git is required for requirements that install from GitHub.
+# git is required for requirements that install from GitHub. The libs are for
+# opencv-python (pulled in by ultralytics for chart extraction), which links
+# against X11/GL even when nothing is displayed; without them `import cv2` fails.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update \
-    && apt-get install -y --no-install-recommends git \
+    && apt-get install -y --no-install-recommends git libgl1 libglib2.0-0 libxcb1 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
@@ -22,12 +24,16 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     && pip install \
          --index-url https://download.pytorch.org/whl/cpu \
          --extra-index-url https://pypi.org/simple \
-         "torch==${TORCH_VERSION}"
+         "torch==${TORCH_VERSION}" torchvision
 
+# torchvision comes from the CPU index above and is pinned here too: left to
+# PyPI (ultralytics/timm pull it in), it is a build whose compiled ops don't
+# load against CPU torch ("operator torchvision::nms does not exist"), which
+# breaks every transformers pipeline import, sentiment included.
 COPY requirements.txt ./
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     grep -Ev '^torch([[:space:]]|$|[<>=!~])' requirements.txt > requirements.no-torch.txt \
-    && printf 'torch==%s\n' "${TORCH_VERSION}" > constraints.txt \
+    && pip freeze | grep -E '^(torch|torchvision)==' > constraints.txt \
     && pip install -c constraints.txt -r requirements.no-torch.txt \
     && rm -f requirements.no-torch.txt constraints.txt
 
@@ -37,9 +43,16 @@ import platform
 import torch
 import os
 
+import cv2  # noqa: F401  (fails here, not at runtime, if its system libs are missing)
+import torchvision
+
 x = torch.randn(8, 8)
 _ = x @ x
-print("torch_ok", platform.machine(), torch.__version__)
+# Exercises torchvision's compiled ops, which a torch/torchvision build
+# mismatch breaks while plain torch still works.
+boxes = torch.tensor([[0.0, 0.0, 1.0, 1.0], [0.1, 0.1, 1.1, 1.1]])
+_ = torchvision.ops.nms(boxes, torch.tensor([0.9, 0.8]), 0.5)
+print("torch_ok", platform.machine(), torch.__version__, torchvision.__version__)
 
 expected = os.environ.get("TORCH_VERSION_EXPECTED", "").strip()
 actual = torch.__version__.split("+", 1)[0]
@@ -48,7 +61,6 @@ if expected and actual != expected:
 PY
 
 COPY app ./app
-COPY curl.txt ./curl.txt
 
 EXPOSE 7999
 

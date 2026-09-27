@@ -18,7 +18,70 @@ from .symbols import merge_symbols
 from .xclient_compat import apply_xclient_retweet_patch
 
 ENGAGEMENT_FIELDS = ("replies", "likes", "views", "retweets")
+# X answers these once the session cookies have expired or been logged out.
+AUTH_FAILURE_STATUSES = (401, 403)
+STATUS_POLL_INTERVAL_S = 5.0
 logger = logging.getLogger(__name__)
+
+# Why the timeline is (or isn't) filling up; served by GET /api/x/status.
+# ``state`` is one of: disabled, connecting, ok, auth_failed, error.
+STREAM_STATUS: dict[str, str | None] = {
+    "state": "disabled",
+    "source": None,
+    "detail": None,
+}
+
+
+def _set_status(state: str, source: str | None, detail: str | None = None) -> None:
+    STREAM_STATUS.update(state=state, source=source, detail=detail)
+
+
+def _credential_source() -> str | None:
+    """Pick how to authenticate to X: ``cookies`` (env), ``curl`` (file) or None."""
+    if os.getenv("X_AUTH_TOKEN", "").strip() and os.getenv("X_CT0", "").strip():
+        return "cookies"
+    if Path(os.getenv("X_CURL_PATH", "curl.txt")).is_file():
+        return "curl"
+    return None
+
+
+def _open_client(source: str, last_id_path: str) -> xclient.XTimelineClient:
+    if source == "cookies":
+        return xclient.XTimelineClient.from_cookies(
+            os.environ["X_AUTH_TOKEN"],
+            os.environ["X_CT0"],
+            query_id=os.getenv("X_TIMELINE_QUERY_ID") or None,
+            persist_last_id_path=last_id_path,
+        )
+    return xclient.XTimelineClient(
+        os.getenv("X_CURL_PATH", "curl.txt"),
+        persist_last_id_path=last_id_path,
+    )
+
+
+async def _watch_status(xc: xclient.XTimelineClient, source: str) -> None:
+    """Mirror the client's last HTTP status into ``STREAM_STATUS``.
+
+    ``xc.stream`` swallows HTTP errors and just yields nothing, so without this
+    an expired session is indistinguishable from a quiet timeline.
+    """
+    reported: int | None = None
+    while True:
+        status = getattr(xc, "last_status", None)
+        if status is not None and status != reported:
+            reported = status
+            if status < 400:
+                _set_status("ok", source)
+            elif status in AUTH_FAILURE_STATUSES:
+                _set_status("auth_failed", source, f"X answered HTTP {status}")
+                logger.error(
+                    "[stream] X rejected the session (HTTP %s); recapture the "
+                    "auth_token and ct0 cookies and restart",
+                    status,
+                )
+            else:
+                _set_status("error", source, f"X answered HTTP {status}")
+        await asyncio.sleep(STATUS_POLL_INTERVAL_S)
 
 
 def _extract_engagement_fields(tweet_payload: dict) -> dict:
@@ -57,18 +120,28 @@ async def run_stream(
     sentiment_model: FinTwitSentiment | None = None,
     trader_call_repo: TraderCallRepo | None = None,
 ) -> None:
+    source = _credential_source()
+    if source is None:
+        _set_status("disabled", None, "X_AUTH_TOKEN and X_CT0 are not set")
+        logger.info(
+            "[stream] X timeline disabled: set X_AUTH_TOKEN and X_CT0 in .env "
+            "to stream tweets"
+        )
+        return
+
     apply_xclient_retweet_patch()
     backoff = 1.0
     enricher = AssetEnricher()
     last_id_path = os.getenv("XTIMELINE_LAST_ID_PATH", "state/last_id.txt")
     Path(last_id_path).parent.mkdir(parents=True, exist_ok=True)
+    _set_status("connecting", source)
+    logger.info("[stream] X timeline authenticating via %s", source)
+    watcher: asyncio.Task | None = None
 
     while True:
         try:
-            async with xclient.XTimelineClient(
-                "curl.txt",
-                persist_last_id_path=last_id_path,
-            ) as xc:
+            async with _open_client(source, last_id_path) as xc:
+                watcher = asyncio.create_task(_watch_status(xc, source))
                 async for t in xc.stream(interval_s=5.0, mode="with_updates"):
                     # Convert to dict for easier manipulation
                     t_dict = t.to_dict()
@@ -201,3 +274,7 @@ async def run_stream(
             logger.warning("[stream] error: %r; retrying in %.1fs", e, backoff)
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, 60.0)
+        finally:
+            if watcher is not None:
+                watcher.cancel()
+                watcher = None

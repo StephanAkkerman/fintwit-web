@@ -46,7 +46,8 @@ from ..runtime.portfolio_valuation import (
     resolve_holdings,
     value_holdings,
 )
-from ..runtime.streamer import run_stream
+from ..config import integration_summary
+from ..runtime.streamer import STREAM_STATUS, run_stream
 from ..runtime.symbols import merge_symbols
 from ..runtime.trader_evaluator import (
     DEFAULT_INTERVAL as TRADER_EVAL_INTERVAL,
@@ -154,9 +155,8 @@ async def lifespan(app: FastAPI):
             run_ibkr_sync(IBKR_REPO, gateway, interval=ibkr_interval)
         )
         logger.info(
-            "[ibkr] sync worker started (host=%s port=%s interval=%ds)",
-            os.getenv("IBKR_HOST", "ibgateway"),
-            os.getenv("IBKR_PORT", "4001"),
+            "[ibkr] sync worker started (gateway=%s interval=%ds)",
+            gateway.address,
             ibkr_interval,
         )
     else:
@@ -199,6 +199,7 @@ async def lifespan(app: FastAPI):
             "[startup] application ready in %.2fs",
             time.perf_counter() - startup_started,
         )
+        logger.info("[startup] integrations: %s", integration_summary())
         yield
     finally:
         logger.info("[shutdown] stopping background workers")
@@ -993,6 +994,12 @@ async def portfolio_insights(
         "highlights": highlights,
         **diversification,
     }
+
+
+@app.get("/api/x/status")
+async def x_status(_=Depends(api_key_dep)):
+    """Whether the X timeline stream is configured and authenticating."""
+    return dict(STREAM_STATUS)
 
 
 @app.get("/api/ibkr/status")
