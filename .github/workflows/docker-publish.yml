@@ -13,6 +13,13 @@ permissions:
   contents: read
   packages: write
 
+# Merging several PRs back to back queues a run per push; only the newest
+# one still matters, so cancel any older run still building for the same
+# ref. Tag pushes each get their own ref and are never cancelled this way.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -22,11 +29,26 @@ jobs:
         include:
           - image: fintwit-web-backend
             context: .
+            filter: backend
           - image: fintwit-web-frontend
             context: ./frontend
+            filter: frontend
 
     steps:
       - uses: actions/checkout@v7
+
+      # On a plain push to main, skip rebuilding the image whose context
+      # didn't change (the backend image bundles the PyTorch stack, so this
+      # is the expensive one to redo). Tags and manual runs always build both.
+      - id: changes
+        if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            backend:
+              - '!frontend/**'
+            frontend:
+              - 'frontend/**'
 
       # arm64 is emulated; it is what Raspberry Pi hosts pull.
       - uses: docker/setup-qemu-action@v3
@@ -48,6 +70,7 @@ jobs:
             type=sha
 
       - uses: docker/build-push-action@v6
+        if: steps.changes.outcome == 'skipped' || steps.changes.outputs[matrix.filter] == 'true'
         with:
           context: ${{ matrix.context }}
           platforms: linux/amd64,linux/arm64
