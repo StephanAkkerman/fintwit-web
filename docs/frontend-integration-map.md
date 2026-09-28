@@ -1,6 +1,6 @@
 # Frontend Integration Map
 
-Last updated: 2026-09-04 (multi-market TradingView movers explorer)
+Last updated: 2026-09-28 (portfolio page cleanup + display currency, issue #187)
 
 ## Mounted in `App.tsx` Today
 
@@ -59,7 +59,9 @@ Route-level sections:
   - Full per-symbol options chain (strike/bid/ask/last/IV/volume/OI, ITM rows shaded) with an expiration picker, via `yfinance`, symbol entered by the user (defaults to `AAPL`)
   - Tweet timeline sourced from options-only tweet feed (`/api/posts?...&options_only=true` + `/api/stream?options_only=true`)
 
-- `/portfolio`
+- `/portfolio` (issue #187: mention heat dropped, a page-wide display-currency selector added, and the IBKR trades section relabeled)
+  - No `MentionHeatmap`/`RouteSignalsPanel` — unlike the other asset routes, this page is about your own holdings rather than what's trending across the timeline.
+  - `CurrencyProvider` wraps the whole route, backing a `CurrencySelector` (rendered in `PortfolioValueChart`'s header) that lets `PortfolioValueChart`, `PortfolioAssetInsights`, `PortfolioDiversification`, and `PortfolioPanel` display their USD-denominated figures converted into EUR/GBP/JPY/CHF/AUD/CAD via `/api/fx/rates` (`useFxRates`). Selecting a currency is display-only — values are still stored and fetched in USD, so the conversion falls back to the raw USD figure for any currency `/api/fx/rates` couldn't quote. `IbkrPanel` is intentionally left out of this conversion: it renders IBKR's own reported account/position currency as-is.
   - `PortfolioValueChart`
   - Portfolio value over time with selectable ranges (1W/1M/3M/6M/YTD/1Y/5Y/MAX), cost-basis reference line, and a table view
   - `PortfolioAssetInsights`
@@ -67,7 +69,7 @@ Route-level sections:
   - `PortfolioDiversification`
   - Sector allocation breakdown and a holding/sector concentration score (unrated/concentrated/moderate/diversified)
   - `IbkrPanel`
-  - Live IBKR account summary, open positions, and today's executions. Omitted entirely (issue #169) unless `/api/ibkr/status.configured` is true — no more "not enabled" banner for a deployment with no IBKR container set up.
+  - Live IBKR account summary, open positions, and a "Recent Transactions" table (the last `/api/ibkr/trades` executions regardless of when they happened — previously mislabeled "Today's Executions" while already showing older trades, issue #187) with a full date + time per row instead of a time-only stamp. Omitted entirely (issue #169) unless `/api/ibkr/status.configured` is true — no more "not enabled" banner for a deployment with no IBKR container set up.
   - `PortfolioPanel`
   - Add/list/toggle/delete IBKR-style stock positions
   - Summary cards backed by live valuation/PnL

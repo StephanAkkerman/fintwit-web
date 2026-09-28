@@ -36,6 +36,7 @@ import PortfolioAssetInsights from './components/PortfolioAssetInsights'
 import PortfolioDiversification from './components/PortfolioDiversification'
 import PortfolioPanel from './components/PortfolioPanel'
 import PortfolioValueChart from './components/PortfolioValueChart'
+import { CurrencyProvider } from './contexts/CurrencyContext'
 import RedditSection from './components/RedditSection'
 import SignaSection from './components/SignaSection'
 import SpyHeatmapWidget from './components/SpyHeatmapWidget'
@@ -687,7 +688,7 @@ export default function App() {
               <p className="text-sm text-zinc-500">{activeSection.subtitle}</p>
             </header>
 
-            {route !== 'admin' && route !== 'signa' && route !== 'reddit' && route !== 'home' && route !== 'traders' && route !== 'movers' && (
+            {route !== 'admin' && route !== 'signa' && route !== 'reddit' && route !== 'home' && route !== 'traders' && route !== 'movers' && route !== 'portfolio' && (
               <>
                 <ErrorBoundary label="Mention heat">
                   <MentionHeatmap
@@ -848,7 +849,7 @@ export default function App() {
             )}
 
             {route === 'portfolio' && (
-              <>
+              <CurrencyProvider>
                 <ErrorBoundary label="Portfolio value">
                   <PortfolioValueChart />
                 </ErrorBoundary>
@@ -874,7 +875,7 @@ export default function App() {
                 <ErrorBoundary label="Portfolio positions">
                   <PortfolioPanel />
                 </ErrorBoundary>
-              </>
+              </CurrencyProvider>
             )}
 
             {route === 'admin' && (
