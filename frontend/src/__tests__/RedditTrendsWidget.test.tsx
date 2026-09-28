@@ -102,6 +102,105 @@ describe('RedditTrendsWidget', () => {
     expect(await screen.findByText(/Waiting for the first Reddit scrape/)).toBeInTheDocument()
   })
 
+  it('shows the worker error instead of waiting forever when the scrape fails', async () => {
+    mockResponse({
+      available: true,
+      captured_at: null,
+      subreddits: ['wallstreetbets'],
+      tickers: [],
+      worker: {
+        state: 'error',
+        last_error: 'ImportError: gliner2 needs transformers<5',
+        last_attempt_at: new Date().toISOString(),
+        next_attempt_at: new Date(Date.now() + 120_000).toISOString(),
+      },
+    })
+
+    render(<RedditTrendsWidget />)
+
+    expect(await screen.findByText(/scrape is failing/)).toBeInTheDocument()
+    expect(screen.getByText(/gliner2 needs transformers<5/)).toBeInTheDocument()
+    expect(screen.getByText(/retrying in 2m/)).toBeInTheDocument()
+    expect(screen.queryByText(/Waiting for the first/)).not.toBeInTheDocument()
+  })
+
+  it('says when Reddit returned no posts', async () => {
+    mockResponse({
+      available: true,
+      captured_at: null,
+      subreddits: ['wallstreetbets'],
+      tickers: [],
+      worker: { state: 'empty', last_error: 'Set REDDIT_CLIENT_ID to scrape authenticated.' },
+    })
+
+    render(<RedditTrendsWidget />)
+
+    expect(await screen.findByText(/last Reddit scrape returned no posts/)).toBeInTheDocument()
+    expect(screen.getByText(/REDDIT_CLIENT_ID/)).toBeInTheDocument()
+  })
+
+  it('says the models are still loading during warm-up', async () => {
+    mockResponse({
+      available: true,
+      captured_at: null,
+      subreddits: [],
+      tickers: [],
+      worker: { state: 'warming_up' },
+    })
+
+    render(<RedditTrendsWidget />)
+
+    expect(await screen.findByText(/Loading the ticker and sentiment models/)).toBeInTheDocument()
+  })
+
+  it('flags a failing refresh over an older run', async () => {
+    mockResponse({
+      available: true,
+      captured_at: new Date(Date.now() - 3 * 3600_000).toISOString(),
+      subreddits: ['wallstreetbets'],
+      tickers: [ticker()],
+      worker: { state: 'error', last_error: 'HTTPError: 403' },
+    })
+
+    render(<RedditTrendsWidget />)
+
+    expect(await screen.findByText(/Refresh failing/)).toBeInTheDocument()
+    expect(screen.getByText('HTTPError: 403')).toBeInTheDocument()
+    expect(screen.getByText('NVDA')).toBeInTheDocument()
+  })
+
+  it('draws an hourly sparkline for tickers in the timeline', async () => {
+    mockResponse({
+      available: true,
+      captured_at: new Date().toISOString(),
+      subreddits: ['wallstreetbets'],
+      tickers: [ticker(), ticker({ symbol: 'AMD' })],
+      timeline: { bucket_seconds: 3600, series: { NVDA: [0, 2, 5, 3] } },
+    })
+
+    render(<RedditTrendsWidget />)
+
+    await screen.findByText('NVDA')
+    expect(screen.getAllByTestId('reddit-sparkline')).toHaveLength(1)
+  })
+
+  it('renders no stray 0 when nothing is emerging or fading', async () => {
+    mockResponse({
+      available: true,
+      captured_at: new Date().toISOString(),
+      subreddits: ['wallstreetbets'],
+      tickers: [ticker()],
+      emerging: [],
+      fading: [],
+    })
+
+    const { container } = render(<RedditTrendsWidget />)
+
+    await screen.findByText('NVDA')
+    expect(screen.queryByText(/emerging:/)).not.toBeInTheDocument()
+    expect(container.textContent?.trim().endsWith('0')).toBe(false)
+  })
+
   it('handles a run that recognised no tickers', async () => {
     mockResponse({
       available: true,

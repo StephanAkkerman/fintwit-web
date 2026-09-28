@@ -459,6 +459,86 @@ async def test_get_stock_market_hours_caching():
     assert call_count == 5
 
 
+def test_process_submission_media_keeps_the_title_and_classifies_media():
+    from app.services.reddit_service import process_submission_media
+
+    assert process_submission_media({"is_self": True}) == ([], None)
+
+    image = {"is_self": False, "url": "https://i.redd.it/abc.png"}
+    assert process_submission_media(image) == (["https://i.redd.it/abc.png"], "image")
+
+    gallery = {
+        "is_self": False,
+        "is_gallery": True,
+        "url": "https://www.reddit.com/gallery/xyz",
+        "media_metadata": {
+            "a": {"s": {"u": "https://preview.redd.it/a.jpg?w=1&amp;s=x"}},
+            "b": {"s": {}},
+        },
+    }
+    assert process_submission_media(gallery) == (
+        ["https://preview.redd.it/a.jpg?w=1&s=x"],
+        "gallery",
+    )
+
+    preview = {"images": [{"source": {"url": "https://external-preview.redd.it/p"}}]}
+    video = {"is_self": False, "url": "https://v.redd.it/vid", "preview": preview}
+    assert process_submission_media(video) == (
+        ["https://external-preview.redd.it/p"],
+        "video",
+    )
+
+    link = {"is_self": False, "url": "https://news.example.com/a", "preview": preview}
+    assert process_submission_media(link) == (
+        ["https://external-preview.redd.it/p"],
+        "link",
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_reddit_hot_posts_image_post_has_preview_not_title_prefix():
+    payload = {
+        "data": {
+            "children": [
+                {
+                    "data": {
+                        "id": "img1",
+                        "subreddit": "wallstreetbets",
+                        "title": "My loss porn",
+                        "selftext": "",
+                        "author": "user1",
+                        "score": 5,
+                        "num_comments": 1,
+                        "created_utc": 1700000000,
+                        "permalink": "/r/wallstreetbets/comments/img1/x/",
+                        "url": "https://i.redd.it/loss.jpeg",
+                        "is_self": False,
+                        "link_flair_text": "Loss",
+                        "upvote_ratio": 0.93,
+                    }
+                }
+            ]
+        }
+    }
+    client = AsyncMock()
+    client.get = AsyncMock(return_value=_httpx_response(200, payload))
+
+    with patch(
+        "app.services.reddit_service._fetch_with_asyncpraw",
+        new=AsyncMock(return_value=None),
+    ):
+        posts = await get_reddit_hot_posts(client, limit=1)
+
+    post = posts[0]
+    assert post["title"] == "My loss porn"
+    assert post["image_urls"] == ["https://i.redd.it/loss.jpeg"]
+    assert post["media_type"] == "image"
+    assert post["link_url"] is None
+    assert post["flair"] == "Loss"
+    assert post["upvote_ratio"] == 0.93
+    assert post["over_18"] is False
+
+
 def test_is_valid_subreddit_name():
     assert is_valid_subreddit_name("wallstreetbets")
     assert is_valid_subreddit_name("CryptoCurrency")

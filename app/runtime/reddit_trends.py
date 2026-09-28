@@ -32,6 +32,49 @@ _MAX_BACKOFF = 1800
 #: Runs older than this are dropped on each pass, so the table stays bounded.
 DEFAULT_RETENTION_DAYS = 90
 
+#: What the worker is doing right now, served alongside the stored run so the
+#: UI can say *why* there is nothing to show. Without it a scrape that raises
+#: on every pass (a model that will not load, Reddit answering 403) reads as
+#: "waiting for the first scrape" forever, and the only trace is a log line.
+_status: dict = {}
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def reset_status() -> None:
+    """Back to the never-started state (used by tests and at worker start)."""
+    _status.clear()
+    _status.update(
+        {
+            "state": "idle",
+            "last_attempt_at": None,
+            "last_success_at": None,
+            "last_error": None,
+            "last_posts_analyzed": None,
+            "next_attempt_at": None,
+        }
+    )
+
+
+def _set_status(**fields) -> None:
+    _status.update(fields)
+
+
+def worker_status() -> dict:
+    """A copy of the worker's current status.
+
+    ``state`` is one of ``idle`` (never started, e.g. disabled), ``warming_up``,
+    ``scraping``, ``ok``, ``empty`` (Reddit returned no posts), ``error`` (the
+    last pass raised; ``last_error`` says what) or ``unavailable`` (the
+    analyzer package is not installed).
+    """
+    return dict(_status)
+
+
+reset_status()
+
 
 async def capture_trends(
     repo: RedditTrendRepo,
@@ -79,6 +122,8 @@ async def run_reddit_trends(
     :param top_n: Tickers kept per run.
     :param retention_days: Runs older than this are pruned.
     """
+    reset_status()
+    _set_status(state="warming_up")
     await warmup()
 
     backoff = _MIN_BACKOFF
@@ -95,11 +140,29 @@ async def run_reddit_trends(
 
             if recent:
                 logger.debug("[reddit-trends] recent run exists, skipping this pass")
+                _set_status(state="ok", last_success_at=captured)
             else:
+                _set_status(state="scraping", last_attempt_at=_now_iso())
                 report = await capture_trends(
                     repo, window_hours=window_hours, limit=limit, top_n=top_n
                 )
-                if report is not None:
+                if report is None:
+                    _set_status(
+                        state="empty",
+                        last_posts_analyzed=0,
+                        last_error=(
+                            "Reddit returned no posts. It may be rate limiting or "
+                            "blocking this server; configure REDDIT_CLIENT_ID and "
+                            "REDDIT_CLIENT_SECRET to scrape authenticated."
+                        ),
+                    )
+                else:
+                    _set_status(
+                        state="ok",
+                        last_success_at=_now_iso(),
+                        last_error=None,
+                        last_posts_analyzed=report.get("posts_analyzed", 0),
+                    )
                     top = report.get("tickers") or []
                     logger.info(
                         "[reddit-trends] stored run: %d tickers from %d posts, top=%s",
@@ -111,22 +174,38 @@ async def run_reddit_trends(
 
             backoff = _MIN_BACKOFF
 
-        except RedditAnalyzerUnavailable:
+        except RedditAnalyzerUnavailable as exc:
             # Nothing to retry: the package will not appear mid-process. Stop
             # the worker rather than logging the same failure every interval.
             logger.warning(
                 "[reddit-trends] reddit-stock-analyzer is not installed; "
                 "trend worker stopping"
             )
+            _set_status(state="unavailable", last_error=str(exc), next_attempt_at=None)
             return
         except asyncio.CancelledError:
             raise
         except Exception as exc:
             logger.warning(
-                "[reddit-trends] iteration failed (%r); retrying in %ds", exc, backoff
+                "[reddit-trends] iteration failed (%r); retrying in %ds",
+                exc,
+                backoff,
+                exc_info=True,
+            )
+            _set_status(
+                state="error",
+                last_error=f"{type(exc).__name__}: {exc}",
+                next_attempt_at=(
+                    datetime.now(timezone.utc) + timedelta(seconds=backoff)
+                ).isoformat(),
             )
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, _MAX_BACKOFF)
             continue
 
+        _set_status(
+            next_attempt_at=(
+                datetime.now(timezone.utc) + timedelta(seconds=interval)
+            ).isoformat()
+        )
         await asyncio.sleep(interval)

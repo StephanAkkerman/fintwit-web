@@ -39,6 +39,7 @@ from ..runtime.reddit_trends import (
 )
 from ..runtime.reddit_trends import (
     run_reddit_trends,
+    worker_status as reddit_worker_status,
 )
 from ..runtime.portfolio_snapshot import (
     DEFAULT_INTERVAL as SNAPSHOT_INTERVAL,
@@ -602,8 +603,14 @@ async def reddit_trends(
     a scrape is several subreddit listings plus two model passes over every
     post. `available` is False when `reddit-stock-analyzer` is not installed,
     and `captured_at` is null until the first run completes — the UI needs to
-    tell "nothing installed" apart from "nothing scraped yet".
+    tell "nothing installed" apart from "nothing scraped yet". `worker` says
+    what the background scrape is doing, so a scrape that keeps failing shows
+    its error instead of reading as "not scraped yet" forever.
     """
+    worker = reddit_worker_status()
+    if os.getenv("REDDIT_TRENDS_ENABLED", "1").lower() not in ("1", "true", "yes"):
+        worker = {**worker, "state": "disabled"}
+
     run = await REDDIT_TREND_REPO.latest_run(limit=limit)
     if run is None:
         return {
@@ -611,8 +618,9 @@ async def reddit_trends(
             "captured_at": None,
             "subreddits": reddit_trends_service.default_subreddits(),
             "tickers": [],
+            "worker": worker,
         }
-    return {"available": True, **run}
+    return {"available": True, **run, "worker": worker}
 
 
 @app.get("/api/reddit/trends/{symbol}/history")

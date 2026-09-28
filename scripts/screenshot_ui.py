@@ -2015,6 +2015,11 @@ def _trader_leaderboard() -> list[dict]:
     ]
 
 
+def _hourly(counts: str) -> list[int]:
+    """Hourly mention counts written one digit per hour, oldest first."""
+    return [int(c) for c in counts]
+
+
 def _reddit_trends() -> dict:
     """Ranked tickers from the Reddit trend worker (issue #6).
 
@@ -2031,8 +2036,62 @@ def _reddit_trends() -> dict:
         "posts_in_window": 412,
         "mood": "bullish",
         "sentiment_score": 0.21,
+        "sentiment_breakdown": {"bullish": 190, "neutral": 158, "bearish": 64},
         "rising": ["NVDA", "SMCI"],
         "emerging": ["RKLB"],
+        # Per-subreddit slice and hourly timeline, for the Reddit Summary panel
+        # and the per-row sparklines (issue #185).
+        "by_subreddit": [
+            {
+                "subreddit": "wallstreetbets",
+                "posts": 186,
+                "posts_with_tickers": 97,
+                "mood": "bullish",
+                "sentiment_score": 0.31,
+                "top_tickers": {"NVDA": 30, "SMCI": 15, "RKLB": 12},
+            },
+            {
+                "subreddit": "stocks",
+                "posts": 104,
+                "posts_with_tickers": 41,
+                "mood": "neutral",
+                "sentiment_score": 0.08,
+                "top_tickers": {"NVDA": 11, "INTC": 6},
+            },
+            {
+                "subreddit": "options",
+                "posts": 71,
+                "posts_with_tickers": 44,
+                "mood": "bullish",
+                "sentiment_score": 0.19,
+                "top_tickers": {"SMCI": 18, "NVDA": 7},
+            },
+            {
+                "subreddit": "StockMarket",
+                "posts": 51,
+                "posts_with_tickers": 17,
+                "mood": "bearish",
+                "sentiment_score": -0.17,
+                "top_tickers": {"INTC": 3},
+            },
+        ],
+        "timeline": {
+            "bucket_seconds": 3600,
+            "series": {
+                "NVDA": _hourly("011210012232343223311211"),
+                "SMCI": _hourly("000010000112354323221111"),
+                "RKLB": _hourly("000000000000012321110100"),
+                "INTC": _hourly("110100100100110010001000"),
+            },
+        },
+        "worker": {
+            "state": "ok",
+            "last_attempt_at": now.isoformat(),
+            "last_success_at": now.isoformat(),
+            "last_error": None,
+            "last_posts_analyzed": 780,
+            "next_attempt_at": (now + timedelta(minutes=15)).isoformat(),
+        },
         "fading": ["AMC"],
         "tickers": [
             {
@@ -2122,7 +2181,19 @@ def _empty_reddit_trends() -> dict:
         "captured_at": None,
         "subreddits": ["wallstreetbets", "stocks"],
         "tickers": [],
+        "worker": {"state": "warming_up", "last_error": None},
     }
+
+
+#: A stand-in chart for image posts: the real ones live on i.redd.it, which a
+#: screenshot run cannot reach.
+_REDDIT_PREVIEW_IMAGE = (
+    "data:image/svg+xml;utf8,"
+    "<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'>"
+    "<rect width='120' height='120' fill='%2318181b'/>"
+    "<polyline points='5,100 25,80 45,88 65,50 85,58 115,15' fill='none' "
+    "stroke='%2334d399' stroke-width='4'/></svg>"
+)
 
 
 def _reddit_wsb() -> list[dict]:
@@ -2138,7 +2209,12 @@ def _reddit_wsb() -> list[dict]:
             "num_comments": 312,
             "created_utc": now - 3_600,
             "url": "https://reddit.com/r/wallstreetbets/comments/abc123",
-            "image_urls": [],
+            "image_urls": [_REDDIT_PREVIEW_IMAGE],
+            "media_type": "image",
+            "link_url": None,
+            "flair": "Gain",
+            "upvote_ratio": 0.94,
+            "over_18": False,
         },
         {
             "id": "def456",
@@ -2151,6 +2227,28 @@ def _reddit_wsb() -> list[dict]:
             "created_utc": now - 7_200,
             "url": "https://reddit.com/r/wallstreetbets/comments/def456",
             "image_urls": [],
+            "media_type": None,
+            "link_url": None,
+            "flair": "DD",
+            "upvote_ratio": 0.81,
+            "over_18": False,
+        },
+        {
+            "id": "ghi789",
+            "subreddit": "wallstreetbets",
+            "title": "Fed holds rates steady, signals two cuts this year",
+            "description": "",
+            "author": "macro_mike",
+            "score": 902,
+            "num_comments": 140,
+            "created_utc": now - 10_800,
+            "url": "https://reddit.com/r/wallstreetbets/comments/ghi789",
+            "image_urls": [],
+            "media_type": "link",
+            "link_url": "https://www.reuters.com/markets/us/fed-holds-rates",
+            "flair": "News",
+            "upvote_ratio": 0.97,
+            "over_18": False,
         },
     ]
 

@@ -734,6 +734,13 @@ export type RedditPost = {
   created_utc: number;
   url: string;
   image_urls: string[];
+  // How the post carries media; null for a text post. Older backends omit it.
+  media_type?: 'image' | 'gallery' | 'video' | 'link' | null;
+  // External page a link post points at; `url` is always the Reddit thread.
+  link_url?: string | null;
+  flair?: string | null;
+  upvote_ratio?: number | null;
+  over_18?: boolean;
 };
 
 // Reddit trend analysis (issue #6), from `reddit-stock-analyzer` via
@@ -778,6 +785,47 @@ export type RedditTrendReport = {
   rising?: string[];
   fading?: string[];
   emerging?: string[];
+  sentiment_breakdown?: Record<string, number>;
+  by_subreddit?: RedditSubredditSummary[];
+  timeline?: RedditTrendTimeline;
+  worker?: RedditTrendWorkerStatus;
+};
+
+// One subreddit's slice of a trend run (SubredditSummary in the package).
+export type RedditSubredditSummary = {
+  subreddit: string;
+  posts: number;
+  posts_with_tickers?: number;
+  mood?: 'bullish' | 'bearish' | 'neutral' | string | null;
+  sentiment_score?: number;
+  sentiment_breakdown?: Record<string, number>;
+  top_tickers?: Record<string, number>;
+};
+
+// Hourly mention counts for the run's top tickers, oldest bucket first.
+export type RedditTrendTimeline = {
+  bucket_seconds?: number;
+  bucket_starts?: number[];
+  series?: Record<string, number[]>;
+};
+
+// What the background scrape is doing (app/runtime/reddit_trends.py).
+export type RedditTrendWorkerStatus = {
+  state:
+    | 'idle'
+    | 'disabled'
+    | 'warming_up'
+    | 'scraping'
+    | 'ok'
+    | 'empty'
+    | 'error'
+    | 'unavailable'
+    | string;
+  last_attempt_at?: string | null;
+  last_success_at?: string | null;
+  last_error?: string | null;
+  last_posts_analyzed?: number | null;
+  next_attempt_at?: string | null;
 };
 
 export type RedditCategories = {

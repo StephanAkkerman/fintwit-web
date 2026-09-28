@@ -11,7 +11,12 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from app.infra.repos import _epoch_to_naive_utc
-from app.runtime.reddit_trends import capture_trends, run_reddit_trends
+from app.runtime.reddit_trends import (
+    capture_trends,
+    reset_status,
+    run_reddit_trends,
+    worker_status,
+)
 from app.services import reddit_trends_service as service
 
 #: A fixed instant, for asserting on the epoch conversion itself.
@@ -282,6 +287,85 @@ class TestWorker:
 
         # It reached the sleep without scraping, because a run is fresh.
         fetch.assert_not_awaited()
+
+
+class TestWorkerStatus:
+    """The worker reports what it is doing, so a scrape that keeps failing
+    surfaces its error on the page instead of reading as "not scraped yet"."""
+
+    @pytest.fixture(autouse=True)
+    def _fresh_status(self):
+        reset_status()
+        yield
+        reset_status()
+
+    @staticmethod
+    async def _one_pass(repo, fetch):
+        """Run the worker until its first sleep, then stop it."""
+        with (
+            patch("app.runtime.reddit_trends.warmup", AsyncMock()),
+            patch("app.runtime.reddit_trends.fetch_trend_report", fetch),
+            patch(
+                "app.runtime.reddit_trends.asyncio.sleep",
+                AsyncMock(side_effect=StopAsyncIteration),
+            ),
+        ):
+            with pytest.raises(StopAsyncIteration):
+                await run_reddit_trends(repo, interval=900)
+
+    def test_starts_idle(self):
+        status = worker_status()
+        assert status["state"] == "idle"
+        assert status["last_error"] is None
+
+    @pytest.mark.asyncio
+    async def test_a_successful_pass_reads_ok(self, reddit_trend_repo):
+        await self._one_pass(reddit_trend_repo, AsyncMock(return_value=make_report()))
+
+        status = worker_status()
+        assert status["state"] == "ok"
+        assert status["last_success_at"] is not None
+        assert status["last_posts_analyzed"] == 120
+        assert status["next_attempt_at"] is not None
+
+    @pytest.mark.asyncio
+    async def test_a_failing_pass_records_the_error(self, reddit_trend_repo):
+        fetch = AsyncMock(side_effect=ImportError("gliner2 needs transformers<5"))
+        await self._one_pass(reddit_trend_repo, fetch)
+
+        status = worker_status()
+        assert status["state"] == "error"
+        assert "gliner2 needs transformers<5" in status["last_error"]
+        assert status["last_attempt_at"] is not None
+        assert status["last_success_at"] is None
+
+    @pytest.mark.asyncio
+    async def test_an_empty_scrape_says_reddit_returned_nothing(
+        self, reddit_trend_repo
+    ):
+        fetch = AsyncMock(return_value=make_report(posts_analyzed=0, tickers=[]))
+        await self._one_pass(reddit_trend_repo, fetch)
+
+        status = worker_status()
+        assert status["state"] == "empty"
+        assert "REDDIT_CLIENT_ID" in status["last_error"]
+
+    @pytest.mark.asyncio
+    async def test_a_missing_package_reads_unavailable(self, reddit_trend_repo):
+        with (
+            patch("app.runtime.reddit_trends.warmup", AsyncMock()),
+            patch(
+                "app.runtime.reddit_trends.fetch_trend_report",
+                AsyncMock(side_effect=service.RedditAnalyzerUnavailable("nope")),
+            ),
+        ):
+            await run_reddit_trends(reddit_trend_repo, interval=1)
+
+        assert worker_status()["state"] == "unavailable"
+
+    def test_status_is_a_copy(self):
+        worker_status()["state"] = "tampered"
+        assert worker_status()["state"] == "idle"
 
 
 class TestServiceAvailability:
