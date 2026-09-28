@@ -39,10 +39,20 @@ async def leaderboard(
 
 
 @router.get("/user/{screen_name}")
-async def trader_detail(screen_name: str):
+async def trader_detail(
+    screen_name: str,
+    horizon_days: int = Query(default=7),
+    limit: int = Query(default=50, ge=1, le=200),
+):
+    _validate_horizon(horizon_days)
     from . import main as _main
 
-    return await get_trader_detail(_main.Session, screen_name)
+    return await get_trader_detail(
+        _main.Session,
+        screen_name,
+        horizon_days=horizon_days,
+        recent_limit=limit,
+    )
 
 
 class CredibilityBatchRequest(BaseModel):

@@ -60,13 +60,16 @@ def _call(
     )
 
 
-def _result(call_id, horizon_days, return_pct, correct, price_at_horizon=None):
+def _result(
+    call_id, horizon_days, return_pct, correct, price_at_horizon=None, excluded=False
+):
     return TraderCallResultRow(
         call_id=call_id,
         horizon_days=horizon_days,
         price_at_horizon=price_at_horizon or 100.0 * (1 + return_pct / 100.0),
         return_pct=return_pct,
         correct=correct,
+        excluded=excluded,
         evaluated_at=_now(),
     )
 
@@ -344,3 +347,133 @@ def test_extract_calls_without_per_ticker_sentiment_is_unchanged():
 
     assert set(calls) == {"NVDA", "INTC"}
     assert all(c["direction"] == "bullish" for c in calls.values())
+
+
+# ─── implausible results (issue #186) ─────────────────────────────────────────
+
+
+def test_grade_call_flags_an_implausible_move_as_excluded():
+    # A $0.0001 coin sharing a stock's ticker: the "move" is a pricing mismatch.
+    graded = grade_call("bullish", 0.0001, 150.0)
+    assert graded["excluded"] is True
+
+
+def test_grade_call_keeps_a_plausible_move():
+    assert grade_call("bullish", 100.0, 180.0)["excluded"] is False
+
+
+def test_grade_call_with_a_zero_entry_price_is_excluded_not_a_crash():
+    graded = grade_call("bullish", 0.0, 10.0)
+    assert graded["excluded"] is True
+
+
+def test_extract_calls_skips_a_non_positive_price():
+    tweet = {
+        "id": 1,
+        "user_screen_name": "alice",
+        "created_at": _now().isoformat(),
+        "tickers": ["AAPL"],
+        "sentiment_score": 0.9,
+        "assets": [{"symbol": "AAPL", "financials": {"price": 0.0}}],
+    }
+    assert extract_calls(tweet) == []
+
+
+async def test_leaderboard_ignores_excluded_and_implausible_results(Session):
+    await _insert(Session, [_call(i, user="frank") for i in (1, 2, 3, 4)])
+    await _insert(
+        Session,
+        [
+            _result(1, 7, return_pct=5.0, correct=True),
+            _result(2, 7, return_pct=-3.0, correct=False),
+            # Flagged at grading time.
+            _result(3, 7, return_pct=40.0, correct=True, excluded=True),
+            # Graded before `excluded` existed: screened by the return bound.
+            _result(4, 7, return_pct=2_068_759_913.9, correct=True),
+        ],
+    )
+
+    board = await get_leaderboard(Session, horizon_days=7, min_calls=1)
+    assert board[0]["graded_calls"] == 2
+    assert board[0]["avg_return_pct"] == pytest.approx(1.0)
+
+    batch = await get_credibility_batch(Session, ["frank"], horizon_days=7)
+    assert batch == {}  # 2 scored calls is below the badge floor
+
+    detail = await get_trader_detail(Session, "frank")
+    seven = {h["horizon_days"]: h for h in detail["horizons"]}[7]
+    assert seven["graded_calls"] == 2
+    assert seven["avg_return_pct"] == pytest.approx(1.0)
+    flags = {c["id"]: c["results"][0]["excluded"] for c in detail["recent_calls"]}
+    assert flags == {1: False, 2: False, 3: True, 4: True}
+
+
+async def test_trader_detail_breaks_calls_down_by_ticker(Session):
+    await _insert(
+        Session,
+        [
+            _call(1, user="gina", ticker="NVDA", hours_ago=240),
+            _call(2, user="gina", ticker="NVDA", direction="bearish", hours_ago=200),
+            _call(3, user="gina", ticker="NVDA", hours_ago=2),
+            _call(4, user="gina", ticker="TSLA", hours_ago=220),
+        ],
+    )
+    await _insert(
+        Session,
+        [
+            _result(1, 7, return_pct=10.0, correct=True),
+            _result(2, 7, return_pct=4.0, correct=False),
+            _result(4, 7, return_pct=-6.0, correct=False),
+        ],
+    )
+
+    detail = await get_trader_detail(Session, "gina", horizon_days=7)
+    assert detail["horizon_days"] == 7
+    assert detail["summary"]["total_calls"] == 4
+    assert detail["summary"]["bullish_calls"] == 3
+    assert detail["summary"]["bearish_calls"] == 1
+    assert detail["summary"]["distinct_tickers"] == 2
+
+    by_ticker = {t["ticker"]: t for t in detail["tickers"]}
+    assert [t["ticker"] for t in detail["tickers"]] == ["NVDA", "TSLA"]
+    nvda = by_ticker["NVDA"]
+    assert nvda["calls"] == 3
+    assert (nvda["bullish_calls"], nvda["bearish_calls"]) == (2, 1)
+    assert nvda["graded_calls"] == 2  # the recent call is still pending
+    assert nvda["hit_rate"] == pytest.approx(0.5)
+    assert nvda["avg_return_pct"] == pytest.approx(3.0)  # (+10 + -4) / 2
+    assert by_ticker["TSLA"]["avg_return_pct"] == pytest.approx(-6.0)
+
+    # Other horizons have nothing graded yet, so tickers read as pending.
+    detail_30 = await get_trader_detail(Session, "gina", horizon_days=30)
+    assert all(t["graded_calls"] == 0 for t in detail_30["tickers"])
+    assert all(t["hit_rate"] is None for t in detail_30["tickers"])
+
+
+async def test_trader_detail_attaches_the_source_tweet(Session):
+    from app.infra.db import TweetRow
+
+    await _insert(Session, [_call(1, user="hank")])
+    await _insert(
+        Session,
+        [
+            TweetRow(
+                id=1001,
+                text="Loading up on $AAPL here",
+                user_name="Hank",
+                user_screen_name="hank",
+                user_img="",
+                url="https://x.com/hank/status/1001",
+                media=[],
+                tickers=["AAPL"],
+                hashtags=[],
+                title="",
+                media_types=[],
+                created_at=_now(),
+            )
+        ],
+    )
+
+    call = (await get_trader_detail(Session, "hank"))["recent_calls"][0]
+    assert call["tweet_text"] == "Loading up on $AAPL here"
+    assert call["tweet_url"] == "https://x.com/hank/status/1001"

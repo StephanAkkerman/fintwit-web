@@ -26,6 +26,27 @@ HORIZONS: tuple[int, ...] = (1, 7, 30)
 _BULLISH_MIN = 0.1
 _BEARISH_MAX = -0.1
 
+#: A graded move above this (an 11x in at most 30 days) is treated as a
+#: pricing mismatch, not a real call outcome: the ticker re-priced as a
+#: different asset than the one quoted at call time — typically a symbol
+#: shared by several coins. A single such row used to drag a trader's average
+#: return into the billions of percent. Losses are bounded at -100%, so they
+#: can't blow up an average the same way and need no mirror-image cap.
+MAX_PLAUSIBLE_RETURN_PCT = 1000.0
+
+#: SQL predicate selecting the result rows (alias ``r``) that count towards a
+#: score. The ``return_pct`` bound also screens rows graded before
+#: ``excluded`` existed, so no data migration is needed.
+_SCORED = (
+    "(r.excluded IS NULL OR NOT r.excluded) "
+    f"AND r.return_pct <= {MAX_PLAUSIBLE_RETURN_PCT}"
+)
+
+#: Direction-signed return: what following the call would have made.
+_SIGNED_RETURN = (
+    "CASE WHEN c.direction = 'bullish' THEN r.return_pct ELSE -r.return_pct END"
+)
+
 
 def _now() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
@@ -122,7 +143,7 @@ def extract_calls(tweet: dict) -> list[dict]:
             continue
 
         price = (asset.get("financials") or {}).get("price")
-        if not isinstance(price, (int, float)):
+        if not isinstance(price, (int, float)) or price <= 0:
             continue
 
         kind = asset.get("kind")
@@ -174,11 +195,26 @@ async def find_due_calls(
     return [dict(r) for r in rows]
 
 
+def is_plausible_return(return_pct: float | None) -> bool:
+    """Whether a graded move is believable as the same asset's price change."""
+    return return_pct is not None and return_pct <= MAX_PLAUSIBLE_RETURN_PCT
+
+
 def grade_call(direction: str, price_at_call: float, price_now: float) -> dict:
-    """Compute the return and correctness of one call against a later price."""
+    """Compute the return and correctness of one call against a later price.
+
+    ``excluded`` flags a result that shouldn't count towards any score — see
+    :data:`MAX_PLAUSIBLE_RETURN_PCT`.
+    """
+    if not price_at_call or price_at_call <= 0:
+        return {"return_pct": 0.0, "correct": False, "excluded": True}
     return_pct = (price_now - price_at_call) / price_at_call * 100.0
     correct = return_pct > 0 if direction == "bullish" else return_pct < 0
-    return {"return_pct": return_pct, "correct": correct}
+    return {
+        "return_pct": return_pct,
+        "correct": correct,
+        "excluded": not is_plausible_return(return_pct),
+    }
 
 
 async def get_leaderboard(
@@ -194,16 +230,15 @@ async def get_leaderboard(
         keeps a single lucky/unlucky call from producing a 0% or 100% row.
     :param limit: Maximum traders to return.
     """
-    sql = text("""
+    sql = text(f"""
         SELECT
             c.user_screen_name AS user_screen_name,
             CAST(COUNT(*) AS INTEGER) AS graded_calls,
             CAST(SUM(CASE WHEN r.correct THEN 1 ELSE 0 END) AS INTEGER) AS correct_calls,
-            AVG(CASE WHEN c.direction = 'bullish' THEN r.return_pct ELSE -r.return_pct END)
-                AS avg_return_pct
+            AVG({_SIGNED_RETURN}) AS avg_return_pct
         FROM trader_call_results r
         JOIN trader_calls c ON c.id = r.call_id
-        WHERE r.horizon_days = :horizon
+        WHERE r.horizon_days = :horizon AND {_SCORED}
         GROUP BY c.user_screen_name
         HAVING COUNT(*) >= :min_calls
         ORDER BY
@@ -260,16 +295,16 @@ async def get_credibility_batch(
     if not names:
         return {}
 
-    sql = text("""
+    sql = text(f"""
         SELECT
             LOWER(c.user_screen_name) AS user_screen_name,
             CAST(COUNT(*) AS INTEGER) AS graded_calls,
             CAST(SUM(CASE WHEN r.correct THEN 1 ELSE 0 END) AS INTEGER) AS correct_calls,
-            AVG(CASE WHEN c.direction = 'bullish' THEN r.return_pct ELSE -r.return_pct END)
-                AS avg_return_pct
+            AVG({_SIGNED_RETURN}) AS avg_return_pct
         FROM trader_call_results r
         JOIN trader_calls c ON c.id = r.call_id
-        WHERE r.horizon_days = :horizon AND LOWER(c.user_screen_name) IN :names
+        WHERE r.horizon_days = :horizon AND {_SCORED}
+          AND LOWER(c.user_screen_name) IN :names
         GROUP BY LOWER(c.user_screen_name)
         HAVING COUNT(*) >= :min_calls
     """).bindparams(bindparam("names", expanding=True))
@@ -300,48 +335,98 @@ async def get_credibility_batch(
 async def get_trader_detail(
     Session: async_sessionmaker,
     user_screen_name: str,
-    recent_limit: int = 20,
+    horizon_days: int = 7,
+    recent_limit: int = 50,
 ) -> dict:
-    """Per-horizon accuracy plus recent calls for one trader.
+    """Per-horizon accuracy, per-ticker breakdown and recent calls for one trader.
 
     Unlike :func:`get_leaderboard`, this has no minimum-sample floor — it is
     a profile view for one already-chosen trader, not a fairness-adjusted
     ranking.
+
+    :param horizon_days: One of :data:`HORIZONS`; the horizon the per-ticker
+        hit-rate and average return are graded at.
+    :param recent_limit: Maximum recent calls to return, newest first.
+    :return: ``{user_screen_name, horizon_days, summary, horizons, tickers,
+        recent_calls}``. Each recent call carries the text/url of the tweet it
+        came from when that tweet is still stored, and a ``results[]`` entry
+        per horizon already graded (``excluded`` marks a result left out of
+        the scores as a pricing mismatch).
     """
-    by_horizon_sql = text("""
+    params = {"user": user_screen_name}
+
+    by_horizon_sql = text(f"""
         SELECT
             r.horizon_days AS horizon_days,
             CAST(COUNT(*) AS INTEGER) AS graded_calls,
             CAST(SUM(CASE WHEN r.correct THEN 1 ELSE 0 END) AS INTEGER) AS correct_calls,
-            AVG(CASE WHEN c.direction = 'bullish' THEN r.return_pct ELSE -r.return_pct END)
-                AS avg_return_pct
+            AVG({_SIGNED_RETURN}) AS avg_return_pct
         FROM trader_call_results r
         JOIN trader_calls c ON c.id = r.call_id
-        WHERE LOWER(c.user_screen_name) = LOWER(:user)
+        WHERE LOWER(c.user_screen_name) = LOWER(:user) AND {_SCORED}
         GROUP BY r.horizon_days
     """)
 
-    calls_sql = text("""
-        SELECT id, tweet_id, ticker, direction, sentiment_score, asset_kind,
-               price_at_call, called_at
+    summary_sql = text("""
+        SELECT
+            CAST(COUNT(*) AS INTEGER) AS total_calls,
+            CAST(SUM(CASE WHEN direction = 'bullish' THEN 1 ELSE 0 END) AS INTEGER)
+                AS bullish_calls,
+            CAST(SUM(CASE WHEN direction = 'bearish' THEN 1 ELSE 0 END) AS INTEGER)
+                AS bearish_calls,
+            CAST(COUNT(DISTINCT ticker) AS INTEGER) AS distinct_tickers,
+            MIN(called_at) AS first_called_at,
+            MAX(called_at) AS last_called_at
         FROM trader_calls
         WHERE LOWER(user_screen_name) = LOWER(:user)
-        ORDER BY called_at DESC
+    """)
+
+    # The scored filter sits in the ON clause so a ticker whose calls are all
+    # still pending (or excluded) keeps its row, just with nothing graded.
+    tickers_sql = text(f"""
+        SELECT
+            c.ticker AS ticker,
+            MAX(c.asset_kind) AS asset_kind,
+            CAST(COUNT(*) AS INTEGER) AS calls,
+            CAST(SUM(CASE WHEN c.direction = 'bullish' THEN 1 ELSE 0 END) AS INTEGER)
+                AS bullish_calls,
+            CAST(SUM(CASE WHEN c.direction = 'bearish' THEN 1 ELSE 0 END) AS INTEGER)
+                AS bearish_calls,
+            MAX(c.called_at) AS last_called_at,
+            CAST(COUNT(r.id) AS INTEGER) AS graded_calls,
+            CAST(SUM(CASE WHEN r.correct THEN 1 ELSE 0 END) AS INTEGER) AS correct_calls,
+            AVG(CASE WHEN r.id IS NULL THEN NULL ELSE {_SIGNED_RETURN} END)
+                AS avg_return_pct
+        FROM trader_calls c
+        LEFT JOIN trader_call_results r
+               ON r.call_id = c.id AND r.horizon_days = :horizon AND {_SCORED}
+        WHERE LOWER(c.user_screen_name) = LOWER(:user)
+        GROUP BY c.ticker
+        ORDER BY calls DESC, last_called_at DESC
+        LIMIT 50
+    """)
+
+    calls_sql = text("""
+        SELECT c.id, c.tweet_id, c.ticker, c.direction, c.sentiment_score,
+               c.asset_kind, c.price_at_call, c.called_at,
+               t.text AS tweet_text, t.url AS tweet_url
+        FROM trader_calls c
+        LEFT JOIN tweets t ON t.id = c.tweet_id
+        WHERE LOWER(c.user_screen_name) = LOWER(:user)
+        ORDER BY c.called_at DESC, c.id DESC
         LIMIT :limit
     """)
 
     async with Session() as s:
-        by_horizon_rows = (
-            (await s.execute(by_horizon_sql, {"user": user_screen_name}))
+        by_horizon_rows = (await s.execute(by_horizon_sql, params)).mappings().all()
+        summary_row = (await s.execute(summary_sql, params)).mappings().first()
+        ticker_rows = (
+            (await s.execute(tickers_sql, {**params, "horizon": horizon_days}))
             .mappings()
             .all()
         )
         call_rows = (
-            (
-                await s.execute(
-                    calls_sql, {"user": user_screen_name, "limit": recent_limit}
-                )
-            )
+            (await s.execute(calls_sql, {**params, "limit": recent_limit}))
             .mappings()
             .all()
         )
@@ -350,7 +435,7 @@ async def get_trader_detail(
         if call_ids:
             results_sql = text(
                 "SELECT call_id, horizon_days, price_at_horizon, return_pct, "
-                "correct, evaluated_at FROM trader_call_results "
+                "correct, excluded, evaluated_at FROM trader_call_results "
                 "WHERE call_id IN :call_ids"
             ).bindparams(bindparam("call_ids", expanding=True))
             result_rows = (
@@ -363,6 +448,8 @@ async def get_trader_detail(
                         "price_at_horizon": r["price_at_horizon"],
                         "return_pct": r["return_pct"],
                         "correct": bool(r["correct"]),
+                        "excluded": bool(r["excluded"])
+                        or not is_plausible_return(r["return_pct"]),
                         "evaluated_at": str(r["evaluated_at"]),
                     }
                 )
@@ -390,6 +477,36 @@ async def get_trader_detail(
             "avg_return_pct": r["avg_return_pct"],
         }
 
+    summary_row = summary_row or {}
+    summary = {
+        "total_calls": summary_row.get("total_calls") or 0,
+        "bullish_calls": summary_row.get("bullish_calls") or 0,
+        "bearish_calls": summary_row.get("bearish_calls") or 0,
+        "distinct_tickers": summary_row.get("distinct_tickers") or 0,
+        "first_called_at": _str_or_none(summary_row.get("first_called_at")),
+        "last_called_at": _str_or_none(summary_row.get("last_called_at")),
+    }
+
+    tickers = [
+        {
+            "ticker": r["ticker"],
+            "asset_kind": r["asset_kind"],
+            "calls": r["calls"],
+            "bullish_calls": r["bullish_calls"],
+            "bearish_calls": r["bearish_calls"],
+            "last_called_at": _str_or_none(r["last_called_at"]),
+            "graded_calls": r["graded_calls"],
+            "correct_calls": r["correct_calls"] or 0,
+            "hit_rate": (
+                (r["correct_calls"] or 0) / r["graded_calls"]
+                if r["graded_calls"]
+                else None
+            ),
+            "avg_return_pct": r["avg_return_pct"],
+        }
+        for r in ticker_rows
+    ]
+
     recent_calls = [
         {
             "id": r["id"],
@@ -400,6 +517,8 @@ async def get_trader_detail(
             "asset_kind": r["asset_kind"],
             "price_at_call": r["price_at_call"],
             "called_at": str(r["called_at"]),
+            "tweet_text": r["tweet_text"],
+            "tweet_url": r["tweet_url"],
             "results": sorted(
                 results_by_call.get(r["id"], []), key=lambda x: x["horizon_days"]
             ),
@@ -409,6 +528,13 @@ async def get_trader_detail(
 
     return {
         "user_screen_name": user_screen_name,
+        "horizon_days": horizon_days,
+        "summary": summary,
         "horizons": [horizons[h] for h in HORIZONS],
+        "tickers": tickers,
         "recent_calls": recent_calls,
     }
+
+
+def _str_or_none(value) -> str | None:
+    return None if value is None else str(value)

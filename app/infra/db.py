@@ -285,6 +285,16 @@ class TraderCallResultRow(Base):
     price_at_horizon: Mapped[float] = mapped_column(Float)
     return_pct: Mapped[float] = mapped_column(Float)
     correct: Mapped[bool] = mapped_column(Boolean)
+    # Set when the re-priced quote evidently isn't the asset priced at call
+    # time (asset kind changed, or an implausible multi-x move — typically a
+    # ticker resolving to a different coin). Kept, so the call isn't re-graded
+    # forever, but left out of every hit-rate and average-return aggregate.
+    excluded: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=sql_text("0"),
+    )
     evaluated_at: Mapped[DateTime] = mapped_column(DateTime)
 
 

@@ -94,6 +94,7 @@ def _result_row_to_dict(r: TraderCallResultRow) -> dict:
         "price_at_horizon": r.price_at_horizon,
         "return_pct": r.return_pct,
         "correct": bool(r.correct),
+        "excluded": bool(r.excluded),
         "evaluated_at": _iso_utc(r.evaluated_at),
     }
 

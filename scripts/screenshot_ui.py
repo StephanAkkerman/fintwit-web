@@ -1986,6 +1986,208 @@ def _trader_credibility() -> dict:
     }
 
 
+def _empty_trader_detail() -> dict:
+    return {
+        "user_screen_name": "finguru",
+        "horizon_days": 7,
+        "summary": {
+            "total_calls": 0,
+            "bullish_calls": 0,
+            "bearish_calls": 0,
+            "distinct_tickers": 0,
+            "first_called_at": None,
+            "last_called_at": None,
+        },
+        "horizons": [
+            {
+                "horizon_days": h,
+                "graded_calls": 0,
+                "correct_calls": 0,
+                "hit_rate": None,
+                "avg_return_pct": None,
+            }
+            for h in (1, 7, 30)
+        ],
+        "tickers": [],
+        "recent_calls": [],
+    }
+
+
+def _trader_detail() -> dict:
+    """`finguru`'s drill-down: a mix of won/lost calls across a few tickers,
+    one still pending, and one excluded as a pricing mismatch so that state
+    is visible in a capture."""
+    now = datetime.now(timezone.utc).replace(tzinfo=None, microsecond=0)
+    plan = [
+        # (days ago, ticker, kind, direction, entry, 1d move %, 7d move %, 30d move %)
+        (1, "NVDA", "EQUITY", "bullish", 181.2, None, None, None),
+        (4, "BTC", "CRYPTO", "bullish", 112_400.0, 1.8, None, None),
+        (9, "TSLA", "EQUITY", "bearish", 342.0, -2.1, -7.4, None),
+        (12, "NVDA", "EQUITY", "bullish", 172.5, 0.9, 5.1, None),
+        (16, "AAPL", "EQUITY", "bullish", 229.8, -0.6, -2.3, None),
+        (19, "PEPE", "CRYPTO", "bullish", 0.0000098, 3.1, "mismatch", None),
+        (23, "BTC", "CRYPTO", "bullish", 108_900.0, 2.4, 6.2, None),
+        (27, "SPY", "ETF", "bearish", 661.0, 0.4, 1.2, None),
+        (33, "NVDA", "EQUITY", "bullish", 158.0, 1.2, 8.9, 14.6),
+        (38, "TSLA", "EQUITY", "bearish", 365.0, -1.5, -4.8, -9.2),
+        (44, "AMD", "EQUITY", "bullish", 164.0, -2.8, -6.1, 3.4),
+        (51, "BTC", "CRYPTO", "bullish", 101_200.0, 0.7, 3.9, 11.1),
+    ]
+    tweets = {
+        "NVDA": "Adding to $NVDA on this dip, data-center demand isn't slowing",
+        "BTC": "$BTC reclaiming the range high, targeting new ATH",
+        "TSLA": "$TSLA deliveries miss incoming, short the bounce",
+        "AAPL": "$AAPL looks ready to break out of this wedge",
+        "PEPE": "$PEPE about to send it",
+        "SPY": "Fading $SPY here, breadth is terrible",
+        "AMD": "$AMD catching up to NVDA next quarter",
+    }
+    calls = []
+    for idx, (days, ticker, kind, direction, entry, *moves) in enumerate(plan):
+        called_at = now - timedelta(days=days, hours=idx)
+        results = []
+        for horizon, move in zip((1, 7, 30), moves):
+            if move is None:
+                continue
+            excluded = move == "mismatch"
+            pct = 2_068_759_913.9 if excluded else move
+            results.append(
+                {
+                    "horizon_days": horizon,
+                    "price_at_horizon": entry * (1 + pct / 100),
+                    "return_pct": pct,
+                    "correct": (pct > 0) == (direction == "bullish"),
+                    "excluded": excluded,
+                    "evaluated_at": str(called_at + timedelta(days=horizon)),
+                }
+            )
+        calls.append(
+            {
+                "id": len(plan) - idx,
+                "tweet_id": 1_900_000_000_000_000_000 + idx,
+                "ticker": ticker,
+                "direction": direction,
+                "sentiment_score": 0.72 if direction == "bullish" else -0.68,
+                "asset_kind": kind,
+                "price_at_call": entry,
+                "called_at": str(called_at),
+                "tweet_text": tweets[ticker],
+                "tweet_url": f"https://x.com/finguru/status/{1_900_000_000_000_000_000 + idx}",
+                "results": results,
+            }
+        )
+    return {
+        "user_screen_name": "finguru",
+        "horizon_days": 7,
+        "summary": {
+            "total_calls": 58,
+            "bullish_calls": 41,
+            "bearish_calls": 17,
+            "distinct_tickers": 14,
+            "first_called_at": str(now - timedelta(days=96)),
+            "last_called_at": calls[0]["called_at"],
+        },
+        "horizons": [
+            {
+                "horizon_days": 1,
+                "graded_calls": 55,
+                "correct_calls": 33,
+                "hit_rate": 0.6,
+                "avg_return_pct": 0.7,
+            },
+            {
+                "horizon_days": 7,
+                "graded_calls": 42,
+                "correct_calls": 29,
+                "hit_rate": 0.69,
+                "avg_return_pct": 4.8,
+            },
+            {
+                "horizon_days": 30,
+                "graded_calls": 31,
+                "correct_calls": 20,
+                "hit_rate": 0.65,
+                "avg_return_pct": 7.9,
+            },
+        ],
+        "tickers": [
+            {
+                "ticker": "NVDA",
+                "asset_kind": "EQUITY",
+                "calls": 14,
+                "bullish_calls": 13,
+                "bearish_calls": 1,
+                "last_called_at": calls[0]["called_at"],
+                "graded_calls": 11,
+                "correct_calls": 9,
+                "hit_rate": 0.82,
+                "avg_return_pct": 6.3,
+            },
+            {
+                "ticker": "BTC",
+                "asset_kind": "CRYPTO",
+                "calls": 11,
+                "bullish_calls": 10,
+                "bearish_calls": 1,
+                "last_called_at": calls[1]["called_at"],
+                "graded_calls": 9,
+                "correct_calls": 6,
+                "hit_rate": 0.67,
+                "avg_return_pct": 4.1,
+            },
+            {
+                "ticker": "TSLA",
+                "asset_kind": "EQUITY",
+                "calls": 9,
+                "bullish_calls": 2,
+                "bearish_calls": 7,
+                "last_called_at": calls[2]["called_at"],
+                "graded_calls": 8,
+                "correct_calls": 6,
+                "hit_rate": 0.75,
+                "avg_return_pct": 5.2,
+            },
+            {
+                "ticker": "AAPL",
+                "asset_kind": "EQUITY",
+                "calls": 7,
+                "bullish_calls": 6,
+                "bearish_calls": 1,
+                "last_called_at": calls[4]["called_at"],
+                "graded_calls": 6,
+                "correct_calls": 3,
+                "hit_rate": 0.5,
+                "avg_return_pct": -0.4,
+            },
+            {
+                "ticker": "SPY",
+                "asset_kind": "ETF",
+                "calls": 5,
+                "bullish_calls": 1,
+                "bearish_calls": 4,
+                "last_called_at": calls[7]["called_at"],
+                "graded_calls": 5,
+                "correct_calls": 2,
+                "hit_rate": 0.4,
+                "avg_return_pct": -1.1,
+            },
+            {
+                "ticker": "PEPE",
+                "asset_kind": "CRYPTO",
+                "calls": 2,
+                "bullish_calls": 2,
+                "bearish_calls": 0,
+                "last_called_at": calls[5]["called_at"],
+                "graded_calls": 0,
+                "correct_calls": 0,
+                "hit_rate": None,
+                "avg_return_pct": None,
+            },
+        ],
+        "recent_calls": calls,
+    }
+
+
 def _trader_leaderboard() -> list[dict]:
     return [
         {
@@ -2486,6 +2688,9 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             "/api/reddit/categories": _empty_reddit_categories(),
             "/api/admin/access-emails": {"emails": []},
             "/api/overview/trend-summary": _empty_trend_summary(),
+            # Reached via a `/traders/<handle>` deep link; the panel reads
+            # `.recent_calls`/`.tickers` off it.
+            "/api/traders/user/": _empty_trader_detail(),
             # First-time visitor with no Signa/Reddit/IBKR setup (issue #169):
             # both nav sections and the IBKR live-positions panel are hidden.
             "/api/integrations/status": {"signa": False, "reddit": False},
@@ -2749,6 +2954,8 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         # Traders route + tweet-card credibility badge.
         "/api/traders/leaderboard": _trader_leaderboard(),
         "/api/traders/credibility": _trader_credibility(),
+        # Per-trader drill-down (`/traders/finguru` opens it directly).
+        "/api/traders/user/": _trader_detail(),
         # Reddit route + WSB widget on the home overview.
         "/api/reddit/wsb": _reddit_wsb(),
         # Reddit trend ranking (issue #6), on the home overview and Reddit route.

@@ -76,6 +76,7 @@ Route-level sections:
   - `TraderLeaderboardWidget`
   - Purpose: trader credibility leaderboard (issue #72, narrowed scope). A horizon tab (1/7/30 days) over a table ranked by hit-rate, with graded-call count and signed average return. Self-contained like `/signa` — not wired into the shared tweet timeline, ticker/user filters, or the cross-route `MentionHeatmap`/`RouteSignalsPanel` block.
   - Fetches: `/api/traders/leaderboard` via `useTraderLeaderboard`.
+  - `TraderDetailPanel` (issue #186): opens under the table when a leaderboard row is clicked, a handle is looked up, or the page is loaded at `/traders/<handle>` (the URL follows the selection). Shows per-horizon hit-rate cards, a Recharts scatter of each recent call's direction-signed return at the selected horizon (green worked out, red didn't), a mentioned-tickers breakdown (bull/bear split, hit-rate, avg return; tickers open `TickerDetailModal`), and the recent calls with their source tweet and a 1d/7d/30d result chip each (pending, signed return, or `n/a` when excluded as a pricing mismatch). Fetches `/api/traders/user/{screen_name}` via `useTraderDetail`.
 
 - `/movers` (issue #79)
   - `MarketMoversExplorer`

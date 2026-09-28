@@ -48,14 +48,19 @@ async def _insert_call(Session, **overrides):
 
 
 class _FakeEnricher:
-    def __init__(self, prices: dict[str, float]):
+    def __init__(self, prices: dict[str, float], kinds: dict[str, str] | None = None):
         self.prices = prices
+        self.kinds = kinds or {}
         self.calls: list[list[str]] = []
 
     async def classify(self, tickers):
         self.calls.append(list(tickers))
         return [
-            {"symbol": t, "financials": {"price": self.prices[t]}}
+            {
+                "symbol": t,
+                "kind": self.kinds.get(t),
+                "financials": {"price": self.prices[t]},
+            }
             for t in tickers
             if t in self.prices
         ]
@@ -123,3 +128,42 @@ async def test_evaluate_due_calls_is_idempotent(Session, repo):
 
     assert first == 1
     assert second == 0  # already graded at horizon=1, not due again
+
+
+async def _result_rows(Session):
+    from sqlalchemy import select
+
+    from app.infra.db import TraderCallResultRow
+
+    async with Session() as s:
+        return (await s.execute(select(TraderCallResultRow))).scalars().all()
+
+
+async def test_evaluate_due_calls_excludes_a_changed_asset_kind(Session, repo):
+    await _insert_call(Session, ticker="PEPE", asset_kind="EQUITY", price_at_call=20.0)
+    enricher = _FakeEnricher({"PEPE": 18.0}, kinds={"PEPE": "CRYPTO"})
+
+    assert await evaluate_due_calls(Session, repo, enricher) == 1
+
+    rows = await _result_rows(Session)
+    assert [r.excluded for r in rows] == [True]
+
+
+async def test_evaluate_due_calls_excludes_an_implausible_move(Session, repo):
+    await _insert_call(Session, ticker="AAPL", price_at_call=0.0001)
+    enricher = _FakeEnricher({"AAPL": 230.0}, kinds={"AAPL": "EQUITY"})
+
+    await evaluate_due_calls(Session, repo, enricher)
+
+    rows = await _result_rows(Session)
+    assert [r.excluded for r in rows] == [True]
+
+
+async def test_evaluate_due_calls_keeps_a_matching_kind(Session, repo):
+    await _insert_call(Session, ticker="AAPL", price_at_call=100.0)
+    enricher = _FakeEnricher({"AAPL": 105.0}, kinds={"AAPL": "EQUITY"})
+
+    await evaluate_due_calls(Session, repo, enricher)
+
+    rows = await _result_rows(Session)
+    assert [r.excluded for r in rows] == [False]
