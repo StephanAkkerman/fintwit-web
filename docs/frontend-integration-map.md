@@ -40,7 +40,7 @@ Route-level sections:
   - `SectorRotationWidget`
   - `EarningsCalendarWidget`
   - `CompanyNewsWidget`
-  - Recent per-symbol news headlines (title/source/date/excerpt) via `yfinance`, defaults to `AAPL`; auto-loads whichever ticker is currently clicked/filtered app-wide (`tickerFilter`), still overridable via its own symbol input
+  - Recent per-symbol news headlines (title/source/date/excerpt) via `yfinance`, each scored by FinTwitBERT, with an overall-lean summary, sentiment split bar, sentiment timeline, and sentiment filter/sort (`NewsSentimentOverview`), defaults to `AAPL`; auto-loads whichever ticker is currently clicked/filtered app-wide (`tickerFilter`), still overridable via its own symbol input
   - Tweet timeline auto-filtered to stock signals
   - Chart-focused sort controls: Latest / Charts first / Charts only
 
