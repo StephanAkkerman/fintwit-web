@@ -1394,6 +1394,20 @@ def _empty_forex_macro() -> dict:
     }
 
 
+def _fx_rates() -> dict:
+    return {
+        "base": "USD",
+        "rates": {
+            "EUR": 0.92,
+            "GBP": 0.79,
+            "JPY": 149.5,
+            "CHF": 0.88,
+            "AUD": 1.52,
+            "CAD": 1.36,
+        },
+    }
+
+
 def _economic_events() -> list[dict]:
     today = date.today().isoformat()
     return [
@@ -2664,6 +2678,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
                 "positions": [],
             },
             "/api/ibkr/account": {},
+            "/api/fx/rates": _fx_rates(),
             # Same object-shaped trap as the portfolio endpoints above: these
             # widgets read nested fields (`.gainers`, `.futures`, `.data`)
             # that don't exist on the catch-all's `[]`, so an explicit
@@ -2746,6 +2761,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             for index, position in enumerate(insights["positions"])
         ],
         "/api/ibkr/account": {},
+        "/api/fx/rates": _fx_rates(),
         "/api/x/status": {"state": "ok", "source": "cookies", "detail": None},
         "/api/ibkr/status": {
             "configured": True,

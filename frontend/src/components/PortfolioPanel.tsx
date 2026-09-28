@@ -1,13 +1,11 @@
 import { FormEvent, useMemo, useState } from 'react'
 import { usePortfolio } from '../hooks/usePortfolio'
+import { useCurrency } from '../contexts/CurrencyContext'
 import type { PortfolioPosition, PortfolioSummaryPosition } from '../types'
-
-function money(value: number): string {
-  return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
 
 export default function PortfolioPanel() {
   const { positions, summary, loading, error, addPosition, toggleActive, removePosition } = usePortfolio()
+  const { format: money } = useCurrency()
 
   const [symbol, setSymbol] = useState('')
   const [quantity, setQuantity] = useState('')

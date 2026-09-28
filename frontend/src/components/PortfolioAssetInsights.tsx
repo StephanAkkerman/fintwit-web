@@ -1,4 +1,5 @@
 import { usePortfolioInsights } from '../hooks/usePortfolioInsights'
+import { useCurrency } from '../contexts/CurrencyContext'
 import type {
   PortfolioAssetFlag,
   PortfolioAssetStats,
@@ -19,16 +20,6 @@ const TONE_ICON: Record<PortfolioAssetFlag['tone'], string> = {
   bullish: '▲',
   bearish: '▼',
   neutral: '•',
-}
-
-function money(value: number | null | undefined): string {
-  if (value == null || !Number.isFinite(value)) return '—'
-  return value.toLocaleString(undefined, {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
 }
 
 function percent(value: number | null | undefined, signed = true): string {
@@ -56,6 +47,7 @@ function FlagBadge({ flag }: { flag: PortfolioAssetFlag }) {
 }
 
 function RangeBar({ stats }: { stats: PortfolioAssetStats }) {
+  const { format: money } = useCurrency()
   const position = stats.range_position_52w
   if (position == null) return <span className="text-zinc-400">—</span>
 
@@ -79,6 +71,7 @@ function RangeBar({ stats }: { stats: PortfolioAssetStats }) {
 }
 
 function AssetRow({ position }: { position: PortfolioInsightPosition }) {
+  const { format: money } = useCurrency()
   const stats = position.stats
 
   return (

@@ -1,4 +1,5 @@
 import { usePortfolioInsights } from '../hooks/usePortfolioInsights'
+import { useCurrency } from '../contexts/CurrencyContext'
 import type { PortfolioDiversificationLabel, PortfolioFlagTone, PortfolioSector } from '../types'
 
 const TONE_CLASS: Record<PortfolioFlagTone, string> = {
@@ -35,17 +36,11 @@ function percent(value: number | null | undefined): string {
   return `${value.toFixed(1)}%`
 }
 
-function money(value: number | null | undefined): string {
-  if (value == null || !Number.isFinite(value)) return '—'
-  return value.toLocaleString(undefined, {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })
-}
-
 function SectorRow({ sector, color }: { sector: PortfolioSector; color: string }) {
+  const { format } = useCurrency()
+  const money = (value: number | null | undefined) =>
+    format(value, { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+
   return (
     <div>
       <div className="flex items-baseline justify-between gap-2 text-xs">

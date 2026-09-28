@@ -66,6 +66,7 @@ from ..services.coin360_service import get_treemap_data
 from ..services.earnings_service import get_earnings_calendar
 from ..services.events_service import get_economic_events
 from ..services.fear_greed_service import get_feargreed
+from ..services.fx_rates import get_fx_rates
 from ..services.gamma_exposure_service import DEFAULT_SYMBOL as GAMMA_EXPOSURE_SYMBOL
 from ..services.gamma_exposure_service import get_gamma_exposure
 from ..services.ibkr import IbkrGateway
@@ -326,6 +327,14 @@ async def economic_events(
 @app.get("/api/forex/macro")
 async def forex_macro(_=Depends(api_key_dep)):
     data = await get_macro_snapshot()
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
+
+
+@app.get("/api/fx/rates")
+async def fx_rates(_=Depends(api_key_dep)):
+    data = await get_fx_rates()
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data

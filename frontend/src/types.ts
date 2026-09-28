@@ -1019,6 +1019,11 @@ export type IbkrStatus = {
   last_error: string | null;
 };
 
+export type FxRates = {
+  base: string;
+  rates: Record<string, number>;
+};
+
 export type IntegrationsStatus = {
   signa: boolean;
   reddit: boolean;

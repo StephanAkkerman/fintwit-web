@@ -166,7 +166,7 @@ function PositionsTable({ positions }: { positions: IbkrPosition[] }) {
 
 function TradesTable({ trades }: { trades: IbkrTrade[] }) {
   if (trades.length === 0) {
-    return <p className="text-sm text-zinc-500">No executions today.</p>
+    return <p className="text-sm text-zinc-500">No recent transactions.</p>
   }
 
   return (
@@ -174,7 +174,7 @@ function TradesTable({ trades }: { trades: IbkrTrade[] }) {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-zinc-700 text-left text-xs text-zinc-500">
-            <th className="pb-2 pr-4">Time</th>
+            <th className="pb-2 pr-4">Date</th>
             <th className="pb-2 pr-4">Symbol</th>
             <th className="pb-2 pr-4">Side</th>
             <th className="pb-2 pr-4 text-right">Qty</th>
@@ -189,7 +189,10 @@ function TradesTable({ trades }: { trades: IbkrTrade[] }) {
               <tr key={t.id} className="text-zinc-200">
                 <td className="py-1.5 pr-4 text-xs text-zinc-400">
                   {t.executed_at
-                    ? new Date(t.executed_at).toLocaleTimeString()
+                    ? new Date(t.executed_at).toLocaleString(undefined, {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      })
                     : '—'}
                 </td>
                 <td className="py-1.5 pr-4 font-medium">{t.symbol}</td>
@@ -267,7 +270,7 @@ export default function IbkrPanel({
 
           <section>
             <h3 className="mb-2 text-sm font-medium text-zinc-400">
-              Today&apos;s Executions
+              Recent Transactions
             </h3>
             <TradesTable trades={trades} />
           </section>

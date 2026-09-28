@@ -10,29 +10,12 @@ import {
   YAxis,
 } from 'recharts'
 import { usePortfolioHistory } from '../hooks/usePortfolioHistory'
+import { useCurrency } from '../contexts/CurrencyContext'
+import CurrencySelector from './CurrencySelector'
 import type { PortfolioHistoryPoint, PortfolioHistoryRange } from '../types'
 
 const UP = '#10b981' // emerald-500
 const DOWN = '#f43f5e' // rose-500
-
-function money(value: number | null | undefined): string {
-  if (value == null || !Number.isFinite(value)) return '—'
-  return value.toLocaleString(undefined, {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  })
-}
-
-function moneyExact(value: number | null | undefined): string {
-  if (value == null || !Number.isFinite(value)) return '—'
-  return value.toLocaleString(undefined, {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
-}
 
 function percent(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return '—'
@@ -80,6 +63,7 @@ function ChartTooltip({
   payload?: Array<{ payload: PortfolioHistoryPoint }>
   range: PortfolioHistoryRange
 }) {
+  const { format: moneyExact } = useCurrency()
   if (!active || !payload?.length) return null
   const point = payload[0].payload
 
@@ -111,6 +95,10 @@ export default function PortfolioValueChart() {
   const { history, range, setRange, ranges, loading, refreshing, error } =
     usePortfolioHistory()
   const [showTable, setShowTable] = useState(false)
+  const { format } = useCurrency()
+  const money = (value: number | null | undefined) =>
+    format(value, { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+  const moneyExact = (value: number | null | undefined) => format(value)
 
   const points = history?.points ?? []
   const isUp = (history?.change ?? 0) >= 0
@@ -158,22 +146,25 @@ export default function PortfolioValueChart() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Chart range">
-          {(history?.available_ranges ?? ranges).map((key) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setRange(key)}
-              aria-pressed={key === range}
-              className={`rounded-md px-2 py-1 text-[11px] font-semibold transition-colors ${
-                key === range
-                  ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
-                  : 'border border-zinc-300 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800'
-              }`}
-            >
-              {key}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Chart range">
+            {(history?.available_ranges ?? ranges).map((key) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setRange(key)}
+                aria-pressed={key === range}
+                className={`rounded-md px-2 py-1 text-[11px] font-semibold transition-colors ${
+                  key === range
+                    ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                    : 'border border-zinc-300 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800'
+                }`}
+              >
+                {key}
+              </button>
+            ))}
+          </div>
+          <CurrencySelector />
         </div>
       </div>
 
