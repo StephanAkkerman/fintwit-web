@@ -51,11 +51,14 @@ async def evaluate_due_calls(
             continue
 
         price_by_symbol: dict[str, float] = {}
+        kind_by_symbol: dict[str, str] = {}
         for asset in assets:
             symbol = str(asset.get("symbol") or "").upper()
             price = (asset.get("financials") or {}).get("price")
             if symbol and isinstance(price, (int, float)):
                 price_by_symbol[symbol] = float(price)
+                if asset.get("kind"):
+                    kind_by_symbol[symbol] = str(asset["kind"]).upper()
 
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         results = []
@@ -64,6 +67,13 @@ async def evaluate_due_calls(
             if price_now is None:
                 continue
             graded = grade_call(call["direction"], call["price_at_call"], price_now)
+            # The ticker now classifies as a different kind of asset than it
+            # did at call time (e.g. a stock symbol now resolving to a coin),
+            # so the two prices aren't comparable.
+            kind_now = kind_by_symbol.get(call["ticker"])
+            kind_then = str(call.get("asset_kind") or "").upper()
+            if kind_now and kind_then and kind_now != kind_then:
+                graded["excluded"] = True
             results.append(
                 {
                     "call_id": call["id"],
@@ -71,6 +81,7 @@ async def evaluate_due_calls(
                     "price_at_horizon": price_now,
                     "return_pct": graded["return_pct"],
                     "correct": graded["correct"],
+                    "excluded": graded["excluded"],
                     "evaluated_at": now,
                 }
             )

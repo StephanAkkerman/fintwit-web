@@ -18,3 +18,22 @@ export function formatReturnPct(value: number | null): string {
   if (value == null) return '—'
   return `${value > 0 ? '+' : ''}${value.toFixed(1)}%`
 }
+
+/** What following a call would have made: bearish calls gain when price falls. */
+export function signedReturn(direction: 'bullish' | 'bearish', returnPct: number): number {
+  return direction === 'bearish' ? -returnPct : returnPct
+}
+
+/**
+ * The trader a `/traders/<handle>` path deep-links to, or null for the bare
+ * leaderboard route. Tolerates a leading `@` and a trailing slash.
+ */
+export function traderFromPath(pathname: string): string | null {
+  const match = /^\/traders\/@?([^/]+)\/?$/.exec(pathname)
+  if (!match) return null
+  try {
+    return decodeURIComponent(match[1]) || null
+  } catch {
+    return null
+  }
+}

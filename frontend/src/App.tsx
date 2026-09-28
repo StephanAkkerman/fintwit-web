@@ -843,7 +843,7 @@ export default function App() {
 
             {route === 'traders' && (
               <ErrorBoundary label="Trader credibility">
-                <TraderLeaderboardWidget />
+                <TraderLeaderboardWidget onTickerClick={setDetailTicker} />
               </ErrorBoundary>
             )}
 

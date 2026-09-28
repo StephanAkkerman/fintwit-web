@@ -38,6 +38,14 @@ def test_trader_detail_returns_shape_for_unknown_user(client):
     assert body["user_screen_name"] == "nobody-has-this-handle"
     assert len(body["horizons"]) == 3
     assert body["recent_calls"] == []
+    assert body["tickers"] == []
+    assert body["summary"]["total_calls"] == 0
+    assert body["horizon_days"] == 7
+
+
+def test_trader_detail_rejects_unsupported_horizon(client):
+    resp = client.get("/api/traders/user/someone?horizon_days=3")
+    assert resp.status_code == 422
 
 
 def test_credibility_batch_returns_empty_dict_for_unknown_authors(client):

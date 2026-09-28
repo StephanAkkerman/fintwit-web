@@ -257,8 +257,11 @@ export type TraderLeaderboardEntry = {
 export type TraderCallResult = {
   horizon_days: TraderCallHorizon;
   price_at_horizon: number;
-  return_pct: number;
+  return_pct: number; // raw price move, not signed for direction
   correct: boolean;
+  // Left out of every score: the re-priced quote evidently belongs to a
+  // different asset than the one priced at call time.
+  excluded: boolean;
   evaluated_at: string;
 };
 
@@ -271,7 +274,9 @@ export type TraderCall = {
   asset_kind: string | null;
   price_at_call: number;
   called_at: string;
-  results: TraderCallResult[];
+  tweet_text: string | null; // null once the source tweet is no longer stored
+  tweet_url: string | null;
+  results: TraderCallResult[]; // empty while every horizon is still pending
 };
 
 export type TraderHorizonStat = {
@@ -282,9 +287,35 @@ export type TraderHorizonStat = {
   avg_return_pct: number | null;
 };
 
+export type TraderSummary = {
+  total_calls: number;
+  bullish_calls: number;
+  bearish_calls: number;
+  distinct_tickers: number;
+  first_called_at: string | null;
+  last_called_at: string | null;
+};
+
+// One ticker a trader has called, graded at the detail's `horizon_days`.
+export type TraderTickerStat = {
+  ticker: string;
+  asset_kind: string | null;
+  calls: number;
+  bullish_calls: number;
+  bearish_calls: number;
+  last_called_at: string | null;
+  graded_calls: number;
+  correct_calls: number;
+  hit_rate: number | null;
+  avg_return_pct: number | null;
+};
+
 export type TraderDetail = {
   user_screen_name: string;
+  horizon_days: TraderCallHorizon;
+  summary: TraderSummary;
   horizons: TraderHorizonStat[];
+  tickers: TraderTickerStat[];
   recent_calls: TraderCall[];
 };
 
