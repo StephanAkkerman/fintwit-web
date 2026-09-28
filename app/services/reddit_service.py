@@ -49,37 +49,55 @@ def process_description(description: str) -> str:
     return re.sub(URL_REGEX, replace_url, description)
 
 
-def process_submission_media(submission: dict, title: str) -> tuple[list[str], str]:
+_IMAGE_SUFFIXES = (".jpg", ".png", ".gif", ".jpeg", ".webp")
+
+
+def _preview_image(submission: dict) -> str | None:
+    """Reddit's own preview of a post's link or video, when it generated one."""
+    preview_images = (submission.get("preview") or {}).get("images") or []
+    if not preview_images:
+        return None
+    source = (preview_images[0] or {}).get("source") or {}
+    img = source.get("url")
+    return html.unescape(str(img)) if img else None
+
+
+def process_submission_media(submission: dict) -> tuple[list[str], str | None]:
+    """Collect a post's images and classify its media.
+
+    :return: ``(image_urls, media_type)`` where ``media_type`` is ``"image"``,
+        ``"gallery"``, ``"video"``, ``"link"`` or ``None`` for a text post.
+        The Discord bot marked these with an ``IMG``/``GALLERY``/``VIDEO``
+        title prefix because an embed had nowhere else to say it; the web UI
+        renders the preview itself, so the title stays as the author wrote it.
+    """
     image_urls: list[str] = []
 
     if submission.get("is_self"):
-        return image_urls, title
+        return image_urls, None
 
     url = str(submission.get("url") or "")
     normalized_url = html.unescape(url)
 
-    if normalized_url.lower().endswith((".jpg", ".png", ".gif", ".jpeg", ".webp")):
+    if normalized_url.lower().endswith(_IMAGE_SUFFIXES):
         image_urls.append(normalized_url)
-        title = "IMG " + title
-    elif submission.get("is_gallery"):
+        return image_urls, "image"
+
+    if submission.get("is_gallery"):
         media_metadata = submission.get("media_metadata") or {}
         for item in media_metadata.values():
             source = (item or {}).get("s") or {}
             img = source.get("u")
             if img:
                 image_urls.append(html.unescape(str(img)))
-        if image_urls:
-            title = "GALLERY " + title
-    elif "v.redd.it" in normalized_url:
-        title = "VIDEO " + title
-        preview_images = (submission.get("preview") or {}).get("images") or []
-        if preview_images:
-            source = (preview_images[0] or {}).get("source") or {}
-            img = source.get("url")
-            if img:
-                image_urls.append(html.unescape(str(img)))
+        return image_urls, "gallery"
 
-    return image_urls, title
+    preview = _preview_image(submission)
+    if preview:
+        image_urls.append(preview)
+    if "v.redd.it" in normalized_url or submission.get("is_video"):
+        return image_urls, "video"
+    return image_urls, "link"
 
 
 def _reddit_credentials_from_env() -> dict[str, str] | None:
@@ -120,7 +138,7 @@ def _normalize_post_payload(data: dict[str, Any], subreddit_name: str) -> dict:
     description = process_description(description)
 
     title = truncate_text(html.unescape(str(data.get("title") or "")), 250)
-    image_urls, title = process_submission_media(data, title)
+    image_urls, media_type = process_submission_media(data)
 
     permalink = str(data.get("permalink") or "")
     post_url = (
@@ -138,6 +156,15 @@ def _normalize_post_payload(data: dict[str, Any], subreddit_name: str) -> dict:
         "created_utc": int(data.get("created_utc") or 0),
         "url": post_url,
         "image_urls": image_urls,
+        "media_type": media_type,
+        # The external page a link post points at (None for self/media posts,
+        # whose `url` is the Reddit thread itself).
+        "link_url": (
+            html.unescape(str(data.get("url") or "")) if media_type == "link" else None
+        ),
+        "flair": str(data.get("link_flair_text") or "") or None,
+        "upvote_ratio": float(data.get("upvote_ratio") or 0.0) or None,
+        "over_18": bool(data.get("over_18")),
     }
 
 
@@ -158,6 +185,10 @@ def _submission_to_dict(submission: Any) -> dict[str, Any]:
         "is_gallery": getattr(submission, "is_gallery", False),
         "media_metadata": getattr(submission, "media_metadata", None),
         "preview": getattr(submission, "preview", None),
+        "is_video": getattr(submission, "is_video", False),
+        "link_flair_text": getattr(submission, "link_flair_text", None),
+        "upvote_ratio": getattr(submission, "upvote_ratio", None),
+        "over_18": getattr(submission, "over_18", False),
     }
 
 

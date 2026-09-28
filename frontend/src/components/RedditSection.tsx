@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
-import { RedditTrendsWidget } from './RedditTrendsWidget'
+import { RedditTrendsCard } from './RedditTrendsWidget'
+import RedditSummaryPanel from './RedditSummaryPanel'
 import RedditWsbWidget from './RedditWsbWidget'
 import { useRedditCategories } from '../hooks/useRedditCategories'
+import { useRedditTrends } from '../hooks/useRedditTrends'
 
 type RedditTab = 'trends' | 'posts'
 
@@ -14,6 +16,19 @@ const TABS: { id: RedditTab; label: string }[] = [
 // reddit-stock-analyzer package isn't installed) yet — this is the one
 // subreddit the raw-posts feed supports out of the box.
 const DEFAULT_SUBREDDIT = 'wallstreetbets'
+
+// One fetch of the trend report feeds both the ranking and the summary.
+function TrendsTab() {
+  const { data, loading, error } = useRedditTrends(20)
+  const hasRun = !loading && !error && data.available && Boolean(data.captured_at)
+
+  return (
+    <div className={hasRun ? 'grid items-start gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]' : ''}>
+      <RedditTrendsCard data={data} loading={loading} error={error} />
+      {hasRun && <RedditSummaryPanel data={data} />}
+    </div>
+  )
+}
 
 export default function RedditSection() {
   const [tab, setTab] = useState<RedditTab>('trends')
@@ -75,7 +90,7 @@ export default function RedditSection() {
       </div>
 
       {tab === 'trends' ? (
-        <RedditTrendsWidget limit={20} />
+        <TrendsTab />
       ) : (
         <RedditWsbWidget subreddit={subreddit} limit={10} />
       )}

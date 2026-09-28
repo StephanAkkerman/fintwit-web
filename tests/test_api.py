@@ -714,6 +714,43 @@ async def test_reddit_trends_empty_before_the_first_run(async_client):
     assert body["captured_at"] is None
     assert body["tickers"] == []
     assert body["subreddits"]
+    assert body["worker"]["state"] in {"idle", "disabled"}
+
+
+@pytest.mark.asyncio
+async def test_reddit_trends_surfaces_a_failing_worker(async_client):
+    from app.runtime import reddit_trends as runtime
+
+    runtime.reset_status()
+    runtime._set_status(state="error", last_error="ImportError: no gliner2")
+    try:
+        with patch(
+            "app.api.main.REDDIT_TREND_REPO.latest_run", new_callable=AsyncMock
+        ) as m:
+            m.return_value = None
+            response = await async_client.get(
+                "/api/reddit/trends", headers={"X-API-Key": "test-api-key"}
+            )
+    finally:
+        runtime.reset_status()
+
+    worker = response.json()["worker"]
+    assert worker["state"] == "error"
+    assert worker["last_error"] == "ImportError: no gliner2"
+
+
+@pytest.mark.asyncio
+async def test_reddit_trends_reports_a_disabled_worker(async_client, monkeypatch):
+    monkeypatch.setenv("REDDIT_TRENDS_ENABLED", "0")
+    with patch(
+        "app.api.main.REDDIT_TREND_REPO.latest_run", new_callable=AsyncMock
+    ) as m:
+        m.return_value = None
+        response = await async_client.get(
+            "/api/reddit/trends", headers={"X-API-Key": "test-api-key"}
+        )
+
+    assert response.json()["worker"]["state"] == "disabled"
 
 
 @pytest.mark.asyncio

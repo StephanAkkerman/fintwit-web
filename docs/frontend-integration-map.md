@@ -87,7 +87,7 @@ Route-level sections:
   - `RedditSection`
   - Purpose: dedicated Reddit section (issue #6), previously only surfaced as one widget on the home dashboard. Self-contained like `/signa`, `/traders` and `/movers` — not wired into the shared tweet timeline, ticker/user filters, or the cross-route `MentionHeatmap`/`RouteSignalsPanel` block.
   - Nav visibility (issue #169): this section (and `/signa`) is hidden from the sidebar, and redirects home if navigated to directly, unless `/api/integrations/status` reports its API key/credentials are configured — see `useIntegrationsStatus` in `App.tsx`.
-  - Tabs: "Trends" (`RedditTrendsWidget`, ranked cross-subreddit ticker mentions) and "Posts" (`RedditWsbWidget`, one subreddit's hot posts).
+  - Tabs: "Trends" (`RedditTrendsCard` ranked cross-subreddit ticker mentions, beside `RedditSummaryPanel` run-level analytics, both fed by one `useRedditTrends` fetch) and "Posts" (`RedditWsbWidget`, one subreddit's hot posts).
   - Subreddit filter: a `<select>` shown on the "Posts" tab, populated from `/api/reddit/categories` via `useRedditCategories` (falls back to just `wallstreetbets` while loading or when the `reddit-stock-analyzer` package isn't installed). Defaults to r/wallstreetbets; more subreddits become selectable as the catalogue is expanded.
   - Fetches: `/api/reddit/trends?limit=20`, `/api/reddit/wsb?limit=10&subreddit=...`, `/api/reddit/categories`.
 
@@ -185,11 +185,15 @@ Route-level sections:
 
 - `RedditWsbWidget` + `useRedditWsb` (`/reddit`, "Posts" tab)
   - Fetches: `/api/reddit/wsb?limit=...&subreddit=...`
-  - Purpose: latest hot-post radar for one subreddit (headline, author, upvotes, comments, age) for headline and engagement context. Subreddit is chosen via `RedditSection`'s filter, defaulting to r/wallstreetbets.
+  - Purpose: latest hot-post radar for one subreddit: flair, headline, a Markdown-stripped description excerpt, an image/gallery/video preview thumbnail (blurred for NSFW posts), the linked domain for link posts, and author/upvotes/upvote ratio/comments/age. Subreddit is chosen via `RedditSection`'s filter, defaulting to r/wallstreetbets.
 
 - `RedditTrendsWidget` + `useRedditTrends` (`/`, and `/reddit` "Trends" tab)
   - Fetches: `/api/reddit/trends?limit=...`
-  - Purpose: what finance subreddits are talking about and which way it is moving (issue #6) — tickers ranked by `heat_score`, each row showing a mention bar (share of the loudest ticker), now/previous counts, per-ticker sentiment and smoothed momentum, with a NEW badge for a ticker absent from the previous window and an emerging/fading footer. Unlike the other overview widgets it ignores the dashboard's asset-kind/window/user controls: those filter tweets, and none of them apply to a subreddit scrape. Clicking a ticker opens the same `TickerDetailModal` as everywhere else.
+  - Purpose: what finance subreddits are talking about and which way it is moving (issue #6) — tickers ranked by `heat_score`, each row showing a mention bar (share of the loudest ticker), now/previous counts, per-ticker sentiment and smoothed momentum, with an hourly mention sparkline from the run's `timeline`, a NEW badge for a ticker absent from the previous window and an emerging/fading footer. Empty states follow the worker's `state` (models loading, scraping, failing with the error text, Reddit returned no posts, disabled), and a banner flags a failing refresh over an older stored run. Unlike the other overview widgets it ignores the dashboard's asset-kind/window/user controls: those filter tweets, and none of them apply to a subreddit scrape. Clicking a ticker opens the same `TickerDetailModal` as everywhere else.
+
+- `RedditSummaryPanel` (`/reddit`, "Trends" tab)
+  - Fetches: nothing itself; renders the trend report `RedditSection` already loaded.
+  - Purpose: whole-run analytics (issue #185) — overall mood and score, a bullish/neutral/bearish stacked bar, posts in window / scraped / subreddits / tickers tiles, the rising shortlist, and a per-subreddit table (posts, share naming a ticker, sentiment, top tickers).
 
 - `RedditSection` + `useRedditCategories` (`/reddit`)
   - Fetches: `/api/reddit/categories`
