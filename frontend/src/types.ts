@@ -1093,6 +1093,9 @@ export interface TrendSummary {
 export interface MentionHeatCell {
   ticker: string;
   mentions: number;
+  /** Fairness-adjusted score (per-author cap); used for ranking and sizing. */
+  mention_score?: number;
+  unique_authors?: number;
   avg_sentiment_24h: number; // -1 to 1
   sentiment_label_24h: SentimentLabel;
   asset_kind: string;

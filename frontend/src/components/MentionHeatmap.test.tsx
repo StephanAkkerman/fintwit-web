@@ -60,4 +60,19 @@ describe('MentionHeatmap', () => {
     expect(screen.getByText('120')).toBeTruthy()
     expect(screen.getByText('80')).toBeTruthy()
   })
+
+  it('orders tiles by fairness-adjusted score, not raw mentions', () => {
+    const base = { avg_sentiment_24h: 0, sentiment_label_24h: 'NEUTRAL', price_direction: null } as const
+    mockUseMentionHeat.mockReturnValue({
+      data: [
+        { ...base, ticker: 'EUR', mentions: 70, mention_score: 3, asset_kind: 'FOREX' },
+        { ...base, ticker: 'NVDA', mentions: 30, mention_score: 25, asset_kind: 'EQUITY' },
+      ],
+      loading: false,
+      error: false,
+    })
+    render(<MentionHeatmap assetKind="all" />)
+    const tickers = screen.getAllByRole('button').map(b => b.textContent)
+    expect(tickers[0]).toContain('NVDA')
+  })
 })
