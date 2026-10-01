@@ -24,6 +24,11 @@ interface LayoutItem {
 // are demoted to the next smaller size and merged into that group, preserving
 // relative mention-count order. This guarantees every row is fully packed
 // with same-height tiles — no gaps, no orphans.
+// Fairness-adjusted weight (issue #191): the backend caps each author's
+// contribution per ticker, so one account spamming $EUR can't dominate. Fall
+// back to raw mentions for payloads without a score.
+const weight = (c: MentionHeatCell): number => c.mention_score ?? c.mentions
+
 function computeLayout(
   data: MentionHeatCell[],
   maxItems = 20,
@@ -32,12 +37,12 @@ function computeLayout(
   const items = data.slice(0, maxItems)
   if (items.length === 0) return { cells: [], layouts: [] }
 
-  const maxMentions = items[0].mentions
+  const maxMentions = weight(items[0]) || 1
   type Sized = { cell: MentionHeatCell; size: number }
 
   const sized: Sized[] = items.map(d => ({
     cell: d,
-    size: Math.max(1, Math.min(3, Math.round(Math.sqrt(d.mentions / maxMentions) * 3))),
+    size: Math.max(1, Math.min(3, Math.round(Math.sqrt(weight(d) / maxMentions) * 3))),
   }))
 
   const result: Array<{ cell: MentionHeatCell; item: LayoutItem }> = []
@@ -69,9 +74,9 @@ function computeLayout(
   const group1 = sized.filter(x => x.size === 1)
 
   const overflow3 = placeGroup(group3, 3)
-  const merged2 = [...group2, ...overflow3].sort((a, b) => b.cell.mentions - a.cell.mentions)
+  const merged2 = [...group2, ...overflow3].sort((a, b) => weight(b.cell) - weight(a.cell))
   const overflow2 = placeGroup(merged2, 2)
-  const merged1 = [...group1, ...overflow2].sort((a, b) => b.cell.mentions - a.cell.mentions)
+  const merged1 = [...group1, ...overflow2].sort((a, b) => weight(b.cell) - weight(a.cell))
   placeGroup(merged1, 1)
 
   return {
@@ -176,7 +181,7 @@ export function MentionHeatmap({
   const canWiden   = onWindowChange != null && currentIdx < MENTION_WINDOWS.length - 1
 
   const sorted = useMemo(
-    () => data.slice().sort((a, b) => b.mentions - a.mentions),
+    () => data.slice().sort((a, b) => weight(b) - weight(a)),
     [data]
   )
   const { cells, layouts } = useMemo(() => computeLayout(sorted, 20), [sorted])
@@ -215,7 +220,7 @@ export function MentionHeatmap({
       <div className="flex items-center mb-3">
         <h2 className="text-[13px] font-semibold text-zinc-100">Mention heat</h2>
         <span className="ml-auto text-[10px] text-zinc-500 font-mono">
-          sized by mentions · color by sentiment · ring by price Δ
+          sized by mentions (capped per account) · color by sentiment · ring by price Δ
         </span>
       </div>
       <div
