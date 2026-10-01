@@ -83,9 +83,9 @@ export default function OptionsChainWidget() {
               )}
             </p>
           )}
-          <div className="overflow-x-auto">
+          <div className="max-h-72 overflow-auto">
             <table className="w-full text-left text-xs sm:text-sm">
-              <thead className="border-b border-zinc-200 text-zinc-500 dark:border-zinc-800">
+              <thead className="sticky top-0 border-b border-zinc-200 bg-white text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900">
                 <tr>
                   <th className="py-2">Type</th>
                   <th className="py-2 text-right">Strike</th>

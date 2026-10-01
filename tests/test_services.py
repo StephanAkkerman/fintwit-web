@@ -161,6 +161,26 @@ async def test_get_options_overview_returns_none_when_all_symbols_fail():
     assert result is None
 
 
+@pytest.mark.asyncio
+async def test_get_options_overview_handles_null_rows_when_market_closed():
+    empty = {"tableData": {"asOf": None, "headers": None, "rows": None}}
+    response = MagicMock()
+    response.status_code = 200
+    response.json.return_value = {
+        "data": {"tableDataCalls": empty, "tableDataPuts": empty},
+        "status": {"rCode": 200},
+    }
+
+    client = AsyncMock()
+    client.get = AsyncMock(return_value=response)
+
+    result = await get_options_overview(client, symbols=["AAPL"])
+
+    assert result is not None
+    assert result["totals"]["total_volume"] == 0
+    assert result["most_active_contracts"] == []
+
+
 # ---------------------------------------------------------------------------
 # Reddit – get_reddit_hot_posts
 # ---------------------------------------------------------------------------

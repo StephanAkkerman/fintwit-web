@@ -95,8 +95,12 @@ async def _fetch_symbol_overview(client: httpx.AsyncClient, symbol: str) -> dict
     if not isinstance(data, dict):
         return None
 
-    calls_rows = data.get("tableDataCalls", {}).get("tableData", {}).get("rows", [])
-    puts_rows = data.get("tableDataPuts", {}).get("tableData", {}).get("rows", [])
+    # Outside market hours Nasdaq answers 200 with `"rows": null` (or tables
+    # missing), which is "no activity", not a failed request.
+    calls_rows = (data.get("tableDataCalls") or {}).get("tableData", {}).get("rows")
+    puts_rows = (data.get("tableDataPuts") or {}).get("tableData", {}).get("rows")
+    calls_rows = [] if calls_rows is None else calls_rows
+    puts_rows = [] if puts_rows is None else puts_rows
 
     if not isinstance(calls_rows, list) or not isinstance(puts_rows, list):
         return None
