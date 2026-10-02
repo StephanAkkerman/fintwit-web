@@ -69,7 +69,7 @@ jobs:
             type=semver,pattern={{version}}
             type=sha
 
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         if: steps.changes.outcome == 'skipped' || steps.changes.outputs[matrix.filter] == 'true'
         with:
           context: ${{ matrix.context }}
