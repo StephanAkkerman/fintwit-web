@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.runtime.enricher import AssetEnricher
+from app.runtime.enricher import CLASSIFICATION_TTL_SECONDS, AssetEnricher
 
 STOCK_FINANCIALS = {
     "price": 185.0,
@@ -571,6 +571,49 @@ async def test_classify_uses_cache_on_second_call():
         await enricher.classify(["AAPL"])
     # classify_async must only be called once; second call uses cache
     mock_cls.assert_called_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("symbol", ["BTC", "NEAR", "SOL"])
+async def test_classify_ticker_shared_with_etf_is_pinned_to_crypto(symbol):
+    # BTC/NEAR are also Yahoo ETFs (~$36 / ~$50); they must never be priced as one.
+    enricher = AssetEnricher()
+    enricher._cache[symbol] = {
+        "symbol": symbol,
+        "kind": "ETF",
+        "name": "Some ETF",
+        "market_cap": None,
+        "sector": None,
+        "industry": None,
+        "company_profile": None,
+        "meta": None,
+        "yahoo_lookup": symbol,
+    }
+
+    with patch.object(enricher._cls, "classify_async", return_value=[]) as mock_cls:
+        result = await enricher.classify([symbol])
+
+    mock_cls.assert_not_called()
+    assert result[0]["kind"] == "CRYPTO"
+    assert result[0]["yahoo_lookup"] is None
+
+
+@pytest.mark.asyncio
+async def test_classification_cache_entries_expire():
+    enricher = AssetEnricher()
+    mock_result = _mock_classifier_result("AAPL", "EQUITY")
+    with (
+        patch.object(
+            enricher._cls, "classify_async", return_value=[mock_result]
+        ) as mock_cls,
+        patch("app.runtime.enricher.time.monotonic") as clock,
+    ):
+        clock.return_value = 1_000.0
+        await enricher.classify(["AAPL"])
+        clock.return_value = 1_000.0 + CLASSIFICATION_TTL_SECONDS + 1
+        await enricher.classify(["AAPL"])
+    # A wrong classification must not stick for the life of the process.
+    assert mock_cls.call_count == 2
 
 
 @pytest.mark.asyncio

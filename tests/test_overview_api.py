@@ -155,6 +155,24 @@ def test_ticker_price_history_falls_back_to_usd_symbol(client):
     assert resp.json()["points"] == mock_history
 
 
+def test_ticker_price_history_prefers_crypto_for_etf_lookalikes(client):
+    # "BTC" and "NEAR" are real Yahoo ETFs; the bare symbol must not win.
+    calls = []
+
+    async def fake_get_price_history(symbol, *, range_, interval):
+        calls.append(symbol)
+        return [{"t": "t", "close": 1.0, "high": 1.0, "low": 1.0}]
+
+    with patch(
+        "app.api.overview.get_price_history", side_effect=fake_get_price_history
+    ):
+        for ticker in ("BTC", "NEAR"):
+            resp = client.get(f"/api/overview/ticker-price-history?ticker={ticker}")
+            assert resp.status_code == 200
+
+    assert calls == ["BTC-USD", "NEAR-USD"]
+
+
 def test_ticker_price_history_empty_when_unresolvable(client):
     with patch(
         "app.api.overview.get_price_history",

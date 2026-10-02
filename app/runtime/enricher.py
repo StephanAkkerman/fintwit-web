@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from collections import OrderedDict
 from typing import Dict, List
 
@@ -46,10 +47,28 @@ _FOREX_CODES = {
     "INR",
     "KRW",
 }
+# A classification is only trusted this long. The classifier decides between a
+# stock/ETF and a crypto sharing a symbol by comparing market caps, and one bad
+# call (e.g. CoinGecko rate-limited) must not stick until the next restart.
+CLASSIFICATION_TTL_SECONDS = 6 * 3600
 _LOCAL_SYMBOL_OVERRIDES = {
+    # Crypto whose symbol is also a real Yahoo ETF/stock (Grayscale trusts for
+    # BTC/ETH, iShares NEAR, ...). Pinned so they are never priced as the ETF.
     "ETH": {
         "category": "CRYPTO",
         "name": "Ethereum",
+    },
+    "BTC": {
+        "category": "CRYPTO",
+        "name": "Bitcoin",
+    },
+    "NEAR": {
+        "category": "CRYPTO",
+        "name": "NEAR Protocol",
+    },
+    "SOL": {
+        "category": "CRYPTO",
+        "name": "Solana",
     },
     "DXY": {
         "category": "INDEX",
@@ -133,6 +152,12 @@ def _local_classification_override(symbol: str) -> dict | None:
     return None
 
 
+def is_pinned_crypto(symbol: str) -> bool:
+    """Return True when ``symbol`` is locally pinned as crypto (not a lookalike ETF)."""
+    override = _local_classification_override(symbol)
+    return bool(override) and _is_crypto_kind(override["category"])
+
+
 def _build_local_cache_entry(symbol: str, override: dict) -> dict:
     yahoo_lookup_value = override.get("yahoo_lookup")
     if isinstance(yahoo_lookup_value, str) and yahoo_lookup_value.strip():
@@ -161,6 +186,8 @@ class AssetEnricher:
         self._cls = TickerClassifier()
         # Cache static classification info only
         self._cache: Dict[str, dict] = {}
+        # monotonic timestamp per classifier-sourced cache entry (for the TTL)
+        self._cached_at: Dict[str, float] = {}
         self._lock = asyncio.Lock()
 
     async def classify(self, symbols: List[str]) -> List[dict]:
@@ -170,6 +197,15 @@ class AssetEnricher:
             return []
 
         async with self._lock:
+            now = time.monotonic()
+            for sym in [
+                s
+                for s, at in self._cached_at.items()
+                if now - at > CLASSIFICATION_TTL_SECONDS
+            ]:
+                self._cache.pop(sym, None)
+                del self._cached_at[sym]
+
             # Force local overrides first so ambiguous symbols always classify
             # predictably, even when an older cache entry exists.
             for sym in symbols:
@@ -247,6 +283,7 @@ class AssetEnricher:
                     ):
                         yahoo_lookup = yahoo_lookup_value.upper()
 
+                    self._cached_at[symbol] = now
                     self._cache[symbol] = {
                         "symbol": symbol,
                         "kind": kind,

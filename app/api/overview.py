@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 from ticker_price_data import get_price_history, get_tradingview_quote
 
+from ..runtime.enricher import is_pinned_crypto
 from ..services.mention_aggregator import (
     get_activity_summary,
     get_hidden_gems,
@@ -128,7 +129,12 @@ async def _fetch_ticker_history(ticker: str) -> list[dict]:
     # Try the ticker as a Yahoo symbol directly (stocks, indices, forex), then
     # as "<ticker>-USD" (crypto) — mirrors ticker_price_data.coingecko's own
     # Yahoo fallback, without needing a classifier call just to pick a route.
-    for candidate in (ticker, f"{ticker}-USD"):
+    # Symbols shared with a real ETF (BTC, NEAR, ...) skip straight to crypto,
+    # or the bare symbol would resolve to the ETF's ~$40 price.
+    candidates = (ticker, f"{ticker}-USD")
+    if is_pinned_crypto(ticker):
+        candidates = candidates[::-1]
+    for candidate in candidates:
         try:
             history = await get_price_history(candidate, range_="1d", interval="5m")
         except Exception as exc:
