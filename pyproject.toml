@@ -36,7 +36,7 @@ test = [
     "pytest-cov",
     "python-dateutil==2.9.0",
     "sqlalchemy[asyncio]==2.0.49",
-    "ticker-classifier==0.1.5",
+    "ticker-classifier==0.1.6",
     "ticker-price-data==0.1.5",
     "tradingview-scraper==0.4.20",
     "tradingview-ta==3.3.0",
