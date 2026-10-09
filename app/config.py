@@ -8,6 +8,7 @@ on, what is off, and which variable turns it on.
 import os
 
 from .ml.chart import _chart_enabled
+from .ml.options_ner import options_ner_enabled
 from .runtime.streamer import _credential_source
 from .services.reddit_service import has_reddit_credentials
 from .services.signa import has_signa_key
@@ -43,6 +44,7 @@ def integration_status() -> dict[str, str]:
             "on" if all(os.getenv(v) for v in _CLOUDFLARE_ACCESS_VARS) else "off"
         ),
         "chart recognition": "on" if _chart_enabled() else "off",
+        "options recognizer": "on" if options_ner_enabled() else "off (regex)",
         "API key": "on" if os.getenv("API_KEY") else "off",
     }
 

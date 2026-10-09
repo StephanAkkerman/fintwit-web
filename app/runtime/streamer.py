@@ -10,11 +10,12 @@ from ..infra.repos import TraderCallRepo, TweetRepo
 from ..ml.chart import is_chart
 from ..ml.chart_extractor import extract_chart_data
 from ..ml.image_text import extract_image_text
+from ..ml.options_ner import OptionsRecognizer
 from ..ml.sentiment import FinTwitSentiment
 from ..services.trader_scoring import extract_calls
 from .broadcast import Broadcaster
 from .enricher import AssetEnricher
-from .options_intent import classify_options_intent
+from .options_intent import detect_options
 from .symbols import extract_symbols_from_text, merge_symbols
 from .xclient_compat import apply_xclient_retweet_patch
 
@@ -120,6 +121,7 @@ async def run_stream(
     bc: Broadcaster,
     sentiment_model: FinTwitSentiment | None = None,
     trader_call_repo: TraderCallRepo | None = None,
+    options_recognizer: OptionsRecognizer | None = None,
 ) -> None:
     source = _credential_source()
     if source is None:
@@ -225,7 +227,16 @@ async def run_stream(
                     symbols = [*tickers, *hashtags]
                     asset_symbols = [*tickers]
 
-                    options_signal = classify_options_intent(t_dict.get("text"))
+                    quoted_tweet = t_dict.get("quoted_tweet")
+                    options_signal = await detect_options(
+                        t_dict.get("text"),
+                        (
+                            quoted_tweet.get("text")
+                            if isinstance(quoted_tweet, dict)
+                            else None
+                        ),
+                        options_recognizer,
+                    )
                     t_dict["is_options_tweet"] = options_signal["is_options_tweet"]
                     t_dict["options_context"] = (
                         options_signal["options_context"]

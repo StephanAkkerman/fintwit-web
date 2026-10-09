@@ -70,6 +70,7 @@ integration, add it to `integration_status()` in `app/config.py` so it shows in 
 **ML Models (custom-trained):**
 - [`FinTwitBERT-sentiment`](https://huggingface.co/StephanAkkerman/FinTwitBERT-sentiment) — classifies financial tweet sentiment
 - [`chart-recognizer`](https://huggingface.co/StephanAkkerman/chart-recognizer) — detects if a tweet image is a financial chart
+- [`options-recognizer-gliner2-base`](https://huggingface.co/StephanAkkerman/options-recognizer-gliner2-base) — GLiNER2 NER adapter that extracts option contracts (ticker, strike, call/put, expiry, premium, price) and decides which tweets go to `/options`
 
 ### Frontend (`frontend/src/`)
 

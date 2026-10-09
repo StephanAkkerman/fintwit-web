@@ -36,6 +36,8 @@ On startup the backend logs one line showing which integrations are active, e.g.
 |---|---|---|
 | `CHART_ENABLED` | `true` | Chart recognition on tweet images. Disable it if PyTorch crashes with `Illegal instruction` (Raspberry Pi and older CPUs). |
 | `CHART_EXTRACTION_ENABLED` | `true` | OCR of symbol/price from chart images whose tweet names no ticker. |
+| `OPTIONS_NER_ENABLED` | `true` | Recognize options tweets for `/options` with the [options-recognizer](https://huggingface.co/StephanAkkerman/options-recognizer-gliner2-base) GLiNER2 model. When off, or when the model fails to load, a regex heuristic decides instead. |
+| `OPTIONS_NER_MODEL` | `StephanAkkerman/options-recognizer-gliner2-base` | Hugging Face repo of the options adapter, e.g. `StephanAkkerman/options-recognizer-gliner2-large` for the larger, slightly more accurate variant. |
 | `TORCH_VERSION` | `2.8.0` | Docker build argument: the CPU PyTorch version installed into the backend image. |
 
 ## Reddit

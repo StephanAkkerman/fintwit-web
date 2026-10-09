@@ -125,6 +125,8 @@ export type TweetOptionContract = {
   strike?: number | null;
   expiry?: string | null;
   notional_usd?: number | null;
+  // Per-contract price or average fill; only the NER model reports it.
+  price?: number | null;
   source?: string | null;
 };
 
@@ -137,6 +139,11 @@ export type TweetOptionsContext = {
   contracts: TweetOptionContract[];
   keyword_hits: string[];
   cashtags: string[];
+  // Present when the NER model (issue #64) classified the tweet: the raw
+  // entity texts per label, and whether only the quoted tweet was options.
+  entities?: Record<string, string[]>;
+  from_quote?: boolean;
+  source?: 'model' | string;
 };
 
 /**

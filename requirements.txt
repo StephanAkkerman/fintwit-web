@@ -14,6 +14,12 @@ Pillow==12.2.0
 pytesseract==0.3.13
 requests
 transformers==5.5.4
+# Without the [local] extra: it pins transformers<5, but the core package runs
+# on 5.x (the options recognizer, app/ml/options_ner.py). peft is what [local]
+# would have brought in for the LoRA adapter.
+gliner2==2.0.0
+peft==0.21.2
+huggingface_hub
 fastapi==0.141.1
 uvicorn==0.43.0
 sqlalchemy[asyncio]==2.0.49

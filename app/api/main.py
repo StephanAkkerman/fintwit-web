@@ -25,6 +25,7 @@ from ..infra.repos import (
     TraderCallRepo,
     TweetRepo,
 )
+from ..ml.options_ner import OptionsRecognizer, options_ner_enabled
 from ..ml.sentiment import FinTwitSentiment
 from ..runtime.broadcast import Broadcaster
 from ..runtime.enricher import AssetEnricher
@@ -33,7 +34,7 @@ from ..runtime.gamma_exposure_snapshot import (
     run_gamma_exposure_snapshots,
 )
 from ..runtime.ibkr_sync import run_ibkr_sync
-from ..runtime.options_intent import classify_options_intent
+from ..runtime.options_intent import detect_options
 from ..runtime.reddit_trends import (
     DEFAULT_INTERVAL as REDDIT_TREND_INTERVAL,
 )
@@ -154,9 +155,26 @@ async def lifespan(app: FastAPI):
 
     app.state.sentiment_model = sentiment_model
 
+    options_recognizer: OptionsRecognizer | None = None
+    if options_ner_enabled():
+        options_recognizer = OptionsRecognizer()
+        try:
+            await options_recognizer.warmup()
+        except Exception as exc:
+            logger.warning(
+                "[startup] options recognizer warmup failed, falling back to "
+                "the regex heuristic: %r",
+                exc,
+            )
+            options_recognizer = None
+
+    app.state.options_recognizer = options_recognizer
+
     # start background stream: persist THEN broadcast
     task = asyncio.create_task(
-        run_stream(REPO, BROADCAST, sentiment_model, TRADER_CALL_REPO)
+        run_stream(
+            REPO, BROADCAST, sentiment_model, TRADER_CALL_REPO, options_recognizer
+        )
     )
 
     # start IBKR sync worker if enabled
@@ -764,7 +782,11 @@ async def debug_tweet(body: DebugTweet, request: Request):
         except Exception as exc:
             logger.warning("[debug-tweet] sentiment classification failed: %r", exc)
 
-    options_signal = classify_options_intent(body.text)
+    options_signal = await detect_options(
+        body.text,
+        None,
+        getattr(request.app.state, "options_recognizer", None),
+    )
 
     tweet = {
         **body.model_dump(),
