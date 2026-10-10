@@ -13,7 +13,7 @@ ticker-classifier==0.1.6
 Pillow==12.2.0
 pytesseract==0.3.13
 requests
-transformers==5.5.4
+transformers==5.19.0
 # Without the [local] extra: it pins transformers<5, but the core package runs
 # on 5.x (the options recognizer, app/ml/options_ner.py). peft is what [local]
 # would have brought in for the LoRA adapter.
