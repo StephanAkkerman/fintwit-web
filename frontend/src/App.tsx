@@ -696,7 +696,7 @@ export default function App() {
                     onTickerClick={onTickerSelect}
                     userFilter={userFilter}
                     subscriberOnly={subscriberOnlyFilter}
-                    height={220}
+                    height={320}
                   />
                 </ErrorBoundary>
                 <ErrorBoundary label="More signals">

@@ -89,6 +89,10 @@ async def get_mention_heat(
     across several distinct authors. ``mentions`` and ``unique_authors`` are
     still returned uncapped so callers can see the raw numbers.
 
+    ``sector`` and ``industry`` come from the ticker-classifier asset metadata
+    (equities only; ``None`` for crypto, forex, and most ETFs) so the heatmap
+    can group tiles the way the market heatmap does (issue #205).
+
     ``price_direction`` is the point-to-point % return over the window:
     ``(most_recent_price - nearest_to_cutoff_price) / nearest_to_cutoff_price * 100``.
 
@@ -167,7 +171,9 @@ async def get_mention_heat(
                 j.value AS ticker,
                 CAST(COUNT(*) AS INTEGER) AS mentions,
                 AVG(t.sentiment_score) AS avg_sentiment_24h,
-                MAX(json_extract(ae.value, '$.kind')) AS asset_kind
+                MAX(json_extract(ae.value, '$.kind')) AS asset_kind,
+                MAX(NULLIF(json_extract(ae.value, '$.sector'), '')) AS sector,
+                MAX(NULLIF(json_extract(ae.value, '$.industry'), '')) AS industry
             FROM tweets t, json_each(t.tickers) j
             LEFT JOIN json_each(t.assets) ae
                    ON json_extract(ae.value, '$.symbol') = j.value
@@ -204,6 +210,8 @@ async def get_mention_heat(
             m.mentions,
             m.avg_sentiment_24h,
             m.asset_kind,
+            m.sector,
+            m.industry,
             fs.unique_authors,
             fs.mention_score,
             CASE
@@ -244,6 +252,8 @@ async def get_mention_heat(
             "avg_sentiment_24h": r["avg_sentiment_24h"] or 0.0,
             "sentiment_label_24h": _score_to_label(r["avg_sentiment_24h"]),
             "asset_kind": (r["asset_kind"] or "EQUITY").upper(),
+            "sector": r["sector"],
+            "industry": r["industry"],
             "price_direction": r["price_direction"],
         }
         for r in rows
