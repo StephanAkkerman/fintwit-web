@@ -42,6 +42,17 @@ describe('TweetCard', () => {
     expect(screen.getByLabelText('Subscribers-only post')).toBeInTheDocument()
   })
 
+  it('marks edited posts and leaves unedited ones alone', () => {
+    const { rerender } = render(<TweetCard t={baseTweet} />)
+    expect(screen.queryByText('Edited')).not.toBeInTheDocument()
+
+    rerender(<TweetCard t={{ ...baseTweet, edited_at: '2026-10-10T12:30:00+00:00' }} />)
+    expect(screen.getByText('Edited')).toHaveAttribute(
+      'title',
+      expect.stringMatching(/^Edited .+/)
+    )
+  })
+
   it('renders tweet text', () => {
     render(<TweetCard t={baseTweet} />)
     expect(screen.getByText('Hello world')).toBeInTheDocument()

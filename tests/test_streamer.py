@@ -804,3 +804,123 @@ async def test_watch_status_mirrors_last_http_status(monkeypatch, http_status, s
 
     assert streamer.STREAM_STATUS["state"] == state
     assert streamer.STREAM_STATUS["source"] == "cookies"
+
+
+def _edit_repo(stored: dict | None):
+    repo = MagicMock()
+    repo.upsert_many = AsyncMock(return_value=1)
+    repo.update_fields = AsyncMock(return_value={"id": 700})
+    repo.first_existing = AsyncMock(return_value=stored)
+    return repo
+
+
+async def _run_once(repo, tweet: DummyTweet):
+    """Stream one tweet; return what was published."""
+    published = []
+    done = asyncio.Event()
+
+    async def _publish(item):
+        published.append(item)
+        done.set()
+
+    bc = MagicMock()
+    bc.publish = AsyncMock(side_effect=_publish)
+    # A skipped tweet never publishes, so also stop once the lookup has run.
+    repo.first_existing.side_effect = lambda *_: (
+        done.set() or repo.first_existing.return_value
+    )
+
+    with (
+        patch("app.runtime.streamer.xclient.XTimelineClient", make_client_class(tweet)),
+        patch("app.runtime.streamer.merge_symbols", return_value=([], [])),
+        patch("app.runtime.streamer.AssetEnricher"),
+    ):
+        task = asyncio.create_task(streamer.run_stream(repo, bc))
+        await asyncio.wait_for(done.wait(), timeout=1.0)
+        await asyncio.sleep(0.05)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+    return published
+
+
+@pytest.mark.asyncio
+async def test_run_stream_edited_post_overwrites_stored_version(tmp_path, monkeypatch):
+    monkeypatch.setenv("XTIMELINE_LAST_ID_PATH", str(tmp_path / "last_id.txt"))
+    repo = _edit_repo({"id": 700, "created_at": "2026-10-10T09:00:00+00:00"})
+    tweet = DummyTweet(
+        {
+            "id": 701,
+            "text": "fixed typo",
+            "created_at": "2026-10-10T09:05:00+00:00",
+            "edit_tweet_ids": [700, 701],
+        }
+    )
+
+    published = await _run_once(repo, tweet)
+
+    repo.first_existing.assert_awaited_once_with([700, 701])
+    persisted = repo.upsert_many.await_args.args[0][0]
+    assert persisted["id"] == 700
+    assert persisted["text"] == "fixed typo"
+    assert persisted["created_at"] == datetime.fromisoformat(
+        "2026-10-10T09:00:00+00:00"
+    )
+    assert persisted["edited_at"] == datetime.fromisoformat("2026-10-10T09:05:00+00:00")
+    assert published[0]["id"] == 700
+
+
+@pytest.mark.asyncio
+async def test_run_stream_edited_post_without_stored_version_is_inserted(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("XTIMELINE_LAST_ID_PATH", str(tmp_path / "last_id.txt"))
+    repo = _edit_repo(None)
+    tweet = DummyTweet(
+        {
+            "id": 701,
+            "text": "v2",
+            "created_at": "2026-10-10T09:05:00",
+            "edit_tweet_ids": [700, 701],
+        }
+    )
+
+    await _run_once(repo, tweet)
+
+    persisted = repo.upsert_many.await_args.args[0][0]
+    assert persisted["id"] == 701
+    assert persisted["edited_at"] == datetime(2026, 10, 10, 9, 5)
+
+
+@pytest.mark.asyncio
+async def test_run_stream_skips_superseded_version(tmp_path, monkeypatch):
+    monkeypatch.setenv("XTIMELINE_LAST_ID_PATH", str(tmp_path / "last_id.txt"))
+    repo = _edit_repo({"id": 700, "created_at": "2026-10-10T09:00:00+00:00"})
+    tweet = DummyTweet(
+        {
+            "id": 700,
+            "text": "v1",
+            "created_at": "2026-10-10T09:00:00",
+            "edit_tweet_ids": [700, 701],
+        }
+    )
+
+    published = await _run_once(repo, tweet)
+
+    repo.upsert_many.assert_not_awaited()
+    assert published == []
+
+
+@pytest.mark.asyncio
+async def test_run_stream_engagement_update_on_edit_targets_stored_row(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("XTIMELINE_LAST_ID_PATH", str(tmp_path / "last_id.txt"))
+    repo = _edit_repo({"id": 700, "created_at": "2026-10-10T09:00:00+00:00"})
+    tweet = DummyTweet(
+        {"id": 701, "likes": 9, "edit_tweet_ids": [700, 701]}, is_update=True
+    )
+
+    await _run_once(repo, tweet)
+
+    repo.update_fields.assert_awaited_once_with(700, {"likes": 9})

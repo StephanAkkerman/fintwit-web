@@ -68,6 +68,7 @@ def _row_to_dict(r: TweetRow) -> dict:
         "is_options_tweet": r.is_options_tweet,
         "options_context": r.options_context,
         "assets": r.assets,
+        "edited_at": _iso_utc(r.edited_at),
     }
 
 
@@ -187,6 +188,24 @@ class TweetRepo:
 
     async def by_id(self, tweet_id: int):
         stmt = select(TweetRow).where(TweetRow.id == tweet_id).limit(1)
+        async with self.Session() as s:
+            row = (await s.execute(stmt)).scalars().first()
+        return _row_to_dict(row) if row else None
+
+    async def first_existing(self, tweet_ids: Iterable[int]) -> dict | None:
+        """Return the oldest stored tweet among ``tweet_ids``, if any.
+
+        Used to find the row an edited post's earlier version was saved under.
+        """
+        ids = list(tweet_ids)
+        if not ids:
+            return None
+        stmt = (
+            select(TweetRow)
+            .where(TweetRow.id.in_(ids))
+            .order_by(TweetRow.id.asc())
+            .limit(1)
+        )
         async with self.Session() as s:
             row = (await s.execute(stmt)).scalars().first()
         return _row_to_dict(row) if row else None

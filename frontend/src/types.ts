@@ -167,6 +167,8 @@ export type Tweet = {
   user_img: string;
   url: string;
   created_at: string;
+  // When the poster last edited the post on X; null when never edited.
+  edited_at?: string | null;
   is_subscriber_only?: boolean;
   is_options_tweet?: boolean;
   options_context?: TweetOptionsContext | null;

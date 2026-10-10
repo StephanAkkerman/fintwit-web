@@ -353,6 +353,12 @@ export default function TweetCard({
   const timeLabel = createdAt
     ? createdAt.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
     : null
+  const editedAt = parseTweetDate(t.edited_at)
+  const editedTitle = t.edited_at
+    ? editedAt
+      ? `Edited ${editedAt.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`
+      : 'Edited'
+    : null
   const hasQuoteEmbed = !isRepost && (Boolean(t.quoted_tweet) || hasMarkdownQuoteEmbed(t.text ?? ''))
   const rawText = hasQuoteEmbed ? stripQuotedLeadHandleLine(t.text ?? '') : (t.text ?? '')
   const renderedText = onTickerSelect ? linkifySymbols(rawText) : rawText
@@ -489,6 +495,11 @@ export default function TweetCard({
           </a>
           {timeLabel && (
             <span className="text-xs text-zinc-400">{timeLabel}</span>
+          )}
+          {editedTitle && (
+            <span className="text-xs text-zinc-400" title={editedTitle}>
+              Edited
+            </span>
           )}
         </div>
       </header>
