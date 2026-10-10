@@ -27,6 +27,8 @@ LAZY_ML_PACKAGES = {
     "pillow",
     "chart-extractor",
     "opencv-python",
+    "gliner2",
+    "peft",
 }
 
 _REQUIREMENT = re.compile(
@@ -114,7 +116,8 @@ def test_lazy_ml_packages_are_absent_at_import_time():
     """
     probe = (
         "import app.api.main, sys;"
-        "leaked = {'torch', 'timm', 'transformers', 'chart_extractor', 'cv2'} &"
+        "leaked = {'torch', 'timm', 'transformers', 'chart_extractor', 'cv2',"
+        " 'gliner2', 'peft'} &"
         " {n.split('.', 1)[0] for n in sys.modules};"
         "print(','.join(sorted(leaked)))"
     )

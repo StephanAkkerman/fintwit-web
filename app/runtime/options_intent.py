@@ -1,5 +1,8 @@
+import logging
 import re
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 _MONTH_PATTERN = (
     r"JAN(?:UARY)?|FEB(?:RUARY)?|MAR(?:CH)?|APR(?:IL)?|MAY|"
@@ -267,3 +270,28 @@ def classify_options_intent(text: str | None) -> dict[str, Any]:
         "is_options_tweet": is_options,
         "options_context": context,
     }
+
+
+async def detect_options(
+    text: str | None,
+    quoted_text: str | None = None,
+    recognizer: Any = None,
+) -> dict[str, Any]:
+    """Classify a tweet as options or not, preferring the NER model.
+
+    *recognizer* is an :class:`app.ml.options_ner.OptionsRecognizer`. Without
+    one, or when it fails, the regex heuristic above decides instead. Either
+    way a tweet that quotes an options tweet counts as one (issue #64).
+    """
+    if recognizer is not None:
+        try:
+            return await recognizer.recognize(text, quoted_text)
+        except Exception as exc:
+            logger.warning("[options] recognizer failed, using heuristic: %r", exc)
+
+    result = classify_options_intent(text)
+    if not result["is_options_tweet"] and quoted_text:
+        quoted = classify_options_intent(quoted_text)
+        if quoted["is_options_tweet"]:
+            return quoted
+    return result
