@@ -239,8 +239,10 @@ dashboard's **Admin** page, which needs a few more `.env` values (see
 `app/mcp_server.py` is a read-only [MCP](https://modelcontextprotocol.io) server over the
 dashboard's API, so Claude (Code, Desktop, or a cloud session) can pull your tweets, market
 data, Reddit trends and portfolio and reason over them. It reads the backend's OpenAPI schema,
-so every GET endpoint is available without a tool per endpoint; writes, the SSE stream and
-`/api/admin/*` are not reachable.
+so everything the dashboard shows is available without a tool per endpoint (`list_endpoints` +
+`get`), and a `portfolio` tool returns your positions, P&L, diversification and IBKR account in
+one call, so you can ask it questions about your portfolio. It can't change anything: edits,
+the SSE stream and `/api/admin/*` are not reachable.
 
 Claude can't complete Cloudflare's email-code login, so Terraform also creates an Access
 **service token** (`access_service_tokens` in `terraform.tfvars`, `["claude"]` by default): a

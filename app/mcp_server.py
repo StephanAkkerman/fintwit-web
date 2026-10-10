@@ -9,8 +9,10 @@ Cloudflare Access. Run it over stdio::
 Rather than one hand-written tool per endpoint, the server reads the backend's
 OpenAPI schema and exposes two tools: ``list_endpoints`` (the catalogue) and
 ``get`` (call one of them). New endpoints become available without touching
-this file. Only GET routes are reachable, minus the SSE stream (it never
-returns) and ``/api/admin/*`` (the Access allowlist is not market data).
+this file. GET routes are reachable, minus the SSE stream (it never
+returns) and ``/api/admin/*`` (the Access allowlist is not market data), plus
+the few POST routes that only look data up (``READ_ONLY_POSTS``). A third
+tool, ``portfolio``, gathers every portfolio view in one call.
 
 Configured through environment variables, read when a tool is called:
 
@@ -38,6 +40,21 @@ OPENAPI_PATH = "/api/openapi.json"
 # Excluded from the catalogue: the SSE stream never completes, and the admin
 # routes expose the Access allowlist rather than market data.
 _EXCLUDED = (re.compile(r"^/api/stream$"), re.compile(r"^/api/admin(/|$)"))
+# POST only because the frontend sends a batch in the body; they read and
+# compute, never write. Every other POST/PATCH/DELETE stays unreachable.
+READ_ONLY_POSTS = frozenset(
+    {"/api/overview/mention-frequency", "/api/traders/credibility"}
+)
+# What the `portfolio` tool fetches: the dashboard's /portfolio page.
+PORTFOLIO_PATHS = (
+    "/api/portfolio/summary",
+    "/api/portfolio/positions",
+    "/api/portfolio/insights",
+    "/api/ibkr/status",
+    "/api/ibkr/account",
+    "/api/ibkr/positions",
+    "/api/ibkr/trades",
+)
 # Large enough for a full posts page, small enough not to flood the context.
 MAX_RESPONSE_CHARS = 60_000
 _TIMEOUT = httpx.Timeout(60.0, connect=10.0)
@@ -81,11 +98,23 @@ def _is_access_challenge(response: httpx.Response) -> bool:
     return response.status_code in (401, 403) and "text/html" in content_type
 
 
-async def _request(client: httpx.AsyncClient, path: str, params: dict | None) -> Any:
+async def _request(
+    client: httpx.AsyncClient,
+    path: str,
+    params: dict | None,
+    body: Any = None,
+    *,
+    method: str = "GET",
+) -> Any:
     url = base_url() + path
     try:
-        response = await client.get(
-            url, params=params, headers=request_headers(), follow_redirects=False
+        response = await client.request(
+            method,
+            url,
+            params=params,
+            json=body,
+            headers=request_headers(),
+            follow_redirects=False,
         )
     except httpx.RequestError as exc:
         raise FintwitApiError(f"Could not reach {url}: {exc!r}") from exc
@@ -103,22 +132,45 @@ async def _request(client: httpx.AsyncClient, path: str, params: dict | None) ->
         )
     if response.is_error:
         raise FintwitApiError(
-            f"GET {path} returned {response.status_code}: {response.text[:500]}"
+            f"{method} {path} returned {response.status_code}: {response.text[:500]}"
         )
     try:
         return response.json()
     except ValueError as exc:
         raise FintwitApiError(
-            f"GET {path} did not return JSON (is FINTWIT_URL pointing at the "
+            f"{method} {path} did not return JSON (is FINTWIT_URL pointing at the "
             "dashboard?)"
         ) from exc
 
 
-def list_get_endpoints(spec: dict) -> list[dict]:
-    """Summarise the GET routes in an OpenAPI schema, minus the excluded ones."""
+def _resolve(schema: dict, spec: dict, depth: int = 3) -> dict:
+    """Inline ``$ref``s so a request body's shape is readable on its own."""
+    if "$ref" in schema and depth > 0:
+        name = schema["$ref"].rsplit("/", 1)[-1]
+        schema = spec.get("components", {}).get("schemas", {}).get(name, {})
+    if depth <= 0:
+        return schema
+    out = {}
+    for key, value in schema.items():
+        if key == "title":
+            continue
+        if key == "properties":
+            value = {k: _resolve(v, spec, depth - 1) for k, v in value.items()}
+        elif key == "items" and isinstance(value, dict):
+            value = _resolve(value, spec, depth - 1)
+        out[key] = value
+    return out
+
+
+def list_readable_endpoints(spec: dict) -> list[dict]:
+    """Summarise the readable routes in an OpenAPI schema: every GET minus the
+    excluded ones, plus the READ_ONLY_POSTS lookups with their body shape."""
     endpoints = []
     for path, operations in sorted(spec.get("paths", {}).items()):
-        operation = operations.get("get")
+        method = "get"
+        if path in READ_ONLY_POSTS and "post" in operations:
+            method = "post"
+        operation = operations.get(method)
         if operation is None or any(p.match(path) for p in _EXCLUDED):
             continue
         params = []
@@ -142,6 +194,12 @@ def list_get_endpoints(spec: dict) -> list[dict]:
             endpoint["description"] = operation["description"].strip()
         if params:
             endpoint["params"] = params
+        if method == "post":
+            endpoint["method"] = "POST"
+            content = operation.get("requestBody", {}).get("content", {})
+            schema = content.get("application/json", {}).get("schema")
+            if schema:
+                endpoint["body"] = _resolve(schema, spec)
         endpoints.append(endpoint)
     return endpoints
 
@@ -177,25 +235,48 @@ async def fetch_endpoints(
     cached = _catalogue.get(url)
     if cached and not refresh and time.monotonic() - cached[0] < _CATALOGUE_TTL:
         return cached[1]
-    endpoints = list_get_endpoints(await _request(client, OPENAPI_PATH, None))
+    endpoints = list_readable_endpoints(await _request(client, OPENAPI_PATH, None))
     _catalogue[url] = (time.monotonic(), endpoints)
     return endpoints
 
 
 async def call_endpoint(
-    client: httpx.AsyncClient, path: str, params: dict[str, Any] | None = None
+    client: httpx.AsyncClient,
+    path: str,
+    params: dict[str, Any] | None = None,
+    body: dict[str, Any] | None = None,
 ) -> str:
     if not path.startswith("/"):
         path = "/" + path
     if ".." in path or "?" in path:
         raise FintwitApiError("Pass query parameters in `params`, not in the path.")
     endpoints = await fetch_endpoints(client)
-    if match_endpoint(endpoints, path) is None:
+    endpoint = match_endpoint(endpoints, path)
+    if endpoint is None:
         raise FintwitApiError(
             f"{path} is not a readable endpoint; call list_endpoints for the "
             "available ones."
         )
-    return truncate(await _request(client, path, params or None))
+    method = endpoint.get("method", "GET")
+    if method == "GET" and body is not None:
+        raise FintwitApiError(f"{path} is a GET endpoint; it takes no body.")
+    payload = await _request(
+        client, path, params or None, body if method == "POST" else None, method=method
+    )
+    return truncate(payload)
+
+
+async def collect_portfolio(client: httpx.AsyncClient) -> str:
+    """Every portfolio view in one payload; a view that fails (IBKR not set up,
+    a price feed down) carries its error instead of failing the whole call."""
+    result: dict[str, Any] = {}
+    for path in PORTFOLIO_PATHS:
+        key = path.removeprefix("/api/").replace("/", "_").replace("-", "_")
+        try:
+            result[key] = await _request(client, path, None)
+        except FintwitApiError as exc:
+            result[key] = {"error": str(exc)}
+    return truncate(result)
 
 
 mcp = MCPServer(
@@ -204,7 +285,9 @@ mcp = MCPServer(
         "Read-only access to a fintwit-web dashboard: tweets from tracked X "
         "accounts with tickers and sentiment, market data (stocks, crypto, "
         "options, forex), Reddit trends, trader leaderboards and the owner's "
-        "portfolio. Call list_endpoints first, then get with one of its paths."
+        "portfolio (manual positions and IBKR). For portfolio questions call "
+        "portfolio; otherwise call list_endpoints first, then get with one of "
+        "its paths."
     ),
 )
 
@@ -223,7 +306,11 @@ async def list_endpoints() -> str:
 
 
 @mcp.tool()
-async def get(path: str, params: dict[str, Any] | None = None) -> str:
+async def get(
+    path: str,
+    params: dict[str, Any] | None = None,
+    body: dict[str, Any] | None = None,
+) -> str:
     """Fetch one endpoint from list_endpoints and return its JSON.
 
     Parameters
@@ -232,9 +319,23 @@ async def get(path: str, params: dict[str, Any] | None = None) -> str:
         A path from list_endpoints, with any ``{name}`` segment filled in.
     params
         Query parameters, e.g. ``{"limit": 50, "since_hours": 24}``.
+    body
+        Only for endpoints list_endpoints marks ``"method": "POST"``: the JSON
+        body, shaped like their ``body`` schema.
     """
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-        return await call_endpoint(client, path, params)
+        return await call_endpoint(client, path, params, body)
+
+
+@mcp.tool()
+async def portfolio() -> str:
+    """The owner's whole portfolio in one call: totals and P&L
+    (``portfolio_summary``), each position (``portfolio_positions``),
+    diversification and per-asset insights (``portfolio_insights``), and the
+    Interactive Brokers account, positions and trades when IBKR sync is on.
+    Value history over time is at ``/api/portfolio/history`` via get."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        return await collect_portfolio(client)
 
 
 if __name__ == "__main__":

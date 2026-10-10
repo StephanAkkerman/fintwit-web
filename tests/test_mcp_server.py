@@ -53,19 +53,48 @@ SPEC = {
             }
         },
         "/api/portfolio": {"post": {"summary": "Add"}},
+        "/api/traders/credibility": {
+            "post": {
+                "summary": "Credibility Batch",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {"$ref": "#/components/schemas/Batch"}
+                        }
+                    }
+                },
+            }
+        },
         "/api/stream": {"get": {"summary": "Stream"}},
         "/api/admin/access-emails": {"get": {"summary": "Emails"}},
-    }
+    },
+    "components": {
+        "schemas": {
+            "Batch": {
+                "title": "Batch",
+                "type": "object",
+                "properties": {
+                    "screen_names": {"type": "array", "items": {"type": "string"}}
+                },
+            }
+        }
+    },
 }
 
 
 def test_catalogue_keeps_only_readable_get_routes():
-    endpoints = mcp_server.list_get_endpoints(SPEC)
+    endpoints = mcp_server.list_readable_endpoints(SPEC)
 
     assert [e["path"] for e in endpoints] == [
         "/api/posts",
         "/api/reddit/trends/{symbol}/history",
+        "/api/traders/credibility",
     ]
+    assert endpoints[2]["method"] == "POST"
+    assert endpoints[2]["body"] == {
+        "type": "object",
+        "properties": {"screen_names": {"type": "array", "items": {"type": "string"}}},
+    }
     assert endpoints[0]["params"] == [
         {"name": "limit", "in": "query", "default": 200, "type": "integer"}
     ]
@@ -73,18 +102,22 @@ def test_catalogue_keeps_only_readable_get_routes():
 
 
 def test_catalogue_from_the_real_app_schema():
-    paths = [e["path"] for e in mcp_server.list_get_endpoints(app.openapi())]
+    paths = [e["path"] for e in mcp_server.list_readable_endpoints(app.openapi())]
 
     assert "/api/posts" in paths
     assert "/api/overview/mention-heat" in paths
+    assert "/api/portfolio/summary" in paths
     assert "/api/stream" not in paths
     assert not any(p.startswith("/api/admin") for p in paths)
+    # Every read-only POST must still exist, or its lookup silently vanishes.
+    assert mcp_server.READ_ONLY_POSTS <= set(paths)
+    assert set(mcp_server.PORTFOLIO_PATHS) <= set(paths)
     # The schema must sit under /api/ so the tunnel's nginx proxies it.
     assert app.openapi_url == mcp_server.OPENAPI_PATH
 
 
 def test_match_endpoint_fills_path_templates():
-    endpoints = mcp_server.list_get_endpoints(SPEC)
+    endpoints = mcp_server.list_readable_endpoints(SPEC)
 
     assert mcp_server.match_endpoint(endpoints, "/api/reddit/trends/GME/history")
     assert mcp_server.match_endpoint(endpoints, "/api/reddit/trends/GME") is None
@@ -167,6 +200,8 @@ def test_truncate_marks_cut_responses():
 async def test_tools_against_the_real_app(monkeypatch):
     """End to end through the MCP tool layer, with the app served in-process."""
     monkeypatch.setenv("FINTWIT_URL", "http://fintwit.test")
+    monkeypatch.setenv("FINTWIT_API_KEY", "mcp-key")
+    monkeypatch.setattr(app.state, "API_KEY", "mcp-key", raising=False)
     transport = ASGITransport(app=app)
     real_client = httpx.AsyncClient
 
@@ -182,3 +217,37 @@ async def test_tools_against_the_real_app(monkeypatch):
 
     result = await mcp_server.mcp.call_tool("get", {"path": "/api/integrations/status"})
     assert "signa" in json.loads(result.content[0].text)
+
+
+async def test_read_only_post_sends_the_body():
+    sent = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/openapi.json":
+            return httpx.Response(200, json=SPEC)
+        sent.append((request.method, json.loads(request.content or b"null")))
+        return httpx.Response(200, json={"finguru": {"score": 0.7}})
+
+    async with _mock_client(handler) as client:
+        body = await mcp_server.call_endpoint(
+            client, "/api/traders/credibility", body={"screen_names": ["finguru"]}
+        )
+        with pytest.raises(mcp_server.FintwitApiError, match="no body"):
+            await mcp_server.call_endpoint(client, "/api/posts", body={"x": 1})
+
+    assert json.loads(body) == {"finguru": {"score": 0.7}}
+    assert sent == [("POST", {"screen_names": ["finguru"]})]
+
+
+async def test_portfolio_keeps_going_when_one_view_fails():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.startswith("/api/ibkr/"):
+            return httpx.Response(503, json={"detail": "IBKR sync is disabled"})
+        return httpx.Response(200, json={"path": request.url.path})
+
+    async with _mock_client(handler) as client:
+        result = json.loads(await mcp_server.collect_portfolio(client))
+
+    assert result["portfolio_summary"] == {"path": "/api/portfolio/summary"}
+    assert "IBKR sync is disabled" in result["ibkr_account"]["error"]
+    assert len(result) == len(mcp_server.PORTFOLIO_PATHS)
