@@ -871,3 +871,52 @@ async def test_x_status_reports_stream_state(async_client):
         )
     assert response.status_code == 200
     assert response.json() == state
+
+
+@pytest.mark.asyncio
+async def test_stock_fear_greed_history_returns_data(async_client):
+    app.state.http_client = AsyncMock()
+    payload = {
+        "days": 7,
+        "points": [{"date": "2026-10-01", "value": 40}],
+        "source": "cnn",
+    }
+
+    with patch(
+        "app.api.main.get_stock_feargreed_history", new_callable=AsyncMock
+    ) as mock_get:
+        mock_get.return_value = payload
+        response = await async_client.get(
+            "/api/stocks/fear-greed/history?days=7",
+            headers={"X-API-Key": "test-api-key"},
+        )
+
+    assert response.status_code == 200
+    assert response.json() == payload
+    assert mock_get.await_args.args[1] == 7
+
+
+@pytest.mark.asyncio
+async def test_stock_fear_greed_history_rejects_an_unsupported_window(async_client):
+    response = await async_client.get(
+        "/api/stocks/fear-greed/history?days=90",
+        headers={"X-API-Key": "test-api-key"},
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_stock_fear_greed_history_returns_503_when_unavailable(async_client):
+    app.state.http_client = AsyncMock()
+
+    with patch(
+        "app.api.main.get_stock_feargreed_history", new_callable=AsyncMock
+    ) as mock_get:
+        mock_get.return_value = None
+        response = await async_client.get(
+            "/api/stocks/fear-greed/history",
+            headers={"X-API-Key": "test-api-key"},
+        )
+
+    assert response.status_code == 503

@@ -103,8 +103,8 @@ Route-level sections:
   - Purpose: sentiment snapshot card.
 
 - `StockFearGreedWidget`
-  - Fetches: `/api/stocks/fear-greed`
-  - Purpose: stock market Fear & Greed index card (value + rating + day-over-day change), mounted on `/stocks`.
+  - Fetches: `/api/stocks/fear-greed`, `/api/stocks/fear-greed/history?days=7|30`
+  - Purpose: stock market Fear & Greed index card (value + rating + day-over-day change, plus a 7d/30d history chart), mounted on `/stocks`.
 
 - Tweet timeline (`useTweets` + `TweetCard`)
   - Fetches: `/api/posts?limit=200&since_hours=24` on initial mount, then keeps paging in 200-item batches until the selected time window is exhausted, while `/api/posts?limit=...&before_id=...` remains available for manual older-page loading, and `/api/stream` (SSE).

@@ -94,7 +94,11 @@ from ..services.reddit_service import (
 from ..services import reddit_trends_service
 from ..services.sector_rotation_service import get_sector_rotation
 from ..services.signa import get_signa_best_trades, get_signa_live_feed, has_signa_key
-from ..services.stock_fear_greed_service import get_stock_feargreed
+from ..services.stock_fear_greed_service import (
+    HISTORY_WINDOWS as STOCK_FEAR_GREED_WINDOWS,
+    get_stock_feargreed,
+    get_stock_feargreed_history,
+)
 from ..services.stocktwits_service import get_stocktwits_data
 from ..services.trader_scoring import extract_calls
 from ..services.unusual_whales import get_spy_heatmap, summarize_spy_sectors
@@ -500,6 +504,22 @@ async def news_company(
 async def stock_fear_greed(request: Request, _=Depends(api_key_dep)):
     client: httpx.AsyncClient = request.app.state.http_client
     data = await get_stock_feargreed(client)
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
+
+
+@app.get("/api/stocks/fear-greed/history")
+async def stock_fear_greed_history(
+    request: Request, days: int = 30, _=Depends(api_key_dep)
+):
+    if days not in STOCK_FEAR_GREED_WINDOWS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"days must be one of {list(STOCK_FEAR_GREED_WINDOWS)}",
+        )
+    client: httpx.AsyncClient = request.app.state.http_client
+    data = await get_stock_feargreed_history(client, days)
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data

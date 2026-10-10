@@ -375,6 +375,14 @@ export type StockFearGreedData = {
   change?: string | null;
 };
 
+export type StockFearGreedWindow = 7 | 30;
+
+export type StockFearGreedHistory = {
+  days: StockFearGreedWindow;
+  points: Array<{ date: string; value: number }>;
+  source: 'cnn' | 'feargreedmeter' | string;
+};
+
 export type OptionContractActivity = {
   symbol: string;
   contract_type: 'CALL' | 'PUT' | string;
