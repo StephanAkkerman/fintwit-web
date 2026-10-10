@@ -112,6 +112,17 @@ def test_catalogue_from_the_real_app_schema():
     # Every read-only POST must still exist, or its lookup silently vanishes.
     assert mcp_server.READ_ONLY_POSTS <= set(paths)
     assert set(mcp_server.PORTFOLIO_PATHS) <= set(paths)
+    # Every endpoint the holdings_check and ticker bundles call.
+    assert {
+        "/api/portfolio/insights",
+        "/api/overview/ticker-timeseries",
+        "/api/overview/ticker-price-history",
+        "/api/reddit/trends/{symbol}/history",
+        "/api/news/company",
+        "/api/options/overview",
+        "/api/options/gamma-exposure",
+        "/api/earnings/calendar",
+    } <= set(paths)
     # The schema must sit under /api/ so the tunnel's nginx proxies it.
     assert app.openapi_url == mcp_server.OPENAPI_PATH
 
@@ -251,3 +262,101 @@ async def test_portfolio_keeps_going_when_one_view_fails():
     assert result["portfolio_summary"] == {"path": "/api/portfolio/summary"}
     assert "IBKR sync is disabled" in result["ibkr_account"]["error"]
     assert len(result) == len(mcp_server.PORTFOLIO_PATHS)
+
+
+CALENDAR = {
+    "days": [
+        {"date": "2026-10-12", "rows": [{"symbol": "AAPL", "time": "amc"}]},
+        {"date": "2026-10-13", "rows": [{"symbol": "TSLA", "time": "bmo"}]},
+    ]
+}
+
+
+def _bundle_handler(seen: list):
+    def handler(request: httpx.Request) -> httpx.Response:
+        path, params = request.url.path, dict(request.url.params)
+        seen.append((path, params))
+        if path == "/api/portfolio/insights":
+            return httpx.Response(
+                200,
+                json={
+                    "source": "manual",
+                    "totals": {"market_value": 3000.0},
+                    "diversification": {"label": "concentrated"},
+                    "positions": [
+                        {"symbol": "MSFT", "market_value": 1000.0},
+                        {"symbol": "AAPL", "market_value": 2000.0},
+                    ],
+                },
+            )
+        if path == "/api/overview/ticker-timeseries":
+            return httpx.Response(
+                200,
+                json={"points": [1, 2, 3], "summary": {"total_mentions": 4}},
+            )
+        if path.startswith("/api/reddit/trends/"):
+            return httpx.Response(200, json={"points": [{"rank": 9}, {"rank": 3}]})
+        if path == "/api/news/company":
+            if params["symbols"] == "MSFT":
+                return httpx.Response(503, json={"detail": "Service Unavailable"})
+            return httpx.Response(200, json={"articles": [{"title": "Beat"}]})
+        if path == "/api/earnings/calendar":
+            return httpx.Response(200, json=CALENDAR)
+        if path == "/api/options/gamma-exposure":
+            return httpx.Response(404, json={"detail": "no options"})
+        if path == "/api/portfolio/positions":
+            return httpx.Response(
+                200, json=[{"symbol": "aapl", "quantity": 5}, {"symbol": "MSFT"}]
+            )
+        return httpx.Response(200, json={"path": path})
+
+    return handler
+
+
+async def test_holdings_check_joins_every_view_per_holding():
+    seen = []
+    async with _mock_client(_bundle_handler(seen)) as client:
+        result = json.loads(await mcp_server.collect_holdings_check(client, 24))
+
+    assert result["totals"] == {"market_value": 3000.0}
+    # Largest holding first.
+    assert [h["symbol"] for h in result["holdings"]] == ["AAPL", "MSFT"]
+    aapl, msft = result["holdings"]
+    assert aapl["tweets"] == {"total_mentions": 4}  # summary only, no buckets
+    assert aapl["reddit_latest"] == {"rank": 3}
+    assert aapl["news"] == {"articles": [{"title": "Beat"}]}
+    assert aapl["earnings"] == [{"date": "2026-10-12", "symbol": "AAPL", "time": "amc"}]
+    # One failing view leaves the rest of that holding intact.
+    assert "503" in msft["news"]["error"]
+    assert msft["earnings"] == []
+    assert (
+        "/api/overview/ticker-timeseries",
+        {"ticker": "AAPL", "window_hours": "24"},
+    ) in seen
+
+
+async def test_holdings_check_caps_large_portfolios(monkeypatch):
+    monkeypatch.setattr(mcp_server, "MAX_HOLDINGS", 1)
+    async with _mock_client(_bundle_handler([])) as client:
+        result = json.loads(await mcp_server.collect_holdings_check(client))
+
+    assert [h["symbol"] for h in result["holdings"]] == ["AAPL"]
+    assert result["not_checked"] == ["MSFT"]
+
+
+async def test_ticker_bundle():
+    seen = []
+    async with _mock_client(_bundle_handler(seen)) as client:
+        result = json.loads(await mcp_server.collect_ticker(client, "$aapl"))
+        with pytest.raises(mcp_server.FintwitApiError, match="ticker symbol"):
+            await mcp_server.collect_ticker(client, "../admin")
+
+    assert result["symbol"] == "AAPL"
+    assert result["mentions"]["points"] == [1, 2, 3]  # full series here
+    assert result["earnings"] == [
+        {"date": "2026-10-12", "symbol": "AAPL", "time": "amc"}
+    ]
+    assert result["your_position"] == [{"symbol": "aapl", "quantity": 5}]
+    assert "404" in result["gamma_exposure"]["error"]
+    assert "earnings_calendar" not in result
+    assert ("/api/reddit/trends/AAPL/history", {"days": "30"}) in seen

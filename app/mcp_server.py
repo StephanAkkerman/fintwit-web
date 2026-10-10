@@ -11,8 +11,10 @@ OpenAPI schema and exposes two tools: ``list_endpoints`` (the catalogue) and
 ``get`` (call one of them). New endpoints become available without touching
 this file. GET routes are reachable, minus the SSE stream (it never
 returns) and ``/api/admin/*`` (the Access allowlist is not market data), plus
-the few POST routes that only look data up (``READ_ONLY_POSTS``). A third
-tool, ``portfolio``, gathers every portfolio view in one call.
+the few POST routes that only look data up (``READ_ONLY_POSTS``). Three more
+tools bundle the calls a common question needs: ``portfolio`` (every
+portfolio view), ``holdings_check`` (what is happening around each holding)
+and ``ticker`` (everything about one symbol).
 
 Configured through environment variables, read when a tool is called:
 
@@ -25,11 +27,13 @@ Configured through environment variables, read when a tool is called:
   with ``API_KEY`` set. Not needed through the tunnel, whose nginx adds it.
 """
 
+import asyncio
 import json
 import os
 import re
 import time
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 from mcp.server.mcpserver import MCPServer
@@ -266,16 +270,181 @@ async def call_endpoint(
     return truncate(payload)
 
 
+# Bundles fan out to several endpoints per symbol; cap how many run at once so
+# a large portfolio doesn't flood a Raspberry Pi backend.
+_BUNDLE_CONCURRENCY = 6
+# Beyond this the per-holding fan-out gets slow and the answer too long to use.
+MAX_HOLDINGS = 30
+
+
+async def _safe(
+    client: httpx.AsyncClient,
+    path: str,
+    params: dict | None = None,
+    limiter: asyncio.Semaphore | None = None,
+) -> Any:
+    """One view of a bundle: its payload, or ``{"error": ...}`` so a failing
+    upstream (IBKR not set up, Yahoo down) doesn't sink the whole bundle."""
+    try:
+        if limiter is None:
+            return await _request(client, path, params)
+        async with limiter:
+            return await _request(client, path, params)
+    except FintwitApiError as exc:
+        return {"error": str(exc)}
+
+
+def _earnings_by_symbol(calendar: Any, symbols: set[str]) -> dict[str, list[dict]]:
+    found: dict[str, list[dict]] = {}
+    if not isinstance(calendar, dict):
+        return found
+    for day in calendar.get("days") or []:
+        for row in day.get("rows") or []:
+            symbol = str(row.get("symbol") or "").upper()
+            if symbol in symbols:
+                found.setdefault(symbol, []).append({"date": day.get("date"), **row})
+    return found
+
+
+def _latest_point(history: Any) -> Any:
+    if isinstance(history, dict) and "points" in history:
+        points = history["points"] or []
+        return points[-1] if points else None
+    return history
+
+
 async def collect_portfolio(client: httpx.AsyncClient) -> str:
-    """Every portfolio view in one payload; a view that fails (IBKR not set up,
-    a price feed down) carries its error instead of failing the whole call."""
-    result: dict[str, Any] = {}
-    for path in PORTFOLIO_PATHS:
-        key = path.removeprefix("/api/").replace("/", "_").replace("-", "_")
-        try:
-            result[key] = await _request(client, path, None)
-        except FintwitApiError as exc:
-            result[key] = {"error": str(exc)}
+    """Every portfolio view in one payload."""
+    views = await asyncio.gather(*(_safe(client, path) for path in PORTFOLIO_PATHS))
+    result = {
+        path.removeprefix("/api/").replace("/", "_").replace("-", "_"): view
+        for path, view in zip(PORTFOLIO_PATHS, views)
+    }
+    return truncate(result)
+
+
+async def collect_holdings_check(
+    client: httpx.AsyncClient, window_hours: int = 168, earnings_days: int = 14
+) -> str:
+    """Per holding: the position, tweet mentions/sentiment, Reddit buzz, recent
+    news with its sentiment, and earnings inside ``earnings_days``."""
+    insights = await _request(client, "/api/portfolio/insights", None)
+    positions = [p for p in insights.get("positions") or [] if p.get("symbol")]
+    positions.sort(key=lambda p: p.get("market_value") or 0, reverse=True)
+    skipped = [p["symbol"] for p in positions[MAX_HOLDINGS:]]
+    positions = positions[:MAX_HOLDINGS]
+    symbols = [str(p["symbol"]).upper() for p in positions]
+
+    limiter = asyncio.Semaphore(_BUNDLE_CONCURRENCY)
+
+    async def per_symbol(symbol: str) -> dict:
+        mentions, reddit, news = await asyncio.gather(
+            _safe(
+                client,
+                "/api/overview/ticker-timeseries",
+                {"ticker": symbol, "window_hours": window_hours},
+                limiter,
+            ),
+            _safe(
+                client,
+                f"/api/reddit/trends/{quote(symbol, safe='')}/history",
+                {"days": 7},
+                limiter,
+            ),
+            _safe(
+                client, "/api/news/company", {"symbols": symbol, "limit": 3}, limiter
+            ),
+        )
+        if isinstance(mentions, dict) and "summary" in mentions:
+            mentions = mentions["summary"]
+        return {
+            "tweets": mentions,
+            "reddit_latest": _latest_point(reddit),
+            "news": news,
+        }
+
+    calendar, *details = await asyncio.gather(
+        _safe(
+            client,
+            "/api/earnings/calendar",
+            {"days": min(max(earnings_days, 1), 14), "limit_per_day": 50},
+        ),
+        *(per_symbol(symbol) for symbol in symbols),
+    )
+    earnings = _earnings_by_symbol(calendar, set(symbols))
+    earnings_error = calendar.get("error") if isinstance(calendar, dict) else None
+
+    holdings = []
+    for position, symbol, detail in zip(positions, symbols, details):
+        holdings.append(
+            {
+                "symbol": symbol,
+                "position": position,
+                **detail,
+                "earnings": (
+                    {"error": earnings_error}
+                    if earnings_error
+                    else earnings.get(symbol, [])
+                ),
+            }
+        )
+
+    result: dict[str, Any] = {
+        "source": insights.get("source"),
+        "totals": insights.get("totals"),
+        "diversification": insights.get("diversification"),
+        "window_hours": window_hours,
+        "holdings": holdings,
+    }
+    if skipped:
+        result["not_checked"] = skipped
+    return truncate(result)
+
+
+async def collect_ticker(
+    client: httpx.AsyncClient, symbol: str, window_hours: int = 168
+) -> str:
+    """Everything the dashboard knows about one symbol."""
+    symbol = symbol.strip().upper().lstrip("$")
+    if not symbol or "/" in symbol:
+        raise FintwitApiError("Pass a ticker symbol such as NVDA or BTC.")
+
+    views = {
+        "mentions": (
+            "/api/overview/ticker-timeseries",
+            {"ticker": symbol, "window_hours": window_hours},
+        ),
+        "price_today": ("/api/overview/ticker-price-history", {"ticker": symbol}),
+        "news": ("/api/news/company", {"symbols": symbol, "limit": 10}),
+        "reddit_history": (
+            f"/api/reddit/trends/{quote(symbol, safe='')}/history",
+            {"days": 30},
+        ),
+        "options": ("/api/options/overview", {"symbols": symbol}),
+        "gamma_exposure": ("/api/options/gamma-exposure", {"symbol": symbol}),
+        "earnings_calendar": (
+            "/api/earnings/calendar",
+            {"days": 14, "limit_per_day": 50},
+        ),
+        "portfolio_positions": ("/api/portfolio/positions", {"active_only": True}),
+    }
+    limiter = asyncio.Semaphore(_BUNDLE_CONCURRENCY)
+    payloads = await asyncio.gather(
+        *(_safe(client, path, params, limiter) for path, params in views.values())
+    )
+    result: dict[str, Any] = {"symbol": symbol, **dict(zip(views, payloads))}
+
+    calendar = result.pop("earnings_calendar")
+    result["earnings"] = (
+        calendar
+        if isinstance(calendar, dict) and "error" in calendar
+        else _earnings_by_symbol(calendar, {symbol}).get(symbol, [])
+    )
+    positions = result.pop("portfolio_positions")
+    if isinstance(positions, list):
+        result["your_position"] = [
+            p for p in positions if str(p.get("symbol") or "").upper() == symbol
+        ]
     return truncate(result)
 
 
@@ -285,9 +454,10 @@ mcp = MCPServer(
         "Read-only access to a fintwit-web dashboard: tweets from tracked X "
         "accounts with tickers and sentiment, market data (stocks, crypto, "
         "options, forex), Reddit trends, trader leaderboards and the owner's "
-        "portfolio (manual positions and IBKR). For portfolio questions call "
-        "portfolio; otherwise call list_endpoints first, then get with one of "
-        "its paths."
+        "portfolio (manual positions and IBKR). Start with the bundles: "
+        "portfolio for holdings and P&L, holdings_check for what is happening "
+        "around each holding (news, chatter, earnings), ticker for one symbol. "
+        "For anything else call list_endpoints, then get with one of its paths."
     ),
 )
 
@@ -336,6 +506,28 @@ async def portfolio() -> str:
     Value history over time is at ``/api/portfolio/history`` via get."""
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         return await collect_portfolio(client)
+
+
+@mcp.tool()
+async def holdings_check(window_hours: int = 168, earnings_days: int = 14) -> str:
+    """What is happening around each holding, largest first: the position, tweet
+    mentions and sentiment over ``window_hours`` (default 7 days), the latest
+    Reddit trend reading, the three newest headlines with their sentiment, and
+    any earnings in the next ``earnings_days`` (at most 14). Use it for
+    questions like "anything I should worry about in my portfolio?"."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        return await collect_holdings_check(client, window_hours, earnings_days)
+
+
+@mcp.tool()
+async def ticker(symbol: str, window_hours: int = 168) -> str:
+    """Everything about one symbol (e.g. ``NVDA``, ``BTC``): tweet mentions and
+    sentiment over time, today's intraday price, news with sentiment, Reddit
+    trend history, options overview and gamma exposure, upcoming earnings, and
+    your own position in it if you hold it. Parts that don't apply (no options
+    on a coin) come back as an ``error`` entry."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        return await collect_ticker(client, symbol, window_hours)
 
 
 if __name__ == "__main__":

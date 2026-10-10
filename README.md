@@ -240,8 +240,10 @@ dashboard's **Admin** page, which needs a few more `.env` values (see
 dashboard's API, so Claude (Code, Desktop, or a cloud session) can pull your tweets, market
 data, Reddit trends and portfolio and reason over them. It reads the backend's OpenAPI schema,
 so everything the dashboard shows is available without a tool per endpoint (`list_endpoints` +
-`get`), and a `portfolio` tool returns your positions, P&L, diversification and IBKR account in
-one call, so you can ask it questions about your portfolio. It can't change anything: edits,
+`get`). Three bundled tools answer the common questions in one call each: `portfolio` (positions,
+P&L, diversification, IBKR account), `holdings_check` (per holding: tweet chatter and
+sentiment, Reddit buzz, recent news, upcoming earnings) and `ticker` (everything about one
+symbol, including your position in it). It can't change anything: edits,
 the SSE stream and `/api/admin/*` are not reachable.
 
 Claude can't complete Cloudflare's email-code login, so Terraform also creates an Access
