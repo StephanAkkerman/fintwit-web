@@ -9,6 +9,8 @@ recording of the real upstream shape.
 genuine request/response path runs, including `raise_for_status`.
 """
 
+from datetime import datetime, timedelta, timezone
+
 import httpx
 import pytest
 
@@ -343,6 +345,96 @@ async def test_stock_fear_greed_uses_a_fresh_cache_without_a_new_request():
         second = await stock_fear_greed_service.get_stock_feargreed(client)
 
     assert first == second == {"value": 40, "status": "Fear", "change": None}
+
+
+def _cnn_history(*days_ago_and_scores: tuple[float, float]) -> dict:
+    # CNN's graphdata series: ``x`` is a ms epoch, ``y`` the score.
+    now = datetime.now(timezone.utc)
+    return {
+        "fear_and_greed": {"score": 40.1, "rating": "fear"},
+        "fear_and_greed_historical": {
+            "data": [
+                {
+                    "x": (now - timedelta(days=ago)).timestamp() * 1000,
+                    "y": score,
+                    "rating": "fear",
+                }
+                for ago, score in days_ago_and_scores
+            ]
+        },
+    }
+
+
+def _by_host(cnn, mmeter):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "production.dataviz.cnn.io":
+            return cnn(request)
+        return mmeter(request)
+
+    return handler
+
+
+async def test_stock_fear_greed_history_parses_cnn_daily_readings():
+    # 40 days ago falls outside the 30d window; the two readings for today
+    # (a close, then an intraday update) collapse into the later one.
+    payload = _cnn_history((40, 10), (2, 44.6), (1, 41.2), (0, 38), (0, 39.4))
+
+    async with _client(_responds(payload)) as client:
+        result = await stock_fear_greed_service.get_stock_feargreed_history(client, 30)
+
+    assert result["source"] == "cnn"
+    assert result["days"] == 30
+    assert [p["value"] for p in result["points"]] == [45, 41, 39]
+    dates = [p["date"] for p in result["points"]]
+    assert dates == sorted(set(dates))
+
+
+async def test_stock_fear_greed_history_falls_back_to_feargreedmeter_readings():
+    handler = _by_host(_responds({}, status=418), _responds(_FEARGREEDMETER))
+
+    async with _client(handler) as client:
+        week = await stock_fear_greed_service.get_stock_feargreed_history(client, 7)
+        month = await stock_fear_greed_service.get_stock_feargreed_history(client, 30)
+
+    assert week == {
+        "days": 7,
+        "source": "feargreedmeter",
+        "points": [
+            {"date": "2026-09-18", "value": 30},
+            {"date": "2026-09-24", "value": 36},
+            {"date": "2026-09-25", "value": 37},
+        ],
+    }
+    assert month["points"][0] == {"date": "2026-08-26", "value": 60}
+    assert len(month["points"]) == 4
+
+
+async def test_stock_fear_greed_history_returns_none_when_both_sources_fail():
+    async with _client(_responds({}, status=503)) as client:
+        assert (
+            await stock_fear_greed_service.get_stock_feargreed_history(client, 7)
+            is None
+        )
+
+
+async def test_stock_fear_greed_history_rejects_an_unexpected_cnn_shape():
+    handler = _by_host(_responds({"unexpected": True}), _responds({}, status=503))
+
+    async with _client(handler) as client:
+        assert (
+            await stock_fear_greed_service.get_stock_feargreed_history(client, 7)
+            is None
+        )
+
+
+async def test_stock_fear_greed_history_serves_a_stale_cache_on_failure():
+    stale = {"days": 7, "points": [], "source": "cnn"}
+    stock_fear_greed_service._history_cache[7] = (0.0, stale)
+
+    async with _client(_responds({}, status=503)) as client:
+        result = await stock_fear_greed_service.get_stock_feargreed_history(client, 7)
+
+    assert result == stale
 
 
 # ---------------------------------------------------------------------------

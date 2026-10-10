@@ -560,6 +560,25 @@ def _stock_fear_greed() -> dict:
     return {"value": 62, "status": "Greed", "change": "+4"}
 
 
+def _stock_fear_greed_history(days: int) -> dict:
+    # A slide from greed into fear and a partial recovery, oldest first.
+    shape = [71, 68, 66, 63, 64, 60, 57, 52, 48, 45, 41, 38, 36, 39, 42]
+    shape += [44, 47, 45, 50, 53, 55, 52, 56, 58, 57, 60, 59, 61, 63, 62]
+    today = date(2026, 10, 9)
+    values = shape[-days:]
+    return {
+        "days": days,
+        "source": "cnn",
+        "points": [
+            {
+                "date": (today - timedelta(days=len(values) - 1 - i)).isoformat(),
+                "value": v,
+            }
+            for i, v in enumerate(values)
+        ],
+    }
+
+
 def _crypto_fear_greed() -> dict:
     return {"value": 54, "status": "Neutral", "change": "-2"}
 
@@ -2928,6 +2947,9 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             },
         ],
         # Stocks route.
+        # Before the bare endpoint: fixture matching is substring-based.
+        "/api/stocks/fear-greed/history?days=7": _stock_fear_greed_history(7),
+        "/api/stocks/fear-greed/history?days=30": _stock_fear_greed_history(30),
         "/api/stocks/fear-greed": _stock_fear_greed(),
         "/api/stocks/market-movers": _market_movers(),
         "/api/markets/movers": _markets_movers(),

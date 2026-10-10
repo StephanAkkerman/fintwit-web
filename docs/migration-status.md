@@ -132,7 +132,7 @@ Last updated: 2026-09-28 (portfolio page cleanup + display currency, issue #187)
 - Stocks route now includes a market-hours banner showing major exchange session state (open/pre-market/after-hours/closed) with explicit holiday closure labels when applicable.
 - Crypto route now includes a Binance movers widget (top gainers/losers).
 - Stocks route now includes a Nasdaq trading halts widget.
-- Stocks route now includes a stock market Fear & Greed index card.
+- Stocks route now includes a stock market Fear & Greed index card, with a 7d/30d history chart (`/api/stocks/fear-greed/history`, CNN daily readings with a feargreedmeter.com fallback).
 - Options route now includes a market activity widget for calls, puts, put/call ratio, and most-active contracts.
 - Options route now also includes a per-symbol options chain widget (`OptionsChainWidget`): a symbol input plus an expiration picker, rendering the full call/put chain (strike, bid/ask, last, IV, volume, OI) with in-the-money rows shaded.
 - Stocks route now includes a company news widget (`CompanyNewsWidget`): a symbol input showing recent headlines with source, timestamp, and excerpt. It also syncs to the app-wide clicked-ticker state (`tickerFilter`) — clicking any ticker elsewhere (tweet card, mention heatmap, etc.) auto-loads that symbol's news, while typing a different symbol still overrides it. Since issue #180 it also summarises the news flow (`NewsSentimentOverview`): an overall lean badge with the average score, a bullish/neutral/bearish split bar, and a sentiment-over-time scatter (Recharts); each headline gets a sentiment badge, and the list can be filtered by sentiment or sorted by strongest signal.
