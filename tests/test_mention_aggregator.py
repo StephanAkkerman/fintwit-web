@@ -93,6 +93,38 @@ async def test_mention_heat_counts(Session):
     assert btc["mention_score"] == 2
 
 
+async def test_mention_heat_includes_sector_and_industry(Session):
+    """issue #205: the heatmap groups tiles by sector/industry, so each row
+    carries them; assets without metadata (crypto, ETFs) return None."""
+    from app.services.mention_aggregator import get_mention_heat
+
+    await _insert(
+        Session,
+        [
+            _tweet(
+                1,
+                ["NVDA"],
+                "BULL",
+                0.5,
+                1,
+                sector="Technology",
+                industry="Semiconductors",
+            ),
+            _tweet(2, ["BTC"], "BULL", 0.5, 1, kind="CRYPTO"),
+            _tweet(3, ["SPY"], "NEUTRAL", 0.0, 1, kind="ETF", sector=""),
+        ],
+    )
+
+    rows = {r["ticker"]: r for r in await get_mention_heat(Session, window_hours=24)}
+
+    assert rows["NVDA"]["sector"] == "Technology"
+    assert rows["NVDA"]["industry"] == "Semiconductors"
+    assert rows["BTC"]["sector"] is None
+    assert rows["BTC"]["industry"] is None
+    # Blank strings from the classifier are normalised to None.
+    assert rows["SPY"]["sector"] is None
+
+
 async def test_mention_heat_avg_sentiment(Session):
     from app.services.mention_aggregator import get_mention_heat
 

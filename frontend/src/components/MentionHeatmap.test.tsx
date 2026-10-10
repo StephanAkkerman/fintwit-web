@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { MentionHeatmap } from './MentionHeatmap'
 import type { MentionHeatCell } from '../types'
@@ -57,8 +57,9 @@ describe('MentionHeatmap', () => {
   it('shows mention count for each ticker', () => {
     mockUseMentionHeat.mockReturnValue({ data: sampleCells, loading: false, error: false })
     render(<MentionHeatmap assetKind="EQUITY" />)
-    expect(screen.getByText('120')).toBeTruthy()
-    expect(screen.getByText('80')).toBeTruthy()
+    const tiles = screen.getAllByTestId('mention-heat-tile').map(t => t.textContent)
+    expect(tiles[0]).toMatch(/AAPL.*120$/)
+    expect(tiles[1]).toMatch(/BTC.*80$/)
   })
 
   it('orders tiles by fairness-adjusted score, not raw mentions', () => {
@@ -72,7 +73,74 @@ describe('MentionHeatmap', () => {
       error: false,
     })
     render(<MentionHeatmap assetKind="all" />)
-    const tickers = screen.getAllByRole('button').map(b => b.textContent)
+    const tickers = screen.getAllByTestId('mention-heat-tile').map(b => b.textContent)
     expect(tickers[0]).toContain('NVDA')
+  })
+
+  it('groups tickers by sector, falling back to asset class', () => {
+    const base = { sentiment_label_24h: 'NEUTRAL', price_direction: null, asset_kind: 'EQUITY' } as const
+    mockUseMentionHeat.mockReturnValue({
+      data: [
+        { ...base, ticker: 'NVDA', mentions: 40, avg_sentiment_24h: 0.5, sector: 'Technology', industry: 'Semiconductors' },
+        { ...base, ticker: 'AMD', mentions: 20, avg_sentiment_24h: 0.3, sector: 'Technology', industry: 'Semiconductors' },
+        { ...base, ticker: 'XOM', mentions: 15, avg_sentiment_24h: -0.4, sector: 'Energy', industry: 'Oil & Gas' },
+        { ...base, ticker: 'BTC', mentions: 30, avg_sentiment_24h: 0, asset_kind: 'CRYPTO' },
+      ],
+      loading: false,
+      error: false,
+    })
+    render(<MentionHeatmap assetKind="all" />)
+    expect(screen.getAllByTestId('mention-heat-group')).toHaveLength(3)
+    expect(screen.getByRole('button', { name: 'Show Technology in detail' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Show Crypto in detail' })).toBeTruthy()
+    expect(screen.getByText('Semiconductors')).toBeTruthy()
+    // The Technology header reads the mention-weighted lean of NVDA + AMD.
+    expect(screen.getByRole('button', { name: 'Show Technology in detail' }).textContent).toContain('Bullish · 60')
+  })
+
+  it('drills into a group and back', () => {
+    const base = { sentiment_label_24h: 'NEUTRAL', price_direction: null, avg_sentiment_24h: 0, asset_kind: 'EQUITY' } as const
+    mockUseMentionHeat.mockReturnValue({
+      data: [
+        { ...base, ticker: 'NVDA', mentions: 40, sector: 'Technology' },
+        { ...base, ticker: 'XOM', mentions: 30, sector: 'Energy' },
+      ],
+      loading: false,
+      error: false,
+    })
+    render(<MentionHeatmap assetKind="all" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Show Energy in detail' }))
+    expect(screen.getAllByTestId('mention-heat-group')).toHaveLength(1)
+    expect(screen.queryByText('$NVDA')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'All' }))
+    expect(screen.getAllByTestId('mention-heat-group')).toHaveLength(2)
+  })
+
+  it('moves broad-market ETFs like SPY and QQQ into their own strip', () => {
+    const base = { sentiment_label_24h: 'NEUTRAL', price_direction: null, avg_sentiment_24h: 0 } as const
+    mockUseMentionHeat.mockReturnValue({
+      data: [
+        { ...base, ticker: 'SPY', mentions: 300, asset_kind: 'ETF' },
+        { ...base, ticker: 'QQQ', mentions: 200, asset_kind: 'ETF' },
+        { ...base, ticker: 'NVDA', mentions: 40, asset_kind: 'EQUITY', sector: 'Technology' },
+      ],
+      loading: false,
+      error: false,
+    })
+    render(<MentionHeatmap assetKind="all" />)
+    const strip = screen.getByTestId('mention-heat-broad-market')
+    expect(strip.textContent).toContain('$SPY')
+    expect(strip.textContent).toContain('$QQQ')
+    const tiles = screen.getAllByTestId('mention-heat-tile').map(t => t.textContent)
+    expect(tiles).toHaveLength(1)
+    expect(tiles[0]).toContain('NVDA')
+  })
+
+  it('passes tile clicks through to onTickerClick', () => {
+    mockUseMentionHeat.mockReturnValue({ data: sampleCells, loading: false, error: false })
+    const onTickerClick = vi.fn()
+    render(<MentionHeatmap assetKind="all" onTickerClick={onTickerClick} />)
+    fireEvent.click(screen.getAllByTestId('mention-heat-tile')[0])
+    expect(onTickerClick).toHaveBeenCalledWith('AAPL')
   })
 })

@@ -1114,6 +1114,9 @@ export interface MentionHeatCell {
   avg_sentiment_24h: number; // -1 to 1
   sentiment_label_24h: SentimentLabel;
   asset_kind: string;
+  /** Equity sector/industry from ticker-classifier; null for crypto, forex and most ETFs. */
+  sector?: string | null;
+  industry?: string | null;
   price_direction: number | null;
 }
 

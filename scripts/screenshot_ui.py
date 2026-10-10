@@ -922,47 +922,38 @@ def _empty_treemap() -> dict:
 
 
 def _mention_heat() -> list[dict]:
+    # Equities carry sector/industry so the heatmap's grouping (issue #205)
+    # renders; SPY/QQQ land in the broad-market strip above it.
+    rows = [
+        ("SPY", 34, 0.05, "ETF", None, None, 0.4),
+        ("QQQ", 22, 0.12, "ETF", None, None, 0.7),
+        ("NVDA", 20, 0.42, "EQUITY", "Technology", "Semiconductors", 1.8),
+        ("AMD", 9, 0.28, "EQUITY", "Technology", "Semiconductors", 1.1),
+        ("MSFT", 7, 0.1, "EQUITY", "Technology", "Software - Infrastructure", 0.3),
+        ("AAPL", 6, -0.08, "EQUITY", "Technology", "Consumer Electronics", -0.4),
+        ("TSLA", 12, -0.22, "EQUITY", "Consumer Cyclical", "Auto Manufacturers", -1.6),
+        ("AMZN", 5, 0.15, "EQUITY", "Consumer Cyclical", "Internet Retail", 0.6),
+        ("XOM", 4, -0.35, "EQUITY", "Energy", "Oil & Gas Integrated", -1.2),
+        ("JPM", 4, 0.2, "EQUITY", "Financial Services", "Banks - Diversified", 0.5),
+        ("BTC", 15, 0.18, "CRYPTO", None, None, 1.0),
+        ("SOL", 9, 0.31, "CRYPTO", None, None, 2.4),
+        ("ETH", 6, -0.12, "CRYPTO", None, None, -0.8),
+        ("EURUSD", 6, 0.02, "FOREX", None, None, 0.0),
+    ]
     return [
         {
-            "ticker": "NVDA",
-            "mentions": 20,
-            "avg_sentiment_24h": 0.42,
-            "sentiment_label_24h": "BULL",
-            "asset_kind": "EQUITY",
-            "price_direction": 1,
-        },
-        {
-            "ticker": "BTC",
-            "mentions": 15,
-            "avg_sentiment_24h": 0.18,
-            "sentiment_label_24h": "BULL",
-            "asset_kind": "CRYPTO",
-            "price_direction": 1,
-        },
-        {
-            "ticker": "TSLA",
-            "mentions": 12,
-            "avg_sentiment_24h": -0.22,
-            "sentiment_label_24h": "BEAR",
-            "asset_kind": "EQUITY",
-            "price_direction": -1,
-        },
-        {
-            "ticker": "SOL",
-            "mentions": 9,
-            "avg_sentiment_24h": 0.31,
-            "sentiment_label_24h": "BULL",
-            "asset_kind": "CRYPTO",
-            "price_direction": 1,
-        },
-        {
-            "ticker": "EURUSD",
-            "mentions": 6,
-            "avg_sentiment_24h": 0.02,
-            "sentiment_label_24h": "NEUTRAL",
-            "asset_kind": "FOREX",
-            "price_direction": 0,
-        },
+            "ticker": ticker,
+            "mentions": mentions,
+            "avg_sentiment_24h": sentiment,
+            "sentiment_label_24h": (
+                "BULL" if sentiment > 0.1 else "BEAR" if sentiment < -0.1 else "NEUTRAL"
+            ),
+            "asset_kind": kind,
+            "sector": sector,
+            "industry": industry,
+            "price_direction": price,
+        }
+        for ticker, mentions, sentiment, kind, sector, industry, price in rows
     ]
 
 
