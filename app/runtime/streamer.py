@@ -17,7 +17,7 @@ from .broadcast import Broadcaster
 from .enricher import AssetEnricher
 from .options_intent import detect_options
 from .symbols import extract_symbols_from_text, merge_symbols
-from .xclient_compat import apply_xclient_retweet_patch, edit_chain
+from .xclient_compat import apply_xclient_retweet_patch
 
 ENGAGEMENT_FIELDS = ("replies", "likes", "views", "retweets")
 # X answers these once the session cookies have expired or been logged out.
@@ -153,7 +153,8 @@ async def run_stream(
                     # row per post: find the version already stored, if any,
                     # and write this version over it instead of adding another.
                     tweet_id = t_dict.get("id")
-                    versions = edit_chain(int(tweet_id)) if tweet_id is not None else ()
+                    # Every version's id, oldest first; empty if never edited.
+                    versions = [int(i) for i in t_dict.get("edit_tweet_ids") or []]
                     stored = await repo.first_existing(versions) if versions else None
 
                     if getattr(t, "is_update", False):

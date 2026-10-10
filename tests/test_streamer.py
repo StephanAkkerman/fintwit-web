@@ -814,8 +814,8 @@ def _edit_repo(stored: dict | None):
     return repo
 
 
-async def _run_once(repo, tweet: DummyTweet, chain: tuple[int, ...]):
-    """Stream one tweet whose edit history is ``chain``; return what was published."""
+async def _run_once(repo, tweet: DummyTweet):
+    """Stream one tweet; return what was published."""
     published = []
     done = asyncio.Event()
 
@@ -832,7 +832,6 @@ async def _run_once(repo, tweet: DummyTweet, chain: tuple[int, ...]):
 
     with (
         patch("app.runtime.streamer.xclient.XTimelineClient", make_client_class(tweet)),
-        patch("app.runtime.streamer.edit_chain", return_value=chain),
         patch("app.runtime.streamer.merge_symbols", return_value=([], [])),
         patch("app.runtime.streamer.AssetEnricher"),
     ):
@@ -850,12 +849,17 @@ async def test_run_stream_edited_post_overwrites_stored_version(tmp_path, monkey
     monkeypatch.setenv("XTIMELINE_LAST_ID_PATH", str(tmp_path / "last_id.txt"))
     repo = _edit_repo({"id": 700, "created_at": "2026-10-10T09:00:00+00:00"})
     tweet = DummyTweet(
-        {"id": 701, "text": "fixed typo", "created_at": "2026-10-10T09:05:00+00:00"}
+        {
+            "id": 701,
+            "text": "fixed typo",
+            "created_at": "2026-10-10T09:05:00+00:00",
+            "edit_tweet_ids": [700, 701],
+        }
     )
 
-    published = await _run_once(repo, tweet, (700, 701))
+    published = await _run_once(repo, tweet)
 
-    repo.first_existing.assert_awaited_once_with((700, 701))
+    repo.first_existing.assert_awaited_once_with([700, 701])
     persisted = repo.upsert_many.await_args.args[0][0]
     assert persisted["id"] == 700
     assert persisted["text"] == "fixed typo"
@@ -872,9 +876,16 @@ async def test_run_stream_edited_post_without_stored_version_is_inserted(
 ):
     monkeypatch.setenv("XTIMELINE_LAST_ID_PATH", str(tmp_path / "last_id.txt"))
     repo = _edit_repo(None)
-    tweet = DummyTweet({"id": 701, "text": "v2", "created_at": "2026-10-10T09:05:00"})
+    tweet = DummyTweet(
+        {
+            "id": 701,
+            "text": "v2",
+            "created_at": "2026-10-10T09:05:00",
+            "edit_tweet_ids": [700, 701],
+        }
+    )
 
-    await _run_once(repo, tweet, (700, 701))
+    await _run_once(repo, tweet)
 
     persisted = repo.upsert_many.await_args.args[0][0]
     assert persisted["id"] == 701
@@ -885,9 +896,16 @@ async def test_run_stream_edited_post_without_stored_version_is_inserted(
 async def test_run_stream_skips_superseded_version(tmp_path, monkeypatch):
     monkeypatch.setenv("XTIMELINE_LAST_ID_PATH", str(tmp_path / "last_id.txt"))
     repo = _edit_repo({"id": 700, "created_at": "2026-10-10T09:00:00+00:00"})
-    tweet = DummyTweet({"id": 700, "text": "v1", "created_at": "2026-10-10T09:00:00"})
+    tweet = DummyTweet(
+        {
+            "id": 700,
+            "text": "v1",
+            "created_at": "2026-10-10T09:00:00",
+            "edit_tweet_ids": [700, 701],
+        }
+    )
 
-    published = await _run_once(repo, tweet, (700, 701))
+    published = await _run_once(repo, tweet)
 
     repo.upsert_many.assert_not_awaited()
     assert published == []
@@ -899,8 +917,10 @@ async def test_run_stream_engagement_update_on_edit_targets_stored_row(
 ):
     monkeypatch.setenv("XTIMELINE_LAST_ID_PATH", str(tmp_path / "last_id.txt"))
     repo = _edit_repo({"id": 700, "created_at": "2026-10-10T09:00:00+00:00"})
-    tweet = DummyTweet({"id": 701, "likes": 9}, is_update=True)
+    tweet = DummyTweet(
+        {"id": 701, "likes": 9, "edit_tweet_ids": [700, 701]}, is_update=True
+    )
 
-    await _run_once(repo, tweet, (700, 701))
+    await _run_once(repo, tweet)
 
     repo.update_fields.assert_awaited_once_with(700, {"likes": 9})

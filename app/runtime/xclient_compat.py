@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from collections import OrderedDict
 from dataclasses import replace
 from typing import Any
 
@@ -10,51 +9,6 @@ import xclient
 logger = logging.getLogger(__name__)
 
 _PATCH_APPLIED = False
-
-# Every version id of an edited post, keyed by each parsed tweet id (issue #202).
-# xtimeline's ``Tweet`` has no field for X's ``edit_control`` (and is slotted,
-# so one can't be attached), so the parser patch records it here instead.
-_EDIT_CHAINS: OrderedDict[int, tuple[int, ...]] = OrderedDict()
-_EDIT_CHAINS_CAP = 5000
-
-
-def _parse_edit_chain(tw: dict) -> tuple[int, ...]:
-    """Read the ids of every version of a post from its ``edit_control``.
-
-    X gives each edit a new id. The original carries ``edit_tweet_ids``
-    directly; an edited version nests them under ``edit_control_initial``.
-    """
-    edit_control = tw.get("edit_control") if isinstance(tw, dict) else None
-    if not isinstance(edit_control, dict):
-        return ()
-
-    initial = edit_control.get("edit_control_initial")
-    source = initial if isinstance(initial, dict) else edit_control
-    raw_ids = list(source.get("edit_tweet_ids") or [])
-    if edit_control.get("initial_tweet_id") is not None:
-        raw_ids.append(edit_control["initial_tweet_id"])
-
-    ids: set[int] = set()
-    for raw in raw_ids:
-        try:
-            ids.add(int(raw))
-        except (TypeError, ValueError):
-            continue
-    return tuple(sorted(ids))
-
-
-def _record_edit_chain(tweet_id: int, chain: tuple[int, ...]) -> None:
-    if len(chain) < 2:
-        return
-    _EDIT_CHAINS[tweet_id] = chain
-    _EDIT_CHAINS.move_to_end(tweet_id)
-    while len(_EDIT_CHAINS) > _EDIT_CHAINS_CAP:
-        _EDIT_CHAINS.popitem(last=False)
-
-
-def edit_chain(tweet_id: int) -> tuple[int, ...]:
-    """Ids of every version of an edited post, oldest first; empty if unedited."""
-    return _EDIT_CHAINS.get(tweet_id, ())
 
 
 def _extract_nested_node(node: dict[str, Any]) -> dict[str, Any] | None:
@@ -78,8 +32,6 @@ def _extract_nested_node(node: dict[str, Any]) -> dict[str, Any] | None:
 def apply_xclient_retweet_patch() -> None:
     """Patch xclient parser so retweets carry original tweet metadata.
 
-    The patch also records each post's edit history for ``edit_chain``.
-
     xtimeline 0.1.4 stores retweet attribution in ``title`` but drops the nested
     original tweet object. This makes downstream UI attribution impossible.
     We patch ``_parse_single_tweet`` to attach the nested retweeted tweet under
@@ -101,8 +53,6 @@ def apply_xclient_retweet_patch() -> None:
 
     def patched_parse_single_tweet(self: xclient.XTimelineClient, tw: dict):
         parsed = original_parser(self, tw)
-        if parsed is not None:
-            _record_edit_chain(parsed.id, _parse_edit_chain(tw))
         if parsed is None or parsed.quoted_tweet is not None:
             return parsed
 
