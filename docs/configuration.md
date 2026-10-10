@@ -80,6 +80,7 @@ The `ibgateway` container also honours `TWS_ACCEPT_INCOMING`, `TWS_SETTINGS_PATH
 |---|---|---|
 | `PORTFOLIO_SNAPSHOT_INTERVAL` | `1800` | Seconds between portfolio value snapshots. |
 | `TRADER_EVAL_INTERVAL` | `1800` | Seconds between trader call credibility scoring runs. |
+| `ADVISOR_EVAL_INTERVAL` | `3600` | Seconds between grading runs for Claude's market-check calls (`/advisor` decision journal). |
 
 ## Integrations
 

@@ -1,11 +1,14 @@
 from datetime import datetime, timedelta, timezone
 from typing import Iterable
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from .db import (
+    AdvisorCallResultRow,
+    AdvisorCallRow,
+    AdvisorStrategyRow,
     GammaExposureSnapshotRow,
     IbkrPositionRow,
     IbkrTradeRow,
@@ -820,3 +823,167 @@ class RedditTrendRepo:
                     delete(RedditTrendRunRow).where(RedditTrendRunRow.id.in_(stale))
                 )
         return len(stale)
+
+
+def _advisor_call_to_dict(row: AdvisorCallRow) -> dict:
+    return {
+        "id": row.id,
+        "symbol": row.symbol,
+        "action": row.action,
+        "conviction": row.conviction,
+        "price_at_call": row.price_at_call,
+        "asset_kind": row.asset_kind,
+        "reasoning": row.reasoning,
+        "rule": row.rule,
+        "called_at": _iso_utc(row.called_at),
+    }
+
+
+def _advisor_result_to_dict(row: AdvisorCallResultRow) -> dict:
+    return {
+        "horizon_days": row.horizon_days,
+        "price_at_horizon": row.price_at_horizon,
+        "return_pct": row.return_pct,
+        "correct": row.correct,
+        "excluded": bool(row.excluded),
+        "evaluated_at": _iso_utc(row.evaluated_at),
+    }
+
+
+class AdvisorRepo:
+    """Async repo for the Claude market check: strategy + decision journal."""
+
+    _STRATEGY_ID = 1
+
+    def __init__(self, session_factory: async_sessionmaker):
+        self.Session = session_factory
+
+    async def get_strategy(self) -> dict:
+        async with self.Session() as s:
+            row = await s.get(AdvisorStrategyRow, self._STRATEGY_ID)
+        if row is None:
+            return {"rules": "", "watchlist": [], "updated_at": None}
+        return {
+            "rules": row.rules or "",
+            "watchlist": list(row.watchlist or []),
+            "updated_at": _iso_utc(row.updated_at),
+        }
+
+    async def set_strategy(self, rules: str, watchlist: list[str]) -> dict:
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        async with self.Session() as s:
+            async with s.begin():
+                row = await s.get(AdvisorStrategyRow, self._STRATEGY_ID)
+                if row is None:
+                    row = AdvisorStrategyRow(id=self._STRATEGY_ID)
+                    s.add(row)
+                row.rules = rules
+                row.watchlist = watchlist
+                row.updated_at = now
+        return await self.get_strategy()
+
+    async def create_call(self, call: dict) -> dict:
+        row = AdvisorCallRow(
+            **call, called_at=datetime.now(timezone.utc).replace(tzinfo=None)
+        )
+        async with self.Session() as s:
+            async with s.begin():
+                s.add(row)
+            await s.refresh(row)
+        return {**_advisor_call_to_dict(row), "results": {}}
+
+    async def list_calls(
+        self,
+        limit: int = 50,
+        symbol: str | None = None,
+        since_hours: int | None = None,
+    ) -> list[dict]:
+        """Newest first, each with its graded results keyed by horizon."""
+        stmt = select(AdvisorCallRow).order_by(AdvisorCallRow.id.desc()).limit(limit)
+        if symbol:
+            stmt = stmt.where(AdvisorCallRow.symbol == symbol.upper())
+        if since_hours:
+            cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
+                hours=since_hours
+            )
+            stmt = stmt.where(AdvisorCallRow.called_at >= cutoff)
+        async with self.Session() as s:
+            calls = (await s.execute(stmt)).scalars().all()
+            ids = [c.id for c in calls]
+            results = []
+            if ids:
+                results = (
+                    (
+                        await s.execute(
+                            select(AdvisorCallResultRow).where(
+                                AdvisorCallResultRow.call_id.in_(ids)
+                            )
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+        by_call: dict[int, dict] = {}
+        for r in results:
+            by_call.setdefault(r.call_id, {})[str(r.horizon_days)] = (
+                _advisor_result_to_dict(r)
+            )
+        return [
+            {**_advisor_call_to_dict(c), "results": by_call.get(c.id, {})}
+            for c in calls
+        ]
+
+    async def count_calls(self) -> int:
+        async with self.Session() as s:
+            return (await s.execute(select(func.count(AdvisorCallRow.id)))).scalar_one()
+
+    async def graded_calls(self) -> list[dict]:
+        """Every (call, result) pair, for the scorecard."""
+        stmt = select(AdvisorCallRow, AdvisorCallResultRow).join(
+            AdvisorCallResultRow, AdvisorCallResultRow.call_id == AdvisorCallRow.id
+        )
+        async with self.Session() as s:
+            rows = (await s.execute(stmt)).all()
+        return [
+            {**_advisor_call_to_dict(call), **_advisor_result_to_dict(result)}
+            for call, result in rows
+        ]
+
+    async def due_calls(
+        self, horizon_days: int, actions: Iterable[str], limit: int = 200
+    ) -> list[dict]:
+        """Graded actions at least ``horizon_days`` old with no result yet."""
+        cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
+            days=horizon_days
+        )
+        graded = select(AdvisorCallResultRow.call_id).where(
+            AdvisorCallResultRow.horizon_days == horizon_days
+        )
+        stmt = (
+            select(AdvisorCallRow)
+            .where(
+                AdvisorCallRow.called_at <= cutoff,
+                AdvisorCallRow.action.in_(list(actions)),
+                AdvisorCallRow.price_at_call.is_not(None),
+                AdvisorCallRow.id.not_in(graded),
+            )
+            .order_by(AdvisorCallRow.called_at)
+            .limit(limit)
+        )
+        async with self.Session() as s:
+            rows = (await s.execute(stmt)).scalars().all()
+        return [_advisor_call_to_dict(r) for r in rows]
+
+    async def insert_results(self, results: Iterable[dict]) -> int:
+        result_list = list(results)
+        if not result_list:
+            return 0
+        async with self.Session() as s:
+            async with s.begin():
+                stmt = (
+                    sqlite_insert(AdvisorCallResultRow)
+                    .values(result_list)
+                    .on_conflict_do_nothing(index_elements=["call_id", "horizon_days"])
+                )
+                await s.execute(stmt)
+        return len(result_list)

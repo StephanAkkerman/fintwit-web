@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   Banknote,
   Bitcoin,
+  Bot,
   LayoutDashboard,
   LineChart,
   Menu,
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import AccessAllowlistPanel from './components/AccessAllowlistPanel'
+import AdvisorPanel from './components/AdvisorPanel'
 import BinanceGainersLosersWidget from './components/BinanceGainersLosersWidget'
 import CompanyNewsWidget from './components/CompanyNewsWidget'
 import EarningsCalendarWidget from './components/EarningsCalendarWidget'
@@ -75,6 +77,7 @@ type RouteKey =
   | 'reddit'
   | 'traders'
   | 'portfolio'
+  | 'advisor'
   | 'admin'
 type ChartSortMode = 'latest' | 'charts-first' | 'charts-only'
 type LookbackWindow = 24 | 48 | 168
@@ -96,6 +99,7 @@ const SECTIONS: Array<{ key: RouteKey; label: string; path: string; subtitle: st
   { key: 'reddit', label: 'Reddit', path: '/reddit', subtitle: 'WallStreetBets posts and cross-subreddit ticker trends', icon: MessagesSquare },
   { key: 'traders', label: 'Traders', path: '/traders', subtitle: 'Credibility leaderboard: whose calls actually work out', icon: Trophy },
   { key: 'portfolio', label: 'Portfolio', path: '/portfolio', subtitle: 'Value over time, asset context and PnL', icon: Wallet },
+  { key: 'advisor', label: 'Advisor', path: '/advisor', subtitle: "Claude's market check: your rules, its calls and how they did", icon: Bot },
   { key: 'admin', label: 'Admin', path: '/admin', subtitle: 'Access allowlist', icon: ShieldCheck },
 ]
 
@@ -109,6 +113,7 @@ function routeFromPath(pathname: string): RouteKey {
   if (pathname.startsWith('/reddit')) return 'reddit'
   if (pathname.startsWith('/traders')) return 'traders'
   if (pathname.startsWith('/portfolio')) return 'portfolio'
+  if (pathname.startsWith('/advisor')) return 'advisor'
   if (pathname.startsWith('/admin')) return 'admin'
   return 'home'
 }
@@ -123,6 +128,7 @@ function pathFromRoute(route: RouteKey): string {
   if (route === 'reddit') return '/reddit'
   if (route === 'traders') return '/traders'
   if (route === 'portfolio') return '/portfolio'
+  if (route === 'advisor') return '/advisor'
   if (route === 'admin') return '/admin'
   return '/'
 }
@@ -510,6 +516,10 @@ export default function App() {
               <p className="mt-4 px-2 text-xs text-zinc-500">
                 Browse TradingView market movers by market and category. No tweet timeline on this page.
               </p>
+            ) : route === 'advisor' ? (
+              <p className="mt-4 px-2 text-xs text-zinc-500">
+                Claude checks the market on a schedule, logs each suggestion here and is graded on it. You decide and trade.
+              </p>
             ) : route === 'portfolio' ? (
               <p className="mt-4 px-2 text-xs text-zinc-500">
                 {portfolioSymbols.size > 0
@@ -688,7 +698,7 @@ export default function App() {
               <p className="text-sm text-zinc-500">{activeSection.subtitle}</p>
             </header>
 
-            {route !== 'admin' && route !== 'signa' && route !== 'reddit' && route !== 'home' && route !== 'traders' && route !== 'movers' && route !== 'portfolio' && (
+            {route !== 'admin' && route !== 'advisor' && route !== 'signa' && route !== 'reddit' && route !== 'home' && route !== 'traders' && route !== 'movers' && route !== 'portfolio' && (
               <>
                 <ErrorBoundary label="Mention heat">
                   <MentionHeatmap
@@ -878,13 +888,19 @@ export default function App() {
               </CurrencyProvider>
             )}
 
+            {route === 'advisor' && (
+              <ErrorBoundary label="Market check">
+                <AdvisorPanel onTickerClick={setDetailTicker} />
+              </ErrorBoundary>
+            )}
+
             {route === 'admin' && (
               <ErrorBoundary label="Access allowlist">
                 <AccessAllowlistPanel />
               </ErrorBoundary>
             )}
 
-            {route !== 'signa' && route !== 'reddit' && route !== 'traders' && route !== 'movers' && (
+            {route !== 'signa' && route !== 'reddit' && route !== 'traders' && route !== 'movers' && route !== 'advisor' && (
               <>
                 <XStreamNotice status={xStatus} />
                 {displayedTweets.map((t) => (

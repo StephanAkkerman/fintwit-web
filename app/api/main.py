@@ -18,6 +18,7 @@ from ticker_price_data import close_shared_pool, get_stock_info
 
 from ..infra.db import create_engine, init_db
 from ..infra.repos import (
+    AdvisorRepo,
     GammaExposureRepo,
     IbkrRepo,
     PortfolioRepo,
@@ -25,8 +26,13 @@ from ..infra.repos import (
     TraderCallRepo,
     TweetRepo,
 )
+from .auth import api_key_dep
 from ..ml.options_ner import OptionsRecognizer, options_ner_enabled
 from ..ml.sentiment import FinTwitSentiment
+from ..runtime.advisor_evaluator import (
+    DEFAULT_INTERVAL as ADVISOR_EVAL_INTERVAL,
+    run_advisor_evaluation,
+)
 from ..runtime.broadcast import Broadcaster
 from ..runtime.enricher import AssetEnricher
 from ..runtime.gamma_exposure_snapshot import (
@@ -128,17 +134,11 @@ IBKR_REPO = IbkrRepo(Session)
 TRADER_CALL_REPO = TraderCallRepo(Session)
 REDDIT_TREND_REPO = RedditTrendRepo(Session)
 GAMMA_EXPOSURE_REPO = GammaExposureRepo(Session)
+ADVISOR_REPO = AdvisorRepo(Session)
 BROADCAST = Broadcaster()
 logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.INFO)
 logging.getLogger("httpcore").setLevel(logging.INFO)
-
-
-async def api_key_dep(request: Request):
-    expected = getattr(request.app.state, "API_KEY", "")
-    got = request.headers.get("X-API-Key")
-    if expected and got != expected:
-        raise HTTPException(status_code=401, detail="Unauthorized")
 
 
 @asynccontextmanager
@@ -215,6 +215,17 @@ async def lifespan(app: FastAPI):
         trader_eval_interval,
     )
 
+    advisor_eval_interval = int(
+        os.getenv("ADVISOR_EVAL_INTERVAL", ADVISOR_EVAL_INTERVAL)
+    )
+    advisor_eval_task = asyncio.create_task(
+        run_advisor_evaluation(ADVISOR_REPO, interval=advisor_eval_interval)
+    )
+    logger.info(
+        "[advisor-eval] journal grading worker started (interval=%ds)",
+        advisor_eval_interval,
+    )
+
     reddit_task: asyncio.Task | None = None
     if os.getenv("REDDIT_TRENDS_ENABLED", "1").lower() in ("1", "true", "yes"):
         reddit_interval = int(os.getenv("REDDIT_TREND_INTERVAL", REDDIT_TREND_INTERVAL))
@@ -263,6 +274,9 @@ async def lifespan(app: FastAPI):
         trader_eval_task.cancel()
         with suppress(asyncio.CancelledError):
             await trader_eval_task
+        advisor_eval_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await advisor_eval_task
         gamma_exposure_task.cancel()
         with suppress(asyncio.CancelledError):
             await gamma_exposure_task
@@ -292,9 +306,11 @@ app = FastAPI(
     redoc_url=None,
 )
 
+from .advisor import router as advisor_router  # noqa: E402
 from .overview import router as overview_router  # noqa: E402
 from .traders import router as traders_router  # noqa: E402
 
+app.include_router(advisor_router)
 app.include_router(overview_router)
 app.include_router(traders_router)
 

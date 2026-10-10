@@ -11,10 +11,16 @@ OpenAPI schema and exposes two tools: ``list_endpoints`` (the catalogue) and
 ``get`` (call one of them). New endpoints become available without touching
 this file. GET routes are reachable, minus the SSE stream (it never
 returns) and ``/api/admin/*`` (the Access allowlist is not market data), plus
-the few POST routes that only look data up (``READ_ONLY_POSTS``). Three more
-tools bundle the calls a common question needs: ``portfolio`` (every
-portfolio view), ``holdings_check`` (what is happening around each holding)
-and ``ticker`` (everything about one symbol).
+the few POST routes that only look data up (``READ_ONLY_POSTS``). Bundled
+tools make the calls a common question needs in one go: ``portfolio`` (every
+portfolio view), ``holdings_check`` (what is happening around each holding),
+``ticker`` (everything about one symbol), ``market_snapshot`` (the market
+right now) and ``candidates`` (buy ideas). ``strategy`` and ``journal`` read
+the owner's rules and Claude's past calls for the market check.
+
+The one write: ``log_call`` appends a suggestion to the decision journal
+(``POST /api/advisor/calls``). Nothing else can be changed, the strategy
+included, so the rules Claude is judged against stay the owner's.
 
 Configured through environment variables, read when a tool is called:
 
@@ -448,6 +454,149 @@ async def collect_ticker(
     return truncate(result)
 
 
+# Movers and similar lists come back long; a market check only needs the top.
+_TOP_N = 10
+
+
+def _head(payload: Any, n: int = _TOP_N) -> Any:
+    if isinstance(payload, list):
+        return payload[:n]
+    if isinstance(payload, dict):
+        for key in ("movers", "items", "rows", "data", "results"):
+            if isinstance(payload.get(key), list):
+                return {**payload, key: payload[key][:n]}
+    return payload
+
+
+async def _gather_views(client: httpx.AsyncClient, views: dict) -> dict[str, Any]:
+    limiter = asyncio.Semaphore(_BUNDLE_CONCURRENCY)
+    payloads = await asyncio.gather(
+        *(_safe(client, path, params, limiter) for path, params in views.values())
+    )
+    return dict(zip(views, payloads))
+
+
+async def collect_market_snapshot(client: httpx.AsyncClient) -> str:
+    """The market right now: sentiment gauges, macro, sectors, movers, events."""
+    views = {
+        "market_hours": ("/api/stocks/market-hours", None),
+        "stock_fear_greed": ("/api/stocks/fear-greed", None),
+        "crypto_fear_greed": ("/api/fear-greed", None),
+        "macro": ("/api/overview/macro-strip", None),
+        "spy_sectors": ("/api/spy-heatmap/sectors", None),
+        "sector_rotation": ("/api/sector-rotation", None),
+        "gainers": ("/api/markets/movers", {"market": "usa", "category": "gainers"}),
+        "losers": ("/api/markets/movers", {"market": "usa", "category": "losers"}),
+        "most_active": (
+            "/api/markets/movers",
+            {"market": "usa", "category": "most_active"},
+        ),
+        "economic_events": ("/api/events/economic", {"limit": 15}),
+        "earnings_today": (
+            "/api/earnings/calendar",
+            {"days": 1, "limit_per_day": 25},
+        ),
+    }
+    result = await _gather_views(client, views)
+    for key in ("gainers", "losers", "most_active"):
+        result[key] = _head(result[key])
+    return truncate(result)
+
+
+async def collect_candidates(
+    client: httpx.AsyncClient, window_hours: int = 24, asset_kind: str = "equity"
+) -> str:
+    """Buy ideas: what fintwit is newly excited about, what is moving, what the
+    most credible traders call, and the owner's watchlist, with held symbols
+    flagged so they aren't mistaken for new ideas."""
+    overview = {"window_hours": window_hours, "asset_kind": asset_kind}
+    views = {
+        "hidden_gems": ("/api/overview/hidden-gems", overview),
+        "sentiment_shift": ("/api/overview/sentiment-shift", overview),
+        "volume_spikes": ("/api/overview/volume-baseline", overview),
+        "trend_summary": (
+            "/api/overview/trend-summary",
+            {"window": "1d", "asset_kind": asset_kind},
+        ),
+        "gainers": ("/api/markets/movers", {"market": "usa", "category": "gainers"}),
+        "most_active": (
+            "/api/markets/movers",
+            {"market": "usa", "category": "most_active"},
+        ),
+        "top_traders": ("/api/traders/leaderboard", {"limit": 10}),
+        "strategy": ("/api/advisor/strategy", None),
+        "positions": ("/api/portfolio/positions", {"active_only": True}),
+    }
+    result = await _gather_views(client, views)
+    for key in ("gainers", "most_active"):
+        result[key] = _head(result[key])
+
+    positions = result.pop("positions")
+    held = sorted(
+        {
+            str(p.get("symbol") or "").upper()
+            for p in positions
+            if isinstance(p, dict) and p.get("symbol")
+        }
+        if isinstance(positions, list)
+        else set()
+    )
+    strategy = result.pop("strategy")
+    watchlist = strategy.get("watchlist", []) if isinstance(strategy, dict) else []
+
+    limiter = asyncio.Semaphore(_BUNDLE_CONCURRENCY)
+
+    async def watch(symbol: str) -> dict:
+        mentions, news = await asyncio.gather(
+            _safe(
+                client,
+                "/api/overview/ticker-timeseries",
+                {"ticker": symbol, "window_hours": max(window_hours, 24)},
+                limiter,
+            ),
+            _safe(
+                client, "/api/news/company", {"symbols": symbol, "limit": 2}, limiter
+            ),
+        )
+        if isinstance(mentions, dict) and "summary" in mentions:
+            mentions = mentions["summary"]
+        return {
+            "symbol": symbol,
+            "held": symbol in held,
+            "tweets": mentions,
+            "news": news,
+        }
+
+    result["watchlist"] = list(
+        await asyncio.gather(*(watch(symbol) for symbol in watchlist[:MAX_HOLDINGS]))
+    )
+    result["held_symbols"] = held
+    return truncate(result)
+
+
+async def log_journal_call(client: httpx.AsyncClient, call: dict[str, Any]) -> str:
+    payload = await _request(client, "/api/advisor/calls", None, call, method="POST")
+    return truncate(payload)
+
+
+async def collect_journal(
+    client: httpx.AsyncClient,
+    limit: int = 30,
+    symbol: str | None = None,
+    since_hours: int | None = None,
+) -> str:
+    params: dict[str, Any] = {"limit": limit}
+    if symbol:
+        params["symbol"] = symbol.strip().upper().lstrip("$")
+    if since_hours:
+        params["since_hours"] = since_hours
+    calls, scorecard = await asyncio.gather(
+        _safe(client, "/api/advisor/calls", params),
+        _safe(client, "/api/advisor/scorecard"),
+    )
+    return truncate({"scorecard": scorecard, "calls": calls})
+
+
 mcp = MCPServer(
     name="fintwit",
     instructions=(
@@ -456,8 +605,11 @@ mcp = MCPServer(
         "options, forex), Reddit trends, trader leaderboards and the owner's "
         "portfolio (manual positions and IBKR). Start with the bundles: "
         "portfolio for holdings and P&L, holdings_check for what is happening "
-        "around each holding (news, chatter, earnings), ticker for one symbol. "
-        "For anything else call list_endpoints, then get with one of its paths."
+        "around each holding (news, chatter, earnings), ticker for one symbol, market_snapshot for the market, candidates for "
+        "buy ideas. For a market check read strategy (the owner's rules) and "
+        "journal (your earlier calls and how they did), and record each "
+        "buy/add/trim/sell/watch suggestion with log_call. You advise; the "
+        "owner decides and trades. For anything else call list_endpoints, then get with one of its paths."
     ),
 )
 
@@ -528,6 +680,83 @@ async def ticker(symbol: str, window_hours: int = 168) -> str:
     on a coin) come back as an ``error`` entry."""
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         return await collect_ticker(client, symbol, window_hours)
+
+
+@mcp.tool()
+async def market_snapshot() -> str:
+    """The market right now in one call: whether US markets are open, the stock
+    and crypto fear & greed indexes, the macro strip (yields, dollar, oil...),
+    S&P sector performance and rotation, the top 10 US gainers, losers and most
+    active, upcoming economic events, and today's earnings."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        return await collect_market_snapshot(client)
+
+
+@mcp.tool()
+async def candidates(window_hours: int = 24, asset_kind: str = "equity") -> str:
+    """Buy ideas in one call: hidden gems (newly discussed tickers), sentiment
+    shifts, unusual mention volume, the 1-day trend summary, top US gainers and
+    most active, the most credible traders on the leaderboard, and each
+    watchlist symbol's chatter and news. ``held_symbols`` lists what the owner
+    already holds. ``asset_kind``: ``equity``, ``crypto`` or ``all``."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        return await collect_candidates(client, window_hours, asset_kind)
+
+
+@mcp.tool()
+async def strategy() -> str:
+    """The owner's trading rules (free text: position limits, take-profit and
+    stop levels, sectors to avoid, risk appetite) and watchlist. Judge every
+    suggestion against these rules and name the rule that triggered it. Only
+    the owner can change them, from the dashboard's /advisor page."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        return truncate(await _request(client, "/api/advisor/strategy", None))
+
+
+@mcp.tool()
+async def journal(
+    limit: int = 30, symbol: str | None = None, since_hours: int | None = None
+) -> str:
+    """Your earlier market-check calls, newest first, with how each did after 7
+    and 30 days, plus the scorecard (hit rate and average return of following
+    the calls). Check it before suggesting something, so you don't repeat a
+    call from the last few hours and you learn from what didn't work."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        return await collect_journal(client, limit, symbol, since_hours)
+
+
+@mcp.tool()
+async def log_call(
+    symbol: str,
+    action: str,
+    reasoning: str,
+    conviction: str | None = None,
+    rule: str | None = None,
+) -> str:
+    """Record one suggestion in the decision journal, so it is scored after 7
+    and 30 days. The dashboard prices it at the moment it is logged.
+
+    Parameters
+    ----------
+    symbol
+        Ticker, e.g. ``NVDA``.
+    action
+        ``buy`` (new position), ``add``, ``trim``, ``sell`` (exit), or
+        ``watch`` (a note, not scored).
+    reasoning
+        Why, in a few sentences, citing the data you saw.
+    conviction
+        ``low``, ``medium`` or ``high``.
+    rule
+        The strategy rule that triggered it, if any.
+    """
+    call = {"symbol": symbol, "action": action, "reasoning": reasoning}
+    if conviction:
+        call["conviction"] = conviction
+    if rule:
+        call["rule"] = rule
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        return await log_journal_call(client, call)
 
 
 if __name__ == "__main__":
