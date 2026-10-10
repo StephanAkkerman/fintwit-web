@@ -503,3 +503,26 @@ async def test_gamma_exposure_repo_prune_drops_stale_snapshots(gamma_exposure_re
     remaining = await gamma_exposure_repo.list_snapshots(symbol="SPY")
     assert len(remaining) == 1
     assert remaining[0]["spot_price"] == 500.0
+
+
+@pytest.mark.asyncio
+async def test_first_existing_returns_oldest_stored_version(tweet_repo):
+    await tweet_repo.upsert_many(SAMPLE_TWEETS)
+    ids = sorted(t["id"] for t in SAMPLE_TWEETS)
+
+    row = await tweet_repo.first_existing([999_999, *reversed(ids)])
+
+    assert row is not None
+    assert row["id"] == ids[0]
+    assert await tweet_repo.first_existing([999_999]) is None
+    assert await tweet_repo.first_existing([]) is None
+
+
+@pytest.mark.asyncio
+async def test_upsert_many_persists_edited_at(tweet_repo):
+    edited_at = datetime(2026, 10, 10, 12, 30, tzinfo=timezone.utc)
+    await tweet_repo.upsert_many([{**SAMPLE_TWEETS[0], "edited_at": edited_at}])
+
+    row = await tweet_repo.by_id(SAMPLE_TWEETS[0]["id"])
+
+    assert row["edited_at"] == "2026-10-10T12:30:00+00:00"

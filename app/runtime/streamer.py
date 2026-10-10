@@ -17,7 +17,7 @@ from .broadcast import Broadcaster
 from .enricher import AssetEnricher
 from .options_intent import detect_options
 from .symbols import extract_symbols_from_text, merge_symbols
-from .xclient_compat import apply_xclient_retweet_patch
+from .xclient_compat import apply_xclient_retweet_patch, edit_chain
 
 ENGAGEMENT_FIELDS = ("replies", "likes", "views", "retweets")
 # X answers these once the session cookies have expired or been logged out.
@@ -149,8 +149,14 @@ async def run_stream(
                     # Convert to dict for easier manipulation
                     t_dict = t.to_dict()
 
+                    # X gives an edited post a new id (issue #202). Keep one
+                    # row per post: find the version already stored, if any,
+                    # and write this version over it instead of adding another.
+                    tweet_id = t_dict.get("id")
+                    versions = edit_chain(int(tweet_id)) if tweet_id is not None else ()
+                    stored = await repo.first_existing(versions) if versions else None
+
                     if getattr(t, "is_update", False):
-                        tweet_id = t_dict.get("id")
                         if tweet_id is None:
                             continue
 
@@ -158,7 +164,8 @@ async def run_stream(
                         if not updates:
                             continue
 
-                        updated_tweet = await repo.update_fields(int(tweet_id), updates)
+                        target_id = stored["id"] if stored else int(tweet_id)
+                        updated_tweet = await repo.update_fields(target_id, updates)
                         if updated_tweet is not None:
                             await bc.publish(updated_tweet)
                         continue
@@ -168,6 +175,22 @@ async def run_stream(
                         t_dict["created_at"] = datetime.fromisoformat(
                             t_dict["created_at"]
                         )
+
+                    if versions:
+                        # An older version showing up after a newer one is
+                        # stale; the stored row already has newer content.
+                        if stored and int(tweet_id) != versions[-1]:
+                            continue
+                        # The edit's own timestamp is when it was edited; the
+                        # row keeps the original post time and id, so the card
+                        # stays in place and updates over SSE.
+                        t_dict["edited_at"] = t_dict.get("created_at")
+                        if stored:
+                            t_dict["id"] = stored["id"]
+                            if stored.get("created_at"):
+                                t_dict["created_at"] = datetime.fromisoformat(
+                                    stored["created_at"]
+                                )
 
                     # Ensure financial symbols are still detected when source payloads
                     # don't explicitly include ticker/hashtag arrays.

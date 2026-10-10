@@ -1,6 +1,6 @@
 import xclient
 
-from app.runtime.xclient_compat import apply_xclient_retweet_patch
+from app.runtime.xclient_compat import apply_xclient_retweet_patch, edit_chain
 
 
 def _mock_user(name: str, screen_name: str, image_url: str) -> dict:
@@ -66,3 +66,30 @@ def test_retweet_parser_patch_attaches_original_tweet_metadata():
     assert parsed.quoted_tweet.user_name == "Original Poster"
     assert parsed.quoted_tweet.user_screen_name == "orig"
     assert parsed.quoted_tweet.user_img == "https://example.com/original.jpg"
+
+
+def test_parser_patch_records_edit_chain_for_original_and_edited_versions():
+    apply_xclient_retweet_patch()
+    client = xclient.XTimelineClient("curl.txt")
+
+    original = _mock_tweet(4004, "Poster", "poster", "https://e.com/p.jpg", "v1")
+    original["edit_control"] = {
+        "edit_tweet_ids": ["4004", "4005"],
+        "editable_until_msecs": "1",
+        "is_edit_eligible": True,
+        "edits_remaining": "4",
+    }
+    edited = _mock_tweet(4005, "Poster", "poster", "https://e.com/p.jpg", "v2")
+    edited["edit_control"] = {
+        "initial_tweet_id": "4004",
+        "edit_control_initial": {"edit_tweet_ids": ["4004", "4005"]},
+    }
+    unedited = _mock_tweet(5005, "Poster", "poster", "https://e.com/p.jpg", "hi")
+    unedited["edit_control"] = {"edit_tweet_ids": ["5005"]}
+
+    for node in (original, edited, unedited):
+        assert client._parse_single_tweet(node) is not None
+
+    assert edit_chain(4004) == (4004, 4005)
+    assert edit_chain(4005) == (4004, 4005)
+    assert edit_chain(5005) == ()

@@ -111,6 +111,15 @@ class TweetRow(Base):
         default=None,
         server_default=sql_text("NULL"),
     )
+    # When the poster last edited this post on X (issue #202). X gives each
+    # edit a new id; the row keeps the first version's id and ``created_at``
+    # and takes the newest version's content. Null for unedited posts.
+    edited_at: Mapped[DateTime] = mapped_column(
+        DateTime,
+        nullable=True,
+        default=None,
+        server_default=sql_text("NULL"),
+    )
 
 
 class TickerMentionRow(Base):
