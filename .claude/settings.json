@@ -1,4 +1,7 @@
 {
+  "enabledMcpjsonServers": [
+    "fintwit"
+  ],
   "hooks": {
     "SessionStart": [
       {

@@ -29,6 +29,7 @@ test = [
     "httpx==0.28.1",
     "ib_insync==0.9.86",
     "lxml==6.0.4",
+    "mcp==2.3.0",
     "pandas",
     "pydantic",
     "pytest==9.1.1",

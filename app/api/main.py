@@ -281,7 +281,16 @@ async def lifespan(app: FastAPI):
         close_shared_pool()
 
 
-app = FastAPI(title="X Stream API", lifespan=lifespan)
+# The schema lives under /api/ so it is reachable through the frontend's nginx
+# (which only proxies /api/*) and so through the Cloudflare tunnel, where the
+# MCP server (app/mcp_server.py) reads it to discover the endpoints.
+app = FastAPI(
+    title="X Stream API",
+    lifespan=lifespan,
+    openapi_url="/api/openapi.json",
+    docs_url="/api/docs",
+    redoc_url=None,
+)
 
 from .overview import router as overview_router  # noqa: E402
 from .traders import router as traders_router  # noqa: E402
