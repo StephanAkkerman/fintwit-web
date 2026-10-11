@@ -1806,6 +1806,142 @@ def _empty_gamma_exposure_history() -> dict:
     return {"symbol": "SPY", "days": 30, "points": []}
 
 
+def _market_positioning() -> dict:
+    """Issue #82's plumbing panel, shaped like `get_market_positioning`.
+
+    Mirrors a real reading from October 2026: hedge funds near the short end
+    of their 3-year range in S&P futures while trend followers are max long
+    and the equal-weight index lags -- the squeeze setup the issue describes.
+    """
+    end = date(2026, 10, 6)
+
+    def history(level: float, drift: float, wobble: float) -> list[dict]:
+        weeks = 52
+        return [
+            {
+                "date": (end - timedelta(weeks=weeks - 1 - i)).isoformat(),
+                "lev_net_pct_oi": round(
+                    level - drift * (weeks - 1 - i) / weeks + wobble * math.sin(i / 3),
+                    2,
+                ),
+            }
+            for i in range(weeks)
+        ]
+
+    ratio_end = date(2026, 10, 9)
+    ratio_history = [
+        {
+            "date": (ratio_end - timedelta(days=6 * (60 - i))).isoformat(),
+            "ratio": round(100 - 3.6 * i / 60 + 0.8 * math.sin(i / 5), 2),
+        }
+        for i in range(61)
+    ]
+
+    return {
+        "futures": [
+            {
+                "code": "13874A",
+                "name": "E-mini S&P 500",
+                "report_date": end.isoformat(),
+                "open_interest": 1_932_227,
+                "lev_net": -415_087,
+                "lev_net_pct_oi": -21.48,
+                "lev_net_change": -42_598,
+                "lev_percentile": 10.8,
+                "asset_mgr_net": 906_615,
+                "asset_mgr_net_pct_oi": 46.92,
+                "crowding": "crowded_short",
+                "weeks_ranked": 158,
+                "history": history(-21.48, -8.0, 1.5),
+            },
+            {
+                "code": "209742",
+                "name": "E-mini Nasdaq-100",
+                "report_date": end.isoformat(),
+                "open_interest": 283_586,
+                "lev_net": -19_212,
+                "lev_net_pct_oi": -6.77,
+                "lev_net_change": 5_511,
+                "lev_percentile": 74.1,
+                "asset_mgr_net": 73_798,
+                "asset_mgr_net_pct_oi": 26.02,
+                "crowding": "neutral",
+                "weeks_ranked": 158,
+                "history": history(-6.77, 3.0, 2.0),
+            },
+        ],
+        "cta": {
+            "symbol": "SPY",
+            "spot": 778.57,
+            "score": 1.0,
+            "exposure": "max_long",
+            "signals": [
+                {
+                    "lookback": "1M",
+                    "days": 21,
+                    "trigger": 757.83,
+                    "distance_pct": 2.74,
+                    "signal": "long",
+                },
+                {
+                    "lookback": "3M",
+                    "days": 63,
+                    "trigger": 749.17,
+                    "distance_pct": 3.92,
+                    "signal": "long",
+                },
+                {
+                    "lookback": "6M",
+                    "days": 126,
+                    "trigger": 679.46,
+                    "distance_pct": 14.59,
+                    "signal": "long",
+                },
+                {
+                    "lookback": "12M",
+                    "days": 250,
+                    "trigger": 653.02,
+                    "distance_pct": 19.23,
+                    "signal": "long",
+                },
+            ],
+            "nearest_trigger": "1M",
+        },
+        "concentration": {
+            "cap_weighted": "SPY",
+            "equal_weighted": "RSP",
+            "trend": "narrowing",
+            "headline_window": "3M",
+            "windows": [
+                {
+                    "window": "1M",
+                    "cap_weighted_pct": 2.74,
+                    "equal_weighted_pct": -0.06,
+                    "spread_pp": -2.8,
+                },
+                {
+                    "window": "3M",
+                    "cap_weighted_pct": 3.92,
+                    "equal_weighted_pct": -0.56,
+                    "spread_pp": -4.48,
+                },
+                {
+                    "window": "1Y",
+                    "cap_weighted_pct": 19.23,
+                    "equal_weighted_pct": 15.08,
+                    "spread_pp": -4.14,
+                },
+            ],
+            "ratio_history": ratio_history,
+        },
+        "as_of": "2026-10-11T12:00:00+00:00",
+    }
+
+
+def _empty_market_positioning() -> dict:
+    return {"futures": None, "cta": None, "concentration": None, "as_of": ""}
+
+
 def _company_news() -> dict:
     def item(title, excerpt, slug, date, source, label, score):
         return {
@@ -2810,6 +2946,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             # "/gamma-exposure" is itself a substring of "/gamma-exposure/history".
             "/api/options/gamma-exposure/history": _empty_gamma_exposure_history(),
             "/api/options/gamma-exposure": _empty_gamma_exposure_snapshot(),
+            "/api/market/positioning": _empty_market_positioning(),
             "/api/news/company": _empty_company_news(),
             "/api/reddit/trends": _empty_reddit_trends(),
             "/api/reddit/categories": _empty_reddit_categories(),
@@ -3085,6 +3222,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         # "/gamma-exposure" is itself a substring of "/gamma-exposure/history".
         "/api/options/gamma-exposure/history": _gamma_exposure_history(),
         "/api/options/gamma-exposure": _gamma_exposure_snapshot(),
+        "/api/market/positioning": _market_positioning(),
         # Company news (stocks route).
         "/api/news/company": _company_news(),
         # Signa route.

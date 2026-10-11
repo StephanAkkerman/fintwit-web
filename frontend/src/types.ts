@@ -506,6 +506,66 @@ export type GammaExposureHistory = {
   points: GammaExposureHistoryPoint[];
 };
 
+export type FuturesCrowding = 'crowded_short' | 'neutral' | 'crowded_long';
+
+export type FuturesPositioning = {
+  code: string;
+  name: string;
+  report_date: string;
+  open_interest: number;
+  lev_net: number;
+  lev_net_pct_oi: number;
+  lev_net_change: number | null;
+  lev_percentile: number;
+  asset_mgr_net: number;
+  asset_mgr_net_pct_oi: number;
+  crowding: FuturesCrowding;
+  weeks_ranked: number;
+  history: Array<{ date: string; lev_net_pct_oi: number }>;
+};
+
+export type CtaExposure = 'max_long' | 'long' | 'flat' | 'short' | 'max_short';
+
+export type CtaSignal = {
+  lookback: string;
+  days: number;
+  trigger: number;
+  distance_pct: number;
+  signal: 'long' | 'short';
+};
+
+export type CtaTriggers = {
+  symbol: string;
+  spot: number;
+  score: number;
+  exposure: CtaExposure;
+  signals: CtaSignal[];
+  nearest_trigger: string;
+};
+
+export type ConcentrationWindow = {
+  window: string;
+  cap_weighted_pct: number;
+  equal_weighted_pct: number;
+  spread_pp: number;
+};
+
+export type MarketConcentration = {
+  cap_weighted: string;
+  equal_weighted: string;
+  trend: 'narrowing' | 'stable' | 'broadening';
+  headline_window: string;
+  windows: ConcentrationWindow[];
+  ratio_history: Array<{ date: string; ratio: number }>;
+};
+
+export type MarketPositioning = {
+  futures: FuturesPositioning[] | null;
+  cta: CtaTriggers | null;
+  concentration: MarketConcentration | null;
+  as_of: string;
+};
+
 export type CompanyNewsArticle = {
   symbols: string[];
   title: string;

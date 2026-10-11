@@ -98,6 +98,7 @@ from ..services.reddit_service import (
     is_valid_subreddit_name,
 )
 from ..services import reddit_trends_service
+from ..services.market_positioning_service import get_market_positioning
 from ..services.sector_rotation_service import get_sector_rotation
 from ..services.signa import get_signa_best_trades, get_signa_live_feed, has_signa_key
 from ..services.stock_fear_greed_service import (
@@ -638,6 +639,19 @@ async def sector_rotation(
     _=Depends(api_key_dep),
 ):
     return await get_sector_rotation(timeframe=timeframe)
+
+
+@app.get("/api/market/positioning")
+async def market_positioning(_=Depends(api_key_dep)):
+    """Hedge-fund futures positioning, CTA trigger levels and breadth (issue #82).
+
+    See `market_positioning_service` for the data sources and how each
+    estimate is built. A section is ``null`` when its source failed.
+    """
+    data = await get_market_positioning()
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
 
 
 @app.get("/api/treemap")
