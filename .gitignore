@@ -17,6 +17,7 @@ data.db-journal
 .claude/*
 !.claude/settings.json
 !.claude/hooks/
+!.claude/skills/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -1344,3 +1344,52 @@ export type XStreamStatus = {
   source: 'cookies' | 'curl' | null;
   detail: string | null;
 };
+
+// Claude market check (/advisor): the owner's strategy and Claude's journal.
+export type AdvisorAction = 'buy' | 'add' | 'trim' | 'sell' | 'watch'
+
+export interface AdvisorStrategy {
+  rules: string
+  watchlist: string[]
+  /** Cash the owner is willing to invest; null when not set. */
+  available_cash: number | null
+  cash_currency: string | null
+  updated_at: string | null
+}
+
+export type AdvisorStrategyDraft = Pick<AdvisorStrategy, 'rules' | 'watchlist' | 'available_cash'> & {
+  cash_currency: string
+}
+
+export interface AdvisorCallResult {
+  horizon_days: number
+  price_at_horizon: number
+  return_pct: number
+  correct: boolean
+  excluded: boolean
+  evaluated_at: string | null
+}
+
+export interface AdvisorCall {
+  id: number
+  symbol: string
+  action: AdvisorAction
+  conviction: 'low' | 'medium' | 'high' | null
+  price_at_call: number | null
+  asset_kind: string | null
+  reasoning: string
+  rule: string | null
+  called_at: string | null
+  results: Record<string, AdvisorCallResult>
+}
+
+export interface AdvisorScoreBucket {
+  graded: number
+  hit_rate: number | null
+  avg_return_pct: number | null
+}
+
+export interface AdvisorScorecard {
+  total_calls: number
+  horizons: Record<string, AdvisorScoreBucket & { by_action: Record<string, AdvisorScoreBucket> }>
+}

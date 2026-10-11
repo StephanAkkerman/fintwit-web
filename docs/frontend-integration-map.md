@@ -94,6 +94,10 @@ Route-level sections:
   - Subreddit filter: a `<select>` shown on the "Posts" tab, populated from `/api/reddit/categories` via `useRedditCategories` (falls back to just `wallstreetbets` while loading or when the `reddit-stock-analyzer` package isn't installed). Defaults to r/wallstreetbets; more subreddits become selectable as the catalogue is expanded.
   - Fetches: `/api/reddit/trends?limit=20`, `/api/reddit/wsb?limit=10&subreddit=...`, `/api/reddit/categories`.
 
+- `/advisor`
+  - `AdvisorPanel` (`hooks/useAdvisor.ts`)
+  - Purpose: Claude market check. Shows the scorecard (`/api/advisor/scorecard`) and the decision journal (`/api/advisor/calls`), and edits the owner's rules, watchlist and available cash (`GET`/`PUT /api/advisor/strategy`).
+
 - `/admin`
   - `AccessAllowlistPanel`
   - Purpose: manage the Cloudflare Access allowlist (`/api/admin/access-emails`).

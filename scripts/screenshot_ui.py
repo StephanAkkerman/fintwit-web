@@ -2212,6 +2212,108 @@ def _trader_detail() -> dict:
     }
 
 
+def _advisor_strategy() -> dict:
+    return {
+        "rules": (
+            "- No single position above 20% of the portfolio.\n"
+            "- Take profit on a third at +40%; review anything at -15%.\n"
+            "- Large caps only, no leveraged ETFs. Hold for weeks to months."
+        ),
+        "watchlist": ["AMD", "PLTR", "MSFT"],
+        "available_cash": 4200.0,
+        "cash_currency": "USD",
+        "updated_at": "2026-10-01T09:00:00+00:00",
+    }
+
+
+def _advisor_result(horizon: int, price: float, return_pct: float) -> dict:
+    return {
+        "horizon_days": horizon,
+        "price_at_horizon": price,
+        "return_pct": return_pct,
+        "correct": return_pct > 0,
+        "excluded": False,
+        "evaluated_at": "2026-10-09T15:00:00+00:00",
+    }
+
+
+def _advisor_calls() -> list[dict]:
+    base = {"asset_kind": "EQUITY", "conviction": "medium", "rule": None}
+    return [
+        {
+            **base,
+            "id": 4,
+            "symbol": "AMD",
+            "action": "watch",
+            "price_at_call": 158.2,
+            "reasoning": "Mentions tripled vs. its 7-day baseline on the MI400 "
+            "launch; sentiment bullish but price already up 6% today.",
+            "called_at": "2026-10-10T15:00:00+00:00",
+            "results": {},
+        },
+        {
+            **base,
+            "id": 3,
+            "symbol": "TSLA",
+            "action": "trim",
+            "conviction": "high",
+            "price_at_call": 262.4,
+            "reasoning": "Position grew to 27% of the portfolio after the run-up.",
+            "rule": "No single position above 20% of the portfolio.",
+            "called_at": "2026-10-02T16:00:00+00:00",
+            "results": {"7": _advisor_result(7, 248.1, -5.45)},
+        },
+        {
+            **base,
+            "id": 2,
+            "symbol": "MSFT",
+            "action": "buy",
+            "price_at_call": 412.0,
+            "reasoning": "Hidden gem flag plus credible traders turning bullish "
+            "into earnings; on the watchlist.",
+            "called_at": "2026-09-08T14:00:00+00:00",
+            "results": {
+                "7": _advisor_result(7, 419.5, 1.82),
+                "30": _advisor_result(30, 431.9, 4.83),
+            },
+        },
+        {
+            **base,
+            "id": 1,
+            "symbol": "PLTR",
+            "action": "buy",
+            "conviction": "low",
+            "price_at_call": 31.4,
+            "reasoning": "Sentiment shift to bullish on Reddit and X.",
+            "called_at": "2026-09-02T14:00:00+00:00",
+            "results": {
+                "7": _advisor_result(7, 30.1, -4.14),
+                "30": _advisor_result(30, 29.0, -7.64),
+            },
+        },
+    ]
+
+
+def _advisor_scorecard() -> dict:
+    return {
+        "total_calls": 4,
+        "horizons": {
+            "7": {
+                "graded": 3,
+                "hit_rate": 2 / 3,
+                "avg_return_pct": 1.04,
+                "by_action": {},
+            },
+            "30": {
+                "graded": 2,
+                "hit_rate": 0.5,
+                "avg_return_pct": -1.4,
+                "by_action": {},
+            },
+        },
+    }
+
+
 def _trader_leaderboard() -> list[dict]:
     return [
         {
@@ -2712,6 +2814,14 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             "/api/reddit/trends": _empty_reddit_trends(),
             "/api/reddit/categories": _empty_reddit_categories(),
             "/api/admin/access-emails": {"emails": []},
+            "/api/advisor/strategy": {
+                "rules": "",
+                "watchlist": [],
+                "available_cash": None,
+                "cash_currency": None,
+                "updated_at": None,
+            },
+            "/api/advisor/scorecard": {"total_calls": 0, "horizons": {}},
             "/api/overview/trend-summary": _empty_trend_summary(),
             # Reached via a `/traders/<handle>` deep link; the panel reads
             # `.recent_calls`/`.tickers` off it.
@@ -2997,6 +3107,11 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         # Admin route: object-shaped, the catch-all's `[]` has no `.emails`
         # and AccessAllowlistPanel throws reading it during render.
         "/api/admin/access-emails": {"emails": ["you@example.com"]},
+        # Advisor route (Claude market check): strategy and scorecard are
+        # object-shaped; the journal is a list.
+        "/api/advisor/strategy": _advisor_strategy(),
+        "/api/advisor/calls": _advisor_calls(),
+        "/api/advisor/scorecard": _advisor_scorecard(),
     }
 
 

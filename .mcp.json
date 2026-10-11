@@ -3,6 +3,13 @@
     "fintwit": {
       "command": "bash",
       "args": ["scripts/mcp-server.sh"]
+    },
+    "signa": {
+      "type": "http",
+      "url": "https://app.getsigna.ai/api/mcp",
+      "headers": {
+        "Authorization": "Bearer ${SIGNA_KEY:-}"
+      }
     }
   }
 }

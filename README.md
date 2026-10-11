@@ -243,7 +243,8 @@ so everything the dashboard shows is available without a tool per endpoint (`lis
 `get`). Three bundled tools answer the common questions in one call each: `portfolio` (positions,
 P&L, diversification, IBKR account), `holdings_check` (per holding: tweet chatter and
 sentiment, Reddit buzz, recent news, upcoming earnings) and `ticker` (everything about one
-symbol, including your position in it). It can't change anything: edits,
+symbol, including your position in it). `market_snapshot` and `candidates` cover the market and
+buy ideas for the scheduled market check below. It can't change anything: edits,
 the SSE stream and `/api/admin/*` are not reachable.
 
 Claude can't complete Cloudflare's email-code login, so Terraform also creates an Access
@@ -274,6 +275,32 @@ CF_ACCESS_CLIENT_SECRET=<client_secret>
 
 Without the variables it talks to a local backend on `http://127.0.0.1:7999`. To rotate the
 token, `terraform apply -replace='cloudflare_zero_trust_access_service_token.fintwit["claude"]'`.
+
+### Scheduled market check (Advisor)
+
+With the MCP server connected, Claude can check the market on a schedule and suggest buys and
+sells for you to act on. It is advice only: Claude can't place trades or change your rules.
+
+1. Open the dashboard's **Advisor** page (`/advisor`) and write your rules (position limits,
+   take-profit and stop levels, what to avoid, risk appetite), a watchlist, and optionally the
+   cash you have available, so Claude can size its buy ideas.
+2. Create a routine in Claude Code on the web, on the cloud environment from the section above,
+   that runs every hour on weekdays with the prompt *"Run the market-check skill."* The skill
+   (`.claude/skills/market-check/SKILL.md`) skips the run when US markets are closed, reviews
+   your holdings and buy candidates against your rules, and replies "Nothing new" when nothing
+   changed.
+3. Each suggestion is logged to the Advisor page's decision journal, priced when it was made,
+   and graded after 7 and 30 days, so the scorecard shows whether the calls are worth following.
+
+Before suggesting a symbol, Claude checks its valuation and analyst targets, short interest,
+TradingView technicals and where the price sits against its 52-week range and 200-day average
+(`/api/research/*`, part of the `ticker` and `holdings_check` tools).
+
+**Signa.** `.mcp.json` also registers [Signa's MCP server](https://getsigna.ai/api-docs)
+(`https://app.getsigna.ai/api/mcp`), authenticated with the same `SIGNA_KEY` the backend uses
+(a `cmts_...` key). Set `SIGNA_KEY` in the environment Claude runs in, and on a cloud
+environment allow `app.getsigna.ai` in its network access. The market check then weighs Signa's
+verdict for each symbol it suggests, and skips Signa when the key isn't set.
 
 ### Reddit API credentials
 

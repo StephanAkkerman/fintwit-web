@@ -308,9 +308,40 @@ def _bundle_handler(seen: list):
             return httpx.Response(
                 200, json=[{"symbol": "aapl", "quantity": 5}, {"symbol": "MSFT"}]
             )
+        if path == "/api/research/price-context":
+            return httpx.Response(200, json=PRICE_CONTEXT)
+        if path == "/api/research/valuation":
+            if params["symbol"] == "MSFT":
+                return httpx.Response(404, json={"detail": "No valuation data"})
+            return httpx.Response(200, json=VALUATION)
         return httpx.Response(200, json={"path": path})
 
     return handler
+
+
+PRICE_CONTEXT = {
+    "symbol": "AAPL",
+    "stats": {
+        "from_52w_high_percent": -4.0,
+        "range_position_52w": 88.0,
+        "from_ath_percent": -4.0,
+        "flags": ["near_52w_high"],
+        "all_time_high": {"value": 260.0, "t": "2026-09-01"},
+    },
+    "trend": {
+        "returns_percent": {"1m": 3.0, "3m": 9.0, "6m": 12.0, "1y": 20.0},
+        "sma_50": {"value": 240.0, "price_vs_percent": 4.0},
+        "sma_200": {"value": 220.0, "price_vs_percent": 13.0},
+        "trend": "uptrend",
+    },
+}
+
+VALUATION = {
+    "symbol": "AAPL",
+    "fundamentals": {"forward_pe": 28.0, "market_cap": 3.8e12},
+    "analysts": {"rating": "buy", "target_mean": 280.0, "upside_percent": 12.0},
+    "short_interest": {"short_percent_of_float": 0.7},
+}
 
 
 async def test_holdings_check_joins_every_view_per_holding():
@@ -326,6 +357,24 @@ async def test_holdings_check_joins_every_view_per_holding():
     assert aapl["reddit_latest"] == {"rank": 3}
     assert aapl["news"] == {"articles": [{"title": "Beat"}]}
     assert aapl["earnings"] == [{"date": "2026-10-12", "symbol": "AAPL", "time": "amc"}]
+    # The research views are trimmed to what a decision needs.
+    assert aapl["price_context"] == {
+        "from_52w_high_percent": -4.0,
+        "range_position_52w": 88.0,
+        "from_ath_percent": -4.0,
+        "flags": ["near_52w_high"],
+        "returns_percent": {"1m": 3.0, "3m": 9.0, "6m": 12.0, "1y": 20.0},
+        "price_vs_sma_200_percent": 13.0,
+        "trend": "uptrend",
+    }
+    assert aapl["analysts"] == {
+        "rating": "buy",
+        "target_mean": 280.0,
+        "upside_percent": 12.0,
+        "forward_pe": 28.0,
+        "short_percent_of_float": 0.7,
+    }
+    assert "404" in msft["analysts"]["error"]
     # One failing view leaves the rest of that holding intact.
     assert "503" in msft["news"]["error"]
     assert msft["earnings"] == []
@@ -360,3 +409,91 @@ async def test_ticker_bundle():
     assert "404" in result["gamma_exposure"]["error"]
     assert "earnings_calendar" not in result
     assert ("/api/reddit/trends/AAPL/history", {"days": "30"}) in seen
+    # The full research views, not the holdings_check summaries.
+    assert result["price_context"] == PRICE_CONTEXT
+    assert result["valuation"] == VALUATION
+    assert (
+        "/api/research/technicals",
+        {"symbol": "AAPL", "asset_kind": "stock"},
+    ) in seen
+
+
+def _market_handler(seen: list):
+    def handler(request: httpx.Request) -> httpx.Response:
+        path, params = request.url.path, dict(request.url.params)
+        seen.append((request.method, path, params, request.content))
+        if path == "/api/markets/movers":
+            return httpx.Response(
+                200, json={"category": params["category"], "movers": list(range(25))}
+            )
+        if path == "/api/advisor/strategy":
+            return httpx.Response(200, json={"rules": "", "watchlist": ["NVDA", "AMD"]})
+        if path == "/api/portfolio/positions":
+            return httpx.Response(200, json=[{"symbol": "nvda"}])
+        if path == "/api/overview/ticker-timeseries":
+            return httpx.Response(200, json={"points": [], "summary": {"total": 1}})
+        if path == "/api/fear-greed":
+            return httpx.Response(503, json={"detail": "down"})
+        if path == "/api/advisor/calls" and request.method == "POST":
+            return httpx.Response(201, json={"id": 7, **json.loads(request.content)})
+        return httpx.Response(200, json={"path": path})
+
+    return handler
+
+
+async def test_market_snapshot_trims_movers_and_keeps_failures():
+    async with _mock_client(_market_handler([])) as client:
+        result = json.loads(await mcp_server.collect_market_snapshot(client))
+
+    assert result["gainers"]["movers"] == list(range(10))
+    assert result["losers"]["category"] == "losers"
+    assert "503" in result["crypto_fear_greed"]["error"]
+    assert result["market_hours"] == {"path": "/api/stocks/market-hours"}
+
+
+async def test_candidates_flags_held_watchlist_symbols():
+    seen = []
+    async with _mock_client(_market_handler(seen)) as client:
+        result = json.loads(await mcp_server.collect_candidates(client))
+
+    assert result["held_symbols"] == ["NVDA"]
+    assert [(w["symbol"], w["held"]) for w in result["watchlist"]] == [
+        ("NVDA", True),
+        ("AMD", False),
+    ]
+    assert result["watchlist"][0]["tweets"] == {"total": 1}
+    assert "strategy" not in result and "positions" not in result
+    assert any(
+        p == "/api/overview/hidden-gems" and q["asset_kind"] == "equity"
+        for _, p, q, _ in seen
+    )
+
+
+async def test_log_call_and_journal():
+    seen = []
+    async with _mock_client(_market_handler(seen)) as client:
+        logged = json.loads(
+            await mcp_server.log_journal_call(
+                client, {"symbol": "NVDA", "action": "buy", "reasoning": "r"}
+            )
+        )
+        journal = json.loads(
+            await mcp_server.collect_journal(client, 5, "$nvda", since_hours=6)
+        )
+
+    assert logged["id"] == 7
+    assert (
+        "GET",
+        "/api/advisor/calls",
+        {"limit": "5", "symbol": "NVDA", "since_hours": "6"},
+    ) in [s[:3] for s in seen]
+    assert set(journal) == {"scorecard", "calls"}
+
+
+def test_generic_get_cannot_write_the_journal_or_strategy():
+    endpoints = mcp_server.list_readable_endpoints(app.openapi())
+    calls = mcp_server.match_endpoint(endpoints, "/api/advisor/calls")
+    # Listed as a read (GET); the POST is only reachable through log_call.
+    assert calls is not None and calls.get("method", "GET") == "GET"
+    strategy = mcp_server.match_endpoint(endpoints, "/api/advisor/strategy")
+    assert strategy.get("method", "GET") == "GET"

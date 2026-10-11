@@ -342,6 +342,65 @@ def _add_missing_columns(sync_conn) -> None:
             )
 
 
+class AdvisorStrategyRow(Base):
+    """The owner's trading rules and watchlist for the Claude market check.
+
+    A single row (id 1), edited from the dashboard's /advisor page. Claude reads
+    it through the MCP server but cannot change it, so the rules it is judged
+    against stay the owner's.
+    """
+
+    __tablename__ = "advisor_strategy"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    rules: Mapped[str] = mapped_column(String, nullable=False, default="")
+    watchlist: Mapped[list] = mapped_column(
+        JSON().with_variant(SQLITE_JSON, "sqlite"), nullable=False, default=list
+    )
+    # Uninvested cash the owner is willing to deploy, so buy ideas can be sized.
+    available_cash: Mapped[float] = mapped_column(Float, nullable=True)
+    cash_currency: Mapped[str] = mapped_column(String, nullable=True)
+    updated_at: Mapped[DateTime] = mapped_column(DateTime, nullable=True)
+
+
+class AdvisorCallRow(Base):
+    """One suggestion Claude made during a market check (the decision journal).
+
+    ``buy``/``add`` are graded as bullish and ``trim``/``sell`` as bearish by
+    AdvisorCallResultRow; ``watch`` is a note and never graded.
+    """
+
+    __tablename__ = "advisor_calls"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(String, index=True)
+    action: Mapped[str] = mapped_column(String)
+    conviction: Mapped[str] = mapped_column(String, nullable=True)
+    price_at_call: Mapped[float] = mapped_column(Float, nullable=True)
+    asset_kind: Mapped[str] = mapped_column(String, nullable=True)
+    reasoning: Mapped[str] = mapped_column(String)
+    rule: Mapped[str] = mapped_column(String, nullable=True)
+    called_at: Mapped[DateTime] = mapped_column(DateTime, index=True)
+
+
+class AdvisorCallResultRow(Base):
+    """Grading of one AdvisorCallRow at one horizon (7d/30d)."""
+
+    __tablename__ = "advisor_call_results"
+    __table_args__ = (UniqueConstraint("call_id", "horizon_days"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    call_id: Mapped[int] = mapped_column(Integer, index=True)
+    horizon_days: Mapped[int] = mapped_column(Integer, index=True)
+    price_at_horizon: Mapped[float] = mapped_column(Float)
+    return_pct: Mapped[float] = mapped_column(Float)
+    correct: Mapped[bool] = mapped_column(Boolean)
+    excluded: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=sql_text("0")
+    )
+    evaluated_at: Mapped[DateTime] = mapped_column(DateTime)
+
+
 class RedditTrendRunRow(Base):
     """One completed Reddit scrape-and-rank pass (issue #6).
 
