@@ -94,3 +94,34 @@ resource "cloudflare_zero_trust_access_policy" "fintwit_allowed_users" {
     ignore_changes = [include]
   }
 }
+
+# Machine logins for the same application: each token is a client id + secret
+# pair sent as CF-Access-Client-Id / CF-Access-Client-Secret headers, so a
+# script or Claude (through app/mcp_server.py) can reach the API without the
+# one-time-PIN email loop. Revoke one by removing its name from
+# var.access_service_tokens and re-applying, or rotate it in the Zero Trust
+# dashboard.
+resource "cloudflare_zero_trust_access_service_token" "fintwit" {
+  for_each = toset(var.access_service_tokens)
+
+  account_id = var.cloudflare_account_id
+  name       = "fintwit-web ${each.key}"
+  duration   = var.access_service_token_duration
+}
+
+resource "cloudflare_zero_trust_access_policy" "fintwit_service_tokens" {
+  count = length(var.access_service_tokens) > 0 ? 1 : 0
+
+  account_id     = var.cloudflare_account_id
+  application_id = cloudflare_zero_trust_access_application.fintwit.id
+  name           = "Service tokens"
+  precedence     = 2
+  # "Service Auth": lets a valid token through without an identity login.
+  decision = "non_identity"
+
+  include {
+    service_token = [
+      for token in cloudflare_zero_trust_access_service_token.fintwit : token.id
+    ]
+  }
+}

@@ -29,3 +29,14 @@ output "access_policy_id" {
   description = "Cloudflare Access policy ID — needed by the app's Admin panel to manage the allowlist at runtime (see CLOUDFLARE_ACCESS_POLICY_ID in .env.example)"
   value       = cloudflare_zero_trust_access_policy.fintwit_allowed_users.id
 }
+
+output "access_service_tokens" {
+  description = "Client id + secret per service token, for CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET (read with `terraform output -json access_service_tokens`). The secret is only retrievable from Terraform state, not from the Cloudflare dashboard."
+  value = {
+    for name, token in cloudflare_zero_trust_access_service_token.fintwit : name => {
+      client_id     = token.client_id
+      client_secret = token.client_secret
+    }
+  }
+  sensitive = true
+}

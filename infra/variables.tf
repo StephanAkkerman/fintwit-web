@@ -42,3 +42,15 @@ variable "access_session_duration" {
   type        = string
   default     = "24h"
 }
+
+variable "access_service_tokens" {
+  description = "Names of Access service tokens to create for non-browser clients (scripts, Claude via the MCP server). Empty list disables service-token access."
+  type        = list(string)
+  default     = ["claude"]
+}
+
+variable "access_service_token_duration" {
+  description = "How long each service token is valid before it must be rotated"
+  type        = string
+  default     = "8760h"
+}

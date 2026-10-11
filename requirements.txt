@@ -28,6 +28,8 @@ ticker-price-data==0.1.5
 pytest==9.1.1
 pytest-asyncio==1.4.0
 httpx==0.28.1
+# MCP server for Claude (app/mcp_server.py)
+mcp==2.3.0
 asyncpraw==8.0.3
 dotenv==0.9.9
 lxml==6.0.4

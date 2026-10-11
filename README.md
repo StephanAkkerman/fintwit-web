@@ -206,7 +206,8 @@ reach the dashboard. One-time Cloudflare setup:
 2. At your domain registrar, switch its nameservers to the ones Cloudflare assigns.
 3. Create an API token at
    [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens) with:
-   Account → Access: Apps and Policies → Edit; Account → Cloudflare Tunnel → Edit;
+   Account → Access: Apps and Policies → Edit; Account → Access: Service Tokens → Edit;
+   Account → Cloudflare Tunnel → Edit;
    Zone → DNS → Edit; Zone → Zone → Read.
 
 Then provision the tunnel, DNS record and Access policy with Terraform, from `infra/`:
@@ -232,6 +233,47 @@ page and verify with a one-time code emailed to them; anyone not on the allowlis
 Cloudflare's edge. `access_allowed_emails` only seeds the list; after that, manage it from the
 dashboard's **Admin** page, which needs a few more `.env` values (see
 [infra/README.md](infra/README.md#admin-page-invites)).
+
+### Give Claude access to your deployment
+
+`app/mcp_server.py` is a read-only [MCP](https://modelcontextprotocol.io) server over the
+dashboard's API, so Claude (Code, Desktop, or a cloud session) can pull your tweets, market
+data, Reddit trends and portfolio and reason over them. It reads the backend's OpenAPI schema,
+so everything the dashboard shows is available without a tool per endpoint (`list_endpoints` +
+`get`). Three bundled tools answer the common questions in one call each: `portfolio` (positions,
+P&L, diversification, IBKR account), `holdings_check` (per holding: tweet chatter and
+sentiment, Reddit buzz, recent news, upcoming earnings) and `ticker` (everything about one
+symbol, including your position in it). It can't change anything: edits,
+the SSE stream and `/api/admin/*` are not reachable.
+
+Claude can't complete Cloudflare's email-code login, so Terraform also creates an Access
+**service token** (`access_service_tokens` in `terraform.tfvars`, `["claude"]` by default): a
+client id + secret that gets past Access without a login, and that you can revoke on its own.
+After `terraform apply`:
+
+```bash
+terraform output -json access_service_tokens   # {"claude": {"client_id": ..., "client_secret": ...}}
+```
+
+Then point the MCP server at the deployment with these environment variables:
+
+```bash
+FINTWIT_URL=https://<subdomain>.<zone_name>
+CF_ACCESS_CLIENT_ID=<client_id>
+CF_ACCESS_CLIENT_SECRET=<client_secret>
+```
+
+- **Claude Code in this repo:** `.mcp.json` registers the server as `fintwit`; export the
+  variables before starting `claude` (and `pip install -e ".[test]"` or
+  `pip install -r requirements.txt` for the `mcp` package).
+- **Claude Code on the web:** add the three variables to the cloud environment's environment
+  variables, and allow your dashboard's hostname under its network access. Sessions on that
+  environment get the `fintwit` tools automatically.
+- **Claude Desktop / any MCP client:** run `python -m app.mcp_server` from the repo root over
+  stdio, with the same variables.
+
+Without the variables it talks to a local backend on `http://127.0.0.1:7999`. To rotate the
+token, `terraform apply -replace='cloudflare_zero_trust_access_service_token.fintwit["claude"]'`.
 
 ### Reddit API credentials
 

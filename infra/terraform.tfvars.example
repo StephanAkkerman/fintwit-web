@@ -12,3 +12,7 @@ tunnel_origin_url = "http://frontend:80"
 # Only these addresses can log in (Cloudflare Access hosted one-time-PIN screen).
 # Add anyone else you want to give access to, e.g. ["you@example.com", "friend@example.com"]
 access_allowed_emails = ["you@example.com"]
+
+# Service tokens let non-browser clients past the login (e.g. Claude through the
+# MCP server, see the root README). Set to [] to create none.
+access_service_tokens = ["claude"]

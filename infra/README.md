@@ -12,6 +12,9 @@ serving fintwit-web from your Raspberry Pi.
   `cloudflare_zero_trust_access_policy`) gating the public hostname behind a login —
   only the emails listed in `access_allowed_emails` can get in, via Cloudflare's
   hosted one-time-PIN screen. No separate identity provider needed.
+- Access service tokens + a "Service Auth" policy (`cloudflare_zero_trust_access_service_token`,
+  one per name in `access_service_tokens`, default `["claude"]`) for clients that can't do the
+  email login, such as Claude through the MCP server. See [Service tokens](#service-tokens).
 
 ## Prerequisites
 
@@ -19,6 +22,7 @@ serving fintwit-web from your Raspberry Pi.
 - Cloudflare API token with:
   - Account: Cloudflare Tunnel Edit
   - Account: Access: Apps and Policies Edit
+  - Account: Access: Service Tokens Edit (for `access_service_tokens`; drop it if that's `[]`)
   - Zone: DNS Edit
 - Docker + Docker Compose on the Pi
 
@@ -69,3 +73,19 @@ dashboard to a friend on short notice. It calls the Cloudflare API directly
 Leave these unset if you'd rather manage the allowlist purely through `terraform.tfvars` —
 the Admin panel just shows "Cloudflare Access isn't configured" and the tunnel still works
 with whatever `access_allowed_emails` provisioned.
+
+## Service tokens
+
+Each name in `access_service_tokens` becomes a Cloudflare Access service token, and a second
+policy on the application (`decision = "non_identity"`) lets any of them through. A client sends
+the pair as `CF-Access-Client-Id` / `CF-Access-Client-Secret` headers on every request; the MCP
+server reads them from `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET`.
+
+- Read them with `terraform output -json access_service_tokens`. Cloudflare only shows the
+  secret once, at creation, so Terraform state is the only place to get it back.
+- Tokens expire after `access_service_token_duration` (default one year).
+- Revoke one by removing its name and re-applying; rotate with
+  `terraform apply -replace='cloudflare_zero_trust_access_service_token.fintwit["<name>"]'`.
+- `access_service_tokens = []` removes service-token access entirely.
+- Creating them needs **Account: Access: Service Tokens Edit** on the Terraform API token, on
+  top of the permissions under [Prerequisites](#prerequisites).

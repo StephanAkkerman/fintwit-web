@@ -88,3 +88,14 @@ The `ibgateway` container also honours `TWS_ACCEPT_INCOMING`, `TWS_SETTINGS_PATH
 | `SIGNA_KEY` | — | Signa signal API key; adds signal verdicts to equity cards and the Signa route. |
 | `CLOUDFLARE_TUNNEL_TOKEN` | — | Token for the `tunnel` profile's `cloudflared` container. |
 | `CLOUDFLARE_ACCESS_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ACCESS_APP_ID`, `CLOUDFLARE_ACCESS_POLICY_ID` | — | All four enable the Admin page's invite panel; see [infra/README.md](../infra/README.md#admin-page-invites). |
+
+## MCP server (Claude access)
+
+Read by `app/mcp_server.py`, the MCP client side, not by the backend. See the README's
+[Give Claude access](../README.md#give-claude-access-to-your-deployment).
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `FINTWIT_URL` | `http://127.0.0.1:7999` | Deployment the MCP server reads from, e.g. `https://fintwit.example.com`. |
+| `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET` | — | Cloudflare Access service token (`terraform output -json access_service_tokens`); needed when `FINTWIT_URL` is behind Access. |
+| `FINTWIT_API_KEY` | — | Sent as `X-API-Key` when talking to a backend directly that has `API_KEY` set. Not needed through the tunnel, whose nginx adds it. |
