@@ -348,6 +348,9 @@ class AdvisorStrategyRow(Base):
     watchlist: Mapped[list] = mapped_column(
         JSON().with_variant(SQLITE_JSON, "sqlite"), nullable=False, default=list
     )
+    # Uninvested cash the owner is willing to deploy, so buy ideas can be sized.
+    available_cash: Mapped[float] = mapped_column(Float, nullable=True)
+    cash_currency: Mapped[str] = mapped_column(String, nullable=True)
     updated_at: Mapped[DateTime] = mapped_column(DateTime, nullable=True)
 
 

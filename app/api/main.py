@@ -308,10 +308,12 @@ app = FastAPI(
 
 from .advisor import router as advisor_router  # noqa: E402
 from .overview import router as overview_router  # noqa: E402
+from .research import router as research_router  # noqa: E402
 from .traders import router as traders_router  # noqa: E402
 
 app.include_router(advisor_router)
 app.include_router(overview_router)
+app.include_router(research_router)
 app.include_router(traders_router)
 
 

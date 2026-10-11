@@ -308,9 +308,40 @@ def _bundle_handler(seen: list):
             return httpx.Response(
                 200, json=[{"symbol": "aapl", "quantity": 5}, {"symbol": "MSFT"}]
             )
+        if path == "/api/research/price-context":
+            return httpx.Response(200, json=PRICE_CONTEXT)
+        if path == "/api/research/valuation":
+            if params["symbol"] == "MSFT":
+                return httpx.Response(404, json={"detail": "No valuation data"})
+            return httpx.Response(200, json=VALUATION)
         return httpx.Response(200, json={"path": path})
 
     return handler
+
+
+PRICE_CONTEXT = {
+    "symbol": "AAPL",
+    "stats": {
+        "from_52w_high_percent": -4.0,
+        "range_position_52w": 88.0,
+        "from_ath_percent": -4.0,
+        "flags": ["near_52w_high"],
+        "all_time_high": {"value": 260.0, "t": "2026-09-01"},
+    },
+    "trend": {
+        "returns_percent": {"1m": 3.0, "3m": 9.0, "6m": 12.0, "1y": 20.0},
+        "sma_50": {"value": 240.0, "price_vs_percent": 4.0},
+        "sma_200": {"value": 220.0, "price_vs_percent": 13.0},
+        "trend": "uptrend",
+    },
+}
+
+VALUATION = {
+    "symbol": "AAPL",
+    "fundamentals": {"forward_pe": 28.0, "market_cap": 3.8e12},
+    "analysts": {"rating": "buy", "target_mean": 280.0, "upside_percent": 12.0},
+    "short_interest": {"short_percent_of_float": 0.7},
+}
 
 
 async def test_holdings_check_joins_every_view_per_holding():
@@ -326,6 +357,24 @@ async def test_holdings_check_joins_every_view_per_holding():
     assert aapl["reddit_latest"] == {"rank": 3}
     assert aapl["news"] == {"articles": [{"title": "Beat"}]}
     assert aapl["earnings"] == [{"date": "2026-10-12", "symbol": "AAPL", "time": "amc"}]
+    # The research views are trimmed to what a decision needs.
+    assert aapl["price_context"] == {
+        "from_52w_high_percent": -4.0,
+        "range_position_52w": 88.0,
+        "from_ath_percent": -4.0,
+        "flags": ["near_52w_high"],
+        "returns_percent": {"1m": 3.0, "3m": 9.0, "6m": 12.0, "1y": 20.0},
+        "price_vs_sma_200_percent": 13.0,
+        "trend": "uptrend",
+    }
+    assert aapl["analysts"] == {
+        "rating": "buy",
+        "target_mean": 280.0,
+        "upside_percent": 12.0,
+        "forward_pe": 28.0,
+        "short_percent_of_float": 0.7,
+    }
+    assert "404" in msft["analysts"]["error"]
     # One failing view leaves the rest of that holding intact.
     assert "503" in msft["news"]["error"]
     assert msft["earnings"] == []
@@ -360,6 +409,13 @@ async def test_ticker_bundle():
     assert "404" in result["gamma_exposure"]["error"]
     assert "earnings_calendar" not in result
     assert ("/api/reddit/trends/AAPL/history", {"days": "30"}) in seen
+    # The full research views, not the holdings_check summaries.
+    assert result["price_context"] == PRICE_CONTEXT
+    assert result["valuation"] == VALUATION
+    assert (
+        "/api/research/technicals",
+        {"symbol": "AAPL", "asset_kind": "stock"},
+    ) in seen
 
 
 def _market_handler(seen: list):

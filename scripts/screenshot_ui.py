@@ -2220,6 +2220,8 @@ def _advisor_strategy() -> dict:
             "- Large caps only, no leveraged ETFs. Hold for weeks to months."
         ),
         "watchlist": ["AMD", "PLTR", "MSFT"],
+        "available_cash": 4200.0,
+        "cash_currency": "USD",
         "updated_at": "2026-10-01T09:00:00+00:00",
     }
 
@@ -2812,7 +2814,13 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             "/api/reddit/trends": _empty_reddit_trends(),
             "/api/reddit/categories": _empty_reddit_categories(),
             "/api/admin/access-emails": {"emails": []},
-            "/api/advisor/strategy": {"rules": "", "watchlist": [], "updated_at": None},
+            "/api/advisor/strategy": {
+                "rules": "",
+                "watchlist": [],
+                "available_cash": None,
+                "cash_currency": None,
+                "updated_at": None,
+            },
             "/api/advisor/scorecard": {"total_calls": 0, "horizons": {}},
             "/api/overview/trend-summary": _empty_trend_summary(),
             # Reached via a `/traders/<handle>` deep link; the panel reads

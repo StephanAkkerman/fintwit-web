@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { AdvisorCall, AdvisorScorecard, AdvisorStrategy } from '../types'
+import type { AdvisorCall, AdvisorScorecard, AdvisorStrategy, AdvisorStrategyDraft } from '../types'
 
-const EMPTY_STRATEGY: AdvisorStrategy = { rules: '', watchlist: [], updated_at: null }
+const EMPTY_STRATEGY: AdvisorStrategy = {
+  rules: '',
+  watchlist: [],
+  available_cash: null,
+  cash_currency: null,
+  updated_at: null,
+}
 
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(url, { signal })
@@ -42,11 +48,11 @@ export function useAdvisor() {
     return () => controller.abort()
   }, [load])
 
-  const saveStrategy = useCallback(async (rules: string, watchlist: string[]) => {
+  const saveStrategy = useCallback(async (draft: AdvisorStrategyDraft) => {
     const res = await fetch('/api/advisor/strategy', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rules, watchlist }),
+      body: JSON.stringify(draft),
     })
     if (!res.ok) throw new Error(`Saving failed with status ${res.status}`)
     const saved = (await res.json()) as AdvisorStrategy

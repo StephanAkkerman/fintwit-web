@@ -40,6 +40,8 @@ def _get_enricher() -> AssetEnricher:
 class StrategyIn(BaseModel):
     rules: str = Field(default="", max_length=20_000)
     watchlist: list[str] = Field(default_factory=list, max_length=200)
+    available_cash: float | None = Field(default=None, ge=0)
+    cash_currency: str = Field(default="USD", pattern="^[A-Za-z]{3}$")
 
 
 class CallIn(BaseModel):
@@ -66,7 +68,10 @@ async def get_strategy():
 @router.put("/strategy")
 async def put_strategy(payload: StrategyIn):
     return await _repo().set_strategy(
-        payload.rules.strip(), normalize_watchlist(payload.watchlist)
+        payload.rules.strip(),
+        normalize_watchlist(payload.watchlist),
+        payload.available_cash,
+        payload.cash_currency.upper(),
     )
 
 

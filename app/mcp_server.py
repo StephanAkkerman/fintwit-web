@@ -319,6 +319,40 @@ def _latest_point(history: Any) -> Any:
     return history
 
 
+def _price_summary(context: Any) -> Any:
+    """The decision-relevant slice of /api/research/price-context."""
+    if not isinstance(context, dict) or "error" in context:
+        return context
+    stats = context.get("stats") or {}
+    trend = context.get("trend") or {}
+    return {
+        "from_52w_high_percent": stats.get("from_52w_high_percent"),
+        "range_position_52w": stats.get("range_position_52w"),
+        "from_ath_percent": stats.get("from_ath_percent"),
+        "flags": stats.get("flags"),
+        "returns_percent": trend.get("returns_percent"),
+        "price_vs_sma_200_percent": (trend.get("sma_200") or {}).get(
+            "price_vs_percent"
+        ),
+        "trend": trend.get("trend"),
+    }
+
+
+def _valuation_summary(valuation: Any) -> Any:
+    """Analyst consensus plus the headline valuation and short-interest numbers."""
+    if not isinstance(valuation, dict) or "error" in valuation:
+        return valuation
+    fundamentals = valuation.get("fundamentals") or {}
+    short = valuation.get("short_interest") or {}
+    summary = {
+        **(valuation.get("analysts") or {}),
+        "forward_pe": fundamentals.get("forward_pe"),
+        "trailing_pe": fundamentals.get("trailing_pe"),
+        "short_percent_of_float": short.get("short_percent_of_float"),
+    }
+    return {k: v for k, v in summary.items() if v is not None}
+
+
 async def collect_portfolio(client: httpx.AsyncClient) -> str:
     """Every portfolio view in one payload."""
     views = await asyncio.gather(*(_safe(client, path) for path in PORTFOLIO_PATHS))
@@ -333,7 +367,8 @@ async def collect_holdings_check(
     client: httpx.AsyncClient, window_hours: int = 168, earnings_days: int = 14
 ) -> str:
     """Per holding: the position, tweet mentions/sentiment, Reddit buzz, recent
-    news with its sentiment, and earnings inside ``earnings_days``."""
+    news with its sentiment, where the price sits in its 52-week range and
+    trend, analyst targets, and earnings inside ``earnings_days``."""
     insights = await _request(client, "/api/portfolio/insights", None)
     positions = [p for p in insights.get("positions") or [] if p.get("symbol")]
     positions.sort(key=lambda p: p.get("market_value") or 0, reverse=True)
@@ -344,7 +379,7 @@ async def collect_holdings_check(
     limiter = asyncio.Semaphore(_BUNDLE_CONCURRENCY)
 
     async def per_symbol(symbol: str) -> dict:
-        mentions, reddit, news = await asyncio.gather(
+        mentions, reddit, news, context, valuation = await asyncio.gather(
             _safe(
                 client,
                 "/api/overview/ticker-timeseries",
@@ -360,6 +395,8 @@ async def collect_holdings_check(
             _safe(
                 client, "/api/news/company", {"symbols": symbol, "limit": 3}, limiter
             ),
+            _safe(client, "/api/research/price-context", {"symbol": symbol}, limiter),
+            _safe(client, "/api/research/valuation", {"symbol": symbol}, limiter),
         )
         if isinstance(mentions, dict) and "summary" in mentions:
             mentions = mentions["summary"]
@@ -367,6 +404,8 @@ async def collect_holdings_check(
             "tweets": mentions,
             "reddit_latest": _latest_point(reddit),
             "news": news,
+            "price_context": _price_summary(context),
+            "analysts": _valuation_summary(valuation),
         }
 
     calendar, *details = await asyncio.gather(
@@ -408,12 +447,16 @@ async def collect_holdings_check(
 
 
 async def collect_ticker(
-    client: httpx.AsyncClient, symbol: str, window_hours: int = 168
+    client: httpx.AsyncClient,
+    symbol: str,
+    window_hours: int = 168,
+    asset_kind: str = "stock",
 ) -> str:
     """Everything the dashboard knows about one symbol."""
     symbol = symbol.strip().upper().lstrip("$")
     if not symbol or "/" in symbol:
         raise FintwitApiError("Pass a ticker symbol such as NVDA or BTC.")
+    asset_kind = asset_kind if asset_kind in ("stock", "etf", "crypto") else "stock"
 
     views = {
         "mentions": (
@@ -421,6 +464,12 @@ async def collect_ticker(
             {"ticker": symbol, "window_hours": window_hours},
         ),
         "price_today": ("/api/overview/ticker-price-history", {"ticker": symbol}),
+        "price_context": ("/api/research/price-context", {"symbol": symbol}),
+        "valuation": ("/api/research/valuation", {"symbol": symbol}),
+        "technicals": (
+            "/api/research/technicals",
+            {"symbol": symbol, "asset_kind": asset_kind},
+        ),
         "news": ("/api/news/company", {"symbols": symbol, "limit": 10}),
         "reddit_history": (
             f"/api/reddit/trends/{quote(symbol, safe='')}/history",
@@ -665,21 +714,29 @@ async def holdings_check(window_hours: int = 168, earnings_days: int = 14) -> st
     """What is happening around each holding, largest first: the position, tweet
     mentions and sentiment over ``window_hours`` (default 7 days), the latest
     Reddit trend reading, the three newest headlines with their sentiment, and
-    any earnings in the next ``earnings_days`` (at most 14). Use it for
+    any earnings in the next ``earnings_days`` (at most 14), plus where the price
+    sits against its 52-week range and 200-day average and the analyst rating
+    and price target. Use it for
     questions like "anything I should worry about in my portfolio?"."""
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         return await collect_holdings_check(client, window_hours, earnings_days)
 
 
 @mcp.tool()
-async def ticker(symbol: str, window_hours: int = 168) -> str:
+async def ticker(
+    symbol: str, window_hours: int = 168, asset_kind: str = "stock"
+) -> str:
     """Everything about one symbol (e.g. ``NVDA``, ``BTC``): tweet mentions and
-    sentiment over time, today's intraday price, news with sentiment, Reddit
-    trend history, options overview and gamma exposure, upcoming earnings, and
-    your own position in it if you hold it. Parts that don't apply (no options
-    on a coin) come back as an ``error`` entry."""
+    sentiment over time, today's intraday price, the 52-week/all-time range
+    with 1-12 month returns and 50/200-day averages, valuation (P/E, EPS,
+    market cap), analyst rating and price targets, short interest, TradingView
+    4-hour and daily technicals, news with sentiment, Reddit trend history,
+    options overview and gamma exposure, upcoming earnings, and your own
+    position in it if you hold it. ``asset_kind`` (``stock``, ``etf`` or
+    ``crypto``) picks the TradingView market. Parts that don't apply (no
+    options or analysts on a coin) come back as an ``error`` entry."""
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-        return await collect_ticker(client, symbol, window_hours)
+        return await collect_ticker(client, symbol, window_hours, asset_kind)
 
 
 @mcp.tool()
@@ -706,7 +763,9 @@ async def candidates(window_hours: int = 24, asset_kind: str = "equity") -> str:
 @mcp.tool()
 async def strategy() -> str:
     """The owner's trading rules (free text: position limits, take-profit and
-    stop levels, sectors to avoid, risk appetite) and watchlist. Judge every
+    stop levels, sectors to avoid, risk appetite), watchlist, and the cash
+    they have available to invest (``available_cash``; null when not set), so
+    buy ideas can be sized. Judge every
     suggestion against these rules and name the rule that triggered it. Only
     the owner can change them, from the dashboard's /advisor page."""
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:

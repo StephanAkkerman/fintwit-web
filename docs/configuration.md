@@ -100,3 +100,4 @@ Read by `app/mcp_server.py`, the MCP client side, not by the backend. See the RE
 | `FINTWIT_URL` | `http://127.0.0.1:7999` | Deployment the MCP server reads from, e.g. `https://fintwit.example.com`. |
 | `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET` | — | Cloudflare Access service token (`terraform output -json access_service_tokens`); needed when `FINTWIT_URL` is behind Access. |
 | `FINTWIT_API_KEY` | — | Sent as `X-API-Key` when talking to a backend directly that has `API_KEY` set. Not needed through the tunnel, whose nginx adds it. |
+| `SIGNA_KEY` | — | Also used by Claude Code: `.mcp.json` sends it as the bearer token for Signa's MCP server (`https://app.getsigna.ai/api/mcp`). Unset, that server fails to connect and the market check carries on without it. |

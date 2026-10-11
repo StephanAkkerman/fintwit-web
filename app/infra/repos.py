@@ -862,14 +862,28 @@ class AdvisorRepo:
         async with self.Session() as s:
             row = await s.get(AdvisorStrategyRow, self._STRATEGY_ID)
         if row is None:
-            return {"rules": "", "watchlist": [], "updated_at": None}
+            return {
+                "rules": "",
+                "watchlist": [],
+                "available_cash": None,
+                "cash_currency": None,
+                "updated_at": None,
+            }
         return {
             "rules": row.rules or "",
             "watchlist": list(row.watchlist or []),
+            "available_cash": row.available_cash,
+            "cash_currency": row.cash_currency,
             "updated_at": _iso_utc(row.updated_at),
         }
 
-    async def set_strategy(self, rules: str, watchlist: list[str]) -> dict:
+    async def set_strategy(
+        self,
+        rules: str,
+        watchlist: list[str],
+        available_cash: float | None = None,
+        cash_currency: str | None = None,
+    ) -> dict:
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         async with self.Session() as s:
             async with s.begin():
@@ -879,6 +893,10 @@ class AdvisorRepo:
                     s.add(row)
                 row.rules = rules
                 row.watchlist = watchlist
+                row.available_cash = available_cash
+                row.cash_currency = (
+                    cash_currency if available_cash is not None else None
+                )
                 row.updated_at = now
         return await self.get_strategy()
 

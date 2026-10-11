@@ -25,9 +25,15 @@ const call = (overrides: Partial<AdvisorCall>): AdvisorCall => ({
 })
 
 function mockState(overrides: Partial<ReturnType<typeof useAdvisor>> = {}) {
-  const saveStrategy = vi.fn().mockResolvedValue({ rules: '', watchlist: [], updated_at: null })
+  const saveStrategy = vi.fn().mockResolvedValue({})
   mockUseAdvisor.mockReturnValue({
-    strategy: { rules: 'No penny stocks', watchlist: ['NVDA', 'AMD'], updated_at: null },
+    strategy: {
+      rules: 'No penny stocks',
+      watchlist: ['NVDA', 'AMD'],
+      available_cash: 2500,
+      cash_currency: 'EUR',
+      updated_at: null,
+    },
     calls: [],
     scorecard: { total_calls: 0, horizons: {} },
     loading: false,
@@ -81,8 +87,29 @@ describe('AdvisorPanel', () => {
     render(<AdvisorPanel />)
     fireEvent.change(screen.getByLabelText('Watchlist'), { target: { value: 'pltr, amd  msft' } })
     fireEvent.click(screen.getByText('Save strategy'))
-    await waitFor(() => expect(save).toHaveBeenCalledWith('No penny stocks', ['pltr', 'amd', 'msft']))
+    await waitFor(() =>
+      expect(save).toHaveBeenCalledWith({
+        rules: 'No penny stocks',
+        watchlist: ['pltr', 'amd', 'msft'],
+        available_cash: 2500,
+        cash_currency: 'EUR',
+      }),
+    )
     expect(await screen.findByText('Saved')).toBeTruthy()
+  })
+
+  it('clears the cash, and refuses a negative amount', async () => {
+    const save = mockState()
+    render(<AdvisorPanel />)
+    const cash = screen.getByLabelText('Cash available to invest')
+    fireEvent.change(cash, { target: { value: '-5' } })
+    // The browser's own min=0 validation blocks the submit.
+    fireEvent.click(screen.getByText('Save strategy'))
+    expect(save).not.toHaveBeenCalled()
+
+    fireEvent.change(cash, { target: { value: '' } })
+    fireEvent.click(screen.getByText('Save strategy'))
+    await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({ available_cash: null })))
   })
 
   it('shows an error state', () => {

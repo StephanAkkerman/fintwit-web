@@ -282,7 +282,8 @@ With the MCP server connected, Claude can check the market on a schedule and sug
 sells for you to act on. It is advice only: Claude can't place trades or change your rules.
 
 1. Open the dashboard's **Advisor** page (`/advisor`) and write your rules (position limits,
-   take-profit and stop levels, what to avoid, risk appetite) and a watchlist.
+   take-profit and stop levels, what to avoid, risk appetite), a watchlist, and optionally the
+   cash you have available, so Claude can size its buy ideas.
 2. Create a routine in Claude Code on the web, on the cloud environment from the section above,
    that runs every hour on weekdays with the prompt *"Run the market-check skill."* The skill
    (`.claude/skills/market-check/SKILL.md`) skips the run when US markets are closed, reviews
@@ -290,6 +291,16 @@ sells for you to act on. It is advice only: Claude can't place trades or change 
    changed.
 3. Each suggestion is logged to the Advisor page's decision journal, priced when it was made,
    and graded after 7 and 30 days, so the scorecard shows whether the calls are worth following.
+
+Before suggesting a symbol, Claude checks its valuation and analyst targets, short interest,
+TradingView technicals and where the price sits against its 52-week range and 200-day average
+(`/api/research/*`, part of the `ticker` and `holdings_check` tools).
+
+**Signa.** `.mcp.json` also registers [Signa's MCP server](https://getsigna.ai/api-docs)
+(`https://app.getsigna.ai/api/mcp`), authenticated with the same `SIGNA_KEY` the backend uses
+(a `cmts_...` key). Set `SIGNA_KEY` in the environment Claude runs in, and on a cloud
+environment allow `app.getsigna.ai` in its network access. The market check then weighs Signa's
+verdict for each symbol it suggests, and skips Signa when the key isn't set.
 
 ### Reddit API credentials
 

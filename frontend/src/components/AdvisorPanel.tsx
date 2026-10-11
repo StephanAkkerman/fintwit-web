@@ -1,6 +1,13 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { useAdvisor } from '../hooks/useAdvisor'
-import type { AdvisorAction, AdvisorCall, AdvisorScoreBucket, AdvisorScorecard } from '../types'
+import type {
+  AdvisorAction,
+  AdvisorCall,
+  AdvisorScoreBucket,
+  AdvisorScorecard,
+  AdvisorStrategy,
+  AdvisorStrategyDraft,
+} from '../types'
 
 const RULES_PLACEHOLDER = `For example:
 - No single position above 20% of the portfolio.
@@ -15,6 +22,11 @@ const ACTION_STYLES: Record<AdvisorAction, string> = {
   sell: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300',
   watch: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300',
 }
+
+const CURRENCIES = ['USD', 'EUR', 'GBP', 'CHF', 'CAD', 'AUD', 'JPY']
+
+const inputClass =
+  'rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none ring-zinc-400 focus:ring-2 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100'
 
 const card =
   'rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900'
@@ -82,22 +94,25 @@ function Scorecard({ scorecard }: { scorecard: AdvisorScorecard | null }) {
 }
 
 function StrategyForm({
-  rules,
-  watchlist,
-  updatedAt,
+  strategy,
   onSave,
 }: {
-  rules: string
-  watchlist: string[]
-  updatedAt: string | null
-  onSave: (rules: string, watchlist: string[]) => Promise<unknown>
+  strategy: AdvisorStrategy
+  onSave: (draft: AdvisorStrategyDraft) => Promise<unknown>
 }) {
+  const { rules, watchlist, available_cash: cash, cash_currency: currency, updated_at: updatedAt } = strategy
   const [draftRules, setDraftRules] = useState(rules)
   const [draftWatchlist, setDraftWatchlist] = useState(watchlist.join(', '))
+  const [draftCash, setDraftCash] = useState(cash == null ? '' : String(cash))
+  const [draftCurrency, setDraftCurrency] = useState(currency ?? 'USD')
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
 
   useEffect(() => setDraftRules(rules), [rules])
   useEffect(() => setDraftWatchlist(watchlist.join(', ')), [watchlist])
+  useEffect(() => setDraftCash(cash == null ? '' : String(cash)), [cash])
+  useEffect(() => setDraftCurrency(currency ?? 'USD'), [currency])
+
+  const currencies = CURRENCIES.includes(draftCurrency) ? CURRENCIES : [draftCurrency, ...CURRENCIES]
 
   const onSubmit = async (ev: FormEvent<HTMLFormElement>) => {
     ev.preventDefault()
@@ -107,7 +122,17 @@ function StrategyForm({
         .split(/[\s,]+/)
         .map((s) => s.trim())
         .filter(Boolean)
-      await onSave(draftRules, symbols)
+      const parsedCash = draftCash.trim() === '' ? null : Number(draftCash)
+      if (parsedCash !== null && (!Number.isFinite(parsedCash) || parsedCash < 0)) {
+        setStatus('error')
+        return
+      }
+      await onSave({
+        rules: draftRules,
+        watchlist: symbols,
+        available_cash: parsedCash,
+        cash_currency: draftCurrency,
+      })
       setStatus('saved')
     } catch {
       setStatus('error')
@@ -140,9 +165,38 @@ function StrategyForm({
             onChange={(ev) => setDraftWatchlist(ev.target.value)}
             placeholder="NVDA, AMD, PLTR"
             aria-label="Watchlist"
-            className="rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none ring-zinc-400 focus:ring-2 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+            className={inputClass}
           />
         </label>
+        <div className="grid gap-1 text-xs font-medium text-zinc-500">
+          <label htmlFor="advisor-cash">Cash available to invest</label>
+          <div className="flex gap-2">
+            <input
+              id="advisor-cash"
+              type="number"
+              min={0}
+              step="any"
+              inputMode="decimal"
+              value={draftCash}
+              onChange={(ev) => setDraftCash(ev.target.value)}
+              placeholder="Not set"
+              className={`${inputClass} w-40 tabular-nums`}
+            />
+            <select
+              value={draftCurrency}
+              onChange={(ev) => setDraftCurrency(ev.target.value)}
+              aria-label="Cash currency"
+              className={inputClass}
+            >
+              {currencies.map((code) => (
+                <option key={code} value={code}>
+                  {code}
+                </option>
+              ))}
+            </select>
+          </div>
+          <span className="font-normal">Claude uses this to size buy ideas. Leave it empty to skip sizing.</span>
+        </div>
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="submit"
@@ -254,12 +308,7 @@ export default function AdvisorPanel({ onTickerClick }: { onTickerClick?: (ticke
     <>
       <Scorecard scorecard={scorecard} />
       <Journal calls={calls} onTickerClick={onTickerClick} />
-      <StrategyForm
-        rules={strategy.rules}
-        watchlist={strategy.watchlist}
-        updatedAt={strategy.updated_at}
-        onSave={saveStrategy}
-      />
+      <StrategyForm strategy={strategy} onSave={saveStrategy} />
     </>
   )
 }

@@ -68,16 +68,24 @@ async def test_strategy_round_trip(advisor_repo):
     assert await advisor_repo.get_strategy() == {
         "rules": "",
         "watchlist": [],
+        "available_cash": None,
+        "cash_currency": None,
         "updated_at": None,
     }
-    saved = await advisor_repo.set_strategy("Max 20% per position", ["NVDA"])
+    saved = await advisor_repo.set_strategy(
+        "Max 20% per position", ["NVDA"], 5000.0, "EUR"
+    )
     assert saved["rules"] == "Max 20% per position"
     assert saved["watchlist"] == ["NVDA"]
+    assert saved["available_cash"] == 5000.0
+    assert saved["cash_currency"] == "EUR"
     assert saved["updated_at"]
 
     again = await advisor_repo.set_strategy("Max 10%", [])
     assert again["rules"] == "Max 10%"
     assert again["watchlist"] == []
+    assert again["available_cash"] is None
+    assert again["cash_currency"] is None
 
 
 async def test_grading_due_calls(advisor_repo):
@@ -160,6 +168,20 @@ async def test_api_strategy(api):
 
     resp = await api.get("/api/advisor/strategy", headers=HEADERS)
     assert resp.json()["rules"] == "No penny stocks"
+    assert resp.json()["available_cash"] is None
+
+    resp = await api.put(
+        "/api/advisor/strategy",
+        json={"rules": "", "available_cash": 2500, "cash_currency": "eur"},
+        headers=HEADERS,
+    )
+    assert resp.json()["available_cash"] == 2500
+    assert resp.json()["cash_currency"] == "EUR"
+
+    resp = await api.put(
+        "/api/advisor/strategy", json={"available_cash": -1}, headers=HEADERS
+    )
+    assert resp.status_code == 422
 
 
 async def test_api_requires_the_key(api):
