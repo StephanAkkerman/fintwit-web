@@ -8,8 +8,9 @@ owner can see whether the suggestions are worth following.
 """
 
 import re
+from typing import Iterable
 
-from .trader_scoring import grade_call
+from .trader_scoring import _direction, grade_call
 
 #: What a call can recommend. ``watch`` is a note ("keep an eye on X") and is
 #: never graded; the others are graded in the direction they imply.
@@ -20,7 +21,10 @@ CONVICTIONS: tuple[str, ...] = ("low", "medium", "high")
 HORIZONS: tuple[int, ...] = (7, 30)
 
 MAX_WATCHLIST = 50
+MAX_FOLLOWED_TRADERS = 50
 _SYMBOL = re.compile(r"^[A-Z0-9][A-Z0-9.\-=^]{0,19}$")
+# X handles: 1-15 letters, digits or underscores.
+_SCREEN_NAME = re.compile(r"^[a-z0-9_]{1,15}$")
 
 
 def normalize_symbol(symbol: str) -> str | None:
@@ -37,6 +41,101 @@ def normalize_watchlist(symbols: list[str]) -> list[str]:
         if symbol and symbol not in seen:
             seen.append(symbol)
     return seen[:MAX_WATCHLIST]
+
+
+def normalize_screen_names(names: list[str]) -> list[str]:
+    """``@ShardiB2`` -> ``shardib2``; deduplicated, order-preserving, invalid
+    handles dropped."""
+    seen: list[str] = []
+    for raw in names:
+        name = str(raw or "").strip().lstrip("@").lower()
+        if _SCREEN_NAME.match(name) and name not in seen:
+            seen.append(name)
+    return seen[:MAX_FOLLOWED_TRADERS]
+
+
+def group_ticker_posts(
+    tweets: list[dict],
+    held: set[str],
+    followed: Iterable[str] = (),
+    max_posts: int = 3,
+    max_traders: int = 10,
+) -> list[dict]:
+    """Turn tweets into one buy-idea lead per ticker.
+
+    Each lead says how often the ticker came up, who posted about it (and
+    which of them the owner follows), how many posts were bullish or bearish,
+    the price when it was first seen, and a few posts with links: the
+    followed traders' first, then the most liked. ``held`` symbols are flagged
+    rather than dropped, since chatter about a holding is still worth knowing.
+    Leads a followed trader posted about come first, then the most mentioned.
+    """
+    followed = {name.lower() for name in followed}
+    leads: dict[str, dict] = {}
+    candidates: dict[str, list[tuple[bool, int, dict]]] = {}
+    for tweet in tweets:
+        author = str(tweet.get("user_screen_name") or "")
+        is_followed = author.lower() in followed
+        per_ticker = tweet.get("ticker_sentiment") or {}
+        tweet_score = tweet.get("sentiment_score")
+        for raw in tweet.get("tickers") or []:
+            symbol = normalize_symbol(raw)
+            if symbol is None:
+                continue
+            score = per_ticker.get(symbol, per_ticker.get(raw, tweet_score))
+            lead = leads.setdefault(
+                symbol,
+                {
+                    "symbol": symbol,
+                    "held": symbol in held,
+                    "mentions": 0,
+                    "followed_traders": [],
+                    "traders": [],
+                    "trader_count": 0,
+                    "bullish": 0,
+                    "bearish": 0,
+                    "price_at_post": None,
+                    "asset_kind": None,
+                    "posts": [],
+                },
+            )
+            lead["mentions"] += 1
+            if author and author not in lead["traders"]:
+                lead["traders"].append(author)
+                if is_followed:
+                    lead["followed_traders"].append(author)
+            direction = _direction(score)
+            if direction:
+                lead[direction] += 1
+            if lead["price_at_post"] is None:
+                price, kind = price_from_assets(tweet.get("assets") or [], symbol)
+                lead["price_at_post"], lead["asset_kind"] = price, kind
+            candidates.setdefault(symbol, []).append(
+                (
+                    is_followed,
+                    tweet.get("likes") or 0,
+                    {
+                        "trader": author,
+                        "followed": is_followed,
+                        "posted_at": tweet.get("created_at"),
+                        "text": tweet.get("text"),
+                        "url": tweet.get("url"),
+                        "likes": tweet.get("likes"),
+                        "sentiment": score,
+                    },
+                )
+            )
+
+    for symbol, lead in leads.items():
+        # Stable sort keeps newest-first order among equals.
+        picked = sorted(candidates[symbol], key=lambda c: (not c[0], -c[1]))
+        lead["posts"] = [post for _, _, post in picked[:max_posts]]
+        lead["trader_count"] = len(lead["traders"])
+        lead["traders"] = lead["traders"][:max_traders]
+    return sorted(
+        leads.values(),
+        key=lambda lead: (-len(lead["followed_traders"]), -lead["mentions"]),
+    )
 
 
 def price_from_assets(assets: list[dict], symbol: str) -> tuple[float | None, str]:

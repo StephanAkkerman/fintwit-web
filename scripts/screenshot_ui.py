@@ -2356,6 +2356,7 @@ def _advisor_strategy() -> dict:
             "- Large caps only, no leveraged ETFs. Hold for weeks to months."
         ),
         "watchlist": ["AMD", "PLTR", "MSFT"],
+        "followed_traders": ["shardib2"],
         "available_cash": 4200.0,
         "cash_currency": "USD",
         "updated_at": "2026-10-01T09:00:00+00:00",
@@ -2371,6 +2372,28 @@ def _advisor_result(horizon: int, price: float, return_pct: float) -> dict:
         "excluded": False,
         "evaluated_at": "2026-10-09T15:00:00+00:00",
     }
+
+
+def _advisor_runs() -> list[dict]:
+    return [
+        {
+            "id": 3,
+            "ran_at": "2026-10-12T13:10:00+00:00",
+            "tweet_cursor": "1977300000000000000",
+            "session": "Open",
+            "posts_read": 186,
+            "summary": "SWAP PLTR -> GTLB: @ShardiB2 bullish, fundamentals and "
+            "technicals both pass; PLTR lost its 50-day trend.",
+        },
+        {
+            "id": 2,
+            "ran_at": "2026-10-12T11:10:00+00:00",
+            "tweet_cursor": "1977250000000000000",
+            "session": "Pre-market",
+            "posts_read": 242,
+            "summary": "Nothing new",
+        },
+    ]
 
 
 def _advisor_calls() -> list[dict]:
@@ -2954,6 +2977,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             "/api/advisor/strategy": {
                 "rules": "",
                 "watchlist": [],
+                "followed_traders": [],
                 "available_cash": None,
                 "cash_currency": None,
                 "updated_at": None,
@@ -3249,6 +3273,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         # object-shaped; the journal is a list.
         "/api/advisor/strategy": _advisor_strategy(),
         "/api/advisor/calls": _advisor_calls(),
+        "/api/advisor/runs": _advisor_runs(),
         "/api/advisor/scorecard": _advisor_scorecard(),
     }
 

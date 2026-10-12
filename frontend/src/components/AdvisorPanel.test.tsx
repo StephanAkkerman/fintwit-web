@@ -30,11 +30,13 @@ function mockState(overrides: Partial<ReturnType<typeof useAdvisor>> = {}) {
     strategy: {
       rules: 'No penny stocks',
       watchlist: ['NVDA', 'AMD'],
+      followed_traders: ['shardib2'],
       available_cash: 2500,
       cash_currency: 'EUR',
       updated_at: null,
     },
     calls: [],
+    runs: [],
     scorecard: { total_calls: 0, horizons: {} },
     loading: false,
     error: false,
@@ -91,11 +93,43 @@ describe('AdvisorPanel', () => {
       expect(save).toHaveBeenCalledWith({
         rules: 'No penny stocks',
         watchlist: ['pltr', 'amd', 'msft'],
+        followed_traders: ['shardib2'],
         available_cash: 2500,
         cash_currency: 'EUR',
       }),
     )
     expect(await screen.findByText('Saved')).toBeTruthy()
+  })
+
+  it('lists recent checks', () => {
+    mockState({
+      runs: [
+        {
+          id: 1,
+          ran_at: '2026-10-12T12:00:00Z',
+          tweet_cursor: '1977000000000000000',
+          session: 'Pre-market',
+          posts_read: 214,
+          summary: 'BUY GTLB after @ShardiB2; fundamentals and technicals both pass.',
+        },
+      ],
+    })
+    render(<AdvisorPanel />)
+    expect(screen.getByText('Pre-market')).toBeTruthy()
+    expect(screen.getByText('214 posts')).toBeTruthy()
+    expect(screen.getByText(/BUY GTLB after @ShardiB2/)).toBeTruthy()
+  })
+
+  it('saves followed traders without the @', async () => {
+    const save = mockState()
+    render(<AdvisorPanel />)
+    const followed = screen.getByLabelText('Traders you follow') as HTMLInputElement
+    expect(followed.value).toBe('@shardib2')
+    fireEvent.change(followed, { target: { value: '@ShardiB2, someone' } })
+    fireEvent.click(screen.getByText('Save strategy'))
+    await waitFor(() =>
+      expect(save).toHaveBeenCalledWith(expect.objectContaining({ followed_traders: ['ShardiB2', 'someone'] })),
+    )
   })
 
   it('clears the cash, and refuses a negative amount', async () => {

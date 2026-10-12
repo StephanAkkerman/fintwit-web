@@ -18,9 +18,11 @@ portfolio view), ``holdings_check`` (what is happening around each holding),
 right now) and ``candidates`` (buy ideas). ``strategy`` and ``journal`` read
 the owner's rules and Claude's past calls for the market check.
 
-The one write: ``log_call`` appends a suggestion to the decision journal
-(``POST /api/advisor/calls``). Nothing else can be changed, the strategy
-included, so the rules Claude is judged against stay the owner's.
+Two writes, both append-only: ``log_call`` adds a suggestion to the decision
+journal (``POST /api/advisor/calls``) and ``finish_check`` records a finished
+check and how far it read the timeline (``POST /api/advisor/runs``). Nothing
+else can be changed, the strategy included, so the rules Claude is judged
+against stay the owner's.
 
 Configured through environment variables, read when a tool is called:
 
@@ -656,7 +658,9 @@ mcp = MCPServer(
         "portfolio (manual positions and IBKR). Start with the bundles: "
         "portfolio for holdings and P&L, holdings_check for what is happening "
         "around each holding (news, chatter, earnings), ticker for one symbol, market_snapshot for the market, candidates for "
-        "buy ideas. For a market check read strategy (the owner's rules) and "
+        "buy ideas, followed_traders for what the owner's favourite traders "
+        "just posted about, unseen_posts for every post since the last check. "
+        "A scheduled check ends with finish_check. For a market check read strategy (the owner's rules) and "
         "journal (your earlier calls and how they did), and record each "
         "buy/add/trim/sell/watch suggestion with log_call. You advise; the "
         "owner decides and trades. For anything else call list_endpoints, then get with one of its paths."
@@ -764,9 +768,80 @@ async def candidates(window_hours: int = 24, asset_kind: str = "equity") -> str:
 
 
 @mcp.tool()
+async def followed_traders(since_hours: int = 24) -> str:
+    """Tickers the owner's followed traders (picked on the /advisor page)
+    posted about in the last ``since_hours``: one lead per ticker with who
+    mentioned it, how often, how many posts were bullish or bearish, the price
+    when it was posted, whether the owner already holds it, and the newest
+    posts with links. ``traders`` lists each followed trader's 7-day hit rate
+    when they have enough graded calls. A lead is a reason to look, not to
+    buy: vet each one with ``ticker`` before suggesting it."""
+    since_hours = max(1, min(int(since_hours), 24 * 30))
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        return truncate(
+            await _request(
+                client,
+                "/api/advisor/followed-mentions",
+                {"since_hours": since_hours},
+            )
+        )
+
+
+@mcp.tool()
+async def unseen_posts(limit: int = 40) -> str:
+    """Every post on the timeline since the last finished check (the last 12
+    hours on the very first one), grouped into one lead per ticker: mentions,
+    who posted (``followed_traders`` are the owner's favourites; their leads
+    come first), bullish and bearish counts, the price when first seen,
+    whether the owner holds it, and a few posts with links. ``track_records_7d``
+    has the hit rate of each poster with enough graded calls. Read it the way
+    the owner would scroll the timeline. Keep the returned ``cursor`` and pass
+    it to ``finish_check`` at the end, so the next check starts after it."""
+    limit = max(1, min(int(limit), 200))
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        return truncate(
+            await _request(client, "/api/advisor/unseen-posts", {"limit": limit})
+        )
+
+
+@mcp.tool()
+async def finish_check(
+    cursor: str | None,
+    summary: str,
+    session: str | None = None,
+    posts_read: int | None = None,
+) -> str:
+    """Record that this market check is done, so the next one reads only
+    newer posts and the /advisor page shows when you last looked.
+
+    Parameters
+    ----------
+    cursor
+        The ``cursor`` that ``unseen_posts`` returned.
+    summary
+        One or two sentences: what you reported, or "Nothing new".
+    session
+        The US session you checked in: ``Pre-market``, ``Open`` or
+        ``After-hours``.
+    posts_read
+        The ``posts`` count from ``unseen_posts``.
+    """
+    body: dict[str, Any] = {"cursor": cursor, "summary": summary}
+    if session:
+        body["session"] = session
+    if posts_read is not None:
+        body["posts_read"] = posts_read
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        return truncate(
+            await _request(client, "/api/advisor/runs", None, body, method="POST")
+        )
+
+
+@mcp.tool()
 async def strategy() -> str:
     """The owner's trading rules (free text: position limits, take-profit and
-    stop levels, sectors to avoid, risk appetite), watchlist, and the cash
+    stop levels, sectors to avoid, risk appetite), watchlist, the traders
+    they follow (``followed_traders``), and the cash
     they have available to invest (``available_cash``; null when not set), so
     buy ideas can be sized. Judge every
     suggestion against these rules and name the rule that triggered it. Only

@@ -1411,14 +1411,30 @@ export type AdvisorAction = 'buy' | 'add' | 'trim' | 'sell' | 'watch'
 export interface AdvisorStrategy {
   rules: string
   watchlist: string[]
+  /** X handles whose ticker mentions Claude vets as buy ideas. */
+  followed_traders: string[]
   /** Cash the owner is willing to invest; null when not set. */
   available_cash: number | null
   cash_currency: string | null
   updated_at: string | null
 }
 
-export type AdvisorStrategyDraft = Pick<AdvisorStrategy, 'rules' | 'watchlist' | 'available_cash'> & {
+export type AdvisorStrategyDraft = Pick<
+  AdvisorStrategy,
+  'rules' | 'watchlist' | 'followed_traders' | 'available_cash'
+> & {
   cash_currency: string
+}
+
+/** One finished market check: when it ran and what it found. */
+export interface AdvisorRun {
+  id: number
+  ran_at: string | null
+  /** Newest tweet id the check read (a string: ids overflow a JS number). */
+  tweet_cursor: string | null
+  session: string | null
+  posts_read: number | null
+  summary: string
 }
 
 export interface AdvisorCallResult {
