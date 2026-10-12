@@ -9,7 +9,7 @@ owner can see whether the suggestions are worth following.
 
 import re
 
-from .trader_scoring import grade_call
+from .trader_scoring import _direction, grade_call
 
 #: What a call can recommend. ``watch`` is a note ("keep an eye on X") and is
 #: never graded; the others are graded in the direction they imply.
@@ -20,7 +20,10 @@ CONVICTIONS: tuple[str, ...] = ("low", "medium", "high")
 HORIZONS: tuple[int, ...] = (7, 30)
 
 MAX_WATCHLIST = 50
+MAX_FOLLOWED_TRADERS = 50
 _SYMBOL = re.compile(r"^[A-Z0-9][A-Z0-9.\-=^]{0,19}$")
+# X handles: 1-15 letters, digits or underscores.
+_SCREEN_NAME = re.compile(r"^[a-z0-9_]{1,15}$")
 
 
 def normalize_symbol(symbol: str) -> str | None:
@@ -37,6 +40,73 @@ def normalize_watchlist(symbols: list[str]) -> list[str]:
         if symbol and symbol not in seen:
             seen.append(symbol)
     return seen[:MAX_WATCHLIST]
+
+
+def normalize_screen_names(names: list[str]) -> list[str]:
+    """``@ShardiB2`` -> ``shardib2``; deduplicated, order-preserving, invalid
+    handles dropped."""
+    seen: list[str] = []
+    for raw in names:
+        name = str(raw or "").strip().lstrip("@").lower()
+        if _SCREEN_NAME.match(name) and name not in seen:
+            seen.append(name)
+    return seen[:MAX_FOLLOWED_TRADERS]
+
+
+def group_followed_mentions(
+    tweets: list[dict], held: set[str], max_posts: int = 3
+) -> list[dict]:
+    """Turn followed traders' tweets into one buy-idea lead per ticker.
+
+    Each lead says who mentioned the ticker, how often and how bullish they
+    were, with the newest posts (text and link) for context. ``held`` symbols
+    are flagged rather than dropped: a favourite trader piling into something
+    the owner already holds is still worth knowing. Most-mentioned first.
+    """
+    leads: dict[str, dict] = {}
+    for tweet in tweets:
+        author = str(tweet.get("user_screen_name") or "")
+        per_ticker = tweet.get("ticker_sentiment") or {}
+        tweet_score = tweet.get("sentiment_score")
+        for raw in tweet.get("tickers") or []:
+            symbol = normalize_symbol(raw)
+            if symbol is None:
+                continue
+            score = per_ticker.get(symbol, per_ticker.get(raw, tweet_score))
+            lead = leads.setdefault(
+                symbol,
+                {
+                    "symbol": symbol,
+                    "held": symbol in held,
+                    "mentions": 0,
+                    "traders": [],
+                    "bullish": 0,
+                    "bearish": 0,
+                    "price_at_post": None,
+                    "asset_kind": None,
+                    "posts": [],
+                },
+            )
+            lead["mentions"] += 1
+            if author and author not in lead["traders"]:
+                lead["traders"].append(author)
+            direction = _direction(score)
+            if direction:
+                lead[direction] += 1
+            if lead["price_at_post"] is None:
+                price, kind = price_from_assets(tweet.get("assets") or [], symbol)
+                lead["price_at_post"], lead["asset_kind"] = price, kind
+            if len(lead["posts"]) < max_posts:
+                lead["posts"].append(
+                    {
+                        "trader": author,
+                        "posted_at": tweet.get("created_at"),
+                        "text": tweet.get("text"),
+                        "url": tweet.get("url"),
+                        "sentiment": score,
+                    }
+                )
+    return sorted(leads.values(), key=lambda lead: -lead["mentions"])
 
 
 def price_from_assets(assets: list[dict], symbol: str) -> tuple[float | None, str]:

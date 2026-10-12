@@ -2356,6 +2356,7 @@ def _advisor_strategy() -> dict:
             "- Large caps only, no leveraged ETFs. Hold for weeks to months."
         ),
         "watchlist": ["AMD", "PLTR", "MSFT"],
+        "followed_traders": ["shardib2"],
         "available_cash": 4200.0,
         "cash_currency": "USD",
         "updated_at": "2026-10-01T09:00:00+00:00",
@@ -2954,6 +2955,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             "/api/advisor/strategy": {
                 "rules": "",
                 "watchlist": [],
+                "followed_traders": [],
                 "available_cash": None,
                 "cash_currency": None,
                 "updated_at": None,

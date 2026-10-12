@@ -1411,13 +1411,18 @@ export type AdvisorAction = 'buy' | 'add' | 'trim' | 'sell' | 'watch'
 export interface AdvisorStrategy {
   rules: string
   watchlist: string[]
+  /** X handles whose ticker mentions Claude vets as buy ideas. */
+  followed_traders: string[]
   /** Cash the owner is willing to invest; null when not set. */
   available_cash: number | null
   cash_currency: string | null
   updated_at: string | null
 }
 
-export type AdvisorStrategyDraft = Pick<AdvisorStrategy, 'rules' | 'watchlist' | 'available_cash'> & {
+export type AdvisorStrategyDraft = Pick<
+  AdvisorStrategy,
+  'rules' | 'watchlist' | 'followed_traders' | 'available_cash'
+> & {
   cash_currency: string
 }
 

@@ -93,6 +93,17 @@ function Scorecard({ scorecard }: { scorecard: AdvisorScorecard | null }) {
   )
 }
 
+function splitList(value: string): string[] {
+  return value
+    .split(/[\s,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
+function formatHandles(handles: string[]): string {
+  return handles.map((h) => `@${h}`).join(', ')
+}
+
 function StrategyForm({
   strategy,
   onSave,
@@ -100,15 +111,21 @@ function StrategyForm({
   strategy: AdvisorStrategy
   onSave: (draft: AdvisorStrategyDraft) => Promise<unknown>
 }) {
-  const { rules, watchlist, available_cash: cash, cash_currency: currency, updated_at: updatedAt } = strategy
+  const {
+    rules,
+    watchlist,
+    followed_traders: followed,
+    available_cash: cash, cash_currency: currency, updated_at: updatedAt } = strategy
   const [draftRules, setDraftRules] = useState(rules)
   const [draftWatchlist, setDraftWatchlist] = useState(watchlist.join(', '))
+  const [draftFollowed, setDraftFollowed] = useState(formatHandles(followed))
   const [draftCash, setDraftCash] = useState(cash == null ? '' : String(cash))
   const [draftCurrency, setDraftCurrency] = useState(currency ?? 'USD')
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
 
   useEffect(() => setDraftRules(rules), [rules])
   useEffect(() => setDraftWatchlist(watchlist.join(', ')), [watchlist])
+  useEffect(() => setDraftFollowed(formatHandles(followed)), [followed])
   useEffect(() => setDraftCash(cash == null ? '' : String(cash)), [cash])
   useEffect(() => setDraftCurrency(currency ?? 'USD'), [currency])
 
@@ -118,10 +135,7 @@ function StrategyForm({
     ev.preventDefault()
     setStatus('saving')
     try {
-      const symbols = draftWatchlist
-        .split(/[\s,]+/)
-        .map((s) => s.trim())
-        .filter(Boolean)
+      const symbols = splitList(draftWatchlist)
       const parsedCash = draftCash.trim() === '' ? null : Number(draftCash)
       if (parsedCash !== null && (!Number.isFinite(parsedCash) || parsedCash < 0)) {
         setStatus('error')
@@ -130,6 +144,7 @@ function StrategyForm({
       await onSave({
         rules: draftRules,
         watchlist: symbols,
+        followed_traders: splitList(draftFollowed).map((h) => h.replace(/^@/, '')),
         available_cash: parsedCash,
         cash_currency: draftCurrency,
       })
@@ -168,6 +183,20 @@ function StrategyForm({
             className={inputClass}
           />
         </label>
+        <div className="grid gap-1 text-xs font-medium text-zinc-500">
+          <label htmlFor="advisor-followed">Traders you follow</label>
+          <input
+            id="advisor-followed"
+            value={draftFollowed}
+            onChange={(ev) => setDraftFollowed(ev.target.value)}
+            placeholder="@ShardiB2, @someone"
+            className={inputClass}
+          />
+          <span className="font-normal">
+            When one of them posts about a ticker, Claude checks its fundamentals and technicals and suggests it only
+            if both look good.
+          </span>
+        </div>
         <div className="grid gap-1 text-xs font-medium text-zinc-500">
           <label htmlFor="advisor-cash">Cash available to invest</label>
           <div className="flex gap-2">

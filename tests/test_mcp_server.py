@@ -491,6 +491,21 @@ async def test_log_call_and_journal():
     assert set(journal) == {"scorecard", "calls"}
 
 
+async def test_followed_traders_tool(monkeypatch):
+    seen = []
+
+    async def fake_request(client, path, params, body=None, *, method="GET"):
+        seen.append((path, params))
+        return {"leads": [{"symbol": "GTLB"}]}
+
+    monkeypatch.setattr(mcp_server, "_request", fake_request)
+    called = await mcp_server.mcp.call_tool("followed_traders", {"since_hours": 10_000})
+    result = json.loads(called.content[0].text)
+
+    assert result == {"leads": [{"symbol": "GTLB"}]}
+    assert seen == [("/api/advisor/followed-mentions", {"since_hours": 720})]
+
+
 def test_generic_get_cannot_write_the_journal_or_strategy():
     endpoints = mcp_server.list_readable_endpoints(app.openapi())
     calls = mcp_server.match_endpoint(endpoints, "/api/advisor/calls")

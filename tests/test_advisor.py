@@ -7,9 +7,14 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from app.api import advisor as advisor_api
 from app.api import main as api_main
 from app.infra.db import AdvisorCallRow
-from app.infra.repos import AdvisorRepo
+from app.infra.repos import AdvisorRepo, PortfolioRepo, TweetRepo
 from app.runtime.advisor_evaluator import evaluate_due_advisor_calls
-from app.services.advisor import build_scorecard, normalize_watchlist
+from app.services.advisor import (
+    build_scorecard,
+    group_followed_mentions,
+    normalize_screen_names,
+    normalize_watchlist,
+)
 
 HEADERS = {"X-API-Key": "test-api-key"}
 
@@ -64,10 +69,65 @@ def test_normalize_watchlist():
     ]
 
 
+def test_normalize_screen_names():
+    assert normalize_screen_names(
+        ["@ShardiB2", "shardib2", " someone_1 ", "not a handle", "", "x" * 16]
+    ) == ["shardib2", "someone_1"]
+
+
+def _tweet(tweet_id, author, tickers, score=0.9, hours_ago=1, **extra):
+    return {
+        "id": tweet_id,
+        "text": f"{author} on {' '.join(tickers)}",
+        "user_name": author,
+        "user_screen_name": author,
+        "user_img": "",
+        "url": f"https://x.com/{author}/status/{tweet_id}",
+        "media": [],
+        "tickers": tickers,
+        "hashtags": [],
+        "title": "",
+        "media_types": [],
+        "created_at": datetime.now(timezone.utc).replace(tzinfo=None)
+        - timedelta(hours=hours_ago),
+        "sentiment_score": score,
+        "assets": [
+            {"symbol": t, "kind": "EQUITY", "financials": {"price": 25.0}}
+            for t in tickers
+        ],
+        **extra,
+    }
+
+
+def test_group_followed_mentions():
+    tweets = [
+        _tweet(3, "ShardiB2", ["GTLB"]),
+        _tweet(2, "other", ["GTLB", "NVDA"], score=0.0),
+        _tweet(1, "ShardiB2", ["NVDA", "INTC"], ticker_sentiment={"INTC": -0.9}),
+    ]
+    leads = group_followed_mentions(tweets, held={"NVDA"}, max_posts=1)
+    by_symbol = {lead["symbol"]: lead for lead in leads}
+
+    gtlb = by_symbol["GTLB"]
+    assert gtlb["mentions"] == 2
+    assert gtlb["traders"] == ["ShardiB2", "other"]
+    assert (gtlb["bullish"], gtlb["bearish"]) == (1, 0)  # neutral isn't counted
+    assert gtlb["held"] is False
+    assert gtlb["price_at_post"] == 25.0
+    assert len(gtlb["posts"]) == 1
+    assert gtlb["posts"][0]["url"] == "https://x.com/ShardiB2/status/3"
+
+    assert by_symbol["NVDA"]["held"] is True
+    # The per-ticker score wins over the tweet's own score.
+    assert (by_symbol["INTC"]["bullish"], by_symbol["INTC"]["bearish"]) == (0, 1)
+    assert leads[-1]["mentions"] == 1
+
+
 async def test_strategy_round_trip(advisor_repo):
     assert await advisor_repo.get_strategy() == {
         "rules": "",
         "watchlist": [],
+        "followed_traders": [],
         "available_cash": None,
         "cash_currency": None,
         "updated_at": None,
@@ -81,11 +141,18 @@ async def test_strategy_round_trip(advisor_repo):
     assert saved["cash_currency"] == "EUR"
     assert saved["updated_at"]
 
+    followed = await advisor_repo.set_strategy(
+        "Max 20% per position", ["NVDA"], followed_traders=["shardib2"]
+    )
+    assert followed["followed_traders"] == ["shardib2"]
+
     again = await advisor_repo.set_strategy("Max 10%", [])
     assert again["rules"] == "Max 10%"
     assert again["watchlist"] == []
     assert again["available_cash"] is None
     assert again["cash_currency"] is None
+    # Leaving followed_traders out keeps the stored list.
+    assert again["followed_traders"] == ["shardib2"]
 
 
 async def test_grading_due_calls(advisor_repo):
@@ -229,3 +296,48 @@ async def test_api_log_and_list_calls(api):
 
     card = (await api.get("/api/advisor/scorecard", headers=HEADERS)).json()
     assert card["total_calls"] == 2
+
+
+async def test_api_followed_mentions(api, db_engine, monkeypatch):
+    Session = async_sessionmaker(db_engine, expire_on_commit=False)
+    portfolio = PortfolioRepo(Session)
+    monkeypatch.setattr(api_main, "PORTFOLIO_REPO", portfolio)
+    monkeypatch.setattr(api_main, "Session", Session)
+
+    resp = await api.get("/api/advisor/followed-mentions", headers=HEADERS)
+    assert resp.json()["leads"] == []  # nobody followed yet
+
+    await TweetRepo(Session).upsert_many(
+        [
+            _tweet(10, "ShardiB2", ["GTLB"]),
+            _tweet(11, "shardib2", ["NVDA"]),
+            _tweet(12, "ShardiB2", ["AMD"], hours_ago=48),  # outside the window
+            _tweet(13, "stranger", ["TSLA"]),  # not followed
+        ]
+    )
+    await portfolio.create_position(
+        {"symbol": "NVDA", "quantity": 1, "avg_cost": 100, "is_active": True}
+    )
+    resp = await api.put(
+        "/api/advisor/strategy",
+        json={"rules": "", "followed_traders": ["@ShardiB2", "bad handle!"]},
+        headers=HEADERS,
+    )
+    assert resp.json()["followed_traders"] == ["shardib2"]
+
+    resp = await api.get(
+        "/api/advisor/followed-mentions",
+        params={"since_hours": 24},
+        headers=HEADERS,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["traders"] == [{"screen_name": "shardib2", "track_record_7d": None}]
+    leads = {lead["symbol"]: lead for lead in body["leads"]}
+    assert set(leads) == {"GTLB", "NVDA"}
+    assert leads["NVDA"]["held"] is True
+    assert leads["GTLB"]["held"] is False
+
+    # Saving the form from an older client (no followed_traders) keeps them.
+    resp = await api.put("/api/advisor/strategy", json={"rules": "x"}, headers=HEADERS)
+    assert resp.json()["followed_traders"] == ["shardib2"]

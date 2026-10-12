@@ -32,6 +32,9 @@ Call these:
   and the analyst rating and price target.
 - `candidates`: buy ideas. Ignore `held_symbols` as new ideas; they are covered
   by holdings_check.
+- `followed_traders` with `since_hours=24`: tickers the traders the owner
+  follows just posted about. These come first among buy ideas; see "Leads from
+  followed traders" below.
 - `ticker` for any symbol you are about to suggest, to check the full picture
   before you commit: valuation (P/E, analyst targets, short interest),
   TradingView technicals, 52-week range and trend, news, options and
@@ -53,6 +56,43 @@ For each holding and candidate, decide whether anything is actionable now:
   valuation and technicals don't argue against it, and it isn't already up a
   lot today or pinned at its 52-week high without a catalyst.
 - **watch**: something is interesting but not actionable yet.
+
+### Leads from followed traders
+
+The owner picked these traders because they rate their calls, so every lead
+that isn't already held gets a `ticker` look, even when nothing else flags it.
+Skip a lead the journal already covered in the last 24 hours unless the trader
+posted again with something new. Then judge two things separately:
+
+- **Fundamentals**: valuation against growth (P/E or EV/sales against peers
+  and its own history), revenue and earnings trend, balance sheet, analyst
+  rating and target versus price, short interest. Pass when the business is
+  sound and the price isn't stretched for what it delivers.
+- **Technicals**: TradingView's summary and moving-average ratings, trend
+  against the 50- and 200-day averages, where it sits in the 52-week range,
+  and how far it has run since the trader posted (`price_at_post`). Pass when
+  the trend is up or basing and the entry isn't a chase.
+
+Only when **both** pass is it a `buy`. If one passes and the other doesn't,
+log a `watch` that names the side that failed and what would change your mind.
+If both fail, skip it silently. Bearish posts from a followed trader about a
+holding belong in the holdings review, not here.
+
+For a lead you do buy, name the trader and link their post in the reasoning,
+pass `rule="followed trader @name"` to `log_call`, and mention their 7-day
+hit rate from `traders` when it is there.
+
+**No cash for it.** When `available_cash` is 0, or too small for a position
+the rules allow, pick the one holding the new idea should replace: the
+weakest of them on the same two tests (broken trend, thesis gone stale, worst
+valuation for its growth, smallest expected upside to target), and never one
+with earnings or a catalyst in the next few days that the owner is holding for.
+Log a `sell` (or `trim`, if part of it is enough) for that holding with
+`rule="swap for SYMBOL"`, and size the `buy` from what the sale frees up. If
+no holding is clearly weaker than the new idea, log the idea as a `watch` and
+say no swap is worth it. When `available_cash` is not set, don't assume
+either way: give the buy without an amount and name the swap candidate in one
+line in case the owner has no cash.
 
 Prefer doing nothing over a weak call. Most checks should produce zero or one
 call. A single source of hype (one tweet spike, one Reddit thread) is not
@@ -77,6 +117,7 @@ Otherwise write a short report, at most about 12 lines:
 - One line on the market mood (fear & greed, the main mover or sector).
 - Each call as `ACTION SYMBOL (conviction): why`, with the rule if any, and the
   amount for a buy or add when cash is set.
+  A swap gets one line instead of two: `SWAP SELL_SYMBOL -> BUY_SYMBOL: why`.
 - Any holding that needs attention without a call (for example, earnings
   tomorrow).
 

@@ -30,6 +30,7 @@ function mockState(overrides: Partial<ReturnType<typeof useAdvisor>> = {}) {
     strategy: {
       rules: 'No penny stocks',
       watchlist: ['NVDA', 'AMD'],
+      followed_traders: ['shardib2'],
       available_cash: 2500,
       cash_currency: 'EUR',
       updated_at: null,
@@ -91,11 +92,24 @@ describe('AdvisorPanel', () => {
       expect(save).toHaveBeenCalledWith({
         rules: 'No penny stocks',
         watchlist: ['pltr', 'amd', 'msft'],
+        followed_traders: ['shardib2'],
         available_cash: 2500,
         cash_currency: 'EUR',
       }),
     )
     expect(await screen.findByText('Saved')).toBeTruthy()
+  })
+
+  it('saves followed traders without the @', async () => {
+    const save = mockState()
+    render(<AdvisorPanel />)
+    const followed = screen.getByLabelText('Traders you follow') as HTMLInputElement
+    expect(followed.value).toBe('@shardib2')
+    fireEvent.change(followed, { target: { value: '@ShardiB2, someone' } })
+    fireEvent.click(screen.getByText('Save strategy'))
+    await waitFor(() =>
+      expect(save).toHaveBeenCalledWith(expect.objectContaining({ followed_traders: ['ShardiB2', 'someone'] })),
+    )
   })
 
   it('clears the cash, and refuses a negative amount', async () => {

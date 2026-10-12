@@ -357,6 +357,14 @@ class AdvisorStrategyRow(Base):
     watchlist: Mapped[list] = mapped_column(
         JSON().with_variant(SQLITE_JSON, "sqlite"), nullable=False, default=list
     )
+    # X accounts whose ticker mentions the owner wants vetted as buy ideas
+    # (screen names, lower-cased, no "@").
+    followed_traders: Mapped[list] = mapped_column(
+        JSON().with_variant(SQLITE_JSON, "sqlite"),
+        nullable=False,
+        default=list,
+        server_default=sql_text("'[]'"),
+    )
     # Uninvested cash the owner is willing to deploy, so buy ideas can be sized.
     available_cash: Mapped[float] = mapped_column(Float, nullable=True)
     cash_currency: Mapped[str] = mapped_column(String, nullable=True)

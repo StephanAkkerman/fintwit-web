@@ -4,6 +4,7 @@ import type { AdvisorCall, AdvisorScorecard, AdvisorStrategy, AdvisorStrategyDra
 const EMPTY_STRATEGY: AdvisorStrategy = {
   rules: '',
   watchlist: [],
+  followed_traders: [],
   available_cash: null,
   cash_currency: null,
   updated_at: null,
@@ -31,7 +32,12 @@ export function useAdvisor() {
         getJson<AdvisorCall[]>('/api/advisor/calls?limit=100', signal),
         getJson<AdvisorScorecard>('/api/advisor/scorecard', signal),
       ])
-      setStrategy({ ...EMPTY_STRATEGY, ...s, watchlist: Array.isArray(s?.watchlist) ? s.watchlist : [] })
+      setStrategy({
+        ...EMPTY_STRATEGY,
+        ...s,
+        watchlist: Array.isArray(s?.watchlist) ? s.watchlist : [],
+        followed_traders: Array.isArray(s?.followed_traders) ? s.followed_traders : [],
+      })
       setCalls(Array.isArray(c) ? c : [])
       setScorecard(card && typeof card === 'object' && 'horizons' in card ? card : null)
     } catch (err) {

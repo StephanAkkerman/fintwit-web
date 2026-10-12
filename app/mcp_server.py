@@ -656,7 +656,8 @@ mcp = MCPServer(
         "portfolio (manual positions and IBKR). Start with the bundles: "
         "portfolio for holdings and P&L, holdings_check for what is happening "
         "around each holding (news, chatter, earnings), ticker for one symbol, market_snapshot for the market, candidates for "
-        "buy ideas. For a market check read strategy (the owner's rules) and "
+        "buy ideas, followed_traders for what the owner's favourite traders "
+        "just posted about. For a market check read strategy (the owner's rules) and "
         "journal (your earlier calls and how they did), and record each "
         "buy/add/trim/sell/watch suggestion with log_call. You advise; the "
         "owner decides and trades. For anything else call list_endpoints, then get with one of its paths."
@@ -764,9 +765,30 @@ async def candidates(window_hours: int = 24, asset_kind: str = "equity") -> str:
 
 
 @mcp.tool()
+async def followed_traders(since_hours: int = 24) -> str:
+    """Tickers the owner's followed traders (picked on the /advisor page)
+    posted about in the last ``since_hours``: one lead per ticker with who
+    mentioned it, how often, how many posts were bullish or bearish, the price
+    when it was posted, whether the owner already holds it, and the newest
+    posts with links. ``traders`` lists each followed trader's 7-day hit rate
+    when they have enough graded calls. A lead is a reason to look, not to
+    buy: vet each one with ``ticker`` before suggesting it."""
+    since_hours = max(1, min(int(since_hours), 24 * 30))
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        return truncate(
+            await _request(
+                client,
+                "/api/advisor/followed-mentions",
+                {"since_hours": since_hours},
+            )
+        )
+
+
+@mcp.tool()
 async def strategy() -> str:
     """The owner's trading rules (free text: position limits, take-profit and
-    stop levels, sectors to avoid, risk appetite), watchlist, and the cash
+    stop levels, sectors to avoid, risk appetite), watchlist, the traders
+    they follow (``followed_traders``), and the cash
     they have available to invest (``available_cash``; null when not set), so
     buy ideas can be sized. Judge every
     suggestion against these rules and name the rule that triggered it. Only

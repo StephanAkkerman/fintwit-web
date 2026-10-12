@@ -884,6 +884,7 @@ class AdvisorRepo:
             return {
                 "rules": "",
                 "watchlist": [],
+                "followed_traders": [],
                 "available_cash": None,
                 "cash_currency": None,
                 "updated_at": None,
@@ -891,6 +892,7 @@ class AdvisorRepo:
         return {
             "rules": row.rules or "",
             "watchlist": list(row.watchlist or []),
+            "followed_traders": list(row.followed_traders or []),
             "available_cash": row.available_cash,
             "cash_currency": row.cash_currency,
             "updated_at": _iso_utc(row.updated_at),
@@ -902,6 +904,7 @@ class AdvisorRepo:
         watchlist: list[str],
         available_cash: float | None = None,
         cash_currency: str | None = None,
+        followed_traders: list[str] | None = None,
     ) -> dict:
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         async with self.Session() as s:
@@ -912,6 +915,8 @@ class AdvisorRepo:
                     s.add(row)
                 row.rules = rules
                 row.watchlist = watchlist
+                if followed_traders is not None:
+                    row.followed_traders = followed_traders
                 row.available_cash = available_cash
                 row.cash_currency = (
                     cash_currency if available_cash is not None else None
@@ -973,6 +978,28 @@ class AdvisorRepo:
     async def count_calls(self) -> int:
         async with self.Session() as s:
             return (await s.execute(select(func.count(AdvisorCallRow.id)))).scalar_one()
+
+    async def tweets_by_authors(
+        self, screen_names: Iterable[str], since_hours: int, limit: int = 500
+    ) -> list[dict]:
+        """Tweets naming a ticker posted by any of ``screen_names`` (any case)
+        in the last ``since_hours``, newest first."""
+        names = sorted({n.strip().lower().lstrip("@") for n in screen_names if n})
+        if not names:
+            return []
+        cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
+            hours=since_hours
+        )
+        stmt = (
+            select(TweetRow)
+            .where(func.lower(TweetRow.user_screen_name).in_(names))
+            .where(TweetRow.created_at >= cutoff)
+            .order_by(TweetRow.created_at.desc())
+            .limit(limit)
+        )
+        async with self.Session() as s:
+            rows = (await s.execute(stmt)).scalars().all()
+        return [_row_to_dict(r) for r in rows if r.tickers]
 
     async def graded_calls(self) -> list[dict]:
         """Every (call, result) pair, for the scorecard."""
