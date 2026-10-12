@@ -534,6 +534,7 @@ async def collect_market_snapshot(client: httpx.AsyncClient) -> str:
         "macro": ("/api/overview/macro-strip", None),
         "spy_sectors": ("/api/spy-heatmap/sectors", None),
         "sector_rotation": ("/api/sector-rotation", None),
+        "positioning": ("/api/market/positioning", None),
         "gainers": ("/api/markets/movers", {"market": "usa", "category": "gainers"}),
         "losers": ("/api/markets/movers", {"market": "usa", "category": "losers"}),
         "most_active": (
@@ -743,7 +744,9 @@ async def ticker(
 async def market_snapshot() -> str:
     """The market right now in one call: whether US markets are open, the stock
     and crypto fear & greed indexes, the macro strip (yields, dollar, oil...),
-    S&P sector performance and rotation, the top 10 US gainers, losers and most
+    S&P sector performance and rotation, positioning (hedge funds' net
+    S&P/Nasdaq futures position vs. its 3-year range, CTA trend-following
+    trigger levels, equal- vs. cap-weighted breadth), the top 10 US gainers, losers and most
     active, upcoming economic events, and today's earnings."""
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         return await collect_market_snapshot(client)

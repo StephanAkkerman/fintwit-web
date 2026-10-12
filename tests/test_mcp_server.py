@@ -449,6 +449,7 @@ async def test_market_snapshot_trims_movers_and_keeps_failures():
     assert result["losers"]["category"] == "losers"
     assert "503" in result["crypto_fear_greed"]["error"]
     assert result["market_hours"] == {"path": "/api/stocks/market-hours"}
+    assert result["positioning"] == {"path": "/api/market/positioning"}
 
 
 async def test_candidates_flags_held_watchlist_symbols():

@@ -32,6 +32,7 @@ import { OverviewDashboard } from './components/OverviewDashboard'
 import { RouteSignalsPanel } from './components/RouteSignalsPanel'
 import IbkrPanel from './components/IbkrPanel'
 import GammaExposureWidget from './components/GammaExposureWidget'
+import MarketPositioningWidget from './components/MarketPositioningWidget'
 import OptionsChainWidget from './components/OptionsChainWidget'
 import OptionsOverviewWidget from './components/OptionsOverviewWidget'
 import PortfolioAssetInsights from './components/PortfolioAssetInsights'
@@ -824,6 +825,9 @@ export default function App() {
               <div className="space-y-4">
                 <ErrorBoundary label="Gamma exposure">
                   <GammaExposureWidget />
+                </ErrorBoundary>
+                <ErrorBoundary label="Market positioning">
+                  <MarketPositioningWidget />
                 </ErrorBoundary>
                 <ErrorBoundary label="Options overview">
                   <OptionsOverviewWidget />
