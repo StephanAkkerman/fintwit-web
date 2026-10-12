@@ -4,6 +4,7 @@ import logging
 from sqlalchemy import (
     DDL,
     JSON,
+    BigInteger,
     Boolean,
     DateTime,
     Float,
@@ -407,6 +408,21 @@ class AdvisorCallResultRow(Base):
         Boolean, nullable=False, default=False, server_default=sql_text("0")
     )
     evaluated_at: Mapped[DateTime] = mapped_column(DateTime)
+
+
+class AdvisorRunRow(Base):
+    """One finished market check, so the next one knows which posts it has
+    already read (``tweet_cursor``: the newest tweet id it covered) and the
+    /advisor page can show when Claude last looked and what it found."""
+
+    __tablename__ = "advisor_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ran_at: Mapped[DateTime] = mapped_column(DateTime, index=True)
+    tweet_cursor: Mapped[int] = mapped_column(BigInteger, nullable=True)
+    session: Mapped[str] = mapped_column(String, nullable=True)
+    posts_read: Mapped[int] = mapped_column(Integer, nullable=True)
+    summary: Mapped[str] = mapped_column(String, nullable=False, default="")
 
 
 class RedditTrendRunRow(Base):

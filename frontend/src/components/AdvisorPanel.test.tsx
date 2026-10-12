@@ -36,6 +36,7 @@ function mockState(overrides: Partial<ReturnType<typeof useAdvisor>> = {}) {
       updated_at: null,
     },
     calls: [],
+    runs: [],
     scorecard: { total_calls: 0, horizons: {} },
     loading: false,
     error: false,
@@ -98,6 +99,25 @@ describe('AdvisorPanel', () => {
       }),
     )
     expect(await screen.findByText('Saved')).toBeTruthy()
+  })
+
+  it('lists recent checks', () => {
+    mockState({
+      runs: [
+        {
+          id: 1,
+          ran_at: '2026-10-12T12:00:00Z',
+          tweet_cursor: '1977000000000000000',
+          session: 'Pre-market',
+          posts_read: 214,
+          summary: 'BUY GTLB after @ShardiB2; fundamentals and technicals both pass.',
+        },
+      ],
+    })
+    render(<AdvisorPanel />)
+    expect(screen.getByText('Pre-market')).toBeTruthy()
+    expect(screen.getByText('214 posts')).toBeTruthy()
+    expect(screen.getByText(/BUY GTLB after @ShardiB2/)).toBeTruthy()
   })
 
   it('saves followed traders without the @', async () => {

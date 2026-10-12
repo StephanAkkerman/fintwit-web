@@ -1,8 +1,10 @@
 """Claude market check API: the owner's strategy and Claude's decision journal.
 
-The dashboard's /advisor page edits the strategy and shows the journal. The
-MCP server reads both, and its ``log_call`` tool is the one write it can make:
-appending a call here. It cannot change the strategy or anything else.
+The dashboard's /advisor page edits the strategy and shows the journal and
+recent checks. The MCP server reads all of it, and can make two append-only
+writes: ``log_call`` adds a call and ``finish_check`` records a finished check
+(``/runs``) with the newest post it read. It cannot change the strategy or
+anything else.
 """
 
 import logging
@@ -15,7 +17,7 @@ from ..services.advisor import (
     ACTIONS,
     CONVICTIONS,
     build_scorecard,
-    group_followed_mentions,
+    group_ticker_posts,
     normalize_screen_names,
     normalize_symbol,
     normalize_watchlist,
@@ -25,6 +27,9 @@ from ..services.trader_scoring import get_credibility_batch
 from .auth import api_key_dep
 
 logger = logging.getLogger(__name__)
+
+#: The most posts one check reads. A busy weekend can exceed it; the newest win.
+MAX_UNSEEN_POSTS = 2000
 
 router = APIRouter(
     prefix="/api/advisor", tags=["advisor"], dependencies=[Depends(api_key_dep)]
@@ -48,6 +53,14 @@ class StrategyIn(BaseModel):
     followed_traders: list[str] | None = Field(default=None, max_length=200)
     available_cash: float | None = Field(default=None, ge=0)
     cash_currency: str = Field(default="USD", pattern="^[A-Za-z]{3}$")
+
+
+class RunIn(BaseModel):
+    # The ``cursor`` that ``/unseen-posts`` returned: the newest tweet read.
+    cursor: str | None = Field(default=None, pattern=r"^\d{1,20}$")
+    summary: str = Field(default="", max_length=4_000)
+    session: str | None = Field(default=None, max_length=40)
+    posts_read: int | None = Field(default=None, ge=0)
 
 
 class CallIn(BaseModel):
@@ -103,17 +116,9 @@ async def followed_mentions(
     if not traders:
         return {"traders": [], "since_hours": since_hours, "leads": []}
 
-    main = _main()
     tweets = await _repo().tweets_by_authors(traders, since_hours)
-    positions = await main.PORTFOLIO_REPO.list_positions(active_only=True)
-    held = {str(p.get("symbol") or "").upper() for p in positions}
-    leads = group_followed_mentions(tweets, held)[:limit]
-
-    track_record = {}
-    try:
-        track_record = await get_credibility_batch(main.Session, traders)
-    except Exception as exc:
-        logger.warning("[advisor] trader credibility lookup failed: %r", exc)
+    leads = group_ticker_posts(tweets, await _held_symbols(), traders)[:limit]
+    track_record = await _track_records(traders)
     return {
         "traders": [
             {"screen_name": name, "track_record_7d": track_record.get(name)}
@@ -122,6 +127,74 @@ async def followed_mentions(
         "since_hours": since_hours,
         "leads": leads,
     }
+
+
+async def _held_symbols() -> set[str]:
+    positions = await _main().PORTFOLIO_REPO.list_positions(active_only=True)
+    return {str(p.get("symbol") or "").upper() for p in positions}
+
+
+async def _track_records(names: list[str]) -> dict[str, dict]:
+    try:
+        return await get_credibility_batch(_main().Session, names)
+    except Exception as exc:
+        logger.warning("[advisor] trader credibility lookup failed: %r", exc)
+        return {}
+
+
+@router.get("/unseen-posts")
+async def unseen_posts(
+    limit: int = Query(default=40, ge=1, le=200),
+    first_run_hours: int = Query(default=12, ge=1, le=24 * 7),
+):
+    """Every post since the last finished check, grouped into one lead per
+    ticker, so a scheduled check reads the timeline the way the owner would.
+
+    The first check (no run recorded yet) reads the last ``first_run_hours``.
+    Pass the returned ``cursor`` to ``POST /runs`` when the check is done, so
+    the next one starts after it.
+    """
+    repo = _repo()
+    previous = await repo.last_cursor()
+    tweets = await repo.tweets_after(previous, first_run_hours, MAX_UNSEEN_POSTS)
+    with_tickers = [t for t in tweets if t.get("tickers")]
+    strategy = await repo.get_strategy()
+    followed = strategy["followed_traders"]
+    leads = group_ticker_posts(with_tickers, await _held_symbols(), followed)[:limit]
+
+    authors = sorted({name.lower() for lead in leads for name in lead["traders"]})
+    records = await _track_records(authors)
+    # Unchanged when nothing new came in, so the next check starts at the
+    # same place.
+    cursor = max((int(t["id"]) for t in tweets), default=previous)
+    return {
+        "previous_cursor": None if previous is None else str(previous),
+        "cursor": None if cursor is None else str(cursor),
+        "posts": len(tweets),
+        "posts_with_tickers": len(with_tickers),
+        # One read is capped; when it is hit, posts older than the oldest one
+        # here were skipped.
+        "truncated": len(tweets) >= MAX_UNSEEN_POSTS,
+        "followed_traders": followed,
+        "track_records_7d": records,
+        "tickers": len({lead["symbol"] for lead in leads}),
+        "leads": leads,
+    }
+
+
+@router.get("/runs")
+async def list_runs(limit: int = Query(default=20, ge=1, le=200)):
+    return await _repo().list_runs(limit)
+
+
+@router.post("/runs", status_code=201)
+async def record_run(payload: RunIn):
+    return await _repo().record_run(
+        None if payload.cursor is None else int(payload.cursor),
+        payload.summary.strip(),
+        (payload.session or "").strip() or None,
+        payload.posts_read,
+    )
 
 
 @router.get("/calls")

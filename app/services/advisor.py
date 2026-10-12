@@ -8,6 +8,7 @@ owner can see whether the suggestions are worth following.
 """
 
 import re
+from typing import Iterable
 
 from .trader_scoring import _direction, grade_call
 
@@ -53,19 +54,28 @@ def normalize_screen_names(names: list[str]) -> list[str]:
     return seen[:MAX_FOLLOWED_TRADERS]
 
 
-def group_followed_mentions(
-    tweets: list[dict], held: set[str], max_posts: int = 3
+def group_ticker_posts(
+    tweets: list[dict],
+    held: set[str],
+    followed: Iterable[str] = (),
+    max_posts: int = 3,
+    max_traders: int = 10,
 ) -> list[dict]:
-    """Turn followed traders' tweets into one buy-idea lead per ticker.
+    """Turn tweets into one buy-idea lead per ticker.
 
-    Each lead says who mentioned the ticker, how often and how bullish they
-    were, with the newest posts (text and link) for context. ``held`` symbols
-    are flagged rather than dropped: a favourite trader piling into something
-    the owner already holds is still worth knowing. Most-mentioned first.
+    Each lead says how often the ticker came up, who posted about it (and
+    which of them the owner follows), how many posts were bullish or bearish,
+    the price when it was first seen, and a few posts with links: the
+    followed traders' first, then the most liked. ``held`` symbols are flagged
+    rather than dropped, since chatter about a holding is still worth knowing.
+    Leads a followed trader posted about come first, then the most mentioned.
     """
+    followed = {name.lower() for name in followed}
     leads: dict[str, dict] = {}
+    candidates: dict[str, list[tuple[bool, int, dict]]] = {}
     for tweet in tweets:
         author = str(tweet.get("user_screen_name") or "")
+        is_followed = author.lower() in followed
         per_ticker = tweet.get("ticker_sentiment") or {}
         tweet_score = tweet.get("sentiment_score")
         for raw in tweet.get("tickers") or []:
@@ -79,7 +89,9 @@ def group_followed_mentions(
                     "symbol": symbol,
                     "held": symbol in held,
                     "mentions": 0,
+                    "followed_traders": [],
                     "traders": [],
+                    "trader_count": 0,
                     "bullish": 0,
                     "bearish": 0,
                     "price_at_post": None,
@@ -90,23 +102,40 @@ def group_followed_mentions(
             lead["mentions"] += 1
             if author and author not in lead["traders"]:
                 lead["traders"].append(author)
+                if is_followed:
+                    lead["followed_traders"].append(author)
             direction = _direction(score)
             if direction:
                 lead[direction] += 1
             if lead["price_at_post"] is None:
                 price, kind = price_from_assets(tweet.get("assets") or [], symbol)
                 lead["price_at_post"], lead["asset_kind"] = price, kind
-            if len(lead["posts"]) < max_posts:
-                lead["posts"].append(
+            candidates.setdefault(symbol, []).append(
+                (
+                    is_followed,
+                    tweet.get("likes") or 0,
                     {
                         "trader": author,
+                        "followed": is_followed,
                         "posted_at": tweet.get("created_at"),
                         "text": tweet.get("text"),
                         "url": tweet.get("url"),
+                        "likes": tweet.get("likes"),
                         "sentiment": score,
-                    }
+                    },
                 )
-    return sorted(leads.values(), key=lambda lead: -lead["mentions"])
+            )
+
+    for symbol, lead in leads.items():
+        # Stable sort keeps newest-first order among equals.
+        picked = sorted(candidates[symbol], key=lambda c: (not c[0], -c[1]))
+        lead["posts"] = [post for _, _, post in picked[:max_posts]]
+        lead["trader_count"] = len(lead["traders"])
+        lead["traders"] = lead["traders"][:max_traders]
+    return sorted(
+        leads.values(),
+        key=lambda lead: (-len(lead["followed_traders"]), -lead["mentions"]),
+    )
 
 
 def price_from_assets(assets: list[dict], symbol: str) -> tuple[float | None, str]:

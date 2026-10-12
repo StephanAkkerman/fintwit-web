@@ -96,7 +96,7 @@ Route-level sections:
 
 - `/advisor`
   - `AdvisorPanel` (`hooks/useAdvisor.ts`)
-  - Purpose: Claude market check. Shows the scorecard (`/api/advisor/scorecard`) and the decision journal (`/api/advisor/calls`), and edits the owner's rules, watchlist, followed traders and available cash (`GET`/`PUT /api/advisor/strategy`).
+  - Purpose: Claude market check. Shows the scorecard (`/api/advisor/scorecard`), recent scheduled checks (`/api/advisor/runs`) and the decision journal (`/api/advisor/calls`), and edits the owner's rules, watchlist, followed traders and available cash (`GET`/`PUT /api/advisor/strategy`).
 
 - `/admin`
   - `AccessAllowlistPanel`

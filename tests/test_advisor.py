@@ -11,7 +11,7 @@ from app.infra.repos import AdvisorRepo, PortfolioRepo, TweetRepo
 from app.runtime.advisor_evaluator import evaluate_due_advisor_calls
 from app.services.advisor import (
     build_scorecard,
-    group_followed_mentions,
+    group_ticker_posts,
     normalize_screen_names,
     normalize_watchlist,
 )
@@ -99,13 +99,13 @@ def _tweet(tweet_id, author, tickers, score=0.9, hours_ago=1, **extra):
     }
 
 
-def test_group_followed_mentions():
+def test_group_ticker_posts():
     tweets = [
         _tweet(3, "ShardiB2", ["GTLB"]),
         _tweet(2, "other", ["GTLB", "NVDA"], score=0.0),
         _tweet(1, "ShardiB2", ["NVDA", "INTC"], ticker_sentiment={"INTC": -0.9}),
     ]
-    leads = group_followed_mentions(tweets, held={"NVDA"}, max_posts=1)
+    leads = group_ticker_posts(tweets, held={"NVDA"}, max_posts=1)
     by_symbol = {lead["symbol"]: lead for lead in leads}
 
     gtlb = by_symbol["GTLB"]
@@ -121,6 +121,25 @@ def test_group_followed_mentions():
     # The per-ticker score wins over the tweet's own score.
     assert (by_symbol["INTC"]["bullish"], by_symbol["INTC"]["bearish"]) == (0, 1)
     assert leads[-1]["mentions"] == 1
+
+
+def test_group_ticker_posts_puts_followed_traders_first():
+    tweets = [
+        _tweet(5, "crowd1", ["TSLA"], likes=900),
+        _tweet(4, "crowd2", ["TSLA"]),
+        _tweet(3, "crowd3", ["TSLA"]),
+        _tweet(2, "ShardiB2", ["GTLB"]),
+        _tweet(1, "crowd1", ["GTLB"], likes=50),
+    ]
+    leads = group_ticker_posts(tweets, held=set(), followed={"shardib2"}, max_posts=2)
+
+    # One followed trader outranks three strangers.
+    assert [lead["symbol"] for lead in leads] == ["GTLB", "TSLA"]
+    assert leads[0]["followed_traders"] == ["ShardiB2"]
+    # The followed trader's post comes first, then the most liked.
+    assert [p["trader"] for p in leads[0]["posts"]] == ["ShardiB2", "crowd1"]
+    assert leads[1]["posts"][0]["likes"] == 900
+    assert leads[1]["trader_count"] == 3
 
 
 async def test_strategy_round_trip(advisor_repo):
@@ -341,3 +360,65 @@ async def test_api_followed_mentions(api, db_engine, monkeypatch):
     # Saving the form from an older client (no followed_traders) keeps them.
     resp = await api.put("/api/advisor/strategy", json={"rules": "x"}, headers=HEADERS)
     assert resp.json()["followed_traders"] == ["shardib2"]
+
+
+async def test_api_unseen_posts_and_runs(api, db_engine, monkeypatch):
+    Session = async_sessionmaker(db_engine, expire_on_commit=False)
+    monkeypatch.setattr(api_main, "PORTFOLIO_REPO", PortfolioRepo(Session))
+    monkeypatch.setattr(api_main, "Session", Session)
+    tweets = TweetRepo(Session)
+    await tweets.upsert_many(
+        [
+            _tweet(100, "ShardiB2", ["GTLB"]),
+            _tweet(101, "stranger", ["TSLA"]),
+            _tweet(102, "stranger", []),  # read, but no lead
+            _tweet(90, "stranger", ["AMD"], hours_ago=20),  # before the first run
+        ]
+    )
+    await api.put(
+        "/api/advisor/strategy",
+        json={"rules": "", "followed_traders": ["shardib2"]},
+        headers=HEADERS,
+    )
+
+    first = (await api.get("/api/advisor/unseen-posts", headers=HEADERS)).json()
+    assert first["previous_cursor"] is None
+    assert first["cursor"] == "102"
+    assert (first["posts"], first["posts_with_tickers"]) == (3, 2)
+    assert [lead["symbol"] for lead in first["leads"]] == ["GTLB", "TSLA"]
+    assert first["truncated"] is False
+
+    resp = await api.post(
+        "/api/advisor/runs",
+        json={
+            "cursor": first["cursor"],
+            "summary": "Nothing new",
+            "session": "Pre-market",
+            "posts_read": 3,
+        },
+        headers=HEADERS,
+    )
+    assert resp.status_code == 201
+    assert resp.json()["tweet_cursor"] == "102"
+
+    # Nothing new yet: the cursor stays put.
+    again = (await api.get("/api/advisor/unseen-posts", headers=HEADERS)).json()
+    assert (again["previous_cursor"], again["cursor"], again["posts"]) == (
+        "102",
+        "102",
+        0,
+    )
+
+    await tweets.upsert_many([_tweet(103, "stranger", ["NVDA"])])
+    later = (await api.get("/api/advisor/unseen-posts", headers=HEADERS)).json()
+    assert [lead["symbol"] for lead in later["leads"]] == ["NVDA"]
+    assert later["cursor"] == "103"
+
+    runs = (await api.get("/api/advisor/runs", headers=HEADERS)).json()
+    assert [(r["session"], r["summary"]) for r in runs] == [
+        ("Pre-market", "Nothing new")
+    ]
+    bad = await api.post(
+        "/api/advisor/runs", json={"cursor": "abc", "summary": ""}, headers=HEADERS
+    )
+    assert bad.status_code == 422

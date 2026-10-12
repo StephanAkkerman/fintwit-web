@@ -3,6 +3,7 @@ import { useAdvisor } from '../hooks/useAdvisor'
 import type {
   AdvisorAction,
   AdvisorCall,
+  AdvisorRun,
   AdvisorScoreBucket,
   AdvisorScorecard,
   AdvisorStrategy,
@@ -249,6 +250,37 @@ function StrategyForm({
   )
 }
 
+function RecentChecks({ runs }: { runs: AdvisorRun[] }) {
+  return (
+    <section className={card}>
+      <h2 className={heading}>Recent checks</h2>
+      <p className="mt-1 text-xs text-zinc-500">
+        Each scheduled check reads every post since the one before, from pre-market to after-hours.
+      </p>
+      {runs.length === 0 ? (
+        <p className="mt-4 text-sm text-zinc-500">No checks have run yet.</p>
+      ) : (
+        <ul className="mt-3 divide-y divide-zinc-100 dark:divide-zinc-800">
+          {runs.map((run) => (
+            <li key={run.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2 text-sm">
+              <span className="w-32 shrink-0 text-xs text-zinc-500">{formatTime(run.ran_at)}</span>
+              {run.session && (
+                <span className="rounded-md bg-zinc-100 px-1.5 py-0.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                  {run.session}
+                </span>
+              )}
+              {run.posts_read != null && (
+                <span className="text-xs tabular-nums text-zinc-500">{run.posts_read} posts</span>
+              )}
+              <span className="min-w-0 flex-1 basis-64">{run.summary || '—'}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
 function Journal({ calls, onTickerClick }: { calls: AdvisorCall[]; onTickerClick?: (ticker: string) => void }) {
   return (
     <section className={card}>
@@ -320,7 +352,7 @@ function Journal({ calls, onTickerClick }: { calls: AdvisorCall[]; onTickerClick
 }
 
 export default function AdvisorPanel({ onTickerClick }: { onTickerClick?: (ticker: string) => void }) {
-  const { strategy, calls, scorecard, loading, error, saveStrategy } = useAdvisor()
+  const { strategy, calls, runs, scorecard, loading, error, saveStrategy } = useAdvisor()
 
   if (loading) {
     return <section className={`${card} h-40 animate-pulse`} aria-label="Loading advisor" />
@@ -336,6 +368,7 @@ export default function AdvisorPanel({ onTickerClick }: { onTickerClick?: (ticke
   return (
     <>
       <Scorecard scorecard={scorecard} />
+      <RecentChecks runs={runs} />
       <Journal calls={calls} onTickerClick={onTickerClick} />
       <StrategyForm strategy={strategy} onSave={saveStrategy} />
     </>

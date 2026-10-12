@@ -2374,6 +2374,28 @@ def _advisor_result(horizon: int, price: float, return_pct: float) -> dict:
     }
 
 
+def _advisor_runs() -> list[dict]:
+    return [
+        {
+            "id": 3,
+            "ran_at": "2026-10-12T13:10:00+00:00",
+            "tweet_cursor": "1977300000000000000",
+            "session": "Open",
+            "posts_read": 186,
+            "summary": "SWAP PLTR -> GTLB: @ShardiB2 bullish, fundamentals and "
+            "technicals both pass; PLTR lost its 50-day trend.",
+        },
+        {
+            "id": 2,
+            "ran_at": "2026-10-12T11:10:00+00:00",
+            "tweet_cursor": "1977250000000000000",
+            "session": "Pre-market",
+            "posts_read": 242,
+            "summary": "Nothing new",
+        },
+    ]
+
+
 def _advisor_calls() -> list[dict]:
     base = {"asset_kind": "EQUITY", "conviction": "medium", "rule": None}
     return [
@@ -3251,6 +3273,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         # object-shaped; the journal is a list.
         "/api/advisor/strategy": _advisor_strategy(),
         "/api/advisor/calls": _advisor_calls(),
+        "/api/advisor/runs": _advisor_runs(),
         "/api/advisor/scorecard": _advisor_scorecard(),
     }
 

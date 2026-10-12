@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from .db import (
     AdvisorCallResultRow,
     AdvisorCallRow,
+    AdvisorRunRow,
     AdvisorStrategyRow,
     GammaExposureSnapshotRow,
     IbkrPositionRow,
@@ -858,6 +859,18 @@ def _advisor_call_to_dict(row: AdvisorCallRow) -> dict:
     }
 
 
+def _advisor_run_to_dict(row: AdvisorRunRow) -> dict:
+    return {
+        "id": row.id,
+        "ran_at": _iso_utc(row.ran_at),
+        # A string: tweet ids overflow a JavaScript number.
+        "tweet_cursor": None if row.tweet_cursor is None else str(row.tweet_cursor),
+        "session": row.session,
+        "posts_read": row.posts_read,
+        "summary": row.summary,
+    }
+
+
 def _advisor_result_to_dict(row: AdvisorCallResultRow) -> dict:
     return {
         "horizon_days": row.horizon_days,
@@ -978,6 +991,56 @@ class AdvisorRepo:
     async def count_calls(self) -> int:
         async with self.Session() as s:
             return (await s.execute(select(func.count(AdvisorCallRow.id)))).scalar_one()
+
+    async def record_run(
+        self,
+        tweet_cursor: int | None,
+        summary: str,
+        session: str | None = None,
+        posts_read: int | None = None,
+    ) -> dict:
+        row = AdvisorRunRow(
+            ran_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            tweet_cursor=tweet_cursor,
+            summary=summary,
+            session=session,
+            posts_read=posts_read,
+        )
+        async with self.Session() as s:
+            async with s.begin():
+                s.add(row)
+            await s.refresh(row)
+        return _advisor_run_to_dict(row)
+
+    async def list_runs(self, limit: int = 20) -> list[dict]:
+        stmt = select(AdvisorRunRow).order_by(AdvisorRunRow.id.desc()).limit(limit)
+        async with self.Session() as s:
+            rows = (await s.execute(stmt)).scalars().all()
+        return [_advisor_run_to_dict(r) for r in rows]
+
+    async def last_cursor(self) -> int | None:
+        """The newest tweet id a finished check has read, if any."""
+        stmt = select(func.max(AdvisorRunRow.tweet_cursor))
+        async with self.Session() as s:
+            return (await s.execute(stmt)).scalar_one_or_none()
+
+    async def tweets_after(
+        self, cursor: int | None, since_hours: int, limit: int = 2000
+    ) -> list[dict]:
+        """Tweets that came after ``cursor`` (a tweet id), or
+        from the last ``since_hours`` when there is no cursor yet; newest first.
+        Tweet ids are X snowflakes, so they grow with posting time."""
+        stmt = select(TweetRow).order_by(TweetRow.id.desc()).limit(limit)
+        if cursor is not None:
+            stmt = stmt.where(TweetRow.id > cursor)
+        else:
+            cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
+                hours=since_hours
+            )
+            stmt = stmt.where(TweetRow.created_at >= cutoff)
+        async with self.Session() as s:
+            rows = (await s.execute(stmt)).scalars().all()
+        return [_row_to_dict(r) for r in rows]
 
     async def tweets_by_authors(
         self, screen_names: Iterable[str], since_hours: int, limit: int = 500

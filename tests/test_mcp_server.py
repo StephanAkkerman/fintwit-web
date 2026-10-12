@@ -506,6 +506,36 @@ async def test_followed_traders_tool(monkeypatch):
     assert seen == [("/api/advisor/followed-mentions", {"since_hours": 720})]
 
 
+async def test_unseen_posts_and_finish_check_tools(monkeypatch):
+    seen = []
+
+    async def fake_request(client, path, params, body=None, *, method="GET"):
+        seen.append((method, path, params, body))
+        return {"ok": True}
+
+    monkeypatch.setattr(mcp_server, "_request", fake_request)
+    await mcp_server.mcp.call_tool("unseen_posts", {})
+    await mcp_server.mcp.call_tool(
+        "finish_check",
+        {"cursor": "102", "summary": "Nothing new", "session": "Open", "posts_read": 3},
+    )
+
+    assert seen == [
+        ("GET", "/api/advisor/unseen-posts", {"limit": 40}, None),
+        (
+            "POST",
+            "/api/advisor/runs",
+            None,
+            {
+                "cursor": "102",
+                "summary": "Nothing new",
+                "session": "Open",
+                "posts_read": 3,
+            },
+        ),
+    ]
+
+
 def test_generic_get_cannot_write_the_journal_or_strategy():
     endpoints = mcp_server.list_readable_endpoints(app.openapi())
     calls = mcp_server.match_endpoint(endpoints, "/api/advisor/calls")

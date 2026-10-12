@@ -1426,6 +1426,17 @@ export type AdvisorStrategyDraft = Pick<
   cash_currency: string
 }
 
+/** One finished market check: when it ran and what it found. */
+export interface AdvisorRun {
+  id: number
+  ran_at: string | null
+  /** Newest tweet id the check read (a string: ids overflow a JS number). */
+  tweet_cursor: string | null
+  session: string | null
+  posts_read: number | null
+  summary: string
+}
+
 export interface AdvisorCallResult {
   horizon_days: number
   price_at_horizon: number
