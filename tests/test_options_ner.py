@@ -3,6 +3,7 @@ import pytest
 from app.ml.options_ner import (
     AlnumBoundarySplitter,
     build_options_result,
+    normalize_right,
     parse_premium,
 )
 from app.runtime.options_intent import detect_options
@@ -98,7 +99,11 @@ def test_lone_call_word_is_not_options():
 
 
 def test_quote_of_an_options_tweet_is_options():
-    quoted = {"ticker": [_span("$SPY", 0)], "option_type": [_span("puts", 5)]}
+    quoted = {
+        "ticker": [_span("$SPY", 0)],
+        "strike": [_span("500", 5)],
+        "option_type": [_span("puts", 9)],
+    }
     result = build_options_result({}, quoted)
 
     assert result["is_options_tweet"] is True
@@ -122,13 +127,17 @@ class _FakeRecognizer:
 @pytest.mark.asyncio
 async def test_detect_options_prefers_the_recognizer():
     expected = build_options_result(
-        {"ticker": [_span("$SPY", 0)], "option_type": [_span("c", 8)]}
+        {
+            "ticker": [_span("$SPY", 0)],
+            "strike": [_span("500", 5)],
+            "option_type": [_span("c", 8)],
+        }
     )
     recognizer = _FakeRecognizer(result=expected)
 
     result = await detect_options("$SPY 500c", "quoted", recognizer)
 
-    assert result is expected
+    assert result == expected
     assert recognizer.calls == [("$SPY 500c", "quoted")]
 
 
@@ -147,3 +156,106 @@ async def test_detect_options_heuristic_counts_quoted_options_tweets():
     result = await detect_options("Look at this", "$TSLA AUG 390c up about 15%")
 
     assert result["is_options_tweet"] is True
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("C", "CALL"),
+        ("calls", "CALL"),
+        ("350P", "PUT"),
+        ("Puts", "PUT"),
+        ("CASHES", None),
+        ("over", None),
+        ("long", None),
+    ],
+)
+def test_normalize_right_accepts_only_call_and_put_spellings(text, expected):
+    assert normalize_right(text) == expected
+
+
+def test_stray_option_type_span_is_not_options():
+    # "Manchester City OVER 1.5 goals CASHES ... at $0.49" (issue #216)
+    result = build_options_result(
+        {
+            "ticker": [_span("Manchester City", 0)],
+            "option_type": [_span("CASHES", 30)],
+            "price": [_span("$0.49", 90)],
+        }
+    )
+
+    assert result["is_options_tweet"] is False
+
+
+@pytest.mark.asyncio
+async def test_detect_options_needs_a_ticker_and_a_contract_detail():
+    # "Bitcoin got the call. ... $BTC long." names a call and a ticker, but no
+    # strike, expiry, premium or price: not an options trade (issue #216).
+    recognizer = _FakeRecognizer(
+        result=build_options_result(
+            {"option_type": [_span("call", 16)], "ticker": [_span("$BTC", 60)]}
+        )
+    )
+
+    result = await detect_options(
+        "Bitcoin got the call. Follow the squiggle.\n\n@LSDinmycoffee's $BTC long.",
+        None,
+        recognizer,
+        ["BTC"],
+    )
+
+    assert result["is_options_tweet"] is False
+    assert result["options_context"]["contracts"] == []
+
+
+@pytest.mark.asyncio
+async def test_detect_options_drops_contracts_without_a_ticker():
+    recognizer = _FakeRecognizer(
+        result=build_options_result(
+            {"option_type": [_span("calls", 0)], "premium": [_span("$2M", 6)]}
+        )
+    )
+
+    result = await detect_options("calls $2M bought", None, recognizer)
+
+    assert result["is_options_tweet"] is False
+
+
+@pytest.mark.asyncio
+async def test_detect_options_keeps_a_strike_written_without_a_cashtag():
+    recognizer = _FakeRecognizer(
+        result=build_options_result(
+            {
+                "ticker": [_span("SPY", 0)],
+                "strike": [_span("590", 4)],
+                "option_type": [_span("P", 7)],
+            }
+        )
+    )
+
+    result = await detect_options("SPY 590P", None, recognizer)
+
+    assert result["is_options_tweet"] is True
+    assert result["options_context"]["contracts"][0]["symbol"] == "SPY"
+
+
+@pytest.mark.asyncio
+async def test_detect_options_needs_a_cashtag_when_there_is_no_strike():
+    entities = {
+        "ticker": [_span("NVDA", 0)],
+        "option_type": [_span("calls", 5)],
+        "premium": [_span("$1.2M", 11)],
+    }
+
+    untagged = await detect_options(
+        "NVDA calls $1.2M", None, _FakeRecognizer(result=build_options_result(entities))
+    )
+    tagged = await detect_options(
+        "NVDA calls $1.2M",
+        None,
+        _FakeRecognizer(result=build_options_result(entities)),
+        ["NVDA"],
+    )
+
+    assert untagged["is_options_tweet"] is False
+    assert tagged["is_options_tweet"] is True

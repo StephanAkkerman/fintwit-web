@@ -5,7 +5,7 @@ import logging
 import os
 import time
 from contextlib import asynccontextmanager, suppress
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal
 
@@ -80,11 +80,13 @@ from ..services.ibkr import IbkrGateway
 from ..services.macro_market import get_macro_snapshot
 from ..services.market_hours_service import get_stock_market_hours
 from ..services.nasdaq_service import get_halt_data
+from ..services.news_digest import build_digest, get_market_news, overview_symbols
 from ..services.news_service import (
     annotate_news_sentiment,
     get_company_news,
     summarize_news_sentiment,
 )
+from ..services.option_contract_service import get_option_contract
 from ..services.options_chain_service import get_options_chain
 from ..services.options_service import get_options_overview
 from ..services.price_history_service import (
@@ -468,6 +470,22 @@ async def options_chain(
     return data
 
 
+@app.get("/api/options/contract")
+async def options_contract(
+    symbol: str = Query(...),
+    right: str = Query(...),
+    strike: float = Query(...),
+    expiry: str = Query(...),
+    as_of: date | None = Query(default=None),
+    _=Depends(api_key_dep),
+):
+    """Quote for one contract a tweet names; *as_of* is the post's date."""
+    data = await get_option_contract(symbol, right, strike, expiry, as_of)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Contract not found")
+    return data
+
+
 @app.get("/api/options/gamma-exposure")
 async def options_gamma_exposure(
     symbol: str = Query(default=GAMMA_EXPOSURE_SYMBOL),
@@ -525,6 +543,41 @@ async def news_company(
     return {
         "articles": articles,
         "sentiment": summarize_news_sentiment(articles),
+        "source": "yfinance",
+    }
+
+
+@app.get("/api/news/overview")
+async def news_overview(
+    request: Request,
+    symbols: str | None = Query(default=None),
+    limit: int = Query(default=40, ge=1, le=100),
+    stories: int = Query(default=5, ge=1, le=10),
+    _=Depends(api_key_dep),
+):
+    """Market-wide headlines with the most important stories on top (issue #217).
+
+    Headlines come from the Yahoo news feeds of ``symbols`` (default: the
+    ``NEWS_OVERVIEW_SYMBOLS`` broad-market list). ``top_stories`` groups the
+    headlines about one event and ranks the groups by coverage, recency and
+    topic, with no LLM involved; see ``app/services/news_digest.py``.
+    """
+    parsed_symbols = [
+        part.strip().upper() for part in (symbols or "").split(",") if part.strip()
+    ] or overview_symbols()
+    data = await get_market_news(parsed_symbols)
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    sentiment_model = getattr(request.app.state, "sentiment_model", None)
+    articles = await annotate_news_sentiment(data[:limit], sentiment_model)
+    digest = build_digest(articles, max_stories=stories)
+    return {
+        "symbols": parsed_symbols,
+        "top_stories": digest["top_stories"],
+        "themes": digest["themes"],
+        "articles": articles,
+        "sentiment": summarize_news_sentiment(articles),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "source": "yfinance",
     }
 
@@ -862,6 +915,7 @@ async def debug_tweet(body: DebugTweet, request: Request):
         body.text,
         None,
         getattr(request.app.state, "options_recognizer", None),
+        tickers,
     )
 
     tweet = {

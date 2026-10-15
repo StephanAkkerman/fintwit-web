@@ -130,6 +130,25 @@ export type TweetOptionContract = {
   source?: string | null;
 };
 
+/** GET /api/options/contract: the current quote for a contract a tweet names. */
+export type OptionContractQuote = {
+  symbol: string;
+  right: 'CALL' | 'PUT' | string;
+  strike: number;
+  status: 'listed' | 'expired' | string;
+  expiration: string;
+  last_price?: number | null;
+  bid?: number | null;
+  ask?: number | null;
+  mid?: number | null;
+  change_percent?: number | null;
+  implied_volatility?: number | null;
+  volume?: number | null;
+  open_interest?: number | null;
+  in_the_money?: boolean | null;
+  underlying_price?: number | null;
+};
+
 export type TweetOptionsContext = {
   classification: 'OPTIONS' | 'SPOT_OR_OTHER' | string;
   score: number;
@@ -634,6 +653,47 @@ export type CompanyNewsSentimentSummary = {
 export type CompanyNewsResponse = {
   articles: CompanyNewsArticle[];
   sentiment: CompanyNewsSentimentSummary;
+  source: string;
+};
+
+export type NewsStoryLink = {
+  title: string;
+  url: string;
+  source?: string | null;
+};
+
+/** One event in the news overview: its headlines grouped and ranked (issue #217). */
+export type NewsStory = {
+  title: string;
+  url: string;
+  source?: string | null;
+  date: string;
+  /** Leading sentences of the summary Yahoo scraped for the lead article. */
+  summary: string;
+  symbols: string[];
+  /** Every outlet that ran a headline about this event. */
+  sources: string[];
+  article_count: number;
+  themes: string[];
+  sentiment_label?: 'BULLISH' | 'BEARISH' | 'NEUTRAL' | null;
+  sentiment_score?: number | null;
+  /** The other headlines about the same event. */
+  related: NewsStoryLink[];
+  score: number;
+};
+
+export type NewsTheme = {
+  name: string;
+  count: number;
+};
+
+export type NewsOverviewResponse = {
+  symbols: string[];
+  top_stories: NewsStory[];
+  themes: NewsTheme[];
+  articles: CompanyNewsArticle[];
+  sentiment: CompanyNewsSentimentSummary;
+  generated_at: string;
   source: string;
 };
 
