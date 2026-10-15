@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from app.services.news_digest import DEFAULT_OVERVIEW_SYMBOLS
 from app.api.main import app
 from tests.conftest import SAMPLE_TWEETS
 
@@ -402,6 +403,48 @@ async def test_news_company_returns_503_when_service_unavailable(async_client):
 
     assert response.status_code == 503
     assert response.json() == {"detail": "Service Unavailable"}
+
+
+@pytest.mark.asyncio
+async def test_news_overview_defaults_to_broad_market_symbols(async_client):
+    app.state.sentiment_model = None
+    with patch("app.api.main.get_market_news", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = [
+            {
+                "symbols": ["SPY", "QQQ"],
+                "title": "Fed holds rates steady",
+                "excerpt": "The Fed held rates. Stocks rose.",
+                "url": "https://example.com/fed",
+                "date": "2026-10-15T12:00:00Z",
+                "source": "Reuters",
+            }
+        ]
+
+        response = await async_client.get(
+            "/api/news/overview", headers={"X-API-Key": "test-api-key"}
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["symbols"] == list(DEFAULT_OVERVIEW_SYMBOLS)
+    assert body["top_stories"][0]["title"] == "Fed holds rates steady"
+    assert body["top_stories"][0]["summary"] == "The Fed held rates. Stocks rose."
+    assert body["themes"] == [{"name": "Fed & rates", "count": 1}]
+    assert body["articles"][0]["sentiment_label"] is None
+    mock_get.assert_awaited_once_with(list(DEFAULT_OVERVIEW_SYMBOLS))
+
+
+@pytest.mark.asyncio
+async def test_news_overview_returns_503_when_service_unavailable(async_client):
+    with patch("app.api.main.get_market_news", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = None
+
+        response = await async_client.get(
+            "/api/news/overview?symbols=nvda", headers={"X-API-Key": "test-api-key"}
+        )
+
+    assert response.status_code == 503
+    mock_get.assert_awaited_once_with(["NVDA"])
 
 
 @pytest.mark.asyncio

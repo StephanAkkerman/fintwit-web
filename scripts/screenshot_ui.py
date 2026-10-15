@@ -2019,6 +2019,158 @@ def _company_news() -> dict:
     }
 
 
+def _news_overview() -> dict:
+    """Market briefing on /news: a few ranked stories plus the raw headlines."""
+
+    def article(title, slug, date, source, symbols, label, score, excerpt=None):
+        return {
+            "symbols": symbols,
+            "title": title,
+            "excerpt": excerpt,
+            "url": f"https://example.com/news/{slug}",
+            "date": date,
+            "source": source,
+            "sentiment_label": label,
+            "sentiment_score": score,
+        }
+
+    articles = [
+        article(
+            "Fed cuts rates by a quarter point, signals patience on further easing",
+            "fed-cut",
+            "2026-09-03T18:05:00Z",
+            "Reuters",
+            ["SPY", "QQQ", "DIA"],
+            "BULLISH",
+            0.71,
+            "The Federal Reserve lowered its benchmark rate by 25 basis points "
+            "on Wednesday. Chair Powell said further cuts would depend on the "
+            "data.",
+        ),
+        article(
+            "Powell: Fed rate path depends on incoming data after quarter-point cut",
+            "powell-presser",
+            "2026-09-03T18:40:00Z",
+            "CNBC",
+            ["SPY"],
+            "NEUTRAL",
+            0.12,
+        ),
+        article(
+            "Nvidia extends rally as AI chip demand outlook lifts semiconductors",
+            "nvda-rally",
+            "2026-09-03T16:20:00Z",
+            "Bloomberg",
+            ["QQQ"],
+            "BULLISH",
+            0.84,
+            "Chipmakers led the Nasdaq higher after Nvidia's suppliers raised "
+            "their outlook for data-center orders.",
+        ),
+        article(
+            "Oil slides as OPEC+ weighs faster output increase",
+            "opec",
+            "2026-09-03T13:10:00Z",
+            "Financial Times",
+            ["CL=F"],
+            "BEARISH",
+            -0.66,
+            "Crude fell more than 2% after delegates said the group could "
+            "accelerate its planned production hikes.",
+        ),
+        article(
+            "Bitcoin tops $95,000 as ETF inflows pick up",
+            "btc",
+            "2026-09-03T11:45:00Z",
+            "CoinDesk",
+            ["BTC-USD"],
+            "BULLISH",
+            0.58,
+            "Spot bitcoin ETFs took in their largest daily inflow in a month.",
+        ),
+        article(
+            "Gold steadies near record as dollar eases",
+            "gold",
+            "2026-09-03T09:30:00Z",
+            "MarketWatch",
+            ["GC=F"],
+            "NEUTRAL",
+            0.05,
+        ),
+        article(
+            "Small caps lag as regional banks slip",
+            "iwm",
+            "2026-09-02T20:15:00Z",
+            "Yahoo Finance",
+            ["IWM"],
+            "BEARISH",
+            -0.41,
+        ),
+    ]
+
+    def story(members, themes, score):
+        lead = members[0]
+        scored = [m["sentiment_score"] for m in members]
+        return {
+            "title": lead["title"],
+            "url": lead["url"],
+            "source": lead["source"],
+            "date": lead["date"],
+            "summary": lead["excerpt"] or "",
+            "symbols": sorted({s for m in members for s in m["symbols"]}),
+            "sources": sorted({m["source"] for m in members}),
+            "article_count": len(members),
+            "themes": themes,
+            "sentiment_label": lead["sentiment_label"],
+            "sentiment_score": round(sum(scored) / len(scored), 4),
+            "related": [
+                {"title": m["title"], "url": m["url"], "source": m["source"]}
+                for m in members[1:]
+            ],
+            "score": score,
+        }
+
+    return {
+        "symbols": ["SPY", "QQQ", "DIA", "IWM", "BTC-USD", "GC=F", "CL=F"],
+        "top_stories": [
+            story(articles[0:2], ["Fed & rates"], 7.2),
+            story([articles[2]], ["AI & chips"], 4.9),
+            story([articles[3]], ["Energy"], 3.8),
+            story([articles[4]], ["Crypto"], 3.5),
+        ],
+        "themes": [
+            {"name": "Fed & rates", "count": 2},
+            {"name": "AI & chips", "count": 1},
+            {"name": "Crypto", "count": 1},
+            {"name": "Energy", "count": 1},
+            {"name": "Gold", "count": 1},
+        ],
+        "articles": articles,
+        "sentiment": {
+            "analyzed": 7,
+            "bullish": 3,
+            "neutral": 2,
+            "bearish": 2,
+            "mean_score": 0.18,
+            "label": "BULLISH",
+        },
+        "generated_at": "2026-09-03T19:00:00Z",
+        "source": "yfinance",
+    }
+
+
+def _empty_news_overview() -> dict:
+    return {
+        "symbols": [],
+        "top_stories": [],
+        "themes": [],
+        "articles": [],
+        "sentiment": _empty_company_news()["sentiment"],
+        "generated_at": "",
+        "source": "yfinance",
+    }
+
+
 def _empty_company_news() -> dict:
     return {
         "articles": [],
@@ -2993,6 +3145,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             "/api/options/gamma-exposure": _empty_gamma_exposure_snapshot(),
             "/api/market/positioning": _empty_market_positioning(),
             "/api/news/company": _empty_company_news(),
+            "/api/news/overview": _empty_news_overview(),
             "/api/reddit/trends": _empty_reddit_trends(),
             "/api/reddit/categories": _empty_reddit_categories(),
             "/api/admin/access-emails": {"emails": []},
@@ -3286,8 +3439,9 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         "/api/options/gamma-exposure/history": _gamma_exposure_history(),
         "/api/options/gamma-exposure": _gamma_exposure_snapshot(),
         "/api/market/positioning": _market_positioning(),
-        # Company news (stocks route).
+        # News route.
         "/api/news/company": _company_news(),
+        "/api/news/overview": _news_overview(),
         # Signa route.
         "/api/signa/best-trades": _signa_best_trades(),
         "/api/signa/live-feed": _signa_live_feed(),

@@ -56,6 +56,12 @@ On startup the backend logs one line showing which integrations are active, e.g.
 `REDDIT_PERSONAL_USE`, `REDDIT_SECRET` and `REDDIT_APP_NAME` (fintwit-bot's names) are still
 accepted in place of the client id, secret and user agent.
 
+## News
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `NEWS_OVERVIEW_SYMBOLS` | `SPY,QQQ,DIA,IWM,BTC-USD,GC=F,CL=F` | Comma-separated Yahoo symbols whose news feeds make up the `/news` market briefing. |
+
 ## Interactive Brokers
 
 | Variable | Default | Purpose |
