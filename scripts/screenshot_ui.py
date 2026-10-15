@@ -1942,6 +1942,229 @@ def _empty_market_positioning() -> dict:
     return {"futures": None, "cta": None, "concentration": None, "as_of": ""}
 
 
+def _world_indices() -> dict:
+    """Issue #218's world markets panel, shaped like `get_world_indices`.
+
+    A real reading from 2026-10-15 after the European close: a KOSPI rout
+    dragging the chip-heavy indices while US futures trade mixed.
+    """
+
+    def row(symbol, name, country, region, price, change, read, tags=(), **state):
+        return {
+            "symbol": symbol,
+            "name": name,
+            "country": country,
+            "region": region,
+            "price": price,
+            "change_percent": change,
+            "timezone": "UTC",
+            "read_through": read,
+            "tags": list(tags),
+            "tv_symbol": symbol,
+            "website": f"https://www.tradingview.com/symbols/{symbol}/",
+            "is_open": state.get("is_open", False),
+            "session_date": state.get("session_date", "2026-10-15"),
+            "next_open": state.get("next_open"),
+        }
+
+    futures = {"is_open": True, "session_date": None}
+    asia = [
+        row(
+            "NI225",
+            "Nikkei 225",
+            "JP",
+            "asia",
+            64425.73,
+            -4.9,
+            "Tokyo Electron, Advantest: chip equipment; yen moves",
+            ("semis",),
+            next_open="2026-10-16T00:00:00+00:00",
+        ),
+        row(
+            "KOSPI",
+            "KOSPI",
+            "KR",
+            "asia",
+            5554.22,
+            -7.57,
+            "Samsung, SK Hynix: memory (MU, SNDK, WDC)",
+            ("semis",),
+            next_open="2026-10-16T00:00:00+00:00",
+        ),
+        row(
+            "TAIEX",
+            "TAIEX",
+            "TW",
+            "asia",
+            46969.87,
+            -3.41,
+            "TSMC supply chain (TSM, NVDA, AMD, AAPL)",
+            ("semis",),
+            next_open="2026-10-16T01:00:00+00:00",
+        ),
+        row(
+            "HSI",
+            "Hang Seng",
+            "HK",
+            "asia",
+            24062.73,
+            -1.03,
+            "China tech ADRs (BABA, JD, PDD, BIDU)",
+        ),
+        row(
+            "SHCOMP",
+            "Shanghai Composite",
+            "CN",
+            "asia",
+            3707.48,
+            -1.59,
+            "China demand: copper, steel, luxury",
+        ),
+        row(
+            "XJO",
+            "ASX 200",
+            "AU",
+            "asia",
+            8719.7,
+            -0.09,
+            "Miners and banks: commodities (BHP, RIO, FCX)",
+        ),
+        row(
+            "NIFTY",
+            "Nifty 50",
+            "IN",
+            "asia",
+            22997.35,
+            1.66,
+            "India ADRs (INFY, HDB, IBN)",
+        ),
+    ]
+    europe = [
+        row("DAX", "DAX", "DE", "europe", 25382.62, 0.33, "Autos, industrials, SAP"),
+        row(
+            "UKX",
+            "FTSE 100",
+            "GB",
+            "europe",
+            10840.34,
+            1.08,
+            "Oil majors, miners, banks",
+        ),
+        row(
+            "PX1",
+            "CAC 40",
+            "FR",
+            "europe",
+            7934.7,
+            0.78,
+            "Luxury (LVMH, Hermès), aerospace",
+        ),
+        row(
+            "AEX",
+            "AEX",
+            "NL",
+            "europe",
+            1132.58,
+            -0.4,
+            "ASML, ASM International: chip equipment",
+            ("semis",),
+        ),
+        row(
+            "SMI",
+            "SMI",
+            "CH",
+            "europe",
+            14349.51,
+            1.55,
+            "Pharma (Novartis, Roche), Nestlé",
+        ),
+        row(
+            "SX5E",
+            "Euro Stoxx 50",
+            "EU",
+            "europe",
+            6168.27,
+            -0.36,
+            "Eurozone large caps",
+        ),
+    ]
+    us = [
+        row(
+            "ES",
+            "S&P 500 futures",
+            "US",
+            "us_futures",
+            7776.5,
+            0.08,
+            "Where the S&P 500 is set to open",
+            **futures,
+        ),
+        row(
+            "NQ",
+            "Nasdaq 100 futures",
+            "US",
+            "us_futures",
+            30000.75,
+            -0.6,
+            "Where the Nasdaq 100 is set to open",
+            **futures,
+        ),
+        row(
+            "YM",
+            "Dow futures",
+            "US",
+            "us_futures",
+            52346.0,
+            0.94,
+            "Where the Dow is set to open",
+            **futures,
+        ),
+        row(
+            "RTY",
+            "Russell 2000 futures",
+            "US",
+            "us_futures",
+            2766.0,
+            0.77,
+            "Where small caps are set to open",
+            **futures,
+        ),
+    ]
+    return {
+        "as_of": "2026-10-15T17:41:00+00:00",
+        "regions": [
+            {
+                "key": "asia",
+                "label": "Asia-Pacific",
+                "avg_change_percent": -2.42,
+                "indices": asia,
+            },
+            {
+                "key": "europe",
+                "label": "Europe",
+                "avg_change_percent": 0.5,
+                "indices": europe,
+            },
+            {
+                "key": "us_futures",
+                "label": "US futures",
+                "avg_change_percent": 0.3,
+                "indices": us,
+            },
+        ],
+        "semis": {
+            "avg_change_percent": -4.07,
+            "tone": "bearish",
+            "symbols": ["NI225", "KOSPI", "TAIEX", "AEX"],
+        },
+        "source": "tradingview",
+    }
+
+
+def _empty_world_indices() -> dict:
+    return {"as_of": "", "regions": [], "semis": None, "source": "tradingview"}
+
+
 def _company_news() -> dict:
     def item(title, excerpt, slug, date, source, label, score):
         return {
@@ -3144,6 +3367,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             "/api/options/gamma-exposure/history": _empty_gamma_exposure_history(),
             "/api/options/gamma-exposure": _empty_gamma_exposure_snapshot(),
             "/api/market/positioning": _empty_market_positioning(),
+            "/api/market/world-indices": _empty_world_indices(),
             "/api/news/company": _empty_company_news(),
             "/api/news/overview": _empty_news_overview(),
             "/api/reddit/trends": _empty_reddit_trends(),
@@ -3439,6 +3663,8 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         "/api/options/gamma-exposure/history": _gamma_exposure_history(),
         "/api/options/gamma-exposure": _gamma_exposure_snapshot(),
         "/api/market/positioning": _market_positioning(),
+        "/api/market/world-indices": _world_indices(),
+        # Company news (stocks route).
         # News route.
         "/api/news/company": _company_news(),
         "/api/news/overview": _news_overview(),

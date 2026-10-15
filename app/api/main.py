@@ -101,6 +101,7 @@ from ..services.reddit_service import (
 )
 from ..services import reddit_trends_service
 from ..services.market_positioning_service import get_market_positioning
+from ..services.world_indices_service import get_world_indices
 from ..services.sector_rotation_service import get_sector_rotation
 from ..services.signa import get_signa_best_trades, get_signa_live_feed, has_signa_key
 from ..services.stock_fear_greed_service import (
@@ -702,6 +703,20 @@ async def market_positioning(_=Depends(api_key_dep)):
     estimate is built. A section is ``null`` when its source failed.
     """
     data = await get_market_positioning()
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
+
+
+@app.get("/api/market/world-indices")
+async def world_indices(_=Depends(api_key_dep)):
+    """Overseas index moves grouped by region, to read the US open (issue #218).
+
+    Asia-Pacific and Europe cash indices with each exchange's session state,
+    then US index futures, plus the average move of the chip-heavy indices
+    (Nikkei, KOSPI, TAIEX, AEX) as a read-through for US semiconductors.
+    """
+    data = await get_world_indices()
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data
