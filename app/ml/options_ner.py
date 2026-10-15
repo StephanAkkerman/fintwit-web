@@ -108,13 +108,19 @@ def parse_premium(text: str | None) -> float | None:
     return value
 
 
+_RIGHT_RE = re.compile(r"^(?:\d+(?:\.\d+)?)?\s*(C|P|CALLS?|PUTS?)$")
+
+
 def normalize_right(text: str | None) -> str | None:
-    token = (text or "").strip().upper()
-    if token.startswith("C"):
-        return "CALL"
-    if token.startswith("P"):
-        return "PUT"
-    return None
+    """``"C"``, ``"calls"`` or ``"350P"`` → CALL/PUT; anything else → None.
+
+    Only the call/put spellings themselves count: a looser prefix check let the
+    model's stray spans through ("CASHES" read as a call, issue #216).
+    """
+    match = _RIGHT_RE.match((text or "").strip().upper())
+    if match is None:
+        return None
+    return "CALL" if match.group(1).startswith("C") else "PUT"
 
 
 def _normalize_ticker(text: str) -> str:
@@ -204,7 +210,11 @@ def _confidence(score: float) -> str:
 
 def is_options_part(spans: list[dict[str, Any]]) -> bool:
     """A call/put plus at least one other contract detail."""
-    labels = {s["label"] for s in spans}
+    labels = {
+        s["label"]
+        for s in spans
+        if s["label"] != "option_type" or normalize_right(s["text"]) is not None
+    }
     return "option_type" in labels and len(labels) >= 2
 
 

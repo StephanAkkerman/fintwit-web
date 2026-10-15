@@ -16,7 +16,11 @@ from ..services.trader_scoring import extract_calls
 from .broadcast import Broadcaster
 from .enricher import AssetEnricher
 from .options_intent import detect_options
-from .symbols import extract_symbols_from_text, merge_symbols
+from .symbols import (
+    extract_symbols_from_text,
+    merge_symbols,
+    normalize_smart_cashtags,
+)
 from .xclient_compat import apply_xclient_retweet_patch
 
 ENGAGEMENT_FIELDS = ("replies", "likes", "views", "retweets")
@@ -193,6 +197,17 @@ async def run_stream(
                                     stored["created_at"]
                                 )
 
+                    # X's smart cashtags arrive as "bitcoin:native"; show and
+                    # detect them as the "$BTC" the post displays (issue #216).
+                    t_dict["text"] = normalize_smart_cashtags(
+                        t_dict.get("text"), t_dict.get("tickers")
+                    )
+                    if isinstance(t_dict.get("quoted_tweet"), dict):
+                        quoted = t_dict["quoted_tweet"]
+                        quoted["text"] = normalize_smart_cashtags(
+                            quoted.get("text"), quoted.get("tickers")
+                        )
+
                     # Ensure financial symbols are still detected when source payloads
                     # don't explicitly include ticker/hashtag arrays.
                     tickers, hashtags = merge_symbols(
@@ -260,6 +275,7 @@ async def run_stream(
                             else None
                         ),
                         options_recognizer,
+                        tickers,
                     )
                     t_dict["is_options_tweet"] = options_signal["is_options_tweet"]
                     t_dict["options_context"] = (

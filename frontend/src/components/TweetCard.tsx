@@ -19,6 +19,9 @@ import SignaSignal from './SignaSignal'
 import { Sparkline } from './Sparkline'
 import StocktwitsSentiment from './StocktwitsSentiment'
 import TradingViewAnalysis from './TradingViewAnalysis'
+import OptionContractCard from './OptionContractCard'
+import { linkifyMentions, normalizeSmartCashtags } from '../utils/tweetText'
+import { specificContracts, uniqueContracts } from '../utils/optionContracts'
 import { TraderCredibilityBadge } from './TraderCredibilityBadge'
 
 function fmt(n: number): string {
@@ -317,6 +320,7 @@ export default function TweetCard({
   mentionLookup,
   portfolioLookup,
   traderLookup,
+  optionsMode = false,
 }: {
   t: Tweet
   onTickerSelect?: (ticker: string) => void
@@ -324,6 +328,8 @@ export default function TweetCard({
   mentionLookup?: MentionLookup
   portfolioLookup?: PortfolioTickerLookup
   traderLookup?: TraderCredibilityLookup
+  // On /options the ticker cards show the option contracts the tweet names.
+  optionsMode?: boolean
 }) {
   const [lightboxImage, setLightboxImage] = useState<{ url: string; alt: string } | null>(null)
 
@@ -360,10 +366,15 @@ export default function TweetCard({
       : 'Edited'
     : null
   const hasQuoteEmbed = !isRepost && (Boolean(t.quoted_tweet) || hasMarkdownQuoteEmbed(t.text ?? ''))
-  const rawText = hasQuoteEmbed ? stripQuotedLeadHandleLine(t.text ?? '') : (t.text ?? '')
-  const renderedText = onTickerSelect ? linkifySymbols(rawText) : rawText
+  const tweetText = normalizeSmartCashtags(t.text ?? '', t.tickers ?? [])
+  const rawText = hasQuoteEmbed ? stripQuotedLeadHandleLine(tweetText) : tweetText
+  const renderedText = linkifyMentions(onTickerSelect ? linkifySymbols(rawText) : rawText)
   const allMedia = t.media ?? []
-  const quotedTweetMedia = (t.quoted_tweet?.media ?? []).filter((m) => typeof m?.url === 'string' && !!m.url)
+  // A repost's quoted_tweet is the reposted post itself, rendered as the
+  // card's own body: its media is the card's media, not a quote embed's.
+  const quotedTweetMedia = hasQuoteEmbed
+    ? (t.quoted_tweet?.media ?? []).filter((m) => typeof m?.url === 'string' && !!m.url)
+    : []
   const quotedMediaUrls = new Set(quotedTweetMedia.map((m) => m.url))
 
   let fallbackQuotedMediaIndex = -1
@@ -385,10 +396,14 @@ export default function TweetCard({
     return i !== fallbackQuotedMediaIndex
   })
   const showInlineMediaBeforeQuote = hasQuoteEmbed && inlineMedia.length > 0
-  const parsedSymbols = parseFinancialSymbols(t.text ?? '')
+  const parsedSymbols = parseFinancialSymbols(tweetText)
   const tickerBadges = [...new Set([...(t.tickers ?? []), ...parsedSymbols.tickers].map((v) => v.toUpperCase()))]
   const hashtagBadges = [...new Set([...(t.hashtags ?? []), ...parsedSymbols.hashtags].map((v) => v.toUpperCase()))]
-  const assets = (t.assets ?? []).filter((asset) => asset?.symbol)
+  const contracts = optionsMode ? uniqueContracts(specificContracts(t)) : []
+  const contractSymbols = new Set(contracts.map((c) => c.symbol.toUpperCase()))
+  const assets = (t.assets ?? []).filter(
+    (asset) => asset?.symbol && !contractSymbols.has(asset.symbol.toUpperCase())
+  )
   const hasChart = hasChartSignal(t)
   const chartExtraction = t.chart_extraction ?? null
   const chartExtractionLabel = chartExtraction
@@ -659,6 +674,22 @@ export default function TweetCard({
             >
               <img src={m.url} alt={m.type} className="rounded-xl w-full object-cover" />
             </button>
+          ))}
+        </div>
+      )}
+
+      {contracts.length > 0 && (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {contracts.map((contract) => (
+            <OptionContractCard
+              key={[contract.symbol, contract.right, contract.strike, contract.expiry].join('|')}
+              contract={contract}
+              asset={(t.assets ?? []).find(
+                (asset) => asset?.symbol?.toUpperCase() === contract.symbol.toUpperCase()
+              )}
+              postedAt={headerTweet.created_at}
+              onTickerSelect={onTickerSelect}
+            />
           ))}
         </div>
       )}

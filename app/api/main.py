@@ -5,7 +5,7 @@ import logging
 import os
 import time
 from contextlib import asynccontextmanager, suppress
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal
 
@@ -85,6 +85,7 @@ from ..services.news_service import (
     get_company_news,
     summarize_news_sentiment,
 )
+from ..services.option_contract_service import get_option_contract
 from ..services.options_chain_service import get_options_chain
 from ..services.options_service import get_options_overview
 from ..services.price_history_service import (
@@ -464,6 +465,22 @@ async def options_chain(
     data = await get_options_chain(symbol, expiration)
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
+
+
+@app.get("/api/options/contract")
+async def options_contract(
+    symbol: str = Query(...),
+    right: str = Query(...),
+    strike: float = Query(...),
+    expiry: str = Query(...),
+    as_of: date | None = Query(default=None),
+    _=Depends(api_key_dep),
+):
+    """Quote for one contract a tweet names; *as_of* is the post's date."""
+    data = await get_option_contract(symbol, right, strike, expiry, as_of)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Contract not found")
     return data
 
 
@@ -847,6 +864,7 @@ async def debug_tweet(body: DebugTweet, request: Request):
         body.text,
         None,
         getattr(request.app.state, "options_recognizer", None),
+        tickers,
     )
 
     tweet = {

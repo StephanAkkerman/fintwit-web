@@ -2873,7 +2873,8 @@ def _sample_tweets() -> list[dict]:
         ),
         _sample_tweet(
             4,
-            "$TSLA 400c volume is wild into the close, someone knows something.",
+            "$TSLA 400c 11/20 volume is wild into the close, someone knows "
+            "something. In at 6.80.",
             "Options Flow",
             "options_flow",
             ["TSLA"],
@@ -2887,6 +2888,27 @@ def _sample_tweets() -> list[dict]:
                 }
             ],
             is_options_tweet=True,
+            options_context={
+                "classification": "OPTIONS",
+                "score": 0.94,
+                "confidence": "high",
+                "side": "CALL",
+                "contract_count": 1,
+                "contracts": [
+                    {
+                        "symbol": "TSLA",
+                        "right": "CALL",
+                        "strike": 400.0,
+                        "expiry": "11/20",
+                        "notional_usd": None,
+                        "price": 6.80,
+                        "source": "model",
+                    }
+                ],
+                "keyword_hits": [],
+                "cashtags": ["TSLA"],
+                "source": "model",
+            },
         ),
         _sample_tweet(
             5,
@@ -3242,6 +3264,23 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         # Options route.
         "/api/options/overview": _options_overview(),
         "/api/options/chain": _options_chain(),
+        "/api/options/contract": {
+            "symbol": "TSLA",
+            "right": "CALL",
+            "strike": 400.0,
+            "status": "listed",
+            "expiration": "2026-11-20",
+            "last_price": 8.10,
+            "bid": 7.95,
+            "ask": 8.25,
+            "mid": 8.10,
+            "change_percent": 14.2,
+            "implied_volatility": 0.58,
+            "volume": 18_250,
+            "open_interest": 42_100,
+            "in_the_money": False,
+            "underlying_price": 186.40,
+        },
         # Longer fragment first: fixture matching is substring-based, and
         # "/gamma-exposure" is itself a substring of "/gamma-exposure/history".
         "/api/options/gamma-exposure/history": _gamma_exposure_history(),

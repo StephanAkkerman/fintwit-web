@@ -176,6 +176,7 @@ Last updated: 2026-10-10 (Claude market check / Advisor, follow-up to issue #207
 - Earnings calendar widget: `/api/earnings/calendar` -> `useEarningsCalendar` -> `EarningsCalendarWidget` (`/stocks`).
 - Options overview widget: `/api/options/overview` -> `OptionsOverviewWidget`.
 - Options chain widget: `/api/options/chain` -> `useOptionsChain` -> `OptionsChainWidget` (`/options`).
+- Option contract cards: `/api/options/contract` -> `useOptionContract` -> `OptionContractCard` (ticker cards on `/options` tweets show the named contract's current price next to the price the poster mentioned; issue #216). `/options` only lists tweets with a specific contract on a ticker: a call/put, a ticker the tweet tags (or a strike), and a strike, expiry, premium or price (`is_specific_contract` in `app/runtime/options_intent.py`).
 - Company news widget: `/api/news/company` -> `useCompanyNews` -> `CompanyNewsWidget` (`/stocks`).
 - Options tweet intent metadata: `/api/posts` + `/api/stream` -> options route timeline filtering (`is_options_tweet`, `options_context`).
 - Trend summary: `/api/overview/trend-summary` -> `useTrendSummary` -> `OverviewDashboard` (`/`: `TrendHeadline`, `MomentumScatter`, `RankRace`, `SentimentTimeline`, `ChatterVsPrice`).
