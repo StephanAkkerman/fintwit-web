@@ -56,6 +56,7 @@ import TreemapWidget from './components/TreemapWidget'
 import TrendingCryptoWidget from './components/TrendingCryptoWidget'
 import TweetCard from './components/TweetCard'
 import XStreamNotice from './components/XStreamNotice'
+import WorldIndicesWidget from './components/WorldIndicesWidget'
 import { useIbkr } from './hooks/useIbkr'
 import { useIntegrationsStatus } from './hooks/useIntegrationsStatus'
 import { useTweets } from './hooks/useTweets'
@@ -757,6 +758,11 @@ export default function App() {
                 <div className="sm:col-span-2 2xl:col-span-3">
                   <ErrorBoundary label="Market hours">
                     <StockMarketHoursBanner />
+                  </ErrorBoundary>
+                </div>
+                <div className="sm:col-span-2 2xl:col-span-3">
+                  <ErrorBoundary label="World markets">
+                    <WorldIndicesWidget />
                   </ErrorBoundary>
                 </div>
                 <ErrorBoundary label="StockTwits">

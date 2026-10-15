@@ -566,6 +566,48 @@ export type MarketPositioning = {
   as_of: string;
 };
 
+export type WorldIndexRegionKey = 'asia' | 'europe' | 'us_futures';
+
+export type WorldIndex = {
+  symbol: string;
+  name: string;
+  /** ISO 3166 alpha-2, or "EU" for the Euro Stoxx 50. */
+  country: string;
+  region: WorldIndexRegionKey;
+  price: number;
+  change_percent: number | null;
+  timezone: string;
+  /** Which US names or sectors this market tends to move. */
+  read_through: string;
+  tags: string[];
+  tv_symbol: string;
+  website?: string | null;
+  /** null for futures when TradingView reports no session. */
+  is_open: boolean | null;
+  /** Local date of the session the change belongs to; null for futures. */
+  session_date: string | null;
+  next_open: string | null;
+};
+
+export type WorldIndexRegion = {
+  key: WorldIndexRegionKey;
+  label: string;
+  avg_change_percent: number | null;
+  indices: WorldIndex[];
+};
+
+export type WorldIndices = {
+  as_of: string;
+  regions: WorldIndexRegion[];
+  /** Average move of the chip-heavy indices (Nikkei, KOSPI, TAIEX, AEX). */
+  semis: {
+    avg_change_percent: number;
+    tone: 'bearish' | 'neutral' | 'bullish';
+    symbols: string[];
+  } | null;
+  source: string;
+};
+
 export type CompanyNewsArticle = {
   symbols: string[];
   title: string;
