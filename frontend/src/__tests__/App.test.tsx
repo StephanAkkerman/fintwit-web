@@ -1285,6 +1285,16 @@ describe('App', () => {
         url: 'https://x.com/options/status/1',
         created_at: '',
         is_options_tweet: true,
+        options_context: {
+          classification: 'OPTIONS',
+          score: 7,
+          confidence: 'high',
+          side: 'CALL',
+          contract_count: 1,
+          contracts: [{ symbol: 'TSLA', right: 'CALL', strike: 390, expiry: 'AUG', source: 'compact' }],
+          keyword_hits: [],
+          cashtags: ['TSLA'],
+        },
         media: [],
         tickers: ['TSLA'],
         hashtags: [],
@@ -1315,6 +1325,36 @@ describe('App', () => {
         views: 0,
         retweets: 0,
         assets: [{ symbol: 'AAPL', kind: 'EQUITY' }],
+      },
+      {
+        // Classified as options before issue #216, but names no ticker.
+        id: 3,
+        text: 'Manchester City OVER 1.5 goals CASHES at $0.49.',
+        user_name: 'Betting User',
+        user_screen_name: 'betting_user',
+        user_img: 'https://example.com/bet.jpg',
+        url: 'https://x.com/bet/status/3',
+        created_at: '',
+        is_options_tweet: true,
+        options_context: {
+          classification: 'OPTIONS',
+          score: 0.9,
+          confidence: 'high',
+          side: 'CALL',
+          contract_count: 1,
+          contracts: [{ symbol: '', right: 'CALL', price: 0.49, source: 'model' }],
+          keyword_hits: [],
+          cashtags: [],
+        },
+        media: [],
+        tickers: [],
+        hashtags: [],
+        title: '',
+        media_types: [],
+        replies: 0,
+        likes: 0,
+        views: 0,
+        retweets: 0,
       },
     ]
 
@@ -1375,6 +1415,9 @@ describe('App', () => {
     await waitFor(() => {
       expect(screen.getByText('Options User')).toBeInTheDocument()
       expect(screen.queryByText('Spot User')).not.toBeInTheDocument()
+      expect(screen.queryByText('Betting User')).not.toBeInTheDocument()
+      // The ticker card is the option contract, not the TSLA stock card.
+      expect(screen.getByLabelText('Option TSLA 390C AUG')).toBeInTheDocument()
     })
   })
 

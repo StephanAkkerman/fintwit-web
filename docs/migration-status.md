@@ -179,6 +179,8 @@ Last updated: 2026-10-15 (news overview, issue #217)
 - Options chain widget: `/api/options/chain` -> `useOptionsChain` -> `OptionsChainWidget` (`/options`).
 - Company news widget: `/api/news/company` -> `useCompanyNews` -> `CompanyNewsWidget` (`/news`).
 - Market briefing: `/api/news/overview` -> `useNewsOverview` -> `NewsOverviewWidget` (`/news`).
+- Option contract cards: `/api/options/contract` -> `useOptionContract` -> `OptionContractCard` (ticker cards on `/options` tweets show the named contract's current price next to the price the poster mentioned; issue #216). `/options` only lists tweets with a specific contract on a ticker: a call/put, a ticker the tweet tags (or a strike), and a strike, expiry, premium or price (`is_specific_contract` in `app/runtime/options_intent.py`).
+- Company news widget: `/api/news/company` -> `useCompanyNews` -> `CompanyNewsWidget` (`/stocks`).
 - Options tweet intent metadata: `/api/posts` + `/api/stream` -> options route timeline filtering (`is_options_tweet`, `options_context`).
 - Trend summary: `/api/overview/trend-summary` -> `useTrendSummary` -> `OverviewDashboard` (`/`: `TrendHeadline`, `MomentumScatter`, `RankRace`, `SentimentTimeline`, `ChatterVsPrice`).
 - Activity pulse summary: `/api/overview/activity-summary` has no frontend consumer since the trend summary's KPI tiles replaced `ActivityPulseWidget`.

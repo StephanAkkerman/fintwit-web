@@ -272,26 +272,95 @@ def classify_options_intent(text: str | None) -> dict[str, Any]:
     }
 
 
+_SYMBOL_RE = re.compile(r"^[A-Z][A-Z0-9.]{0,9}$")
+_ANY_CASE_CASHTAG_RE = re.compile(r"\$([A-Z][A-Z0-9]{0,9})\b", re.IGNORECASE)
+
+
+def is_specific_contract(contract: dict[str, Any], tickers: set[str]) -> bool:
+    """Whether *contract* names a real underlying and a detail of the trade.
+
+    A call/put alone is not enough (issue #216): "Bitcoin got the call" or a
+    betting slip priced "at $0.49" are not options trades. The contract needs a
+    ticker-shaped symbol, a strike, expiry, premium or price, and the symbol
+    must be one the tweet tags as a ticker, unless a strike makes the contract
+    unambiguous anyway ("SPY 590P" is written without a cashtag).
+    """
+    symbol = str(contract.get("symbol") or "").upper()
+    if not _SYMBOL_RE.match(symbol):
+        return False
+    if contract.get("right") not in {"CALL", "PUT"}:
+        return False
+    has_strike = contract.get("strike") is not None
+    has_detail = has_strike or any(
+        contract.get(key) is not None for key in ("expiry", "notional_usd", "price")
+    )
+    return has_detail and (symbol in tickers or has_strike)
+
+
+def _not_options(context: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "is_options_tweet": False,
+        "options_context": {
+            **context,
+            "classification": "SPOT_OR_OTHER",
+            "side": "UNKNOWN",
+            "contract_count": 0,
+            "contracts": [],
+        },
+    }
+
+
+def refine_options_result(result: dict[str, Any], tickers: set[str]) -> dict[str, Any]:
+    """Keep only specific contracts; no specific contract means not options."""
+    if not result.get("is_options_tweet"):
+        return result
+
+    context = dict(result.get("options_context") or {})
+    contracts = [
+        c for c in context.get("contracts") or [] if is_specific_contract(c, tickers)
+    ]
+    if not contracts:
+        return _not_options(context)
+
+    rights = {c["right"] for c in contracts}
+    context.update(
+        contracts=contracts,
+        contract_count=len(contracts),
+        side=rights.pop() if len(rights) == 1 else "MIXED",
+    )
+    return {"is_options_tweet": True, "options_context": context}
+
+
 async def detect_options(
     text: str | None,
     quoted_text: str | None = None,
     recognizer: Any = None,
+    tickers: list[str] | None = None,
 ) -> dict[str, Any]:
     """Classify a tweet as options or not, preferring the NER model.
 
     *recognizer* is an :class:`app.ml.options_ner.OptionsRecognizer`. Without
     one, or when it fails, the regex heuristic above decides instead. Either
     way a tweet that quotes an options tweet counts as one (issue #64).
+
+    *tickers* are the symbols the tweet is tagged with; cashtags in either
+    text are added to them. Only contracts that pass
+    :func:`is_specific_contract` make a tweet an options tweet.
     """
+    known = {t.strip().lstrip("$").upper() for t in tickers or [] if t}
+    for part in (text, quoted_text):
+        known |= {m.group(1).upper() for m in _ANY_CASE_CASHTAG_RE.finditer(part or "")}
+
     if recognizer is not None:
         try:
-            return await recognizer.recognize(text, quoted_text)
+            result = await recognizer.recognize(text, quoted_text)
+            return refine_options_result(result, known)
         except Exception as exc:
             logger.warning("[options] recognizer failed, using heuristic: %r", exc)
 
-    result = classify_options_intent(text)
+    result = refine_options_result(classify_options_intent(text), known)
     if not result["is_options_tweet"] and quoted_text:
-        quoted = classify_options_intent(quoted_text)
+        quoted = refine_options_result(classify_options_intent(quoted_text), known)
         if quoted["is_options_tweet"]:
             return quoted
     return result
