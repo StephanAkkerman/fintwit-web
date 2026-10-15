@@ -7,6 +7,7 @@ import {
   LineChart,
   Menu,
   MessagesSquare,
+  Newspaper,
   Radar,
   ShieldCheck,
   SlidersHorizontal,
@@ -32,6 +33,7 @@ import { OverviewDashboard } from './components/OverviewDashboard'
 import { RouteSignalsPanel } from './components/RouteSignalsPanel'
 import IbkrPanel from './components/IbkrPanel'
 import GammaExposureWidget from './components/GammaExposureWidget'
+import NewsOverviewWidget from './components/NewsOverviewWidget'
 import MarketPositioningWidget from './components/MarketPositioningWidget'
 import OptionsChainWidget from './components/OptionsChainWidget'
 import OptionsOverviewWidget from './components/OptionsOverviewWidget'
@@ -74,6 +76,7 @@ type RouteKey =
   | 'forex'
   | 'options'
   | 'movers'
+  | 'news'
   | 'signa'
   | 'reddit'
   | 'traders'
@@ -96,6 +99,7 @@ const SECTIONS: Array<{ key: RouteKey; label: string; path: string; subtitle: st
   { key: 'forex', label: 'Forex', path: '/forex', subtitle: 'Macro events and FX sentiment', icon: Banknote },
   { key: 'options', label: 'Options', path: '/options', subtitle: 'Flow activity and put/call balance', icon: SlidersHorizontal },
   { key: 'movers', label: 'Movers', path: '/movers', subtitle: 'Gainers, losers, most active and penny stocks across markets', icon: TrendingUp },
+  { key: 'news', label: 'News', path: '/news', subtitle: 'Top market stories and company headlines', icon: Newspaper },
   { key: 'signa', label: 'Signa', path: '/signa', subtitle: 'Best trades + live model signals from getsigna.ai', icon: Radar },
   { key: 'reddit', label: 'Reddit', path: '/reddit', subtitle: 'WallStreetBets posts and cross-subreddit ticker trends', icon: MessagesSquare },
   { key: 'traders', label: 'Traders', path: '/traders', subtitle: 'Credibility leaderboard: whose calls actually work out', icon: Trophy },
@@ -110,6 +114,7 @@ function routeFromPath(pathname: string): RouteKey {
   if (pathname.startsWith('/forex')) return 'forex'
   if (pathname.startsWith('/options')) return 'options'
   if (pathname.startsWith('/movers')) return 'movers'
+  if (pathname.startsWith('/news')) return 'news'
   if (pathname.startsWith('/signa')) return 'signa'
   if (pathname.startsWith('/reddit')) return 'reddit'
   if (pathname.startsWith('/traders')) return 'traders'
@@ -125,6 +130,7 @@ function pathFromRoute(route: RouteKey): string {
   if (route === 'forex') return '/forex'
   if (route === 'options') return '/options'
   if (route === 'movers') return '/movers'
+  if (route === 'news') return '/news'
   if (route === 'signa') return '/signa'
   if (route === 'reddit') return '/reddit'
   if (route === 'traders') return '/traders'
@@ -513,6 +519,10 @@ export default function App() {
               <p className="mt-4 px-2 text-xs text-zinc-500">
                 Options page is auto-filtered to tweets classified as options flow/contract commentary.
               </p>
+            ) : route === 'news' ? (
+              <p className="mt-4 px-2 text-xs text-zinc-500">
+                Top stories are ranked by how widely they are covered and how recent they are. No tweet timeline on this page.
+              </p>
             ) : route === 'movers' ? (
               <p className="mt-4 px-2 text-xs text-zinc-500">
                 Browse TradingView market movers by market and category. No tweet timeline on this page.
@@ -699,7 +709,7 @@ export default function App() {
               <p className="text-sm text-zinc-500">{activeSection.subtitle}</p>
             </header>
 
-            {route !== 'admin' && route !== 'advisor' && route !== 'signa' && route !== 'reddit' && route !== 'home' && route !== 'traders' && route !== 'movers' && route !== 'portfolio' && (
+            {route !== 'admin' && route !== 'advisor' && route !== 'signa' && route !== 'reddit' && route !== 'home' && route !== 'traders' && route !== 'movers' && route !== 'news' && route !== 'portfolio' && (
               <>
                 <ErrorBoundary label="Mention heat">
                   <MentionHeatmap
@@ -802,11 +812,6 @@ export default function App() {
                     <EarningsCalendarWidget portfolioLookup={portfolioLookup} />
                   </ErrorBoundary>
                 </div>
-                <div className="sm:col-span-2 2xl:col-span-3">
-                  <ErrorBoundary label="Company news">
-                    <CompanyNewsWidget selectedTicker={tickerFilter} />
-                  </ErrorBoundary>
-                </div>
               </div>
             )}
 
@@ -834,6 +839,17 @@ export default function App() {
                 </ErrorBoundary>
                 <ErrorBoundary label="Options chain">
                   <OptionsChainWidget />
+                </ErrorBoundary>
+              </div>
+            )}
+
+            {route === 'news' && (
+              <div className="space-y-4">
+                <ErrorBoundary label="Market briefing">
+                  <NewsOverviewWidget onTickerClick={setTickerFilter} />
+                </ErrorBoundary>
+                <ErrorBoundary label="Company news">
+                  <CompanyNewsWidget selectedTicker={tickerFilter} />
                 </ErrorBoundary>
               </div>
             )}
@@ -904,7 +920,7 @@ export default function App() {
               </ErrorBoundary>
             )}
 
-            {route !== 'signa' && route !== 'reddit' && route !== 'traders' && route !== 'movers' && route !== 'advisor' && (
+            {route !== 'signa' && route !== 'reddit' && route !== 'traders' && route !== 'movers' && route !== 'news' && route !== 'advisor' && (
               <>
                 <XStreamNotice status={xStatus} />
                 {displayedTweets.map((t) => (
