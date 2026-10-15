@@ -55,6 +55,7 @@ import TraderLeaderboardWidget from './components/TraderLeaderboardWidget'
 import TreemapWidget from './components/TreemapWidget'
 import TrendingCryptoWidget from './components/TrendingCryptoWidget'
 import TweetCard from './components/TweetCard'
+import { isOptionsTimelineTweet } from './utils/optionContracts'
 import XStreamNotice from './components/XStreamNotice'
 import { useIbkr } from './hooks/useIbkr'
 import { useIntegrationsStatus } from './hooks/useIntegrationsStatus'
@@ -334,7 +335,7 @@ export default function App() {
     }
 
     if (route === 'options') {
-      scoped = scoped.filter((tweet) => tweet.is_options_tweet === true)
+      scoped = scoped.filter(isOptionsTimelineTweet)
     }
 
     return scoped
@@ -511,7 +512,7 @@ export default function App() {
               </>
             ) : route === 'options' ? (
               <p className="mt-4 px-2 text-xs text-zinc-500">
-                Options page is auto-filtered to tweets classified as options flow/contract commentary.
+                Options page shows tweets that name an option contract on a ticker, with that contract's current price.
               </p>
             ) : route === 'movers' ? (
               <p className="mt-4 px-2 text-xs text-zinc-500">
@@ -918,6 +919,7 @@ export default function App() {
                       mentionLookup={mentionLookup}
                       portfolioLookup={portfolioLookup}
                       traderLookup={traderLookup}
+                      optionsMode={route === 'options'}
                     />
                   </ErrorBoundary>
                 ))}

@@ -1015,4 +1015,88 @@ describe('TweetCard', () => {
     const images = container.querySelectorAll('img')
     expect(images).toHaveLength(1)
   })
+
+  it('renders a repost of the issue #216 post with its image, mention link and cashtag', () => {
+    const original = {
+      ...baseTweet,
+      id: 2,
+      text: "Bitcoin got the call. Follow the squiggle.\n\n@LSDinmycoffee's bitcoin:native long.",
+      user_name: 'Wealth Group',
+      user_screen_name: 'WealthGroup',
+      user_img: 'https://example.com/wg.jpg',
+      url: 'https://x.com/WealthGroup/status/2',
+      created_at: '',
+      media: [{ url: 'https://example.com/squiggle.jpg', type: 'photo' }],
+    }
+    const onTickerSelect = vi.fn()
+    render(
+      <TweetCard
+        t={{
+          ...baseTweet,
+          user_name: 'Reposter',
+          user_screen_name: 'reposter',
+          title: 'Reposter retweeted Wealth Group',
+          text: original.text,
+          media: original.media,
+          media_types: ['photo'],
+          tickers: ['BTC'],
+          quoted_tweet: original,
+        }}
+        onTickerSelect={onTickerSelect}
+      />
+    )
+
+    expect(screen.getByRole('img', { name: 'photo' })).toHaveAttribute('src', 'https://example.com/squiggle.jpg')
+    expect(screen.getByRole('link', { name: '@LSDinmycoffee' })).toHaveAttribute('href', 'https://x.com/LSDinmycoffee')
+    expect(screen.queryByText(/bitcoin:native/)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '$BTC' }))
+    expect(onTickerSelect).toHaveBeenCalledWith('BTC')
+  })
+
+  it('shows the named option contract instead of the stock card in options mode', () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        symbol: 'AAPL',
+        right: 'CALL',
+        strike: 350,
+        status: 'listed',
+        expiration: '2026-11-06',
+        mid: 5.5,
+        last_price: 5.4,
+        change_percent: 10,
+      }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(
+      <TweetCard
+        optionsMode
+        t={{
+          ...baseTweet,
+          text: '$AAPL 350C 11/06/2026 bought at 4.37',
+          tickers: ['AAPL'],
+          created_at: '2026-10-15T12:00:00Z',
+          is_options_tweet: true,
+          options_context: {
+            classification: 'OPTIONS',
+            score: 0.95,
+            confidence: 'high',
+            side: 'CALL',
+            contract_count: 1,
+            contracts: [{ symbol: 'AAPL', right: 'CALL', strike: 350, expiry: '11/06/2026', price: 4.37 }],
+            keyword_hits: [],
+            cashtags: ['AAPL'],
+          },
+          assets: [{ symbol: 'AAPL', name: 'Apple Inc.', kind: 'EQUITY', financials: { price: 352.1 } }],
+        }}
+      />
+    )
+
+    expect(screen.getByLabelText('Option AAPL 350C 11/06/2026')).toBeInTheDocument()
+    expect(screen.getByText('Mentioned at')).toBeInTheDocument()
+    expect(String(fetchMock.mock.calls[0][0])).toContain(
+      '/api/options/contract?symbol=AAPL&right=CALL&strike=350&expiry=11%2F06%2F2026&as_of=2026-10-15'
+    )
+    vi.unstubAllGlobals()
+  })
 })

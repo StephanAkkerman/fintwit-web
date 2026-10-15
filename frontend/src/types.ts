@@ -130,6 +130,25 @@ export type TweetOptionContract = {
   source?: string | null;
 };
 
+/** GET /api/options/contract: the current quote for a contract a tweet names. */
+export type OptionContractQuote = {
+  symbol: string;
+  right: 'CALL' | 'PUT' | string;
+  strike: number;
+  status: 'listed' | 'expired' | string;
+  expiration: string;
+  last_price?: number | null;
+  bid?: number | null;
+  ask?: number | null;
+  mid?: number | null;
+  change_percent?: number | null;
+  implied_volatility?: number | null;
+  volume?: number | null;
+  open_interest?: number | null;
+  in_the_money?: boolean | null;
+  underlying_price?: number | null;
+};
+
 export type TweetOptionsContext = {
   classification: 'OPTIONS' | 'SPOT_OR_OTHER' | string;
   score: number;
