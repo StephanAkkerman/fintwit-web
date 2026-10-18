@@ -90,6 +90,7 @@ from ..services.news_service import (
 from ..services.option_contract_service import get_option_contract
 from ..services.options_chain_service import get_options_chain
 from ..services.options_service import get_options_overview
+from ..services.put_call_service import get_put_call_ratios
 from ..services.price_history_service import (
     DEFAULT_RANGE as DEFAULT_HISTORY_RANGE,
     RANGE_PRESETS,
@@ -476,6 +477,20 @@ async def options_overview(
         ]
 
     data = await get_options_overview(client, parsed_symbols)
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
+
+
+@app.get("/api/options/put-call")
+async def options_put_call(request: Request, _=Depends(api_key_dep)):
+    """Cboe total, equity and index put/call ratios (fintwit-bot issue #738).
+
+    The latest session's ratios with the change from the session before, a
+    20-session average and history, and a fear/greed read of the equity ratio.
+    """
+    client: httpx.AsyncClient = request.app.state.http_client
+    data = await get_put_call_ratios(client)
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data

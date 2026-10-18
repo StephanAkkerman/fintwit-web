@@ -585,6 +585,40 @@ export type MarketPositioning = {
   as_of: string;
 };
 
+export type PutCallKey = 'total' | 'equity' | 'index' | 'etp' | 'spx' | 'vix';
+
+export type PutCallSentiment = 'fear' | 'neutral' | 'greed';
+
+export type PutCallRatio = {
+  key: PutCallKey;
+  value: number;
+  previous: number | null;
+  change: number | null;
+  average: number | null;
+};
+
+export type PutCallVolume = {
+  call: number | null;
+  put: number | null;
+};
+
+export type PutCallHistoryPoint = {
+  date: string;
+  total: number | null;
+  equity: number | null;
+  index: number | null;
+};
+
+export type PutCallRatios = {
+  date: string;
+  ratios: PutCallRatio[];
+  volume: Partial<Record<'total' | 'equity' | 'index', PutCallVolume>>;
+  sentiment: PutCallSentiment | null;
+  thresholds: { fear: number; greed: number };
+  history: PutCallHistoryPoint[];
+  source: string;
+};
+
 export type WorldIndexRegionKey = 'asia' | 'europe' | 'us_futures';
 
 export type WorldIndex = {
