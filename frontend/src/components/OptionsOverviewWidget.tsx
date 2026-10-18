@@ -44,7 +44,9 @@ export default function OptionsOverviewWidget() {
               <p className="text-base font-semibold text-zinc-900 dark:text-zinc-100">{fmtInt(data.totals.put_volume)}</p>
             </article>
             <article className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900/60">
-              <p className="text-[11px] uppercase tracking-wide text-zinc-500">Put/Call Ratio</p>
+              <p className="text-[11px] uppercase tracking-wide text-zinc-500" title="Puts over calls for the symbols in this table only; the Cboe market-wide ratio is above">
+                Watchlist P/C
+              </p>
               <p className="text-base font-semibold text-zinc-900 dark:text-zinc-100">{fmtRatio(data.totals.put_call_ratio)}</p>
             </article>
           </div>
