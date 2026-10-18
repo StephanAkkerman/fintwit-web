@@ -22,6 +22,7 @@ import AdvisorPanel from './components/AdvisorPanel'
 import BinanceGainersLosersWidget from './components/BinanceGainersLosersWidget'
 import CompanyNewsWidget from './components/CompanyNewsWidget'
 import EarningsCalendarWidget from './components/EarningsCalendarWidget'
+import EarningsResultsWidget from './components/EarningsResultsWidget'
 import EconomicEventsWidget from './components/EconomicEventsWidget'
 import ErrorBoundary from './components/ErrorBoundary'
 import ExtendedHoursPanel from './components/ExtendedHoursPanel'
@@ -817,6 +818,11 @@ export default function App() {
                 <div className="sm:col-span-2 2xl:col-span-3">
                   <ErrorBoundary label="Earnings calendar">
                     <EarningsCalendarWidget portfolioLookup={portfolioLookup} />
+                  </ErrorBoundary>
+                </div>
+                <div className="sm:col-span-2 2xl:col-span-3">
+                  <ErrorBoundary label="Earnings results">
+                    <EarningsResultsWidget portfolioLookup={portfolioLookup} />
                   </ErrorBoundary>
                 </div>
               </div>

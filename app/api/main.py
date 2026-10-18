@@ -70,7 +70,7 @@ from ..services.binance_service import get_gainers_losers
 from ..services.cmc import get_trending_crypto
 from ..services import cloudflare_access
 from ..services.coin360_service import get_treemap_data
-from ..services.earnings_service import get_earnings_calendar
+from ..services.earnings_service import get_earnings_calendar, get_earnings_results
 from ..services.events_service import get_economic_events
 from ..services.fear_greed_service import get_feargreed
 from ..services.fx_rates import get_fx_rates
@@ -411,6 +411,21 @@ async def earnings_calendar(
 ):
     client: httpx.AsyncClient = request.app.state.http_client
     data = await get_earnings_calendar(client, days=days, limit_per_day=limit_per_day)
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
+
+
+@app.get("/api/earnings/results")
+async def earnings_results(
+    request: Request,
+    days: int = Query(5, ge=1, le=14),
+    limit: int = Query(30, ge=1, le=100),
+    _=Depends(api_key_dep),
+):
+    """Reported EPS vs consensus over the last `days` weekdays (fintwit-bot #296)."""
+    client: httpx.AsyncClient = request.app.state.http_client
+    data = await get_earnings_results(client, days=days, limit=limit)
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data

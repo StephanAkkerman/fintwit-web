@@ -1,10 +1,16 @@
-"""Nasdaq earnings calendar: which tickers report over the next N days.
+"""Nasdaq earnings calendar: which tickers report over the next N days, and
+what the ones that already reported posted against their estimate.
 
 Ported from fintwit-bot's `src/api/nasdaq.py:get_earnings_for_date` (used by
 `src/cogs/loops/earnings_overview.py` for the weekly Discord earnings embed)
 and `src/cogs/commands/earnings.py`. The Discord version posted one embed per
 day; here a single endpoint returns the whole window so the frontend can
 render it as a calendar strip.
+
+Results (fintwit-bot issue #296) come from the same Nasdaq endpoint: for a
+date that has passed, each row also carries the reported EPS and Nasdaq's
+surprise percentage. The bot only relayed EPSGUID tweets into its news
+channel; `get_earnings_results` turns those rows into a beat/miss list.
 """
 
 from __future__ import annotations
@@ -35,7 +41,10 @@ _SESSION_MAP: dict[str, tuple[str, str]] = {
 }
 
 _CACHE_TTL_SECONDS = 900
-_CACHE: dict[tuple[str, int, int], tuple[float, dict]] = {}
+_CACHE: dict[tuple, tuple[float, dict]] = {}
+
+#: A surprise within this many percent of the estimate counts as in line.
+INLINE_SURPRISE_PCT = 1.0
 
 
 def _coerce_float(value: object) -> float | None:
@@ -81,6 +90,8 @@ def _parse_row(raw: dict, date_str: str) -> dict | None:
         or None,
         "last_year_eps": _coerce_float(raw.get("lastYearEPS")),
         "last_year_report_date": str(raw.get("lastYearRptDt") or "").strip() or None,
+        "eps_actual": _coerce_float(raw.get("eps")),
+        "surprise_pct": _coerce_float(raw.get("surprise")),
         "website": f"https://www.nasdaq.com/market-activity/stocks/{symbol.lower()}/earnings",
     }
 
@@ -121,7 +132,7 @@ async def _fetch_day(
     return date_str, [row for row in parsed if row is not None], False
 
 
-def _get_cached(key: tuple[str, int, int]) -> dict | None:
+def _get_cached(key: tuple) -> dict | None:
     cached = _CACHE.get(key)
     if cached is None:
         return None
@@ -132,7 +143,7 @@ def _get_cached(key: tuple[str, int, int]) -> dict | None:
     return payload
 
 
-def _set_cached(key: tuple[str, int, int], payload: dict) -> None:
+def _set_cached(key: tuple, payload: dict) -> None:
     _CACHE[key] = (time.time(), payload)
 
 
@@ -184,6 +195,99 @@ async def get_earnings_calendar(
         "start_date": dates[0].isoformat(),
         "end_date": dates[-1].isoformat(),
         "days": days_payload,
+        "source": "nasdaq",
+    }
+    _set_cached(cache_key, payload)
+    return payload
+
+
+def classify_result(row: dict) -> dict | None:
+    """Add ``surprise_pct`` and ``outcome`` to a row that has reported.
+
+    Nasdaq's own surprise is kept when it sent one; otherwise it is worked out
+    from the actual and the consensus. ``outcome`` is ``beat``, ``miss`` or
+    ``inline`` (within ``INLINE_SURPRISE_PCT``), or ``None`` when there was no
+    estimate to compare with.
+
+    :return: the enriched row, or ``None`` when the row has no reported EPS.
+    """
+    actual = row.get("eps_actual")
+    if actual is None:
+        return None
+    forecast = row.get("eps_forecast")
+    surprise = row.get("surprise_pct")
+    if surprise is None and forecast not in (None, 0):
+        surprise = round((actual - forecast) / abs(forecast) * 100, 2)
+
+    if surprise is not None:
+        if abs(surprise) < INLINE_SURPRISE_PCT:
+            outcome = "inline"
+        else:
+            outcome = "beat" if surprise > 0 else "miss"
+    elif forecast is not None:
+        outcome = (
+            "beat" if actual > forecast else "miss" if actual < forecast else "inline"
+        )
+    else:
+        outcome = None
+    return {**row, "surprise_pct": surprise, "outcome": outcome}
+
+
+async def get_earnings_results(
+    client: httpx.AsyncClient, days: int = 5, limit: int = 30
+) -> dict | None:
+    """Companies that reported over the last `days` weekdays, newest day first.
+
+    Within a day rows keep Nasdaq's market-cap order, so the largest reports
+    come first.
+
+    :return: ``{start_date, end_date, results, summary: {reported, beat, miss,
+        inline}, source}``, or ``None`` when every day's request failed.
+    """
+    bounded_days = max(1, min(int(days), 14))
+    bounded_limit = max(1, min(int(limit), 100))
+
+    today = date.today()
+    cache_key = ("results", today.isoformat(), bounded_days, bounded_limit)
+    cached = _get_cached(cache_key)
+    if cached is not None:
+        return cached
+
+    # Count trading days, not calendar days: a Monday look-back of 5 should
+    # still reach the previous Tuesday instead of spending two on a weekend.
+    dates: list[date] = []
+    day = today
+    while len(dates) < bounded_days:
+        if day.weekday() < 5:
+            dates.append(day)
+        day -= timedelta(days=1)
+    fetched = await asyncio.gather(
+        *[_fetch_day(client, d) for d in dates], return_exceptions=True
+    )
+
+    results: list[dict] = []
+    any_success = False
+    for item in fetched:
+        if isinstance(item, BaseException):
+            continue
+        _, rows, failed = item
+        if not failed:
+            any_success = True
+        results.extend(r for r in map(classify_result, rows) if r is not None)
+
+    if not any_success:
+        return None
+
+    summary = {"reported": len(results), "beat": 0, "miss": 0, "inline": 0}
+    for row in results:
+        if row["outcome"] in ("beat", "miss", "inline"):
+            summary[row["outcome"]] += 1
+
+    payload = {
+        "start_date": dates[-1].isoformat(),
+        "end_date": dates[0].isoformat(),
+        "results": results[:bounded_limit],
+        "summary": summary,
         "source": "nasdaq",
     }
     _set_cached(cache_key, payload)

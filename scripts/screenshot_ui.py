@@ -1532,6 +1532,59 @@ def _earnings_calendar() -> dict:
     }
 
 
+def _earnings_results() -> dict:
+    """fintwit-bot #296's results list, shaped like `get_earnings_results`.
+
+    Real reports from the week of 2026-10-12.
+    """
+
+    def result(symbol, name, cap, forecast, actual, surprise, outcome, day, sess):
+        emoji = {"pre-market": "🌅", "after-hours": "🌙"}.get(sess)
+        row = _earnings_row(
+            symbol,
+            name,
+            cap,
+            forecast,
+            sess,
+            emoji,
+            f"2026-10-{day}",
+        )
+        return {
+            **row,
+            "eps_actual": actual,
+            "surprise_pct": surprise,
+            "outcome": outcome,
+        }
+
+    results = [
+        result("TRV", "The Travelers Companies", 80.1e9, 7.07, 9.18, 29.84, "beat", 16, "pre-market"),
+        result("MTB", "M&T Bank Corporation", 31.6e9, 4.98, 5.08, 2.01, "beat", 16, "pre-market"),
+        result("TFC", "Truist Financial", 56.9e9, 1.17, 1.16, -0.85, "inline", 16, "pre-market"),
+        result("BANF", "BancFirst Corporation", 4.1e9, 1.93, 1.85, -4.15, "miss", 16, "after-hours"),
+        result("NFLX", "Netflix, Inc.", 410e9, 6.89, 7.12, 3.34, "beat", 15, "after-hours"),
+        result("UAL", "United Airlines Holdings", 31e9, 3.18, 2.97, -6.6, "miss", 15, "after-hours"),
+        result("JNJ", "Johnson & Johnson", 395e9, 2.76, 2.80, 1.45, "beat", 14, "pre-market"),
+    ]  # fmt: skip
+    return {
+        "start_date": "2026-10-12",
+        "end_date": "2026-10-16",
+        "results": results,
+        "summary": {"reported": 7, "beat": 4, "miss": 2, "inline": 1},
+        "source": "nasdaq",
+    }
+
+
+def _empty_earnings_results() -> dict:
+    today = date.today()
+    return {
+        "start_date": (today - timedelta(days=4)).isoformat(),
+        "end_date": today.isoformat(),
+        "results": [],
+        "summary": {"reported": 0, "beat": 0, "miss": 0, "inline": 0},
+        "source": "nasdaq",
+    }
+
+
 def _empty_earnings_calendar() -> dict:
     today = date.today()
     return {
@@ -3361,6 +3414,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             "/api/spy-heatmap?": {"data": []},
             "/api/sector-rotation": _empty_sector_rotation(),
             "/api/earnings/calendar": _empty_earnings_calendar(),
+            "/api/earnings/results": _empty_earnings_results(),
             "/api/options/chain": _empty_options_chain(),
             # Longer fragment first: fixture matching is substring-based, and
             # "/gamma-exposure" is itself a substring of "/gamma-exposure/history".
@@ -3620,6 +3674,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         # Object-shaped: the catch-all's `[]` would leave EarningsCalendarWidget
         # reading `.days` off a list and throwing during render.
         "/api/earnings/calendar": _earnings_calendar(),
+        "/api/earnings/results": _earnings_results(),
         "/api/stocktwits": _stocktwits(),
         # Crypto route.
         "/api/binance/gainers-losers": _binance_gainers_losers(),
