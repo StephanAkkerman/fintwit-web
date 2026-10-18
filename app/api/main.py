@@ -70,6 +70,7 @@ from ..services.binance_service import get_gainers_losers
 from ..services.cmc import get_trending_crypto
 from ..services import cloudflare_access
 from ..services.coin360_service import get_treemap_data
+from ..services.congress_trades_service import get_congress_trades
 from ..services.earnings_service import get_earnings_calendar
 from ..services.events_service import get_economic_events
 from ..services.fear_greed_service import get_feargreed
@@ -411,6 +412,28 @@ async def earnings_calendar(
 ):
     client: httpx.AsyncClient = request.app.state.http_client
     data = await get_earnings_calendar(client, days=days, limit_per_day=limit_per_day)
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
+
+
+@app.get("/api/stocks/congress-trades")
+async def congress_trades(
+    request: Request,
+    politician: str | None = Query(default=None, max_length=80),
+    stocks_only: bool = Query(default=True),
+    limit: int = Query(50, ge=1, le=300),
+    _=Depends(api_key_dep),
+):
+    """Recent trades disclosed by members of Congress (fintwit-bot issue #632).
+
+    Read from Quiver's public congress-trading page; see
+    `congress_trades_service` for the fields and caveats.
+    """
+    client: httpx.AsyncClient = request.app.state.http_client
+    data = await get_congress_trades(
+        client, politician=politician, stocks_only=stocks_only, limit=limit
+    )
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data

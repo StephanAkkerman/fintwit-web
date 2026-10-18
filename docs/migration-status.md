@@ -176,6 +176,7 @@ Last updated: 2026-10-15 (news overview, issue #217)
 - Binance movers widget: `/api/binance/gainers-losers` -> `BinanceGainersLosersWidget`.
 - Nasdaq stock halts widget: `/api/stock-halts` -> `StockHaltsWidget`.
 - Earnings calendar widget: `/api/earnings/calendar` -> `useEarningsCalendar` -> `EarningsCalendarWidget` (`/stocks`).
+- Congress trades widget: `/api/stocks/congress-trades` -> `useCongressTrades` -> `CongressTradesWidget` (`/stocks`, below the earnings calendar, fintwit-bot issue #632): most bought/sold tickers by members of Congress (click one to filter), All/Buys/Sells toggle, a member picker (e.g. Nancy Pelosi), and a table of member and party, stock, side, disclosed amount range, trade and filing dates and Quiver's excess return since the trade. Every congress-trading API (Quiver, Unusual Whales, FMP) needs a key and Capitol Trades is behind a bot checkpoint, so the service reads the trade array Quiver embeds in its public page; it will 503 if that page changes.
 - Options overview widget: `/api/options/overview` -> `OptionsOverviewWidget`.
 - Options chain widget: `/api/options/chain` -> `useOptionsChain` -> `OptionsChainWidget` (`/options`).
 - Company news widget: `/api/news/company` -> `useCompanyNews` -> `CompanyNewsWidget` (`/news`).

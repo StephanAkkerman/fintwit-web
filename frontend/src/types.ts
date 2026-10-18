@@ -1072,6 +1072,63 @@ export type EconomicEventItem = {
   source: string | null;
 };
 
+export type CongressTransaction = 'buy' | 'sell' | 'exchange' | 'other';
+
+export type CongressTrade = {
+  id: string | null;
+  ticker: string | null;
+  asset: string | null;
+  asset_type: string | null;
+  transaction: CongressTransaction;
+  transaction_label: string;
+  amount_range: string | null;
+  amount_min: number | null;
+  amount_max: number | null;
+  politician: string;
+  chamber: string | null;
+  party: string | null;
+  party_name: string | null;
+  filed: string | null;
+  traded: string | null;
+  description: string | null;
+  /** Quiver's estimate of the stock's move since the trade, minus the market's. */
+  excess_return_pct: number | null;
+  photo_url: string | null;
+  bioguide_id: string | null;
+  website: string | null;
+};
+
+export type CongressTickerFlow = {
+  ticker: string;
+  trades: number;
+  politicians: string[];
+};
+
+export type CongressPolitician = {
+  name: string;
+  party: string | null;
+  chamber: string | null;
+  trades: number;
+  buys: number;
+  sells: number;
+  last_filed: string | null;
+};
+
+export type CongressTrades = {
+  trades: CongressTrade[];
+  summary: {
+    trades: number;
+    buys: number;
+    sells: number;
+    most_bought: CongressTickerFlow[];
+    most_sold: CongressTickerFlow[];
+    politicians: CongressPolitician[];
+  };
+  filter: { politician: string | null; stocks_only: boolean };
+  as_of: string | null;
+  source: string;
+};
+
 export type EarningsSession = 'pre-market' | 'after-hours' | 'unknown';
 
 export type EarningsRow = {
