@@ -1535,7 +1535,7 @@ def _earnings_calendar() -> dict:
 def _earnings_results() -> dict:
     """fintwit-bot #296's results list, shaped like `get_earnings_results`.
 
-    Real reports from the week of 2026-10-12.
+    The 2026-10-16 bank reports are real Nasdaq rows; the rest are illustrative.
     """
 
     def result(symbol, name, cap, forecast, actual, surprise, outcome, day, sess):
