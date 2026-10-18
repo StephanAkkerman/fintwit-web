@@ -177,6 +177,7 @@ Last updated: 2026-10-15 (news overview, issue #217)
 - Binance movers widget: `/api/binance/gainers-losers` -> `BinanceGainersLosersWidget`.
 - Nasdaq stock halts widget: `/api/stock-halts` -> `StockHaltsWidget`.
 - Earnings calendar widget: `/api/earnings/calendar` -> `useEarningsCalendar` -> `EarningsCalendarWidget` (`/stocks`).
+- Earnings results widget: `/api/earnings/results` -> `useEarningsResults` -> `EarningsResultsWidget` (`/stocks`, below the calendar, fintwit-bot issue #296): reported EPS vs estimate, surprise % and a beat/miss/in-line badge for the last 5 trading days, an All/Beats/Misses filter, and the beat rate in the header. Replaces the bot's habit of relaying EPSGUID tweets into #news. The calendar shows a company's actual EPS (green or red by surprise) once it has reported that day; rows carry `eps_actual`/`surprise_pct` from the same Nasdaq call.
 - Options overview widget: `/api/options/overview` -> `OptionsOverviewWidget`.
 - Options chain widget: `/api/options/chain` -> `useOptionsChain` -> `OptionsChainWidget` (`/options`).
 - Company news widget: `/api/news/company` -> `useCompanyNews` -> `CompanyNewsWidget` (`/news`).

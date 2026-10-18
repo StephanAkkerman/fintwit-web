@@ -79,3 +79,18 @@ describe('EarningsCalendarWidget', () => {
     })
   })
 })
+
+describe('EarningsCalendarWidget with reported results', () => {
+  it('shows the actual EPS, coloured by the surprise, once a company has reported', async () => {
+    const reported = structuredClone(PAYLOAD)
+    Object.assign(reported.days[0].rows[0], { eps_actual: 1.31, surprise_pct: 4.8 })
+    fetchMock.mockImplementation(() =>
+      Promise.resolve({ ok: true, json: async () => reported } as Response)
+    )
+
+    render(<EarningsCalendarWidget />)
+
+    const actual = await screen.findByText((_, el) => el?.textContent === '🌙$1.31 act.')
+    expect(actual).toHaveClass('text-emerald-600')
+  })
+})

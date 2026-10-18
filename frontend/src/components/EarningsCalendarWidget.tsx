@@ -3,6 +3,7 @@ import { useEarningsCalendar } from '../hooks/useEarningsCalendar'
 import type { EarningsRow } from '../types'
 import type { PortfolioTickerLookup } from '../hooks/usePortfolioTickers'
 import { PortfolioTickerBadge } from './PortfolioTickerBadge'
+import { formatEpsValue, surpriseClass } from './EarningsResultsWidget'
 
 const ROWS_PER_DAY = 6
 
@@ -51,10 +52,21 @@ function EarningsRowItem({ row, portfolioLookup }: RowProps) {
         <span className="truncate">{row.symbol}</span>
         <PortfolioTickerBadge status={portfolioLookup?.(row.symbol) ?? null} />
       </a>
-      <span className="flex shrink-0 items-center gap-1 font-mono text-[11px] text-zinc-500 dark:text-zinc-400">
-        {row.session_emoji ?? ''}
-        {epsLabel ?? marketCapLabel ?? ''}
-      </span>
+      {row.eps_actual != null ? (
+        // Already reported today: show the actual, coloured by the surprise.
+        <span
+          className={`flex shrink-0 items-center gap-1 font-mono text-[11px] ${surpriseClass(row.surprise_pct)}`}
+          title={`Reported ${formatEpsValue(row.eps_actual)} vs ${formatEpsValue(row.eps_forecast)} est.`}
+        >
+          {row.session_emoji ?? ''}
+          {formatEpsValue(row.eps_actual)} act.
+        </span>
+      ) : (
+        <span className="flex shrink-0 items-center gap-1 font-mono text-[11px] text-zinc-500 dark:text-zinc-400">
+          {row.session_emoji ?? ''}
+          {epsLabel ?? marketCapLabel ?? ''}
+        </span>
+      )}
     </li>
   )
 }

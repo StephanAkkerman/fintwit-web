@@ -1,5 +1,5 @@
 from datetime import date, timedelta
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
@@ -175,3 +175,105 @@ async def test_get_earnings_calendar_uses_cache_on_second_call():
     await earnings_service.get_earnings_calendar(client, days=1)
 
     assert client.get.await_count == 1
+
+
+@pytest.mark.parametrize(
+    ("row", "surprise", "outcome"),
+    [
+        # Nasdaq's surprise is kept as-is.
+        (
+            {"eps_actual": 9.18, "eps_forecast": 7.07, "surprise_pct": 29.84},
+            29.84,
+            "beat",
+        ),
+        (
+            {"eps_actual": 1.85, "eps_forecast": 1.93, "surprise_pct": -4.15},
+            -4.15,
+            "miss",
+        ),
+        (
+            {"eps_actual": 1.16, "eps_forecast": 1.17, "surprise_pct": -0.85},
+            -0.85,
+            "inline",
+        ),
+        # Nasdaq sent "N/A": worked out from the consensus.
+        (
+            {"eps_actual": 0.44, "eps_forecast": 0.40, "surprise_pct": None},
+            10.0,
+            "beat",
+        ),
+        # A negative estimate: beating -0.50 with -0.25 is a positive surprise.
+        (
+            {"eps_actual": -0.25, "eps_forecast": -0.50, "surprise_pct": None},
+            50.0,
+            "beat",
+        ),
+        # Nothing to compare with.
+        ({"eps_actual": 1.0, "eps_forecast": None, "surprise_pct": None}, None, None),
+    ],
+)
+def test_classify_result(row, surprise, outcome):
+    result = earnings_service.classify_result(row)
+    assert result["surprise_pct"] == surprise
+    assert result["outcome"] == outcome
+
+
+def test_classify_result_without_actual_is_none():
+    assert earnings_service.classify_result({"eps_actual": None}) is None
+
+
+@pytest.mark.asyncio
+async def test_get_earnings_results_keeps_reported_rows_over_weekdays():
+    reported = {
+        "data": {
+            "rows": [
+                {
+                    "symbol": "TRV",
+                    "name": "The Travelers Companies, Inc.",
+                    "marketCap": "$80,069,861,000",
+                    "epsForecast": "$7.07",
+                    "eps": "$9.18",
+                    "surprise": "29.84",
+                    "time": "time-pre-market",
+                },
+                {"symbol": "LATE", "epsForecast": "$1.00", "eps": "N/A"},
+            ]
+        }
+    }
+    calls: list[str] = []
+
+    async def fake_get(url, params=None, headers=None):
+        calls.append(params["date"])
+        if params["date"] == "2026-10-16":
+            return _response(json_data=reported)
+        return _response(json_data={"data": {"rows": []}})
+
+    client = AsyncMock(spec=httpx.AsyncClient)
+    client.get.side_effect = fake_get
+
+    class _FakeDate(date):
+        @classmethod
+        def today(cls):
+            return cls(2026, 10, 19)  # a Monday
+
+    with patch.object(earnings_service, "date", _FakeDate):
+        result = await earnings_service.get_earnings_results(client, days=3)
+
+    # Monday, Friday, Thursday: the weekend is skipped.
+    assert calls == ["2026-10-19", "2026-10-16", "2026-10-15"]
+    assert result["start_date"] == "2026-10-15"
+    assert result["end_date"] == "2026-10-19"
+    assert [r["symbol"] for r in result["results"]] == ["TRV"]
+    row = result["results"][0]
+    assert row["eps_actual"] == 9.18
+    assert row["outcome"] == "beat"
+    assert row["session"] == "pre-market"
+    assert result["summary"] == {"reported": 1, "beat": 1, "miss": 0, "inline": 0}
+
+
+@pytest.mark.asyncio
+async def test_get_earnings_results_none_when_every_day_fails():
+    client = AsyncMock(spec=httpx.AsyncClient)
+    client.get.return_value = _response(status_code=500)
+
+    assert await earnings_service.get_earnings_results(client, days=2) is None

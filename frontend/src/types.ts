@@ -1121,6 +1121,26 @@ export type EarningsRow = {
   last_year_eps: number | null;
   last_year_report_date: string | null;
   website: string | null;
+  /** Reported EPS, once the company has reported (fintwit-bot #296). */
+  eps_actual?: number | null;
+  /** Nasdaq's surprise vs consensus, in percent. */
+  surprise_pct?: number | null;
+};
+
+export type EarningsOutcome = 'beat' | 'miss' | 'inline';
+
+export type EarningsResult = EarningsRow & {
+  eps_actual: number;
+  surprise_pct: number | null;
+  outcome: EarningsOutcome | null;
+};
+
+export type EarningsResults = {
+  start_date: string;
+  end_date: string;
+  results: EarningsResult[];
+  summary: { reported: number; beat: number; miss: number; inline: number };
+  source: string;
 };
 
 export type EarningsCalendarDay = {
