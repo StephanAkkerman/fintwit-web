@@ -1995,6 +1995,94 @@ def _empty_market_positioning() -> dict:
     return {"futures": None, "cta": None, "concentration": None, "as_of": ""}
 
 
+def _put_call_ratios() -> dict:
+    """fintwit-bot #738's Cboe ratios, shaped like `get_put_call_ratios`.
+
+    The real session of 2026-10-16 and the 20 sessions before it.
+    """
+    history_total = [0.74, 0.78, 0.86, 0.80, 0.75, 0.88, 0.76, 0.88, 0.90, 0.78]
+    history_total += [0.83, 0.85, 0.79, 0.82, 0.91, 0.87, 0.84, 0.81, 0.80, 0.92]
+    history_equity = [0.53, 0.47, 0.46, 0.55, 0.52, 0.58, 0.38, 0.53, 0.57, 0.58]
+    history_equity += [0.56, 0.61, 0.52, 0.55, 0.60, 0.58, 0.57, 0.59, 0.62, 0.65]
+    sessions = [
+        "2026-09-21", "2026-09-22", "2026-09-23", "2026-09-24", "2026-09-25",
+        "2026-09-28", "2026-09-29", "2026-09-30", "2026-10-01", "2026-10-02",
+        "2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08", "2026-10-09",
+        "2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15", "2026-10-16",
+    ]  # fmt: skip
+    return {
+        "date": "2026-10-16",
+        "ratios": [
+            {
+                "key": "total",
+                "value": 0.92,
+                "previous": 0.80,
+                "change": 0.12,
+                "average": 0.835,
+            },
+            {
+                "key": "equity",
+                "value": 0.65,
+                "previous": 0.62,
+                "change": 0.03,
+                "average": 0.559,
+            },
+            {
+                "key": "index",
+                "value": 1.05,
+                "previous": 0.99,
+                "change": 0.06,
+                "average": 0.972,
+            },
+            {
+                "key": "etp",
+                "value": 1.06,
+                "previous": 0.72,
+                "change": 0.34,
+                "average": 0.999,
+            },
+            {
+                "key": "spx",
+                "value": 1.46,
+                "previous": 1.15,
+                "change": 0.31,
+                "average": 1.115,
+            },
+            {
+                "key": "vix",
+                "value": 0.32,
+                "previous": 0.35,
+                "change": -0.03,
+                "average": 0.374,
+            },
+        ],  # fmt: skip
+        "volume": {
+            "total": {"call": 10_401_864, "put": 9_619_756},
+            "equity": {"call": 3_284_761, "put": 2_130_650},
+            "index": {"call": 5_086_849, "put": 5_327_785},
+        },
+        "sentiment": "neutral",
+        "thresholds": {"fear": 0.8, "greed": 0.5},
+        "history": [
+            {"date": d, "total": t, "equity": e, "index": None}
+            for d, t, e in zip(sessions, history_total, history_equity)
+        ],
+        "source": "cboe",
+    }
+
+
+def _empty_put_call_ratios() -> dict:
+    return {
+        "date": "",
+        "ratios": [],
+        "volume": {},
+        "sentiment": None,
+        "thresholds": {"fear": 0.8, "greed": 0.5},
+        "history": [],
+        "source": "cboe",
+    }
+
+
 def _world_indices() -> dict:
     """Issue #218's world markets panel, shaped like `get_world_indices`.
 
@@ -3421,6 +3509,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             "/api/options/gamma-exposure/history": _empty_gamma_exposure_history(),
             "/api/options/gamma-exposure": _empty_gamma_exposure_snapshot(),
             "/api/market/positioning": _empty_market_positioning(),
+            "/api/options/put-call": _empty_put_call_ratios(),
             "/api/market/world-indices": _empty_world_indices(),
             "/api/news/company": _empty_company_news(),
             "/api/news/overview": _empty_news_overview(),
@@ -3718,6 +3807,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         "/api/options/gamma-exposure/history": _gamma_exposure_history(),
         "/api/options/gamma-exposure": _gamma_exposure_snapshot(),
         "/api/market/positioning": _market_positioning(),
+        "/api/options/put-call": _put_call_ratios(),
         "/api/market/world-indices": _world_indices(),
         # Company news (stocks route).
         # News route.

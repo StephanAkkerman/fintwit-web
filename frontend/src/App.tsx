@@ -38,6 +38,7 @@ import NewsOverviewWidget from './components/NewsOverviewWidget'
 import MarketPositioningWidget from './components/MarketPositioningWidget'
 import OptionsChainWidget from './components/OptionsChainWidget'
 import OptionsOverviewWidget from './components/OptionsOverviewWidget'
+import PutCallRatioWidget from './components/PutCallRatioWidget'
 import PortfolioAssetInsights from './components/PortfolioAssetInsights'
 import PortfolioDiversification from './components/PortfolioDiversification'
 import PortfolioPanel from './components/PortfolioPanel'
@@ -846,6 +847,9 @@ export default function App() {
                 </ErrorBoundary>
                 <ErrorBoundary label="Market positioning">
                   <MarketPositioningWidget />
+                </ErrorBoundary>
+                <ErrorBoundary label="Put/call ratio">
+                  <PutCallRatioWidget />
                 </ErrorBoundary>
                 <ErrorBoundary label="Options overview">
                   <OptionsOverviewWidget />
