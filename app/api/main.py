@@ -66,6 +66,7 @@ from ..runtime.portfolio_valuation import (
     build_asset_insights,
     build_diversification,
     build_value_history,
+    choose_price,
     resolve_holdings,
     value_holdings,
 )
@@ -89,7 +90,7 @@ from ..services.fear_greed_service import get_feargreed
 from ..services.fx_rates import get_fx_rates
 from ..services.gamma_exposure_service import DEFAULT_SYMBOL as GAMMA_EXPOSURE_SYMBOL
 from ..services.gamma_exposure_service import get_gamma_exposure
-from ..services.ibkr import IbkrGateway
+from ..services.ibkr import IbkrGateway, ibkr_contract_label, quote_symbol
 from ..services.macro_market import get_macro_snapshot
 from ..services.market_hours_service import get_stock_market_hours
 from ..services.nasdaq_service import get_halt_data
@@ -1445,36 +1446,49 @@ async def ibkr_status(request: Request, _=Depends(api_key_dep)):
 
 @app.get("/api/ibkr/positions")
 async def ibkr_positions(_=Depends(api_key_dep)):
+    """IBKR positions valued like the IBKR app.
+
+    IBKR's own mark wins while the gateway is syncing; otherwise stocks fall
+    back to a live Yahoo quote on the matching listing (``ARKG.L`` for LSE
+    ``ARKG``). Options and other derivatives only have IBKR's mark.
+    """
     positions = await IBKR_REPO.list_positions()
     if not positions:
         return []
 
-    stock_positions = [p for p in positions if p["sec_type"] == "STK"]
-    quote_tasks = [get_stock_info(p["symbol"]) for p in stock_positions]
-    quote_results = await asyncio.gather(*quote_tasks, return_exceptions=True)
-    quote_map = {
-        pos["symbol"]: q
-        for pos, q in zip(stock_positions, quote_results)
-        if isinstance(q, dict)
-    }
+    symbols = sorted({qs for p in positions if (qs := quote_symbol(p))})
+    quote_results = await asyncio.gather(
+        *(get_stock_info(qs) for qs in symbols), return_exceptions=True
+    )
+    quote_map = {qs: q for qs, q in zip(symbols, quote_results) if isinstance(q, dict)}
 
     enriched = []
     for p in positions:
-        quote = quote_map.get(p["symbol"])
-        market_price = quote.get("price") if quote else None
-        qty = float(p["quantity"])
-        avg_cost = float(p["avg_cost"])
-        cost_basis = qty * avg_cost
-        market_value = qty * (
-            float(market_price) if market_price is not None else avg_cost
+        qs = quote_symbol(p)
+        quote = quote_map.get(qs) if qs else None
+        raw_price = quote.get("price") if quote else None
+        market_price, price_source = choose_price(
+            p, float(raw_price) if raw_price is not None else None
         )
+
+        qty = float(p["quantity"])
+        # IBKR's avg cost already includes the contract multiplier.
+        cost_basis = qty * float(p["avg_cost"])
+        multiplier = float(p.get("multiplier") or 1.0)
+        if price_source.startswith("ibkr") and p.get("ibkr_market_value") is not None:
+            market_value = float(p["ibkr_market_value"])
+        elif market_price is not None:
+            market_value = qty * market_price * multiplier
+        else:
+            market_value = cost_basis
         unrealized_pnl = market_value - cost_basis
         enriched.append(
             {
                 **p,
-                "market_price": (
-                    float(market_price) if market_price is not None else None
-                ),
+                "quote_symbol": qs,
+                "description": ibkr_contract_label(p),
+                "market_price": market_price,
+                "price_source": price_source,
                 "market_value": market_value,
                 "cost_basis": cost_basis,
                 "unrealized_pnl": unrealized_pnl,

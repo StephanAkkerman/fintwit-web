@@ -8,11 +8,12 @@ drifting apart.
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from ticker_price_data import get_shared_classifier, get_stock_info
 
 from ..infra.repos import IbkrRepo, PortfolioRepo
+from ..services.ibkr import quote_symbol
 from ..services.price_history_service import (
     DEFAULT_RANGE,
     get_price_series,
@@ -25,6 +26,47 @@ logger = logging.getLogger(__name__)
 #: Holdings sources the API accepts. ``auto`` prefers live IBKR positions and
 #: falls back to manually tracked ones.
 HOLDINGS_SOURCES = ("auto", "manual", "ibkr")
+
+
+#: How old IBKR's own mark may be before a live Yahoo quote is preferred. The
+#: sync runs every minute while the gateway is connected, so anything older
+#: means the gateway dropped and the mark is frozen at its last value.
+IBKR_MARK_MAX_AGE = timedelta(minutes=15)
+
+
+def _ibkr_mark_is_fresh(row: dict, now: datetime | None = None) -> bool:
+    synced = row.get("synced_at")
+    if not synced or row.get("ibkr_market_price") is None:
+        return False
+    try:
+        synced_at = datetime.fromisoformat(str(synced).replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if synced_at.tzinfo is None:
+        synced_at = synced_at.replace(tzinfo=timezone.utc)
+    return (now or datetime.now(timezone.utc)) - synced_at <= IBKR_MARK_MAX_AGE
+
+
+def choose_price(row: dict, quote_price: float | None) -> tuple[float | None, str]:
+    """Pick the price to value a holding at, and say where it came from.
+
+    Order: IBKR's own mark while the gateway is syncing (matches the IBKR
+    app), then a live Yahoo quote, then IBKR's last known mark, then nothing.
+
+    :param row: Holding or IBKR position row (``ibkr_market_price``,
+        ``synced_at`` are optional).
+    :param quote_price: Yahoo price for the row's ``quote_symbol``.
+    :return: ``(price, source)`` with source ``ibkr``, ``yahoo``,
+        ``ibkr_stale`` or ``none``.
+    """
+    ibkr_price = row.get("ibkr_market_price")
+    if _ibkr_mark_is_fresh(row):
+        return float(ibkr_price), "ibkr"
+    if quote_price is not None:
+        return float(quote_price), "yahoo"
+    if ibkr_price is not None:
+        return float(ibkr_price), "ibkr_stale"
+    return None, "none"
 
 
 def normalize_source(value: str | None) -> str:
@@ -45,6 +87,7 @@ def aggregate_holdings(positions: list[dict]) -> list[dict]:
         symbol = str(position.get("symbol") or "").strip().upper()
         if not symbol:
             continue
+        quote = position.get("quote_symbol") or symbol
 
         try:
             quantity = float(position.get("quantity") or 0.0)
@@ -56,12 +99,15 @@ def aggregate_holdings(positions: list[dict]) -> list[dict]:
             continue
 
         entry = merged.setdefault(
-            symbol,
+            quote,
             {
                 "symbol": symbol,
+                "quote_symbol": quote,
                 "quantity": 0.0,
                 "cost_basis": 0.0,
                 "currency": position.get("currency") or "USD",
+                "ibkr_market_price": position.get("ibkr_market_price"),
+                "synced_at": position.get("synced_at"),
             },
         )
         entry["quantity"] += quantity
@@ -75,15 +121,23 @@ def aggregate_holdings(positions: list[dict]) -> list[dict]:
         holdings.append(
             {
                 "symbol": entry["symbol"],
+                "quote_symbol": entry["quote_symbol"],
                 "quantity": quantity,
                 "avg_cost": entry["cost_basis"] / quantity,
                 "cost_basis": entry["cost_basis"],
                 "currency": entry["currency"],
+                "ibkr_market_price": entry["ibkr_market_price"],
+                "synced_at": entry["synced_at"],
             }
         )
 
     holdings.sort(key=lambda h: abs(h["cost_basis"]), reverse=True)
     return holdings
+
+
+def _quote_symbol(holding: dict) -> str:
+    """Symbol to fetch quotes/history with (``ARKG.L`` for LSE ``ARKG``)."""
+    return holding.get("quote_symbol") or holding["symbol"]
 
 
 async def resolve_holdings(
@@ -103,7 +157,13 @@ async def resolve_holdings(
 
     async def _ibkr() -> list[dict]:
         rows = await ibkr_repo.list_positions()
-        return aggregate_holdings([r for r in rows if r.get("sec_type") == "STK"])
+        return aggregate_holdings(
+            [
+                {**r, "quote_symbol": quote_symbol(r)}
+                for r in rows
+                if r.get("sec_type") == "STK"
+            ]
+        )
 
     async def _manual() -> list[dict]:
         rows = await portfolio_repo.list_positions(active_only=True)
@@ -142,7 +202,7 @@ async def value_holdings(holdings: list[dict]) -> dict:
         }
 
     quotes = await asyncio.gather(
-        *(get_stock_info(h["symbol"]) for h in holdings),
+        *(get_stock_info(_quote_symbol(h)) for h in holdings),
         return_exceptions=True,
     )
 
@@ -153,7 +213,9 @@ async def value_holdings(holdings: list[dict]) -> dict:
     for holding, quote in zip(holdings, quotes):
         quote_data = quote if isinstance(quote, dict) else None
         raw_price = quote_data.get("price") if quote_data else None
-        market_price = float(raw_price) if raw_price is not None else None
+        market_price, price_source = choose_price(
+            holding, float(raw_price) if raw_price is not None else None
+        )
 
         quantity = holding["quantity"]
         cost_basis = holding["cost_basis"]
@@ -165,10 +227,16 @@ async def value_holdings(holdings: list[dict]) -> dict:
         total_market_value += market_value
         total_cost_basis += cost_basis
 
+        public = {
+            k: v
+            for k, v in holding.items()
+            if k not in ("ibkr_market_price", "synced_at")
+        }
         valued.append(
             {
-                **holding,
+                **public,
                 "market_price": market_price,
+                "price_source": price_source,
                 "market_value": market_value,
                 "unrealized_pnl": unrealized_pnl,
                 "unrealized_pnl_percent": (
@@ -272,7 +340,7 @@ async def build_value_history(
         return empty
 
     series_list = await asyncio.gather(
-        *(get_price_series(h["symbol"], range_key) for h in holdings),
+        *(get_price_series(_quote_symbol(h), range_key) for h in holdings),
         return_exceptions=True,
     )
 
@@ -371,7 +439,7 @@ async def build_asset_insights(valued_positions: list[dict]) -> list[dict]:
 
     stats_list = await asyncio.gather(
         *(
-            get_symbol_stats(position["symbol"], position.get("market_price"))
+            get_symbol_stats(_quote_symbol(position), position.get("market_price"))
             for position in valued_positions
         ),
         return_exceptions=True,
