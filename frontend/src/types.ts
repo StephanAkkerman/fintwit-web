@@ -1682,3 +1682,109 @@ export interface AdvisorScorecard {
   total_calls: number
   horizons: Record<string, AdvisorScoreBucket & { by_action: Record<string, AdvisorScoreBucket> }>
 }
+
+export type InsiderTrade = {
+  filed_at: string | null
+  traded: string | null
+  ticker: string
+  company: string | null
+  insider: string | null
+  insider_cik: string | null
+  title: string | null
+  is_officer: boolean
+  is_ten_percent_owner: boolean
+  side: 'buy' | 'sell'
+  trade_label: string
+  with_option_exercise: boolean
+  price: number | null
+  shares: number | null
+  owned_after: number | null
+  owned_change_pct: number | null
+  new_position: boolean
+  value: number | null
+  remarks: string[]
+  filing_url: string | null
+}
+
+export type InsiderTickerGroup = {
+  ticker: string
+  company: string | null
+  insiders: string[]
+  officers: string[]
+  trades: number
+  value: number
+  last_traded: string | null
+  last_price: number | null
+}
+
+export type InsiderTrades = {
+  trades: InsiderTrade[]
+  summary: {
+    buys: number
+    sells: number
+    buy_value: number
+    sell_value: number
+    buy_share_pct: number | null
+    cluster_buys: InsiderTickerGroup[]
+    top_buys: InsiderTickerGroup[]
+    top_sells: InsiderTickerGroup[]
+  }
+  filter: { days: number; min_value: number; ticker: string | null; side: 'buy' | 'sell' | null }
+  as_of: string | null
+  source: string
+}
+
+export type FundAction = 'new' | 'added' | 'reduced' | 'sold_out' | 'unchanged'
+
+export type FundPosition = {
+  cusip: string
+  issuer: string | null
+  ticker: string | null
+  instrument: 'call' | 'put' | 'note' | null
+  value: number
+  shares: number
+  prev_shares: number
+  weight_pct: number
+  action: FundAction
+  shares_change_pct: number | null
+  value_change: number
+}
+
+export type Fund = {
+  cik: number
+  name: string
+  manager: string | null
+  report_date: string
+  filed: string
+  prev_report_date: string | null
+  filing_url: string
+  positions: number
+  total_value: number
+  top_holdings: FundPosition[]
+  buys: FundPosition[]
+  sells: FundPosition[]
+  new_positions: number
+  sold_out: number
+  stale: boolean
+}
+
+export type FundConsensus = {
+  cusip: string
+  issuer: string | null
+  ticker: string | null
+  funds: string[]
+  new_or_exited?: number
+  value_change?: number
+  value?: number
+}
+
+export type FundHoldings = {
+  funds: Fund[]
+  most_bought: FundConsensus[]
+  most_sold: FundConsensus[]
+  most_held: FundConsensus[]
+  report_date: string | null
+  missing: string[]
+  as_of: string | null
+  source: string
+}

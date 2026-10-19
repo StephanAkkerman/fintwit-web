@@ -4,7 +4,13 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.api.main import app
 from app.infra.db import init_db
-from app.infra.repos import GammaExposureRepo, PortfolioRepo, RedditTrendRepo, TweetRepo
+from app.infra.repos import (
+    CusipTickerRepo,
+    GammaExposureRepo,
+    PortfolioRepo,
+    RedditTrendRepo,
+    TweetRepo,
+)
 
 # ---------------------------------------------------------------------------
 # Sample tweet data used across multiple test modules
@@ -138,3 +144,10 @@ async def gamma_exposure_repo(db_engine):
     """GammaExposureRepo backed by an in-memory database."""
     Session = async_sessionmaker(db_engine, expire_on_commit=False)
     return GammaExposureRepo(Session)
+
+
+@pytest_asyncio.fixture
+async def cusip_ticker_repo(db_engine):
+    """CusipTickerRepo backed by an in-memory database."""
+    Session = async_sessionmaker(db_engine, expire_on_commit=False)
+    return CusipTickerRepo(Session)

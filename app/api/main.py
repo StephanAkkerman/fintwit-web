@@ -19,6 +19,7 @@ from ticker_price_data import close_shared_pool, get_stock_info
 from ..infra.db import create_engine, init_db
 from ..infra.repos import (
     AdvisorRepo,
+    CusipTickerRepo,
     GammaExposureRepo,
     IbkrRepo,
     PortfolioRepo,
@@ -38,6 +39,10 @@ from ..runtime.enricher import AssetEnricher
 from ..runtime.gamma_exposure_snapshot import (
     DEFAULT_INTERVAL as GAMMA_EXPOSURE_INTERVAL,
     run_gamma_exposure_snapshots,
+)
+from ..runtime.fund_holdings_refresh import (
+    DEFAULT_INTERVAL as FUND_HOLDINGS_INTERVAL,
+    run_fund_holdings_refresh,
 )
 from ..runtime.ibkr_sync import run_ibkr_sync
 from ..runtime.options_intent import detect_options
@@ -71,6 +76,8 @@ from ..services.cmc import get_trending_crypto
 from ..services import cloudflare_access
 from ..services.coin360_service import get_treemap_data
 from ..services.congress_trades_service import get_congress_trades
+from ..services.fund_holdings_service import get_fund_holdings, make_cusip_mapper
+from ..services.insider_trades_service import get_insider_trades
 from ..services.earnings_service import get_earnings_calendar, get_earnings_results
 from ..services.events_service import get_economic_events
 from ..services.fear_greed_service import get_feargreed
@@ -140,6 +147,7 @@ IBKR_REPO = IbkrRepo(Session)
 TRADER_CALL_REPO = TraderCallRepo(Session)
 REDDIT_TREND_REPO = RedditTrendRepo(Session)
 GAMMA_EXPOSURE_REPO = GammaExposureRepo(Session)
+CUSIP_TICKER_REPO = CusipTickerRepo(Session)
 ADVISOR_REPO = AdvisorRepo(Session)
 BROADCAST = Broadcaster()
 logger = logging.getLogger(__name__)
@@ -262,6 +270,19 @@ async def lifespan(app: FastAPI):
         gamma_exposure_interval,
     )
 
+    fund_holdings_interval = int(
+        os.getenv("FUND_HOLDINGS_INTERVAL", FUND_HOLDINGS_INTERVAL)
+    )
+    fund_holdings_task = asyncio.create_task(
+        run_fund_holdings_refresh(
+            app.state.http_client, CUSIP_TICKER_REPO, interval=fund_holdings_interval
+        )
+    )
+    logger.info(
+        "[fund-holdings] refresh worker started (interval=%ds)",
+        fund_holdings_interval,
+    )
+
     try:
         logger.info(
             "[startup] application ready in %.2fs",
@@ -286,6 +307,9 @@ async def lifespan(app: FastAPI):
         gamma_exposure_task.cancel()
         with suppress(asyncio.CancelledError):
             await gamma_exposure_task
+        fund_holdings_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await fund_holdings_task
         if reddit_task is not None:
             reddit_task.cancel()
             with suppress(asyncio.CancelledError):
@@ -450,6 +474,45 @@ async def congress_trades(
     data = await get_congress_trades(
         client, politician=politician, stocks_only=stocks_only, limit=limit
     )
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
+
+
+@app.get("/api/stocks/insider-trades")
+async def insider_trades(
+    request: Request,
+    days: int = Query(30, ge=1, le=365),
+    min_value: int = Query(25_000, ge=0),
+    ticker: str | None = Query(default=None, max_length=12),
+    side: str | None = Query(default=None, pattern="^(buy|sell)$"),
+    limit: int = Query(100, ge=1, le=5000),
+    _=Depends(api_key_dep),
+):
+    """Open-market stock purchases and sales by company insiders (SEC Form 4).
+
+    Read from OpenInsider's screener; see `insider_trades_service` for the
+    fields and caveats.
+    """
+    client: httpx.AsyncClient = request.app.state.http_client
+    data = await get_insider_trades(
+        client, days=days, min_value=min_value, ticker=ticker, side=side, limit=limit
+    )
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
+
+
+@app.get("/api/stocks/fund-holdings")
+async def fund_holdings(request: Request, _=Depends(api_key_dep)):
+    """Well-known funds' latest 13F holdings and what they bought and sold.
+
+    From SEC EDGAR, tickers via OpenFIGI; see `fund_holdings_service`. A
+    background worker keeps it warm, so this answers from cache once the
+    first build is done.
+    """
+    client: httpx.AsyncClient = request.app.state.http_client
+    data = await get_fund_holdings(client, make_cusip_mapper(client, CUSIP_TICKER_REPO))
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data

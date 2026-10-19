@@ -479,6 +479,10 @@ async def collect_ticker(
         ),
         "options": ("/api/options/overview", {"symbols": symbol}),
         "gamma_exposure": ("/api/options/gamma-exposure", {"symbol": symbol}),
+        "insider_trades": (
+            "/api/stocks/insider-trades",
+            {"ticker": symbol, "days": 180, "min_value": 0, "limit": 20},
+        ),
         "earnings_calendar": (
             "/api/earnings/calendar",
             {"days": 14, "limit_per_day": 50},
@@ -579,10 +583,24 @@ async def collect_candidates(
         "top_traders": ("/api/traders/leaderboard", {"limit": 10}),
         "strategy": ("/api/advisor/strategy", None),
         "positions": ("/api/portfolio/positions", {"active_only": True}),
+        "insider_buying": ("/api/stocks/insider-trades", {"days": 14, "limit": 1}),
+        "fund_buying": ("/api/stocks/fund-holdings", None),
     }
     result = await _gather_views(client, views)
     for key in ("gainers", "most_active"):
         result[key] = _head(result[key])
+    insiders = result["insider_buying"]
+    if isinstance(insiders, dict) and isinstance(insiders.get("summary"), dict):
+        result["insider_buying"] = {
+            "cluster_buys": _head(insiders["summary"].get("cluster_buys") or []),
+            "top_buys": _head(insiders["summary"].get("top_buys") or []),
+        }
+    funds = result["fund_buying"]
+    if isinstance(funds, dict) and "most_bought" in funds:
+        result["fund_buying"] = {
+            "report_date": funds.get("report_date"),
+            "most_bought": _head(funds.get("most_bought") or []),
+        }
 
     positions = result.pop("positions")
     held = sorted(
@@ -737,7 +755,8 @@ async def ticker(
     with 1-12 month returns and 50/200-day averages, valuation (P/E, EPS,
     market cap), analyst rating and price targets, short interest, TradingView
     4-hour and daily technicals, news with sentiment, Reddit trend history,
-    options overview and gamma exposure, upcoming earnings, and your own
+    options overview and gamma exposure, insider purchases and sales over the
+    last 180 days (SEC Form 4), upcoming earnings, and your own
     position in it if you hold it. ``asset_kind`` (``stock``, ``etf`` or
     ``crypto``) picks the TradingView market. Parts that don't apply (no
     options or analysts on a coin) come back as an ``error`` entry."""
@@ -763,9 +782,11 @@ async def market_snapshot() -> str:
 async def candidates(window_hours: int = 24, asset_kind: str = "equity") -> str:
     """Buy ideas in one call: hidden gems (newly discussed tickers), sentiment
     shifts, unusual mention volume, the 1-day trend summary, top US gainers and
-    most active, the most credible traders on the leaderboard, and each
-    watchlist symbol's chatter and news. ``held_symbols`` lists what the owner
-    already holds. ``asset_kind``: ``equity``, ``crypto`` or ``all``."""
+    most active, the most credible traders on the leaderboard, insider cluster
+    buys and biggest insider purchases of the last 14 days (SEC Form 4), the
+    stocks most tracked funds bought last quarter (13F, a quarter old), and
+    each watchlist symbol's chatter and news. ``held_symbols`` lists what the
+    owner already holds. ``asset_kind``: ``equity``, ``crypto`` or ``all``."""
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         return await collect_candidates(client, window_hours, asset_kind)
 

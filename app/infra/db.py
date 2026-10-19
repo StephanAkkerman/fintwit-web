@@ -229,6 +229,22 @@ class GammaExposureSnapshotRow(Base):
     )
 
 
+class CusipTickerRow(Base):
+    """A CUSIP's ticker as OpenFIGI reported it, for the 13F fund holdings.
+
+    13F filings identify securities only by CUSIP and OpenFIGI's free tier
+    allows 25 requests a minute, so each answer is kept. ``ticker`` is null
+    when OpenFIGI didn't know the CUSIP; ``looked_up_at`` lets those be retried.
+    """
+
+    __tablename__ = "cusip_tickers"
+
+    cusip: Mapped[str] = mapped_column(String, primary_key=True)
+    ticker: Mapped[str] = mapped_column(String, nullable=True)
+    name: Mapped[str] = mapped_column(String, nullable=True)
+    looked_up_at: Mapped[DateTime] = mapped_column(DateTime)
+
+
 class IbkrPositionRow(Base):
     __tablename__ = "ibkr_positions"
 

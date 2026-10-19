@@ -87,6 +87,10 @@ The `ibgateway` container also honours `TWS_ACCEPT_INCOMING`, `TWS_SETTINGS_PATH
 | `PORTFOLIO_SNAPSHOT_INTERVAL` | `1800` | Seconds between portfolio value snapshots. |
 | `TRADER_EVAL_INTERVAL` | `1800` | Seconds between trader call credibility scoring runs. |
 | `ADVISOR_EVAL_INTERVAL` | `3600` | Seconds between grading runs for Claude's market-check calls (`/advisor` decision journal). |
+| `FUND_HOLDINGS_INTERVAL` | `21600` | Seconds between rebuilds of the 13F fund holdings ("Big investors" on `/stocks`). |
+| `FUND_HOLDINGS_EXTRA_CIKS` | — | Comma-separated SEC CIKs of extra funds to track next to the built-in list (Berkshire, Pershing Square, Duquesne, Appaloosa, ...). |
+| `SEC_USER_AGENT` | `fintwit-web admin@example.com` | Sent to SEC EDGAR. SEC's fair-access policy asks for your name and a contact email (`"Jane Doe jane@example.com"`); www.sec.gov refuses requests without an email. |
+| `OPENFIGI_API_KEY` | — | Optional free OpenFIGI key: maps 100 CUSIPs per request instead of 10, so the first 13F build is faster. Answers are cached in the database either way. |
 
 ## Integrations
 
