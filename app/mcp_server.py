@@ -537,6 +537,7 @@ async def collect_market_snapshot(client: httpx.AsyncClient) -> str:
         "spy_sectors": ("/api/spy-heatmap/sectors", None),
         "sector_rotation": ("/api/sector-rotation", None),
         "positioning": ("/api/market/positioning", None),
+        "breadth": ("/api/market/breadth", None),
         "world_indices": ("/api/market/world-indices", None),
         "gainers": ("/api/markets/movers", {"market": "usa", "category": "gainers"}),
         "losers": ("/api/markets/movers", {"market": "usa", "category": "losers"}),
@@ -751,10 +752,12 @@ async def market_snapshot() -> str:
     and crypto fear & greed indexes, the macro strip (yields, dollar, oil...),
     S&P sector performance and rotation, positioning (hedge funds' net
     S&P/Nasdaq futures position vs. its 3-year range, CTA trend-following
-    trigger levels, equal- vs. cap-weighted breadth), overseas indices and US
-    index futures (Asia, Europe; with a chip-heavy-index read-through for US
-    semis), the top 10 US gainers, losers and most
-    active, upcoming economic events, and today's earnings."""
+    trigger levels, equal- vs. cap-weighted breadth), market breadth (S&P 500,
+    Nasdaq 100 and Russell 2000 advancers vs. decliners, share above the
+    20/50/200-day averages, new 52-week highs/lows, per S&P sector), overseas
+    indices and US index futures (Asia, Europe; with a chip-heavy-index
+    read-through for US semis), the top 10 US gainers, losers and most active,
+    upcoming economic events, and today's earnings."""
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         return await collect_market_snapshot(client)
 

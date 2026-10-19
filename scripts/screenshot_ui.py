@@ -2055,6 +2055,139 @@ def _market_positioning() -> dict:
     }
 
 
+def _market_breadth() -> dict:
+    """Index breadth shaped like `get_market_breadth`: the real session of 2026-10-16."""
+    from app.services.market_breadth_service import read_breadth
+
+    def universe(key, label, etf, price, change, counts):
+        members, adv, dec, highs, lows, sma20, sma50, sma200 = counts
+        stats = {
+            "members": members,
+            "advancers": adv,
+            "decliners": dec,
+            "unchanged": members - adv - dec,
+            "advancers_pct": round(adv / members * 100, 1),
+            "new_highs": highs,
+            "new_lows": lows,
+            "pct_above_sma20": sma20,
+            "pct_above_sma50": sma50,
+            "pct_above_sma200": sma200,
+        }
+        return {
+            "key": key,
+            "label": label,
+            "benchmark": {"symbol": etf, "price": price, "change_pct": change},
+            **stats,
+            "read": read_breadth(stats, change),
+        }
+
+    sectors = [
+        ("Energy Minerals", 13, 13, 0, 100.0, 84.6, 5, 0, 2.64),
+        ("Distribution Services", 9, 6, 3, 88.9, 88.9, 1, 0, 0.31),
+        ("Health Services", 11, 1, 10, 72.7, 100.0, 1, 0, -1.54),
+        ("Utilities", 33, 30, 3, 72.7, 21.2, 0, 0, 1.65),
+        ("Health Technology", 42, 16, 26, 69.0, 76.2, 4, 0, -0.55),
+        ("Consumer Non-Durables", 28, 23, 5, 67.9, 57.1, 2, 0, 0.91),
+        ("Retail Trade", 23, 13, 10, 60.9, 56.5, 1, 0, -0.03),
+        ("Technology Services", 48, 9, 39, 54.2, 62.5, 2, 0, -2.33),
+        ("Finance", 96, 63, 33, 32.3, 46.9, 3, 0, 0.35),
+        ("Electronic Technology", 57, 16, 41, 21.1, 42.9, 0, 0, -2.53),
+        ("Transportation", 15, 3, 12, 13.3, 35.7, 1, 0, -1.39),
+    ]
+    return {
+        "universes": [
+            universe(
+                "spx",
+                "S&P 500",
+                "SPY",
+                763.25,
+                -1.11,
+                (503, 249, 254, 20, 1, 68.5, 45.0, 51.8),
+            ),
+            universe(
+                "ndx",
+                "Nasdaq 100",
+                "QQQ",
+                709.8,
+                -2.5,
+                (101, 32, 69, 2, 0, 49.5, 38.6, 55.6),
+            ),
+            universe(
+                "rut",
+                "Russell 2000",
+                "IWM",
+                270.44,
+                -1.69,
+                (1925, 549, 1349, 39, 105, 34.4, 24.4, 42.9),
+            ),
+        ],
+        "sectors": [
+            {
+                "sector": name,
+                "members": members,
+                "advancers": adv,
+                "decliners": dec,
+                "pct_above_sma50": sma50,
+                "pct_above_sma200": sma200,
+                "new_highs": highs,
+                "new_lows": lows,
+                "avg_change": avg,
+            }
+            for name, members, adv, dec, sma50, sma200, highs, lows, avg in sectors
+        ],
+        "session_date": "2026-10-16",
+        "as_of": "2026-10-19T08:10:46+00:00",
+        "source": "tradingview",
+    }
+
+
+def _market_breadth_history() -> dict:
+    """60 recorded sessions: breadth fading from a broad rally into mid-October."""
+    import math
+
+    sessions: list[date] = []
+    day = date(2026, 10, 16)
+    while len(sessions) < 60:
+        if day.weekday() < 5:
+            sessions.append(day)
+        day -= timedelta(days=1)
+    sessions.reverse()
+
+    points = []
+    for i, session in enumerate(sessions):
+        fade = i / 59
+        sma50 = 72 - 27 * fade + 6 * math.sin(i / 4)
+        sma200 = 66 - 14 * fade + 2.5 * math.sin(i / 7)
+        points.append(
+            {
+                "universe": "spx",
+                "session_date": session.isoformat(),
+                "captured_at": f"{session.isoformat()}T20:30:00+00:00",
+                "members": 503,
+                "advancers": 250,
+                "decliners": 250,
+                "new_highs": 10,
+                "new_lows": 2,
+                "pct_above_sma20": round(sma50 + 8, 1),
+                "pct_above_sma50": round(sma50, 1),
+                "pct_above_sma200": round(sma200, 1),
+                "benchmark_change_pct": 0.0,
+            }
+        )
+    points[-1].update(pct_above_sma50=45.0, pct_above_sma200=51.8)
+    return {"universe": "spx", "days": 365, "points": points}
+
+
+def _empty_market_breadth() -> dict:
+    return {
+        "universes": [],
+        "sectors": [],
+        "session_date": None,
+        "as_of": "",
+        "source": "tradingview",
+    }
+
+
 def _empty_market_positioning() -> dict:
     return {"futures": None, "cta": None, "concentration": None, "as_of": ""}
 
@@ -3574,6 +3707,9 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             "/api/options/gamma-exposure/history": _empty_gamma_exposure_history(),
             "/api/options/gamma-exposure": _empty_gamma_exposure_snapshot(),
             "/api/market/positioning": _empty_market_positioning(),
+            # Longer fragment first, as with gamma exposure above.
+            "/api/market/breadth/history": {"universe": "spx", "points": []},
+            "/api/market/breadth": _empty_market_breadth(),
             "/api/options/put-call": _empty_put_call_ratios(),
             "/api/market/world-indices": _empty_world_indices(),
             "/api/news/company": _empty_company_news(),
@@ -3873,6 +4009,8 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         "/api/options/gamma-exposure/history": _gamma_exposure_history(),
         "/api/options/gamma-exposure": _gamma_exposure_snapshot(),
         "/api/market/positioning": _market_positioning(),
+        "/api/market/breadth/history": _market_breadth_history(),
+        "/api/market/breadth": _market_breadth(),
         "/api/options/put-call": _put_call_ratios(),
         "/api/market/world-indices": _world_indices(),
         # Company news (stocks route).
