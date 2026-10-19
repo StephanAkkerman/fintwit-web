@@ -3,7 +3,7 @@ export type AccessAllowlist = { emails: string[] };
 export type MediaItem = { url: string; type: string };
 
 export type AssetTradingViewSummary = {
-  interval?: 'four_h' | 'one_d' | string | null;
+  interval?: "four_h" | "one_d" | string | null;
   recommendation: string;
   buy: number;
   neutral: number;
@@ -48,7 +48,7 @@ export type AssetFinancials = {
   volume?: number | null;
   website?: string | null;
   source?: string | null;
-  session?: 'regular' | 'pre-market' | 'after-hours' | 'closed' | string | null;
+  session?: "regular" | "pre-market" | "after-hours" | "closed" | string | null;
   extended_price?: number | null;
   extended_change_percent?: number | null;
   technical_analysis?: AssetTechnicalAnalysis | null;
@@ -121,7 +121,7 @@ export type QuotedTweet = {
 
 export type TweetOptionContract = {
   symbol: string;
-  right: 'CALL' | 'PUT' | string;
+  right: "CALL" | "PUT" | string;
   strike?: number | null;
   expiry?: string | null;
   notional_usd?: number | null;
@@ -133,9 +133,9 @@ export type TweetOptionContract = {
 /** GET /api/options/contract: the current quote for a contract a tweet names. */
 export type OptionContractQuote = {
   symbol: string;
-  right: 'CALL' | 'PUT' | string;
+  right: "CALL" | "PUT" | string;
   strike: number;
-  status: 'listed' | 'expired' | string;
+  status: "listed" | "expired" | string;
   expiration: string;
   last_price?: number | null;
   bid?: number | null;
@@ -150,10 +150,10 @@ export type OptionContractQuote = {
 };
 
 export type TweetOptionsContext = {
-  classification: 'OPTIONS' | 'SPOT_OR_OTHER' | string;
+  classification: "OPTIONS" | "SPOT_OR_OTHER" | string;
   score: number;
-  confidence: 'low' | 'medium' | 'high' | string;
-  side: 'CALL' | 'PUT' | 'MIXED' | 'UNKNOWN' | string;
+  confidence: "low" | "medium" | "high" | string;
+  side: "CALL" | "PUT" | "MIXED" | "UNKNOWN" | string;
   contract_count: number;
   contracts: TweetOptionContract[];
   keyword_hits: string[];
@@ -162,7 +162,7 @@ export type TweetOptionsContext = {
   // entity texts per label, and whether only the quoted tweet was options.
   entities?: Record<string, string[]>;
   from_quote?: boolean;
-  source?: 'model' | string;
+  source?: "model" | string;
 };
 
 /**
@@ -175,7 +175,7 @@ export type ChartExtraction = {
   exchange?: string | null;
   timeframe?: string | null;
   price?: number | null;
-  session?: 'regular' | 'pre' | 'post' | string | null;
+  session?: "regular" | "pre" | "post" | string | null;
 };
 
 export type Tweet = {
@@ -200,7 +200,7 @@ export type Tweet = {
   likes: number;
   views: number;
   retweets: number;
-  sentiment_label?: 'BULLISH' | 'BEARISH' | 'NEUTRAL' | string | null;
+  sentiment_label?: "BULLISH" | "BEARISH" | "NEUTRAL" | string | null;
   sentiment_emoji?: string | null;
   sentiment_score?: number | null;
   quoted_user_name?: string | null;
@@ -209,7 +209,7 @@ export type Tweet = {
   quoted_url?: string | null;
   quoted_created_at?: string | null;
   quoted_tweet?: QuotedTweet | null;
-  quoted_sentiment_label?: 'BULLISH' | 'BEARISH' | 'NEUTRAL' | string | null;
+  quoted_sentiment_label?: "BULLISH" | "BEARISH" | "NEUTRAL" | string | null;
   quoted_sentiment_emoji?: string | null;
   quoted_sentiment_score?: number | null;
   // Signed sentiment per ticker, present only for the tickers a tweet says
@@ -228,7 +228,7 @@ export type Tweet = {
 export type SignaBestTrade = {
   source?: string | null;
   symbol: string;
-  direction?: 'BULLISH' | 'BEARISH' | string | null;
+  direction?: "BULLISH" | "BEARISH" | string | null;
   grade?: string | null;
   alert_tier?: number | null;
   composite_score?: number | null;
@@ -248,7 +248,7 @@ export type SignaLiveSignal = {
   id?: string | null;
   symbol: string;
   signal?: string | null; // BUY / SELL / SHORT (directional only)
-  direction?: 'BULLISH' | 'BEARISH' | string | null;
+  direction?: "BULLISH" | "BEARISH" | string | null;
   model_id?: string | null;
   model_name?: string | null;
   model_source?: string | null;
@@ -297,7 +297,7 @@ export type TraderCall = {
   id: number;
   tweet_id: number;
   ticker: string;
-  direction: 'bullish' | 'bearish';
+  direction: "bullish" | "bearish";
   sentiment_score: number | null;
   asset_kind: string | null;
   price_at_call: number;
@@ -361,7 +361,7 @@ export type TreemapData = {
   // other fields are omitted since they are not needed
 };
 
-export type StocktwitsKeyword = 'ts' | 'm_day' | 'wl_ct_day';
+export type StocktwitsKeyword = "ts" | "m_day" | "wl_ct_day";
 
 export type StocktwitsItem = {
   stock_id?: number | string;
@@ -386,8 +386,8 @@ export type BinanceGainersLosers = {
 
 export type StockHaltItem = {
   Time: string;
-  'Issue Symbol': string;
-  'Resumption Time'?: string;
+  "Issue Symbol": string;
+  "Resumption Time"?: string;
 };
 
 export type StockFearGreedData = {
@@ -401,12 +401,12 @@ export type StockFearGreedWindow = 7 | 30;
 export type StockFearGreedHistory = {
   days: StockFearGreedWindow;
   points: Array<{ date: string; value: number }>;
-  source: 'cnn' | 'feargreedmeter' | string;
+  source: "cnn" | "feargreedmeter" | string;
 };
 
 export type OptionContractActivity = {
   symbol: string;
-  contract_type: 'CALL' | 'PUT' | string;
+  contract_type: "CALL" | "PUT" | string;
   expiry_date?: string | null;
   strike?: number | null;
   last?: number | null;
@@ -454,7 +454,7 @@ export type OptionsOverviewResponse = {
 };
 
 export type OptionsChainContract = {
-  option_type: 'CALL' | 'PUT' | string;
+  option_type: "CALL" | "PUT" | string;
   strike: number | null;
   bid: number | null;
   ask: number | null;
@@ -486,7 +486,7 @@ export type OptionsChainResponse = {
   source: string;
 };
 
-export type GammaRegime = 'positive' | 'negative';
+export type GammaRegime = "positive" | "negative";
 
 export type GammaStrikePoint = {
   strike: number;
@@ -525,7 +525,7 @@ export type GammaExposureHistory = {
   points: GammaExposureHistoryPoint[];
 };
 
-export type FuturesCrowding = 'crowded_short' | 'neutral' | 'crowded_long';
+export type FuturesCrowding = "crowded_short" | "neutral" | "crowded_long";
 
 export type FuturesPositioning = {
   code: string;
@@ -543,14 +543,14 @@ export type FuturesPositioning = {
   history: Array<{ date: string; lev_net_pct_oi: number }>;
 };
 
-export type CtaExposure = 'max_long' | 'long' | 'flat' | 'short' | 'max_short';
+export type CtaExposure = "max_long" | "long" | "flat" | "short" | "max_short";
 
 export type CtaSignal = {
   lookback: string;
   days: number;
   trigger: number;
   distance_pct: number;
-  signal: 'long' | 'short';
+  signal: "long" | "short";
 };
 
 export type CtaTriggers = {
@@ -572,7 +572,7 @@ export type ConcentrationWindow = {
 export type MarketConcentration = {
   cap_weighted: string;
   equal_weighted: string;
-  trend: 'narrowing' | 'stable' | 'broadening';
+  trend: "narrowing" | "stable" | "broadening";
   headline_window: string;
   windows: ConcentrationWindow[];
   ratio_history: Array<{ date: string; ratio: number }>;
@@ -585,9 +585,9 @@ export type MarketPositioning = {
   as_of: string;
 };
 
-export type PutCallKey = 'total' | 'equity' | 'index' | 'etp' | 'spx' | 'vix';
+export type PutCallKey = "total" | "equity" | "index" | "etp" | "spx" | "vix";
 
-export type PutCallSentiment = 'fear' | 'neutral' | 'greed';
+export type PutCallSentiment = "fear" | "neutral" | "greed";
 
 export type PutCallRatio = {
   key: PutCallKey;
@@ -612,14 +612,14 @@ export type PutCallHistoryPoint = {
 export type PutCallRatios = {
   date: string;
   ratios: PutCallRatio[];
-  volume: Partial<Record<'total' | 'equity' | 'index', PutCallVolume>>;
+  volume: Partial<Record<"total" | "equity" | "index", PutCallVolume>>;
   sentiment: PutCallSentiment | null;
   thresholds: { fear: number; greed: number };
   history: PutCallHistoryPoint[];
   source: string;
 };
 
-export type WorldIndexRegionKey = 'asia' | 'europe' | 'us_futures';
+export type WorldIndexRegionKey = "asia" | "europe" | "us_futures";
 
 export type WorldIndex = {
   symbol: string;
@@ -655,7 +655,7 @@ export type WorldIndices = {
   /** Average move of the chip-heavy indices (Nikkei, KOSPI, TAIEX, AEX). */
   semis: {
     avg_change_percent: number;
-    tone: 'bearish' | 'neutral' | 'bullish';
+    tone: "bearish" | "neutral" | "bullish";
     symbols: string[];
   } | null;
   source: string;
@@ -669,7 +669,7 @@ export type CompanyNewsArticle = {
   date: string;
   source?: string | null;
   /** FinTwitBERT read of headline + excerpt; null when the model is not loaded. */
-  sentiment_label?: 'BULLISH' | 'BEARISH' | 'NEUTRAL' | null;
+  sentiment_label?: "BULLISH" | "BEARISH" | "NEUTRAL" | null;
   /** Signed confidence: +1 confidently bullish, -1 confidently bearish. */
   sentiment_score?: number | null;
 };
@@ -681,7 +681,7 @@ export type CompanyNewsSentimentSummary = {
   neutral: number;
   bearish: number;
   mean_score: number | null;
-  label: 'BULLISH' | 'BEARISH' | 'NEUTRAL' | null;
+  label: "BULLISH" | "BEARISH" | "NEUTRAL" | null;
 };
 
 export type CompanyNewsResponse = {
@@ -709,7 +709,7 @@ export type NewsStory = {
   sources: string[];
   article_count: number;
   themes: string[];
-  sentiment_label?: 'BULLISH' | 'BEARISH' | 'NEUTRAL' | null;
+  sentiment_label?: "BULLISH" | "BEARISH" | "NEUTRAL" | null;
   sentiment_score?: number | null;
   /** The other headlines about the same event. */
   related: NewsStoryLink[];
@@ -732,13 +732,13 @@ export type NewsOverviewResponse = {
 };
 
 export type SpyHeatmapDateRange =
-  | 'one_day'
-  | 'after_hours'
-  | 'yesterday'
-  | 'one_week'
-  | 'one_month'
-  | 'ytd'
-  | 'one_year';
+  | "one_day"
+  | "after_hours"
+  | "yesterday"
+  | "one_week"
+  | "one_month"
+  | "ytd"
+  | "one_year";
 
 export type SpyHeatmapItem = {
   ticker: string;
@@ -768,9 +768,13 @@ export type SectorOverviewResponse = {
   sectors: SectorPerformance[];
 };
 
-export type SectorRotationTimeframe = 'daily' | 'weekly';
+export type SectorRotationTimeframe = "daily" | "weekly";
 
-export type SectorRotationQuadrant = 'leading' | 'weakening' | 'lagging' | 'improving';
+export type SectorRotationQuadrant =
+  | "leading"
+  | "weakening"
+  | "lagging"
+  | "improving";
 
 export type SectorRotationPoint = {
   date: string;
@@ -794,7 +798,7 @@ export type SectorRotationResponse = {
 
 export type PortfolioPosition = {
   id: number;
-  broker: 'IBKR';
+  broker: "IBKR";
   symbol: string;
   quantity: number;
   avg_cost: number;
@@ -806,7 +810,12 @@ export type PortfolioPosition = {
   updated_at?: string | null;
 };
 
+/** ibkr = IBKR's live mark, yahoo = Yahoo quote, ibkr_stale = last IBKR mark, none = no price */
+export type PortfolioPriceSource = "ibkr" | "yahoo" | "ibkr_stale" | "none";
+
 export type PortfolioSummaryPosition = PortfolioPosition & {
+  quote_symbol?: string;
+  price_source?: PortfolioPriceSource;
   market_price?: number | null;
   market_value: number;
   cost_basis: number;
@@ -826,9 +835,17 @@ export type PortfolioSummary = {
   positions: PortfolioSummaryPosition[];
 };
 
-export type PortfolioHoldingSource = 'auto' | 'manual' | 'ibkr';
+export type PortfolioHoldingSource = "auto" | "manual" | "ibkr";
 
-export type PortfolioHistoryRange = '1W' | '1M' | '3M' | '6M' | 'YTD' | '1Y' | '5Y' | 'MAX';
+export type PortfolioHistoryRange =
+  | "1W"
+  | "1M"
+  | "3M"
+  | "6M"
+  | "YTD"
+  | "1Y"
+  | "5Y"
+  | "MAX";
 
 export type PortfolioHistoryPoint = {
   t: string;
@@ -837,7 +854,7 @@ export type PortfolioHistoryPoint = {
   pnl: number;
   pnl_percent: number;
   /** Where the point came from: a stored snapshot, price reconstruction, or the live quote. */
-  source: 'snapshot' | 'reconstructed' | 'live';
+  source: "snapshot" | "reconstructed" | "live";
 };
 
 export type PortfolioHistory = {
@@ -868,18 +885,18 @@ export type PortfolioExtreme = {
   date: string;
 };
 
-export type PortfolioFlagTone = 'bullish' | 'bearish' | 'neutral';
+export type PortfolioFlagTone = "bullish" | "bearish" | "neutral";
 
 export type PortfolioAssetFlag = {
   code:
-    | 'at_ath'
-    | 'near_ath'
-    | 'recent_ath'
-    | 'at_atl'
-    | 'near_atl'
-    | 'recent_atl'
-    | 'near_52w_high'
-    | 'near_52w_low';
+    | "at_ath"
+    | "near_ath"
+    | "recent_ath"
+    | "at_atl"
+    | "near_atl"
+    | "recent_atl"
+    | "near_52w_high"
+    | "near_52w_low";
   label: string;
   tone: PortfolioFlagTone;
 };
@@ -909,7 +926,10 @@ export type PortfolioInsightPosition = {
   avg_cost: number;
   cost_basis: number;
   currency: string;
+  /** Symbol quotes/history come from, e.g. ARKG.L for an LSE listing */
+  quote_symbol?: string;
   market_price: number | null;
+  price_source?: PortfolioPriceSource;
   market_value: number;
   unrealized_pnl: number;
   unrealized_pnl_percent: number;
@@ -942,10 +962,10 @@ export type PortfolioSectorConcentration = {
 };
 
 export type PortfolioDiversificationLabel =
-  | 'unrated'
-  | 'concentrated'
-  | 'moderate'
-  | 'diversified';
+  | "unrated"
+  | "concentrated"
+  | "moderate"
+  | "diversified";
 
 export type PortfolioDiversification = {
   label: PortfolioDiversificationLabel;
@@ -979,7 +999,7 @@ export type RedditPost = {
   url: string;
   image_urls: string[];
   // How the post carries media; null for a text post. Older backends omit it.
-  media_type?: 'image' | 'gallery' | 'video' | 'link' | null;
+  media_type?: "image" | "gallery" | "video" | "link" | null;
   // External page a link post points at; `url` is always the Reddit thread.
   link_url?: string | null;
   flair?: string | null;
@@ -1005,7 +1025,7 @@ export type RedditTickerTrend = {
   spike_score: number;
   // 0-1 blend of mentions, engagement, unique authors and momentum. Default sort.
   heat_score: number;
-  sentiment: 'bullish' | 'bearish' | 'neutral' | string | null;
+  sentiment: "bullish" | "bearish" | "neutral" | string | null;
   sentiment_score: number;
   sentiment_breakdown: Record<string, number>;
   is_emerging: boolean;
@@ -1024,7 +1044,7 @@ export type RedditTrendReport = {
   window_hours?: number;
   posts_analyzed?: number;
   posts_in_window?: number;
-  mood?: 'bullish' | 'bearish' | 'neutral' | string | null;
+  mood?: "bullish" | "bearish" | "neutral" | string | null;
   sentiment_score?: number | null;
   rising?: string[];
   fading?: string[];
@@ -1040,7 +1060,7 @@ export type RedditSubredditSummary = {
   subreddit: string;
   posts: number;
   posts_with_tickers?: number;
-  mood?: 'bullish' | 'bearish' | 'neutral' | string | null;
+  mood?: "bullish" | "bearish" | "neutral" | string | null;
   sentiment_score?: number;
   sentiment_breakdown?: Record<string, number>;
   top_tickers?: Record<string, number>;
@@ -1056,14 +1076,14 @@ export type RedditTrendTimeline = {
 // What the background scrape is doing (app/runtime/reddit_trends.py).
 export type RedditTrendWorkerStatus = {
   state:
-    | 'idle'
-    | 'disabled'
-    | 'warming_up'
-    | 'scraping'
-    | 'ok'
-    | 'empty'
-    | 'error'
-    | 'unavailable'
+    | "idle"
+    | "disabled"
+    | "warming_up"
+    | "scraping"
+    | "ok"
+    | "empty"
+    | "error"
+    | "unavailable"
     | string;
   last_attempt_at?: string | null;
   last_success_at?: string | null;
@@ -1086,7 +1106,7 @@ export type StockMarketHoursItem = {
   timezone: string | null;
   next_open: string | null;
   next_close: string | null;
-  closure_reason?: 'holiday' | 'weekend' | string | null;
+  closure_reason?: "holiday" | "weekend" | string | null;
   is_holiday?: boolean;
   holiday_name?: string | null;
 };
@@ -1106,7 +1126,7 @@ export type EconomicEventItem = {
   source: string | null;
 };
 
-export type CongressTransaction = 'buy' | 'sell' | 'exchange' | 'other';
+export type CongressTransaction = "buy" | "sell" | "exchange" | "other";
 
 export type CongressTrade = {
   id: string | null;
@@ -1163,7 +1183,7 @@ export type CongressTrades = {
   source: string;
 };
 
-export type EarningsSession = 'pre-market' | 'after-hours' | 'unknown';
+export type EarningsSession = "pre-market" | "after-hours" | "unknown";
 
 export type EarningsRow = {
   symbol: string;
@@ -1184,7 +1204,7 @@ export type EarningsRow = {
   surprise_pct?: number | null;
 };
 
-export type EarningsOutcome = 'beat' | 'miss' | 'inline';
+export type EarningsOutcome = "beat" | "miss" | "inline";
 
 export type EarningsResult = EarningsRow & {
   eps_actual: number;
@@ -1232,7 +1252,7 @@ export type ForexMacroIndex = {
   symbol: string;
   name: string;
   price: number;
-  category?: 'crypto' | 'stock' | 'forex' | 'macro' | null;
+  category?: "crypto" | "stock" | "forex" | "macro" | null;
   change_percent?: number | null;
   website?: string | null;
   source?: string | null;
@@ -1266,8 +1286,23 @@ export type IbkrPosition = {
   quantity: number;
   avg_cost: number;
   synced_at: string;
+  primary_exchange?: string | null;
+  con_id?: number | null;
+  local_symbol?: string | null;
+  // IBKR's own mark at sync time
+  ibkr_market_price?: number | null;
+  ibkr_market_value?: number | null;
+  ibkr_unrealized_pnl?: number | null;
+  // contract terms (options/futures); null for stocks
+  expiry?: string | null;
+  strike?: number | null;
+  right?: string | null;
+  multiplier?: number | null;
   // enriched by backend
+  description?: string;
+  quote_symbol?: string | null;
   market_price?: number | null;
+  price_source?: PortfolioPriceSource;
   market_value: number;
   cost_basis: number;
   unrealized_pnl: number;
@@ -1281,7 +1316,7 @@ export type IbkrTrade = {
   symbol: string;
   sec_type: string;
   currency: string;
-  side: 'BOT' | 'SLD' | string;
+  side: "BOT" | "SLD" | string;
   quantity: number;
   price: number;
   commission?: number | null;
@@ -1319,11 +1354,11 @@ export type IntegrationsStatus = {
   reddit: boolean;
 };
 
-export type AssetKind = 'all' | 'EQUITY' | 'CRYPTO' | 'FOREX';
+export type AssetKind = "all" | "EQUITY" | "CRYPTO" | "FOREX";
 
-export type SentimentLabel = 'BULL' | 'BEAR' | 'NEUTRAL';
+export type SentimentLabel = "BULL" | "BEAR" | "NEUTRAL";
 
-export type TrendWindow = '1d' | '7d' | '30d';
+export type TrendWindow = "1d" | "7d" | "30d";
 
 /** A value in the active window next to the same value in the window before it. */
 export interface TrendPair<T = number> {
@@ -1334,7 +1369,7 @@ export interface TrendPair<T = number> {
 /** One of the top tickers in GET /api/overview/trend-summary. */
 export interface TrendTicker {
   ticker: string;
-  asset_kind: 'EQUITY' | 'CRYPTO' | 'FOREX';
+  asset_kind: "EQUITY" | "CRYPTO" | "FOREX";
   mentions: number;
   previous_mentions: number;
   /** Rank by mentions in the previous window; null when it wasn't mentioned then. */
@@ -1376,7 +1411,7 @@ export interface TrendSummary {
       tickers: number[];
     };
   };
-  kind_share: TrendPair<Record<'EQUITY' | 'CRYPTO' | 'FOREX', number>>;
+  kind_share: TrendPair<Record<"EQUITY" | "CRYPTO" | "FOREX", number>>;
   tickers: TrendTicker[];
 }
 
@@ -1415,15 +1450,15 @@ export interface VolumeBaselineItem {
 }
 
 export type MentionSignal =
-  | 'new'
-  | 'resurfacing'
-  | 'top'
-  | 'hot'
-  | 'rising'
-  | 'falling'
-  | 'neutral';
+  | "new"
+  | "resurfacing"
+  | "top"
+  | "hot"
+  | "rising"
+  | "falling"
+  | "neutral";
 
-export type MentionStance = 'bullish' | 'bearish' | 'mixed' | null;
+export type MentionStance = "bullish" | "bearish" | "mixed" | null;
 
 export interface TickerScopeStat {
   mentions: number;
@@ -1458,7 +1493,7 @@ export interface SectorMentionTicker {
 }
 
 /** Momentum classification for a sector/industry's mentions vs. the prior window (issue #146). */
-export type SectorTrend = 'hot' | 'rising' | 'cooling' | 'rare' | 'steady';
+export type SectorTrend = "hot" | "rising" | "cooling" | "rare" | "steady";
 
 export interface SectorMentionIndustry {
   industry: string;
@@ -1486,7 +1521,7 @@ export interface SectorMentionItem {
 export interface HiddenGemItem {
   ticker: string;
   mentions_24h: number;
-  gem_subtype: 'new' | 'resurfacing';
+  gem_subtype: "new" | "resurfacing";
   days_since_last: number | null;
   first_seen: string | null;
   last_seen: string | null;
@@ -1540,303 +1575,338 @@ export interface TickerPriceHistory {
 }
 
 export type ExtendedHoursFuture = {
-  label: string
-  symbol: string
-  price: number
-  change_pct: number
-}
+  label: string;
+  symbol: string;
+  price: number;
+  change_pct: number;
+};
 
 export type ExtendedHoursEtf = {
-  symbol: string
-  price: number
-  extended_price: number | null
-  extended_change_pct: number | null
-}
+  symbol: string;
+  price: number;
+  extended_price: number | null;
+  extended_change_pct: number | null;
+};
 
 export type ExtendedHoursTopTicker = {
-  ticker: string
-  mentions: number
-  sentiment: 'BULL' | 'BEAR' | 'NEUTRAL' | string
-}
+  ticker: string;
+  mentions: number;
+  sentiment: "BULL" | "BEAR" | "NEUTRAL" | string;
+};
 
 export type ExtendedHoursTweetStats = {
-  total_mentions: number
-  top_tickers: ExtendedHoursTopTicker[]
-  sentiment_distribution: { BULL: number; BEAR: number; NEUTRAL: number }
-}
+  total_mentions: number;
+  top_tickers: ExtendedHoursTopTicker[];
+  sentiment_distribution: { BULL: number; BEAR: number; NEUTRAL: number };
+};
 
 export type ExtendedHoursSnapshot = {
-  session: 'pre-market' | 'after-hours' | 'regular' | 'closed' | string
-  window_start: string
-  window_end: string
-  futures: ExtendedHoursFuture[]
-  etfs: ExtendedHoursEtf[]
-  tweet_stats: ExtendedHoursTweetStats
-}
+  session: "pre-market" | "after-hours" | "regular" | "closed" | string;
+  window_start: string;
+  window_end: string;
+  futures: ExtendedHoursFuture[];
+  etfs: ExtendedHoursEtf[];
+  tweet_stats: ExtendedHoursTweetStats;
+};
 
 export type MarketMover = {
-  symbol: string
-  name: string
-  price: number
-  extended_price: number
-  change_pct: number
-  volume: number
-  market_cap: number
-}
+  symbol: string;
+  name: string;
+  price: number;
+  extended_price: number;
+  change_pct: number;
+  volume: number;
+  market_cap: number;
+};
 
 export type MarketMoversSnapshot = {
-  session_type: 'pre-market' | 'after-hours' | string
-  gainers: MarketMover[]
-  losers: MarketMover[]
-  stale?: boolean
-}
+  session_type: "pre-market" | "after-hours" | string;
+  gainers: MarketMover[];
+  losers: MarketMover[];
+  stale?: boolean;
+};
 
-export type Market = 'usa' | 'uk' | 'india' | 'australia' | 'canada' | 'crypto'
+export type Market = "usa" | "uk" | "india" | "australia" | "canada" | "crypto";
 
-export type MoverCategory = 'gainers' | 'losers' | 'most_active' | 'penny_stocks'
+export type MoverCategory =
+  | "gainers"
+  | "losers"
+  | "most_active"
+  | "penny_stocks";
 
 export type MoverItem = {
-  symbol: string
-  name: string
-  price: number
-  change_pct: number
-  volume: number
-  market_cap: number
-}
+  symbol: string;
+  name: string;
+  price: number;
+  change_pct: number;
+  volume: number;
+  market_cap: number;
+};
 
 export type MoversResponse = {
-  market: Market | string
-  category: MoverCategory | string
-  movers: MoverItem[]
-}
+  market: Market | string;
+  category: MoverCategory | string;
+  movers: MoverItem[];
+};
 
-export type XStreamState = 'disabled' | 'connecting' | 'ok' | 'auth_failed' | 'error';
+export type XStreamState =
+  | "disabled"
+  | "connecting"
+  | "ok"
+  | "auth_failed"
+  | "error";
 
 export type XStreamStatus = {
   state: XStreamState;
-  source: 'cookies' | 'curl' | null;
+  source: "cookies" | "curl" | null;
   detail: string | null;
 };
 
 // Claude market check (/advisor): the owner's strategy and Claude's journal.
-export type AdvisorAction = 'buy' | 'add' | 'trim' | 'sell' | 'watch'
+export type AdvisorAction = "buy" | "add" | "trim" | "sell" | "watch";
 
 export interface AdvisorStrategy {
-  rules: string
-  watchlist: string[]
+  rules: string;
+  watchlist: string[];
   /** X handles whose ticker mentions Claude vets as buy ideas. */
-  followed_traders: string[]
+  followed_traders: string[];
   /** Cash the owner is willing to invest; null when not set. */
-  available_cash: number | null
-  cash_currency: string | null
-  updated_at: string | null
+  available_cash: number | null;
+  cash_currency: string | null;
+  updated_at: string | null;
 }
 
 export type AdvisorStrategyDraft = Pick<
   AdvisorStrategy,
-  'rules' | 'watchlist' | 'followed_traders' | 'available_cash'
+  "rules" | "watchlist" | "followed_traders" | "available_cash"
 > & {
-  cash_currency: string
-}
+  cash_currency: string;
+};
 
 /** One finished market check: when it ran and what it found. */
 export interface AdvisorRun {
-  id: number
-  ran_at: string | null
+  id: number;
+  ran_at: string | null;
   /** Newest tweet id the check read (a string: ids overflow a JS number). */
-  tweet_cursor: string | null
-  session: string | null
-  posts_read: number | null
-  summary: string
+  tweet_cursor: string | null;
+  session: string | null;
+  posts_read: number | null;
+  summary: string;
 }
 
 export interface AdvisorCallResult {
-  horizon_days: number
-  price_at_horizon: number
-  return_pct: number
-  correct: boolean
-  excluded: boolean
-  evaluated_at: string | null
+  horizon_days: number;
+  price_at_horizon: number;
+  return_pct: number;
+  correct: boolean;
+  excluded: boolean;
+  evaluated_at: string | null;
 }
 
 export interface AdvisorCall {
-  id: number
-  symbol: string
-  action: AdvisorAction
-  conviction: 'low' | 'medium' | 'high' | null
-  price_at_call: number | null
-  asset_kind: string | null
-  reasoning: string
-  rule: string | null
-  called_at: string | null
-  results: Record<string, AdvisorCallResult>
+  id: number;
+  symbol: string;
+  action: AdvisorAction;
+  conviction: "low" | "medium" | "high" | null;
+  price_at_call: number | null;
+  asset_kind: string | null;
+  reasoning: string;
+  rule: string | null;
+  called_at: string | null;
+  results: Record<string, AdvisorCallResult>;
 }
 
 export interface AdvisorScoreBucket {
-  graded: number
-  hit_rate: number | null
-  avg_return_pct: number | null
+  graded: number;
+  hit_rate: number | null;
+  avg_return_pct: number | null;
 }
 
 export interface AdvisorScorecard {
-  total_calls: number
-  horizons: Record<string, AdvisorScoreBucket & { by_action: Record<string, AdvisorScoreBucket> }>
+  total_calls: number;
+  horizons: Record<
+    string,
+    AdvisorScoreBucket & { by_action: Record<string, AdvisorScoreBucket> }
+  >;
 }
 
 export type InsiderTrade = {
-  filed_at: string | null
-  traded: string | null
-  ticker: string
-  company: string | null
-  insider: string | null
-  insider_cik: string | null
-  title: string | null
-  is_officer: boolean
-  is_ten_percent_owner: boolean
-  side: 'buy' | 'sell'
-  trade_label: string
-  with_option_exercise: boolean
-  price: number | null
-  shares: number | null
-  owned_after: number | null
-  owned_change_pct: number | null
-  new_position: boolean
-  value: number | null
-  remarks: string[]
-  filing_url: string | null
-}
+  filed_at: string | null;
+  traded: string | null;
+  ticker: string;
+  company: string | null;
+  insider: string | null;
+  insider_cik: string | null;
+  title: string | null;
+  is_officer: boolean;
+  is_ten_percent_owner: boolean;
+  side: "buy" | "sell";
+  trade_label: string;
+  with_option_exercise: boolean;
+  price: number | null;
+  shares: number | null;
+  owned_after: number | null;
+  owned_change_pct: number | null;
+  new_position: boolean;
+  value: number | null;
+  remarks: string[];
+  filing_url: string | null;
+};
 
 export type InsiderTickerGroup = {
-  ticker: string
-  company: string | null
-  insiders: string[]
-  officers: string[]
-  trades: number
-  value: number
-  last_traded: string | null
-  last_price: number | null
-}
+  ticker: string;
+  company: string | null;
+  insiders: string[];
+  officers: string[];
+  trades: number;
+  value: number;
+  last_traded: string | null;
+  last_price: number | null;
+};
 
 export type InsiderTrades = {
-  trades: InsiderTrade[]
+  trades: InsiderTrade[];
   summary: {
-    buys: number
-    sells: number
-    buy_value: number
-    sell_value: number
-    buy_share_pct: number | null
-    cluster_buys: InsiderTickerGroup[]
-    top_buys: InsiderTickerGroup[]
-    top_sells: InsiderTickerGroup[]
-  }
-  filter: { days: number; min_value: number; ticker: string | null; side: 'buy' | 'sell' | null }
-  as_of: string | null
-  source: string
-}
+    buys: number;
+    sells: number;
+    buy_value: number;
+    sell_value: number;
+    buy_share_pct: number | null;
+    cluster_buys: InsiderTickerGroup[];
+    top_buys: InsiderTickerGroup[];
+    top_sells: InsiderTickerGroup[];
+  };
+  filter: {
+    days: number;
+    min_value: number;
+    ticker: string | null;
+    side: "buy" | "sell" | null;
+  };
+  as_of: string | null;
+  source: string;
+};
 
-export type FundAction = 'new' | 'added' | 'reduced' | 'sold_out' | 'unchanged'
+export type FundAction = "new" | "added" | "reduced" | "sold_out" | "unchanged";
 
 export type FundPosition = {
-  cusip: string
-  issuer: string | null
-  ticker: string | null
-  instrument: 'call' | 'put' | 'note' | null
-  value: number
-  shares: number
-  prev_shares: number
-  weight_pct: number
-  action: FundAction
-  shares_change_pct: number | null
-  value_change: number
-}
+  cusip: string;
+  issuer: string | null;
+  ticker: string | null;
+  instrument: "call" | "put" | "note" | null;
+  value: number;
+  shares: number;
+  prev_shares: number;
+  weight_pct: number;
+  action: FundAction;
+  shares_change_pct: number | null;
+  value_change: number;
+};
 
 export type Fund = {
-  cik: number
-  name: string
-  manager: string | null
-  report_date: string
-  filed: string
-  prev_report_date: string | null
-  filing_url: string
-  positions: number
-  total_value: number
-  top_holdings: FundPosition[]
-  buys: FundPosition[]
-  sells: FundPosition[]
-  new_positions: number
-  sold_out: number
-  stale: boolean
-}
+  cik: number;
+  name: string;
+  manager: string | null;
+  report_date: string;
+  filed: string;
+  prev_report_date: string | null;
+  filing_url: string;
+  positions: number;
+  total_value: number;
+  top_holdings: FundPosition[];
+  buys: FundPosition[];
+  sells: FundPosition[];
+  new_positions: number;
+  sold_out: number;
+  stale: boolean;
+};
 
 export type FundConsensus = {
-  cusip: string
-  issuer: string | null
-  ticker: string | null
-  funds: string[]
-  new_or_exited?: number
-  value_change?: number
-  value?: number
-}
+  cusip: string;
+  issuer: string | null;
+  ticker: string | null;
+  funds: string[];
+  new_or_exited?: number;
+  value_change?: number;
+  value?: number;
+};
 
 export type FundHoldings = {
-  funds: Fund[]
-  most_bought: FundConsensus[]
-  most_sold: FundConsensus[]
-  most_held: FundConsensus[]
-  report_date: string | null
-  missing: string[]
-  as_of: string | null
-  source: string
-}
+  funds: Fund[];
+  most_bought: FundConsensus[];
+  most_sold: FundConsensus[];
+  most_held: FundConsensus[];
+  report_date: string | null;
+  missing: string[];
+  as_of: string | null;
+  source: string;
+};
 
-export type BreadthTrend = 'overbought' | 'healthy' | 'mixed' | 'weak' | 'washed_out'
+export type BreadthTrend =
+  | "overbought"
+  | "healthy"
+  | "mixed"
+  | "weak"
+  | "washed_out";
 
-export type BreadthDay = 'broad_rally' | 'narrow_rally' | 'broad_selloff' | 'resilient' | 'mixed'
+export type BreadthDay =
+  | "broad_rally"
+  | "narrow_rally"
+  | "broad_selloff"
+  | "resilient"
+  | "mixed";
 
 export type BreadthCounts = {
-  members: number
-  advancers: number
-  decliners: number
-  new_highs: number
-  new_lows: number
-  pct_above_sma50: number | null
-  pct_above_sma200: number | null
-}
+  members: number;
+  advancers: number;
+  decliners: number;
+  new_highs: number;
+  new_lows: number;
+  pct_above_sma50: number | null;
+  pct_above_sma200: number | null;
+};
 
 export type BreadthUniverse = BreadthCounts & {
-  key: string
-  label: string
-  benchmark: { symbol: string; price: number | null; change_pct: number | null }
-  unchanged: number
-  advancers_pct: number | null
-  pct_above_sma20: number | null
-  read: { trend: { key: BreadthTrend; label: string } | null; day: BreadthDay; note: string }
-}
+  key: string;
+  label: string;
+  benchmark: {
+    symbol: string;
+    price: number | null;
+    change_pct: number | null;
+  };
+  unchanged: number;
+  advancers_pct: number | null;
+  pct_above_sma20: number | null;
+  read: {
+    trend: { key: BreadthTrend; label: string } | null;
+    day: BreadthDay;
+    note: string;
+  };
+};
 
 export type BreadthSector = BreadthCounts & {
-  sector: string
-  avg_change: number | null
-}
+  sector: string;
+  avg_change: number | null;
+};
 
 export type MarketBreadth = {
-  universes: BreadthUniverse[]
-  sectors: BreadthSector[]
-  session_date: string | null
-  as_of: string
-  source: string
-}
+  universes: BreadthUniverse[];
+  sectors: BreadthSector[];
+  session_date: string | null;
+  as_of: string;
+  source: string;
+};
 
 export type MarketBreadthPoint = {
-  universe: string
-  session_date: string
-  captured_at: string | null
-  members: number
-  advancers: number
-  decliners: number
-  new_highs: number
-  new_lows: number
-  pct_above_sma20: number | null
-  pct_above_sma50: number | null
-  pct_above_sma200: number | null
-  benchmark_change_pct: number | null
-}
+  universe: string;
+  session_date: string;
+  captured_at: string | null;
+  members: number;
+  advancers: number;
+  decliners: number;
+  new_highs: number;
+  new_lows: number;
+  pct_above_sma20: number | null;
+  pct_above_sma50: number | null;
+  pct_above_sma200: number | null;
+  benchmark_change_pct: number | null;
+};

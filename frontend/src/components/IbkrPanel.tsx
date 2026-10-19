@@ -1,36 +1,37 @@
-import type { IbkrAccountSummary, IbkrPosition, IbkrStatus, IbkrTrade } from '../types'
+import type {
+  IbkrAccountSummary,
+  IbkrPosition,
+  IbkrStatus,
+  IbkrTrade,
+} from "../types";
 
 function fmt(n: number | null | undefined, decimals = 2): string {
-  if (n == null) return '—'
+  if (n == null) return "—";
   return n.toLocaleString(undefined, {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
-  })
+  });
 }
 
-function fmtCurrency(n: number | null | undefined, currency = 'USD'): string {
-  if (n == null) return '—'
+function fmtCurrency(n: number | null | undefined, currency = "USD"): string {
+  if (n == null) return "—";
   return new Intl.NumberFormat(undefined, {
-    style: 'currency',
+    style: "currency",
     currency,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(n)
+  }).format(n);
 }
 
 function PnlCell({ value }: { value: number }) {
   const color =
-    value > 0
-      ? 'text-green-400'
-      : value < 0
-        ? 'text-red-400'
-        : 'text-zinc-400'
+    value > 0 ? "text-green-400" : value < 0 ? "text-red-400" : "text-zinc-400";
   return (
     <span className={color}>
-      {value >= 0 ? '+' : ''}
+      {value >= 0 ? "+" : ""}
       {fmt(value)}
     </span>
-  )
+  );
 }
 
 function StatusBadge({
@@ -38,15 +39,15 @@ function StatusBadge({
   lastSync,
   lastError,
 }: {
-  connected: boolean
-  lastSync: string | null
-  lastError: string | null
+  connected: boolean;
+  lastSync: string | null;
+  lastError: string | null;
 }) {
-  const dotColor = connected ? 'bg-green-500' : 'bg-red-500'
-  const label = connected ? 'Connected' : 'Disconnected'
+  const dotColor = connected ? "bg-green-500" : "bg-red-500";
+  const label = connected ? "Connected" : "Disconnected";
   const syncText = lastSync
     ? `Last sync ${new Date(lastSync).toLocaleTimeString()}`
-    : 'Not yet synced'
+    : "Not yet synced";
 
   return (
     <div className="flex flex-wrap items-center gap-3 rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm">
@@ -61,27 +62,27 @@ function StatusBadge({
         </span>
       )}
     </div>
-  )
+  );
 }
 
 function AccountSummary({ account }: { account: IbkrAccountSummary }) {
   const cards = [
-    { label: 'Net Liquidation', key: 'NetLiquidation' },
-    { label: 'Cash', key: 'TotalCashValue' },
-    { label: 'Gross Positions', key: 'GrossPositionValue' },
-    { label: 'Unrealized P&L', key: 'UnrealizedPnL' },
-    { label: 'Realized P&L', key: 'RealizedPnL' },
-  ] as const
+    { label: "Net Liquidation", key: "NetLiquidation" },
+    { label: "Cash", key: "TotalCashValue" },
+    { label: "Gross Positions", key: "GrossPositionValue" },
+    { label: "Unrealized P&L", key: "UnrealizedPnL" },
+    { label: "Realized P&L", key: "RealizedPnL" },
+  ] as const;
 
-  const hasAny = cards.some((c) => account[c.key] != null)
-  if (!hasAny) return null
+  const hasAny = cards.some((c) => account[c.key] != null);
+  if (!hasAny) return null;
 
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
       {cards.map(({ label, key }) => {
-        const entry = account[key]
-        if (!entry) return null
-        const isNegative = typeof entry.value === 'number' && entry.value < 0
+        const entry = account[key];
+        if (!entry) return null;
+        const isNegative = typeof entry.value === "number" && entry.value < 0;
         return (
           <div
             key={key}
@@ -89,26 +90,26 @@ function AccountSummary({ account }: { account: IbkrAccountSummary }) {
           >
             <div className="text-xs text-zinc-500">{label}</div>
             <div
-              className={`mt-1 text-sm font-semibold ${isNegative ? 'text-red-400' : 'text-zinc-100'}`}
+              className={`mt-1 text-sm font-semibold ${isNegative ? "text-red-400" : "text-zinc-100"}`}
             >
               {fmtCurrency(entry.value, entry.currency)}
             </div>
           </div>
-        )
+        );
       })}
     </div>
-  )
+  );
 }
 
 function PositionsTable({ positions }: { positions: IbkrPosition[] }) {
   if (positions.length === 0) {
-    return <p className="text-sm text-zinc-500">No open positions.</p>
+    return <p className="text-sm text-zinc-500">No open positions.</p>;
   }
 
-  const totalMarketValue = positions.reduce((s, p) => s + p.market_value, 0)
-  const totalPnl = positions.reduce((s, p) => s + p.unrealized_pnl, 0)
-  const totalCost = positions.reduce((s, p) => s + p.cost_basis, 0)
-  const totalPnlPct = totalCost ? (totalPnl / totalCost) * 100 : 0
+  const totalMarketValue = positions.reduce((s, p) => s + p.market_value, 0);
+  const totalPnl = positions.reduce((s, p) => s + p.unrealized_pnl, 0);
+  const totalCost = positions.reduce((s, p) => s + p.cost_basis, 0);
+  const totalPnlPct = totalCost ? (totalPnl / totalCost) * 100 : 0;
 
   return (
     <div className="overflow-x-auto">
@@ -128,12 +129,31 @@ function PositionsTable({ positions }: { positions: IbkrPosition[] }) {
         <tbody className="divide-y divide-zinc-800">
           {positions.map((p) => (
             <tr key={p.id} className="text-zinc-200">
-              <td className="py-1.5 pr-4 font-medium">{p.symbol}</td>
-              <td className="py-1.5 pr-4 text-xs text-zinc-500">{p.sec_type}</td>
+              <td className="py-1.5 pr-4 font-medium">
+                {p.description || p.symbol}
+              </td>
+              <td className="py-1.5 pr-4 text-xs text-zinc-500">
+                {p.sec_type}
+              </td>
               <td className="py-1.5 pr-4 text-right">{fmt(p.quantity, 0)}</td>
               <td className="py-1.5 pr-4 text-right">{fmt(p.avg_cost)}</td>
               <td className="py-1.5 pr-4 text-right">
-                {p.market_price != null ? fmt(p.market_price) : '—'}
+                <span
+                  title={
+                    p.price_source === "ibkr_stale"
+                      ? "Last IBKR price (gateway not syncing)"
+                      : p.price_source === "yahoo"
+                        ? `Yahoo quote (${p.quote_symbol ?? p.symbol})`
+                        : undefined
+                  }
+                  className={
+                    p.price_source === "ibkr_stale"
+                      ? "text-zinc-500"
+                      : undefined
+                  }
+                >
+                  {p.market_price != null ? fmt(p.market_price) : "—"}
+                </span>
               </td>
               <td className="py-1.5 pr-4 text-right">{fmt(p.market_value)}</td>
               <td className="py-1.5 pr-4 text-right">
@@ -161,12 +181,12 @@ function PositionsTable({ positions }: { positions: IbkrPosition[] }) {
         </tfoot>
       </table>
     </div>
-  )
+  );
 }
 
 function TradesTable({ trades }: { trades: IbkrTrade[] }) {
   if (trades.length === 0) {
-    return <p className="text-sm text-zinc-500">No recent transactions.</p>
+    return <p className="text-sm text-zinc-500">No recent transactions.</p>;
   }
 
   return (
@@ -184,44 +204,46 @@ function TradesTable({ trades }: { trades: IbkrTrade[] }) {
         </thead>
         <tbody className="divide-y divide-zinc-800">
           {trades.map((t) => {
-            const isBuy = t.side === 'BOT'
+            const isBuy = t.side === "BOT";
             return (
               <tr key={t.id} className="text-zinc-200">
                 <td className="py-1.5 pr-4 text-xs text-zinc-400">
                   {t.executed_at
                     ? new Date(t.executed_at).toLocaleString(undefined, {
-                        dateStyle: 'medium',
-                        timeStyle: 'short',
+                        dateStyle: "medium",
+                        timeStyle: "short",
                       })
-                    : '—'}
+                    : "—"}
                 </td>
                 <td className="py-1.5 pr-4 font-medium">{t.symbol}</td>
-                <td className={`py-1.5 pr-4 font-semibold ${isBuy ? 'text-green-400' : 'text-red-400'}`}>
-                  {isBuy ? 'BUY' : 'SELL'}
+                <td
+                  className={`py-1.5 pr-4 font-semibold ${isBuy ? "text-green-400" : "text-red-400"}`}
+                >
+                  {isBuy ? "BUY" : "SELL"}
                 </td>
                 <td className="py-1.5 pr-4 text-right">{fmt(t.quantity, 0)}</td>
                 <td className="py-1.5 pr-4 text-right">{fmt(t.price)}</td>
                 <td className="py-1.5 text-right text-zinc-400">
-                  {t.commission != null ? fmt(t.commission) : '—'}
+                  {t.commission != null ? fmt(t.commission) : "—"}
                 </td>
               </tr>
-            )
+            );
           })}
         </tbody>
       </table>
     </div>
-  )
+  );
 }
 
 type IbkrPanelProps = {
-  status: IbkrStatus | null
-  positions: IbkrPosition[]
-  trades: IbkrTrade[]
-  account: IbkrAccountSummary
-  loading: boolean
-  error: string | null
-  reload: () => void
-}
+  status: IbkrStatus | null;
+  positions: IbkrPosition[];
+  trades: IbkrTrade[];
+  account: IbkrAccountSummary;
+  loading: boolean;
+  error: string | null;
+  reload: () => void;
+};
 
 export default function IbkrPanel({
   status,
@@ -277,5 +299,5 @@ export default function IbkrPanel({
         </>
       )}
     </div>
-  )
+  );
 }

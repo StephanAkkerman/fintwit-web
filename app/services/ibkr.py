@@ -25,6 +25,7 @@ Configuration (env vars):
 
 import asyncio
 import logging
+import math
 import os
 import sys
 import threading
@@ -52,6 +53,111 @@ def default_ibkr_port(host: str, trading_mode: str | None = None) -> int:
     if host == "ibgateway":
         return 4004 if paper else 4003
     return 4002 if paper else 4001
+
+
+def _finite(value) -> float | None:
+    """``value`` as a float, or ``None`` for IB's unset/NaN sentinels."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if math.isnan(number) or math.isinf(number) or abs(number) >= _MAX_FLOAT:
+        return None
+    return number
+
+
+def position_row(position, mark=None) -> dict:
+    """Flatten an ib_insync ``Position`` (and its ``PortfolioItem``) into a row.
+
+    :param position: ``ib_insync.Position``.
+    :param mark: Matching ``ib_insync.PortfolioItem``, when TWS has pushed one.
+    """
+    # Portfolio contracts come back fully qualified (primary exchange, local
+    # symbol); bare positions sometimes don't.
+    contract = mark.contract if mark else position.contract
+    multiplier = _finite(contract.multiplier) if contract.multiplier else None
+    return {
+        "account": position.account,
+        "symbol": contract.symbol,
+        "sec_type": contract.secType,
+        "exchange": position.contract.exchange or contract.primaryExchange or "",
+        "primary_exchange": contract.primaryExchange or None,
+        "currency": contract.currency,
+        "con_id": contract.conId or None,
+        "local_symbol": contract.localSymbol or None,
+        "expiry": contract.lastTradeDateOrContractMonth or None,
+        "strike": _finite(contract.strike) if contract.strike else None,
+        "right": contract.right or None,
+        "multiplier": multiplier,
+        "quantity": float(position.position),
+        "avg_cost": float(position.avgCost),
+        "market_price": _finite(mark.marketPrice) if mark else None,
+        "market_value": _finite(mark.marketValue) if mark else None,
+        "unrealized_pnl": _finite(mark.unrealizedPNL) if mark else None,
+    }
+
+
+#: Yahoo Finance suffix for each non-US IBKR exchange code. US venues (SMART,
+#: NASDAQ, NYSE, ARCA, ...) need no suffix and are simply absent.
+_YAHOO_SUFFIXES = {
+    "LSE": ".L",
+    "LSEETF": ".L",
+    "AEB": ".AS",
+    "IBIS": ".DE",
+    "IBIS2": ".DE",
+    "FWB": ".F",
+    "SBF": ".PA",
+    "EBS": ".SW",
+    "BVME": ".MI",
+    "BM": ".MC",
+    "ENEXT.BE": ".BR",
+    "SFB": ".ST",
+    "CPH": ".CO",
+    "OSE": ".OL",
+    "TSE": ".TO",
+    "VENTURE": ".V",
+    "SEHK": ".HK",
+    "ASX": ".AX",
+    "TSEJ": ".T",
+}
+
+
+def quote_symbol(row: dict) -> str | None:
+    """Yahoo symbol to price an IBKR position with, or ``None`` if Yahoo can't.
+
+    A bare ``ARKG`` on Yahoo is the US ETF; the LSE listing IBKR holds is
+    ``ARKG.L``. Derivatives have no single Yahoo quote, so they rely on IBKR's
+    own mark only.
+    """
+    if row.get("sec_type") != "STK":
+        return None
+    symbol = str(row.get("symbol") or "").strip().upper().replace(" ", "-")
+    if not symbol:
+        return None
+    for venue in (row.get("primary_exchange"), row.get("exchange")):
+        suffix = _YAHOO_SUFFIXES.get(str(venue or "").upper())
+        if suffix:
+            return symbol + suffix
+    return symbol
+
+
+def ibkr_contract_label(row: dict) -> str:
+    """Readable contract name, e.g. ``DRAM 2026-12-18 100 C`` for an option."""
+    symbol = str(row.get("symbol") or "")
+    if row.get("sec_type") not in ("OPT", "FOP", "FUT"):
+        return symbol
+    parts = [symbol]
+    expiry = str(row.get("expiry") or "")
+    if len(expiry) == 8 and expiry.isdigit():
+        expiry = f"{expiry[:4]}-{expiry[4:6]}-{expiry[6:]}"
+    if expiry:
+        parts.append(expiry)
+    strike = row.get("strike")
+    if strike:
+        parts.append(f"{float(strike):g}")
+    if row.get("right"):
+        parts.append(str(row["right"])[0])
+    return " ".join(parts)
 
 
 class IbkrGateway:
@@ -197,20 +303,21 @@ class IbkrGateway:
     # ------------------------------------------------------------------
 
     async def get_positions(self) -> list[dict]:
-        """Return all non-zero positions for all accounts."""
+        """Return all non-zero positions for all accounts.
+
+        Each row carries IBKR's own mark (``market_price``, ``market_value``,
+        ``unrealized_pnl``) from the portfolio updates TWS pushes, so the
+        dashboard shows the same numbers as the IBKR app, plus enough contract
+        detail to tell an option or a foreign listing apart from a US stock.
+        """
         if not await self._ensure_connected():
             return []
-        # positions() reads ib_insync's in-memory cache — safe from any thread
+        # positions()/portfolio() read ib_insync's in-memory cache — safe from any thread
+        marks = {
+            (item.account, item.contract.conId): item for item in self._ib.portfolio()
+        }
         return [
-            {
-                "account": p.account,
-                "symbol": p.contract.symbol,
-                "sec_type": p.contract.secType,
-                "exchange": p.contract.exchange or "",
-                "currency": p.contract.currency,
-                "quantity": float(p.position),
-                "avg_cost": float(p.avgCost),
-            }
+            position_row(p, marks.get((p.account, p.contract.conId)))
             for p in self._ib.positions()
             if float(p.position) != 0
         ]

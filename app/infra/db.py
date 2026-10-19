@@ -284,9 +284,21 @@ class IbkrPositionRow(Base):
     symbol: Mapped[str] = mapped_column(String, index=True)
     sec_type: Mapped[str] = mapped_column(String)
     exchange: Mapped[str] = mapped_column(String, nullable=True)
+    primary_exchange: Mapped[str] = mapped_column(String, nullable=True)
     currency: Mapped[str] = mapped_column(String, default="USD")
+    con_id: Mapped[int] = mapped_column(Integer, nullable=True)
+    local_symbol: Mapped[str] = mapped_column(String, nullable=True)
+    # Option/future contract terms; null for stocks.
+    expiry: Mapped[str] = mapped_column(String, nullable=True)
+    strike: Mapped[float] = mapped_column(Float, nullable=True)
+    right: Mapped[str] = mapped_column(String, nullable=True)
+    multiplier: Mapped[float] = mapped_column(Float, nullable=True)
     quantity: Mapped[float] = mapped_column(Float)
     avg_cost: Mapped[float] = mapped_column(Float)
+    # IBKR's own mark at sync time (what the IBKR app shows).
+    market_price: Mapped[float] = mapped_column(Float, nullable=True)
+    market_value: Mapped[float] = mapped_column(Float, nullable=True)
+    unrealized_pnl: Mapped[float] = mapped_column(Float, nullable=True)
     synced_at: Mapped[DateTime] = mapped_column(DateTime, index=True)
 
 
