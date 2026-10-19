@@ -245,6 +245,37 @@ class CusipTickerRow(Base):
     looked_up_at: Mapped[DateTime] = mapped_column(DateTime)
 
 
+class MarketBreadthSnapshotRow(Base):
+    """One NYSE session's breadth figures for an index (S&P 500, Nasdaq 100, ...).
+
+    The scanner only reports today's state, so a daily row is what lets the UI
+    chart how participation has trended. A session's row is overwritten on
+    every pass, so it ends up holding that session's closing figures.
+    """
+
+    __tablename__ = "market_breadth_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    universe: Mapped[str] = mapped_column(String, index=True)
+    session_date: Mapped[str] = mapped_column(String, index=True)
+    captured_at: Mapped[DateTime] = mapped_column(DateTime)
+    members: Mapped[int] = mapped_column(Integer)
+    advancers: Mapped[int] = mapped_column(Integer)
+    decliners: Mapped[int] = mapped_column(Integer)
+    new_highs: Mapped[int] = mapped_column(Integer)
+    new_lows: Mapped[int] = mapped_column(Integer)
+    pct_above_sma20: Mapped[float] = mapped_column(Float, nullable=True)
+    pct_above_sma50: Mapped[float] = mapped_column(Float, nullable=True)
+    pct_above_sma200: Mapped[float] = mapped_column(Float, nullable=True)
+    benchmark_change_pct: Mapped[float] = mapped_column(Float, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "universe", "session_date", name="uq_market_breadth_universe_session"
+        ),
+    )
+
+
 class IbkrPositionRow(Base):
     __tablename__ = "ibkr_positions"
 

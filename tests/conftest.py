@@ -7,6 +7,7 @@ from app.infra.db import init_db
 from app.infra.repos import (
     CusipTickerRepo,
     GammaExposureRepo,
+    MarketBreadthRepo,
     PortfolioRepo,
     RedditTrendRepo,
     TweetRepo,
@@ -151,3 +152,10 @@ async def cusip_ticker_repo(db_engine):
     """CusipTickerRepo backed by an in-memory database."""
     Session = async_sessionmaker(db_engine, expire_on_commit=False)
     return CusipTickerRepo(Session)
+
+
+@pytest_asyncio.fixture
+async def market_breadth_repo(db_engine):
+    """MarketBreadthRepo backed by an in-memory database."""
+    Session = async_sessionmaker(db_engine, expire_on_commit=False)
+    return MarketBreadthRepo(Session)

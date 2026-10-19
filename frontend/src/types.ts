@@ -1788,3 +1788,55 @@ export type FundHoldings = {
   as_of: string | null
   source: string
 }
+
+export type BreadthTrend = 'overbought' | 'healthy' | 'mixed' | 'weak' | 'washed_out'
+
+export type BreadthDay = 'broad_rally' | 'narrow_rally' | 'broad_selloff' | 'resilient' | 'mixed'
+
+export type BreadthCounts = {
+  members: number
+  advancers: number
+  decliners: number
+  new_highs: number
+  new_lows: number
+  pct_above_sma50: number | null
+  pct_above_sma200: number | null
+}
+
+export type BreadthUniverse = BreadthCounts & {
+  key: string
+  label: string
+  benchmark: { symbol: string; price: number | null; change_pct: number | null }
+  unchanged: number
+  advancers_pct: number | null
+  pct_above_sma20: number | null
+  read: { trend: { key: BreadthTrend; label: string } | null; day: BreadthDay; note: string }
+}
+
+export type BreadthSector = BreadthCounts & {
+  sector: string
+  avg_change: number | null
+}
+
+export type MarketBreadth = {
+  universes: BreadthUniverse[]
+  sectors: BreadthSector[]
+  session_date: string | null
+  as_of: string
+  source: string
+}
+
+export type MarketBreadthPoint = {
+  universe: string
+  session_date: string
+  captured_at: string | null
+  members: number
+  advancers: number
+  decliners: number
+  new_highs: number
+  new_lows: number
+  pct_above_sma20: number | null
+  pct_above_sma50: number | null
+  pct_above_sma200: number | null
+  benchmark_change_pct: number | null
+}

@@ -91,6 +91,7 @@ The `ibgateway` container also honours `TWS_ACCEPT_INCOMING`, `TWS_SETTINGS_PATH
 | `FUND_HOLDINGS_EXTRA_CIKS` | — | Comma-separated SEC CIKs of extra funds to track next to the built-in list (Berkshire, Pershing Square, Duquesne, Appaloosa, ...). |
 | `SEC_USER_AGENT` | `fintwit-web admin@example.com` | Sent to SEC EDGAR. SEC's fair-access policy asks for your name and a contact email (`"Jane Doe jane@example.com"`); www.sec.gov refuses requests without an email. |
 | `OPENFIGI_API_KEY` | — | Optional free OpenFIGI key: maps 100 CUSIPs per request instead of 10, so the first 13F build is faster. Answers are cached in the database either way. |
+| `MARKET_BREADTH_INTERVAL` | `1800` | Seconds between market breadth snapshots (one row per index per NYSE session, for the breadth trend chart on `/stocks`). |
 
 ## Integrations
 

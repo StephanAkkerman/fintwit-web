@@ -24,6 +24,7 @@ import CompanyNewsWidget from './components/CompanyNewsWidget'
 import CongressTradesWidget from './components/CongressTradesWidget'
 import FundHoldingsWidget from './components/FundHoldingsWidget'
 import InsiderTradesWidget from './components/InsiderTradesWidget'
+import MarketBreadthWidget from './components/MarketBreadthWidget'
 import EarningsCalendarWidget from './components/EarningsCalendarWidget'
 import EarningsResultsWidget from './components/EarningsResultsWidget'
 import EconomicEventsWidget from './components/EconomicEventsWidget'
@@ -779,6 +780,11 @@ export default function App() {
                 <div className="sm:col-span-2 2xl:col-span-3">
                   <ErrorBoundary label="World markets">
                     <WorldIndicesWidget />
+                  </ErrorBoundary>
+                </div>
+                <div className="sm:col-span-2 2xl:col-span-3">
+                  <ErrorBoundary label="Market breadth">
+                    <MarketBreadthWidget />
                   </ErrorBoundary>
                 </div>
                 <ErrorBoundary label="StockTwits">

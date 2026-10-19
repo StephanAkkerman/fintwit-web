@@ -14,6 +14,7 @@ from .db import (
     GammaExposureSnapshotRow,
     IbkrPositionRow,
     IbkrTradeRow,
+    MarketBreadthSnapshotRow,
     PortfolioPositionRow,
     PortfolioSnapshotRow,
     RedditTickerTrendRow,
@@ -478,6 +479,96 @@ class GammaExposureRepo:
                     delete(GammaExposureSnapshotRow).where(
                         GammaExposureSnapshotRow.symbol == symbol.upper(),
                         GammaExposureSnapshotRow.captured_at < cutoff,
+                    )
+                )
+        return result.rowcount or 0
+
+
+_BREADTH_FIELDS = (
+    "members",
+    "advancers",
+    "decliners",
+    "new_highs",
+    "new_lows",
+    "pct_above_sma20",
+    "pct_above_sma50",
+    "pct_above_sma200",
+    "benchmark_change_pct",
+)
+
+
+def _market_breadth_row_to_dict(r: MarketBreadthSnapshotRow) -> dict:
+    return {
+        "universe": r.universe,
+        "session_date": r.session_date,
+        "captured_at": _iso_utc(r.captured_at),
+        **{field: getattr(r, field) for field in _BREADTH_FIELDS},
+    }
+
+
+class MarketBreadthRepo:
+    """Async repo for daily market breadth snapshots, one row per index and session."""
+
+    def __init__(self, session_factory: async_sessionmaker):
+        self.Session = session_factory
+
+    async def upsert_session(
+        self, universe: str, session_date: str, payload: dict
+    ) -> dict:
+        """Store ``universe``'s figures for ``session_date``, replacing earlier ones.
+
+        :param payload: The breadth fields (see ``_BREADTH_FIELDS``).
+        :return: The stored row as a dict.
+        """
+        values = {field: payload.get(field) for field in _BREADTH_FIELDS}
+        async with self.Session() as s:
+            async with s.begin():
+                row = (
+                    await s.execute(
+                        select(MarketBreadthSnapshotRow).where(
+                            MarketBreadthSnapshotRow.universe == universe,
+                            MarketBreadthSnapshotRow.session_date == session_date,
+                        )
+                    )
+                ).scalar_one_or_none()
+                if row is None:
+                    row = MarketBreadthSnapshotRow(
+                        universe=universe, session_date=session_date
+                    )
+                    s.add(row)
+                for field, value in values.items():
+                    setattr(row, field, value)
+                row.captured_at = datetime.now(timezone.utc)
+            await s.refresh(row)
+        return _market_breadth_row_to_dict(row)
+
+    async def list_sessions(
+        self, universe: str, *, since: str | None = None
+    ) -> list[dict]:
+        """Return ``universe``'s sessions oldest-first, from ``since`` (YYYY-MM-DD)."""
+        stmt = (
+            select(MarketBreadthSnapshotRow)
+            .where(MarketBreadthSnapshotRow.universe == universe)
+            .order_by(MarketBreadthSnapshotRow.session_date.asc())
+        )
+        if since is not None:
+            stmt = stmt.where(MarketBreadthSnapshotRow.session_date >= since)
+        async with self.Session() as s:
+            rows = (await s.execute(stmt)).scalars().all()
+        return [_market_breadth_row_to_dict(r) for r in rows]
+
+    async def prune(self, *, keep_days: int = 730) -> int:
+        """Drop sessions older than ``keep_days``."""
+        cutoff = (
+            (datetime.now(timezone.utc) - timedelta(days=max(1, keep_days)))
+            .date()
+            .isoformat()
+        )
+        async with self.Session() as s:
+            async with s.begin():
+                result = await s.execute(
+                    delete(MarketBreadthSnapshotRow).where(
+                        MarketBreadthSnapshotRow.session_date < cutoff
                     )
                 )
         return result.rowcount or 0

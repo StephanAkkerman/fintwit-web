@@ -21,6 +21,7 @@ from ..infra.repos import (
     AdvisorRepo,
     CusipTickerRepo,
     GammaExposureRepo,
+    MarketBreadthRepo,
     IbkrRepo,
     PortfolioRepo,
     RedditTrendRepo,
@@ -45,6 +46,10 @@ from ..runtime.fund_holdings_refresh import (
     run_fund_holdings_refresh,
 )
 from ..runtime.ibkr_sync import run_ibkr_sync
+from ..runtime.market_breadth_snapshot import (
+    DEFAULT_INTERVAL as MARKET_BREADTH_INTERVAL,
+    run_market_breadth_snapshots,
+)
 from ..runtime.options_intent import detect_options
 from ..runtime.reddit_trends import (
     DEFAULT_INTERVAL as REDDIT_TREND_INTERVAL,
@@ -109,6 +114,10 @@ from ..services.reddit_service import (
     is_valid_subreddit_name,
 )
 from ..services import reddit_trends_service
+from ..services.market_breadth_service import (
+    UNIVERSE_KEYS as BREADTH_UNIVERSES,
+    get_market_breadth,
+)
 from ..services.market_positioning_service import get_market_positioning
 from ..services.world_indices_service import get_world_indices
 from ..services.sector_rotation_service import get_sector_rotation
@@ -148,6 +157,7 @@ TRADER_CALL_REPO = TraderCallRepo(Session)
 REDDIT_TREND_REPO = RedditTrendRepo(Session)
 GAMMA_EXPOSURE_REPO = GammaExposureRepo(Session)
 CUSIP_TICKER_REPO = CusipTickerRepo(Session)
+MARKET_BREADTH_REPO = MarketBreadthRepo(Session)
 ADVISOR_REPO = AdvisorRepo(Session)
 BROADCAST = Broadcaster()
 logger = logging.getLogger(__name__)
@@ -283,6 +293,19 @@ async def lifespan(app: FastAPI):
         fund_holdings_interval,
     )
 
+    market_breadth_interval = int(
+        os.getenv("MARKET_BREADTH_INTERVAL", MARKET_BREADTH_INTERVAL)
+    )
+    market_breadth_task = asyncio.create_task(
+        run_market_breadth_snapshots(
+            MARKET_BREADTH_REPO, interval=market_breadth_interval
+        )
+    )
+    logger.info(
+        "[market-breadth] snapshot worker started (interval=%ds)",
+        market_breadth_interval,
+    )
+
     try:
         logger.info(
             "[startup] application ready in %.2fs",
@@ -310,6 +333,9 @@ async def lifespan(app: FastAPI):
         fund_holdings_task.cancel()
         with suppress(asyncio.CancelledError):
             await fund_holdings_task
+        market_breadth_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await market_breadth_task
         if reddit_task is not None:
             reddit_task.cancel()
             with suppress(asyncio.CancelledError):
@@ -822,6 +848,42 @@ async def market_positioning(_=Depends(api_key_dep)):
     if data is None:
         raise HTTPException(status_code=503, detail="Service Unavailable")
     return data
+
+
+@app.get("/api/market/breadth")
+async def market_breadth(_=Depends(api_key_dep)):
+    """How many index members take part in the move, per index and S&P sector.
+
+    Advancers vs. decliners, the share above their 20/50/200-day averages and
+    new 52-week highs/lows for the S&P 500, Nasdaq 100 and Russell 2000; see
+    `market_breadth_service`.
+    """
+    data = await get_market_breadth()
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
+
+
+@app.get("/api/market/breadth/history")
+async def market_breadth_history(
+    universe: str = Query(default="spx"),
+    days: int = Query(180, ge=5, le=730),
+    _=Depends(api_key_dep),
+):
+    """Stored daily breadth for one index, oldest session first.
+
+    Recorded by the market breadth worker, so history starts when the app
+    first ran with it.
+    """
+    key = universe.lower()
+    if key not in BREADTH_UNIVERSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"universe must be one of {', '.join(BREADTH_UNIVERSES)}",
+        )
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).date().isoformat()
+    points = await MARKET_BREADTH_REPO.list_sessions(key, since=since)
+    return {"universe": key, "days": days, "points": points}
 
 
 @app.get("/api/market/world-indices")
