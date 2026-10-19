@@ -21,6 +21,7 @@ import AccessAllowlistPanel from './components/AccessAllowlistPanel'
 import AdvisorPanel from './components/AdvisorPanel'
 import BinanceGainersLosersWidget from './components/BinanceGainersLosersWidget'
 import CompanyNewsWidget from './components/CompanyNewsWidget'
+import CongressTradesWidget from './components/CongressTradesWidget'
 import EarningsCalendarWidget from './components/EarningsCalendarWidget'
 import EarningsResultsWidget from './components/EarningsResultsWidget'
 import EconomicEventsWidget from './components/EconomicEventsWidget'
@@ -824,6 +825,11 @@ export default function App() {
                 <div className="sm:col-span-2 2xl:col-span-3">
                   <ErrorBoundary label="Earnings results">
                     <EarningsResultsWidget portfolioLookup={portfolioLookup} />
+                  </ErrorBoundary>
+                </div>
+                <div className="sm:col-span-2 2xl:col-span-3">
+                  <ErrorBoundary label="Congress trades">
+                    <CongressTradesWidget portfolioLookup={portfolioLookup} />
                   </ErrorBoundary>
                 </div>
               </div>

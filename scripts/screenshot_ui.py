@@ -1585,6 +1585,70 @@ def _empty_earnings_results() -> dict:
     }
 
 
+def _congress_trades() -> dict:
+    """fintwit-bot #632's congress trades, shaped like `get_congress_trades`.
+
+    Real disclosures from Quiver's page as of 2026-10-15, parsed with the
+    service's own row parser so the fixture can't drift from the API shape.
+    """
+    from app.services.congress_trades_service import parse_trade, summarize
+
+    def trade(
+        ticker, asset, label, amount, name, chamber, party, filed, traded, excess, bio
+    ):
+        return parse_trade(
+            [ticker, asset, "ST", label, amount, name, chamber, party,
+             f"{filed} 00:00:00", f"{traded} 00:00:00", "-",
+             f"{chamber}-{bio}-{ticker}", excess if excess is not None else "-",
+             name, None, bio]
+        )  # fmt: skip
+
+    trades = [
+        trade('PG', 'PROCTER & GAMBLE COMPANY', 'Sale', '$1,001 - $15,000', 'David Taylor', 'House', 'R', '2026-10-15', '2026-10-12', 5.9, 'T000490'),
+        trade('FITB', 'FIFTH THIRD BANCORP - COMMON STOCK', 'Purchase', '$1,001 - $15,000', 'David Taylor', 'House', 'R', '2026-10-15', '2026-10-09', 1.42, 'T000490'),
+        trade('RPM', 'RPM INTERNATIONAL INC. COMMON STOCK', 'Purchase', '$1,001 - $15,000', 'David Taylor', 'House', 'R', '2026-10-15', '2026-10-09', 4.0, 'T000490'),
+        trade('AZO', 'AUTOZONE, INC. COMMON STOCK', 'Sale', '$15,001 - $50,000', 'Rick W. Allen', 'House', 'R', '2026-10-14', '2026-09-22', 9.37, 'A000372'),
+        trade('BRK.B', 'BERKSHIRE HATHAWAY INC. NEW COMMON STOCK', 'Purchase', '$1,001 - $15,000', 'Richard McCormick', 'House', 'R', '2026-10-14', '2026-09-18', 4.39, 'M001218'),
+        trade('COST', 'COSTCO WHOLESALE CORPORATION - COMMON STOCK', 'Sale', '$1,001 - $15,000', 'Rick W. Allen', 'House', 'R', '2026-10-14', '2026-09-18', 10.5, 'A000372'),
+        trade('NVDA', 'NVIDIA CORPORATION - COMMON STOCK', 'Sale', '$1,001 - $15,000', 'Daniel Meuser', 'House', 'R', '2026-10-14', '2026-08-31', -2.55, 'M001204'),
+        trade('NEE', 'NEXTERA ENERGY, INC. COMMON STOCK', 'Sale', '$15,001 - $50,000', 'Kevin Hern', 'House', 'R', '2026-10-13', '2026-10-02', 4.7, 'H001082'),
+        trade('CB', 'CHUBB LIMITED COMMON STOCK', 'Sale', '$1,001 - $15,000', 'Kevin Hern', 'House', 'R', '2026-10-13', '2026-09-23', 8.18, 'H001082'),
+        trade('CVX', 'CHEVRON CORPORATION COMMON STOCK', 'Sale', '$15,001 - $50,000', 'Kevin Hern', 'House', 'R', '2026-10-13', '2026-09-23', 10.33, 'H001082'),
+        trade('ADI', 'ANALOG DEVICES, INC. - COMMON STOCK', 'Purchase', '$1,001 - $15,000', 'Rick Larsen', 'House', 'D', '2026-10-12', '2026-10-08', -1.22, 'L000560'),
+        trade('FDX', 'FEDEX CORPORATION COMMON STOCK', 'Sale', '$1,001 - $15,000', 'Rick Larsen', 'House', 'D', '2026-10-12', '2026-10-08', 1.98, 'L000560'),
+        trade('HD', 'HOME DEPOT, INC.', 'Sale', '$1,001 - $15,000', 'Rick Larsen', 'House', 'D', '2026-10-12', '2026-10-08', 6.15, 'L000560'),
+        trade('BHE', 'BENCHMARK ELECTRONICS, INC. COMMON STOCK', 'Purchase', '$15,001 - $50,000', 'Gilbert Ray Cisneros, Jr.', 'House', 'D', '2026-10-12', '2026-10-01', -16.44, 'C001123'),
+        trade('THR', 'THERMON GROUP HOLDINGS, INC. COMMON STOCK', 'Exchange', '$15,001 - $50,000', 'Gilbert Ray Cisneros, Jr.', 'House', 'D', '2026-10-12', '2026-10-01', None, 'C001123'),
+        trade('IBRX', 'IMMUNITYBIO, INC. - COMMON STOCK', 'Purchase', '$1,001 - $15,000', 'Lisa C. McClain', 'House', 'R', '2026-10-12', '2026-09-30', -2.86, 'M001136'),
+        trade('MSFT', 'MICROSOFT CORPORATION - COMMON STOCK', 'Purchase', '$1,001 - $15,000', 'Lisa C. McClain', 'House', 'R', '2026-10-12', '2026-09-30', 3.04, 'M001136'),
+        trade('STX', 'SEAGATE TECHNOLOGY HOLDINGS PLC - ORDINARY SHARES', 'Sale', '$15,001 - $50,000', 'Lisa C. McClain', 'House', 'R', '2026-10-12', '2026-09-30', -30.83, 'M001136'),
+    ]  # fmt: skip
+    return {
+        "trades": trades,
+        "summary": summarize(trades),
+        "filter": {"politician": None, "stocks_only": True},
+        "as_of": "2026-10-15",
+        "source": "quiver",
+    }
+
+
+def _empty_congress_trades() -> dict:
+    return {
+        "trades": [],
+        "summary": {
+            "trades": 0,
+            "buys": 0,
+            "sells": 0,
+            "most_bought": [],
+            "most_sold": [],
+            "politicians": [],
+        },
+        "filter": {"politician": None, "stocks_only": True},
+        "as_of": None,
+        "source": "quiver",
+    }
+
+
 def _empty_earnings_calendar() -> dict:
     today = date.today()
     return {
@@ -3503,6 +3567,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             "/api/sector-rotation": _empty_sector_rotation(),
             "/api/earnings/calendar": _empty_earnings_calendar(),
             "/api/earnings/results": _empty_earnings_results(),
+            "/api/stocks/congress-trades": _empty_congress_trades(),
             "/api/options/chain": _empty_options_chain(),
             # Longer fragment first: fixture matching is substring-based, and
             # "/gamma-exposure" is itself a substring of "/gamma-exposure/history".
@@ -3764,6 +3829,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         # reading `.days` off a list and throwing during render.
         "/api/earnings/calendar": _earnings_calendar(),
         "/api/earnings/results": _earnings_results(),
+        "/api/stocks/congress-trades": _congress_trades(),
         "/api/stocktwits": _stocktwits(),
         # Crypto route.
         "/api/binance/gainers-losers": _binance_gainers_losers(),
