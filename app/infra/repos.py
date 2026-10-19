@@ -10,6 +10,7 @@ from .db import (
     AdvisorCallRow,
     AdvisorRunRow,
     AdvisorStrategyRow,
+    CusipTickerRow,
     GammaExposureSnapshotRow,
     IbkrPositionRow,
     IbkrTradeRow,
@@ -571,6 +572,67 @@ class MarketBreadthRepo:
                     )
                 )
         return result.rowcount or 0
+
+
+class CusipTickerRepo:
+    """Async repo caching OpenFIGI's CUSIP -> ticker answers."""
+
+    def __init__(self, session_factory: async_sessionmaker):
+        self.Session = session_factory
+
+    async def get_many(
+        self, cusips: Iterable[str], *, retry_misses_after_days: int = 30
+    ) -> dict[str, dict]:
+        """Known mappings for ``cusips``; misses older than the cutoff are left out."""
+        wanted = list(dict.fromkeys(cusips))
+        if not wanted:
+            return {}
+        cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
+            days=retry_misses_after_days
+        )
+        async with self.Session() as s:
+            rows = (
+                (
+                    await s.execute(
+                        select(CusipTickerRow).where(CusipTickerRow.cusip.in_(wanted))
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        return {
+            r.cusip: {"ticker": r.ticker, "name": r.name}
+            for r in rows
+            if r.ticker or r.looked_up_at >= cutoff
+        }
+
+    async def upsert_many(self, mappings: dict[str, dict]) -> None:
+        """Store ``{cusip: {"ticker", "name"}}`` answers, replacing older ones."""
+        if not mappings:
+            return
+        now = datetime.now(timezone.utc)
+        async with self.Session() as s:
+            async with s.begin():
+                existing = {
+                    r.cusip: r
+                    for r in (
+                        await s.execute(
+                            select(CusipTickerRow).where(
+                                CusipTickerRow.cusip.in_(list(mappings))
+                            )
+                        )
+                    )
+                    .scalars()
+                    .all()
+                }
+                for cusip, value in mappings.items():
+                    row = existing.get(cusip)
+                    if row is None:
+                        row = CusipTickerRow(cusip=cusip)
+                        s.add(row)
+                    row.ticker = value.get("ticker")
+                    row.name = value.get("name")
+                    row.looked_up_at = now
 
 
 def _ibkr_position_to_dict(r: IbkrPositionRow) -> dict:

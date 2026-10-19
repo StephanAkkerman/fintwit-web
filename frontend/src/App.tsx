@@ -22,6 +22,8 @@ import AdvisorPanel from './components/AdvisorPanel'
 import BinanceGainersLosersWidget from './components/BinanceGainersLosersWidget'
 import CompanyNewsWidget from './components/CompanyNewsWidget'
 import CongressTradesWidget from './components/CongressTradesWidget'
+import FundHoldingsWidget from './components/FundHoldingsWidget'
+import InsiderTradesWidget from './components/InsiderTradesWidget'
 import MarketBreadthWidget from './components/MarketBreadthWidget'
 import EarningsCalendarWidget from './components/EarningsCalendarWidget'
 import EarningsResultsWidget from './components/EarningsResultsWidget'
@@ -836,6 +838,16 @@ export default function App() {
                 <div className="sm:col-span-2 2xl:col-span-3">
                   <ErrorBoundary label="Congress trades">
                     <CongressTradesWidget portfolioLookup={portfolioLookup} />
+                  </ErrorBoundary>
+                </div>
+                <div className="sm:col-span-2 2xl:col-span-3">
+                  <ErrorBoundary label="Insider trades">
+                    <InsiderTradesWidget portfolioLookup={portfolioLookup} />
+                  </ErrorBoundary>
+                </div>
+                <div className="sm:col-span-2 2xl:col-span-3">
+                  <ErrorBoundary label="Big investors">
+                    <FundHoldingsWidget portfolioLookup={portfolioLookup} />
                   </ErrorBoundary>
                 </div>
               </div>

@@ -434,6 +434,24 @@ def _market_handler(seen: list):
             return httpx.Response(200, json={"points": [], "summary": {"total": 1}})
         if path == "/api/fear-greed":
             return httpx.Response(503, json={"detail": "down"})
+        if path == "/api/stocks/insider-trades":
+            clusters = [{"ticker": f"T{i}"} for i in range(15)]
+            return httpx.Response(
+                200,
+                json={
+                    "trades": [{"ticker": "T0"}],
+                    "summary": {"cluster_buys": clusters, "top_buys": clusters[:2]},
+                },
+            )
+        if path == "/api/stocks/fund-holdings":
+            return httpx.Response(
+                200,
+                json={
+                    "funds": [{"name": "Big Fund"}],
+                    "report_date": "2026-06-30",
+                    "most_bought": [{"ticker": "GOOGL"}],
+                },
+            )
         if path == "/api/advisor/calls" and request.method == "POST":
             return httpx.Response(201, json={"id": 7, **json.loads(request.content)})
         return httpx.Response(200, json={"path": path})
@@ -466,6 +484,12 @@ async def test_candidates_flags_held_watchlist_symbols():
     ]
     assert result["watchlist"][0]["tweets"] == {"total": 1}
     assert "strategy" not in result and "positions" not in result
+    assert len(result["insider_buying"]["cluster_buys"]) == 10
+    assert result["insider_buying"]["top_buys"] == [{"ticker": "T0"}, {"ticker": "T1"}]
+    assert result["fund_buying"] == {
+        "report_date": "2026-06-30",
+        "most_bought": [{"ticker": "GOOGL"}],
+    }
     assert any(
         p == "/api/overview/hidden-gems" and q["asset_kind"] == "equity"
         for _, p, q, _ in seen

@@ -1632,6 +1632,385 @@ def _congress_trades() -> dict:
     }
 
 
+def _insider_trades() -> dict:
+    """Insider trades shaped like `get_insider_trades`, modelled on Sep-Oct 2026 Form 4s."""
+    from app.services.insider_trades_service import summarize
+
+    rows = [
+        # ticker, company, insider, title, traded, filed, price, shares, stake %
+        (
+            "HEI",
+            "Heico Corp",
+            "Mendelson Victor H",
+            "Co-COB, Co-CEO",
+            "2026-10-08",
+            "2026-10-13 15:33",
+            220.3,
+            795,
+            0,
+        ),
+        (
+            "HEI",
+            "Heico Corp",
+            "Culligan Thomas M",
+            "Dir",
+            "2026-10-08",
+            "2026-10-13 15:32",
+            220.3,
+            795,
+            4,
+        ),
+        (
+            "HEI",
+            "Heico Corp",
+            "Fine Carol F.",
+            "Dir",
+            "2026-10-08",
+            "2026-10-13 15:29",
+            220.3,
+            795,
+            22,
+        ),
+        (
+            "HEI",
+            "Heico Corp",
+            "Henriques Adolfo",
+            "Dir",
+            "2026-10-08",
+            "2026-10-13 15:27",
+            220.3,
+            795,
+            2,
+        ),
+        (
+            "BBD",
+            "Bank Bradesco",
+            "Alvarez Rubens Aguiar",
+            "Dir",
+            "2026-09-01",
+            "2026-10-09 10:00",
+            17.37,
+            1845000,
+            87,
+        ),
+        (
+            "FUL",
+            "Fuller H B Co",
+            "Bailly R Jeffrey",
+            "Dir",
+            "2026-10-07",
+            "2026-10-08 11:26",
+            50.0,
+            10000,
+            None,
+        ),
+        (
+            "BBD",
+            "Bank Bradesco",
+            "Alvarez Denise Aguiar",
+            "Dir",
+            "2026-08-31",
+            "2026-10-05 10:21",
+            17.22,
+            1950000,
+            15,
+        ),
+        (
+            "FUL",
+            "Fuller H B Co",
+            "Happe Michael J",
+            "Dir",
+            "2026-09-29",
+            "2026-10-01 14:04",
+            49.63,
+            2000,
+            149,
+        ),
+        (
+            "FUL",
+            "Fuller H B Co",
+            "Handley Thomas W",
+            "Dir",
+            "2026-09-28",
+            "2026-09-30 11:15",
+            49.41,
+            2000,
+            148,
+        ),
+        (
+            "BBD",
+            "Bank Bradesco",
+            "Di Marcello Francesco",
+            "Exec Officer",
+            "2026-09-28",
+            "2026-09-30 16:42",
+            17.65,
+            57160,
+            34,
+        ),
+        (
+            "LEN",
+            "Lennar Corp",
+            "Berkshire Hathaway Inc",
+            "10%",
+            "2026-09-26",
+            "2026-09-29 16:05",
+            118.4,
+            5027829,
+            39,
+        ),
+        (
+            "KOD",
+            "Kodiak Sciences Inc.",
+            "Baker Bros. Advisors LP",
+            "10%",
+            "2026-09-24",
+            "2026-09-26 18:30",
+            9.12,
+            17213420,
+            41,
+        ),
+        (
+            "NVDA",
+            "Nvidia Corp",
+            "Teter Timothy S.",
+            "EVP, GC, Sec",
+            "2026-09-21",
+            "2026-09-23 16:56",
+            222.8,
+            -30460,
+            -1,
+        ),
+        (
+            "CRWD",
+            "Crowdstrike Holdings, Inc.",
+            "Kurtz George",
+            "CEO, Pres",
+            "2026-10-06",
+            "2026-10-08 16:31",
+            512.4,
+            -120000,
+            -2,
+        ),
+        (
+            "AVGO",
+            "Broadcom Inc.",
+            "Tan Hock E",
+            "Pres, CEO",
+            "2026-10-01",
+            "2026-10-03 16:12",
+            348.1,
+            -718202,
+            -6,
+        ),
+        (
+            "ANET",
+            "Arista Networks, Inc.",
+            "Ullal Jayshree",
+            "Pres, CEO",
+            "2026-10-09",
+            "2026-10-13 16:20",
+            142.3,
+            -400000,
+            -1,
+        ),
+    ]
+    trades = []
+    for ticker, company, insider, title, traded, filed, price, shares, stake in rows:
+        side = "buy" if shares > 0 else "sell"
+        trades.append(
+            {
+                "filed_at": f"{filed}:00",
+                "traded": traded,
+                "ticker": ticker,
+                "company": company,
+                "insider": insider,
+                "insider_cik": None,
+                "title": title,
+                "is_officer": any(t in title.upper() for t in ("CEO", "PRES", "COB")),
+                "is_ten_percent_owner": "10%" in title,
+                "side": side,
+                "trade_label": "P - Purchase" if side == "buy" else "S - Sale",
+                "with_option_exercise": False,
+                "price": price,
+                "shares": float(shares),
+                "owned_after": None,
+                "owned_change_pct": float(stake) if stake is not None else None,
+                "new_position": stake is None,
+                "value": round(price * shares, 2),
+                "remarks": [],
+                "filing_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent",
+            }
+        )
+    trades.sort(key=lambda t: t["filed_at"], reverse=True)
+    return {
+        "trades": trades,
+        "summary": summarize(trades),
+        "filter": {"days": 30, "min_value": 25000, "ticker": None, "side": None},
+        "as_of": "2026-10-16 21:57:56",
+        "source": "openinsider",
+    }
+
+
+def _empty_insider_trades() -> dict:
+    return {
+        "trades": [],
+        "summary": {
+            "buys": 0,
+            "sells": 0,
+            "buy_value": 0,
+            "sell_value": 0,
+            "buy_share_pct": None,
+            "cluster_buys": [],
+            "top_buys": [],
+            "top_sells": [],
+        },
+        "filter": {"days": 30, "min_value": 25000, "ticker": None, "side": None},
+        "as_of": None,
+        "source": "openinsider",
+    }
+
+
+def _fund_holdings() -> dict:
+    """Four funds' Q2 2026 13F changes, shaped like `get_fund_holdings`.
+
+    Real share counts and quarter-end prices for a slice of each book, so
+    weights are of that slice, not of the whole fund.
+    """
+    from app.services.fund_holdings_service import (
+        diff_positions,
+        summarize_across,
+        summarize_fund,
+    )
+
+    # (cik, fund, manager, accession): [(ticker, price, k shares now, k shares before)]
+    books = {
+        (1067983, "Berkshire Hathaway", "Warren Buffett", "000119312526352200"): [
+            ("AAPL", 289.36, 227918, 227918),
+            ("AXP", 338.25, 151611, 151611),
+            ("KO", 81.27, 400000, 400000),
+            ("GOOGL", 357.37, 78791, 54250),
+            ("BAC", 56.98, 483394, 513624),
+            ("CVX", 165.76, 84376, 84376),
+            ("OXY", 48.57, 264941, 264941),
+            ("GOOG", 353.33, 27188, 3585),
+            ("DAL", 93.66, 57320, 39809),
+            ("LEN", 90.49, 13112, 10100),
+            ("COF", 200.62, 3000, 7150),
+            ("KR", 55.53, 39000, 50000),
+            ("NUE", 222.75, 1858, 3907),
+        ],
+        (1135730, "Coatue Management", "Philippe Laffont", "000091957426005478"): [
+            ("TSM", 477.57, 8915, 9284),
+            ("LRCX", 433.33, 9442, 10044),
+            ("MU", 1154.29, 3142, 166),
+            ("SPCX", 170.86, 18562, 0),
+            ("AMAT", 723.0, 4213, 5248),
+            ("GEV", 1174.86, 2558, 2572),
+            ("AMZN", 238.34, 11835, 7931),
+            ("INTC", 139.63, 12084, 0),
+            ("CBRS", 221.0, 7011, 0),
+            ("ASML", 1989.44, 295, 496),
+            ("V", 302.24, 0, 719),
+        ],
+        (1656456, "Appaloosa", "David Tepper", "000165645626000003"): [
+            ("AMZN", 238.34, 5000, 4320),
+            ("MU", 1154.29, 975, 1665),
+            ("TSM", 477.57, 1650, 1328),
+            ("GOOG", 353.33, 1850, 1733),
+            ("UBER", 72.16, 7694, 6333),
+            ("EWY", 201.9, 2425, 2400),
+            ("META", 563.29, 675, 436),
+            ("BA", 216.47, 800, 0),
+            ("SNDK", 635.34, 0, 281),
+            ("GLW", 135.97, 0, 1130),
+            ("BABA", 95.98, 2000, 3465),
+        ],
+        (
+            1536411,
+            "Duquesne Family Office",
+            "Stanley Druckenmiller",
+            "000153641126000006",
+        ): [
+            ("NTRA", 271.45, 3186, 3064),
+            ("TSM", 477.57, 590, 495),
+            ("STM", 74.89, 3103, 2613),
+            ("INSM", 106.62, 1425, 1154),
+            ("GOOGL", 357.37, 336, 0),
+            ("AMZN", 238.34, 542, 46),
+            ("FOXA", 52.16, 2205, 0),
+            ("ROKU", 138.14, 184, 750),
+            ("AA", 52.14, 186, 1493),
+            ("WWD", 425.44, 67, 211),
+            ("AVGO", 309.51, 0, 196),
+        ],
+    }
+
+    funds, rows_by_fund = [], {}
+    for (cik, name, manager, accession), book in books.items():
+
+        def position(ticker, price, shares):
+            return {
+                (ticker, None): {
+                    "cusip": ticker,
+                    "issuer": ticker,
+                    "instrument": None,
+                    "value": price * shares * 1000,
+                    "shares": shares * 1000.0,
+                }
+            }
+
+        current, previous = {}, {}
+        for ticker, price, shares, prev_shares in book:
+            if shares:
+                current.update(position(ticker, price, shares))
+            if prev_shares:
+                previous.update(position(ticker, price, prev_shares))
+        rows = diff_positions(current, previous)
+        for row in rows:
+            row["ticker"] = row["cusip"]
+        rows_by_fund[name] = rows
+        funds.append(
+            {
+                "cik": cik,
+                "name": name,
+                "manager": manager,
+                "report_date": "2026-06-30",
+                "filed": "2026-08-14",
+                "prev_report_date": "2026-03-31",
+                "filing_url": f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession}/",
+                **summarize_fund(rows),
+                "stale": False,
+            }
+        )
+    across = summarize_across(rows_by_fund)
+    for entries in across.values():
+        for entry in entries:
+            entry["ticker"] = entry["cusip"]
+    funds.sort(key=lambda f: -f["total_value"])
+    return {
+        "funds": funds,
+        **across,
+        "report_date": "2026-06-30",
+        "missing": [],
+        "as_of": "2026-10-19T08:00:00+00:00",
+        "source": "sec-13f",
+    }
+
+
+def _empty_fund_holdings() -> dict:
+    return {
+        "funds": [],
+        "most_bought": [],
+        "most_sold": [],
+        "most_held": [],
+        "report_date": None,
+        "missing": [],
+        "as_of": None,
+        "source": "sec-13f",
+    }
+
+
 def _empty_congress_trades() -> dict:
     return {
         "trades": [],
@@ -3701,6 +4080,8 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             "/api/earnings/calendar": _empty_earnings_calendar(),
             "/api/earnings/results": _empty_earnings_results(),
             "/api/stocks/congress-trades": _empty_congress_trades(),
+            "/api/stocks/insider-trades": _empty_insider_trades(),
+            "/api/stocks/fund-holdings": _empty_fund_holdings(),
             "/api/options/chain": _empty_options_chain(),
             # Longer fragment first: fixture matching is substring-based, and
             # "/gamma-exposure" is itself a substring of "/gamma-exposure/history".
@@ -3966,6 +4347,8 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         "/api/earnings/calendar": _earnings_calendar(),
         "/api/earnings/results": _earnings_results(),
         "/api/stocks/congress-trades": _congress_trades(),
+        "/api/stocks/insider-trades": _insider_trades(),
+        "/api/stocks/fund-holdings": _fund_holdings(),
         "/api/stocktwits": _stocktwits(),
         # Crypto route.
         "/api/binance/gainers-losers": _binance_gainers_losers(),
