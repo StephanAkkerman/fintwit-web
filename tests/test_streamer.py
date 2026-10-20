@@ -924,3 +924,82 @@ async def test_run_stream_engagement_update_on_edit_targets_stored_row(
     await _run_once(repo, tweet)
 
     repo.update_fields.assert_awaited_once_with(700, {"likes": 9})
+
+
+@pytest.mark.asyncio
+async def test_run_stream_skips_post_that_hangs_and_logs_step(
+    tmp_path, monkeypatch, caplog
+):
+    monkeypatch.setenv("XTIMELINE_LAST_ID_PATH", str(tmp_path / "last_id.txt"))
+    monkeypatch.setattr(streamer, "TWEET_TIMEOUT_S", 0.05)
+    tweet = DummyTweet(
+        {
+            "id": 901,
+            "text": "hang",
+            "tickers": [],
+            "hashtags": [],
+            "edit_tweet_ids": [900, 901],
+        }
+    )
+    repo = _edit_repo(None)
+    entered = asyncio.Event()
+
+    async def _hang(*_):
+        entered.set()
+        await asyncio.Future()
+
+    repo.first_existing = AsyncMock(side_effect=_hang)
+    bc = MagicMock()
+    bc.publish = AsyncMock()
+
+    with (
+        caplog.at_level("ERROR", logger="app.runtime.streamer"),
+        patch("app.runtime.streamer.xclient.XTimelineClient", make_client_class(tweet)),
+        patch("app.runtime.streamer.merge_symbols", return_value=([], [])),
+        patch("app.runtime.streamer.AssetEnricher"),
+    ):
+        task = asyncio.create_task(streamer.run_stream(repo, bc))
+        await asyncio.wait_for(entered.wait(), timeout=1.0)
+        await asyncio.sleep(0.2)
+        assert not task.done()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    bc.publish.assert_not_awaited()
+    assert "post 901 timed out" in caplog.text
+    assert "during lookup" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_watch_status_flags_stall_and_recovers(monkeypatch):
+    monkeypatch.setattr(streamer, "STATUS_POLL_INTERVAL_S", 0.01)
+    monkeypatch.setattr(streamer, "STALL_AFTER_S", 60.0)
+    monkeypatch.setitem(streamer._LAST_PROGRESS, "at", 0.0)
+    xc = MagicMock(last_status=200)
+
+    task = asyncio.create_task(
+        streamer._watch_status(xc, "cookies", {"step": "sentiment"})
+    )
+    await asyncio.sleep(0.05)
+    assert streamer.STREAM_STATUS["state"] == "stalled"
+    assert "sentiment" in streamer.STREAM_STATUS["detail"]
+
+    streamer._mark_progress()
+    await asyncio.sleep(0.05)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert streamer.STREAM_STATUS["state"] == "ok"
+
+
+@pytest.mark.asyncio
+async def test_track_polls_marks_progress_after_each_fetch(monkeypatch):
+    monkeypatch.setitem(streamer._LAST_PROGRESS, "at", 0.0)
+    xc = MagicMock()
+    xc.fetch_tweets = AsyncMock(return_value=["t"])
+
+    streamer._track_polls(xc)
+
+    assert await xc.fetch_tweets(mode="with_updates") == ["t"]
+    assert streamer._LAST_PROGRESS["at"] > 0.0

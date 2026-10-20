@@ -34,6 +34,15 @@ from datetime import datetime, timezone
 from ib_insync import IB
 
 logger = logging.getLogger(__name__)
+# ib_insync logs its own "API connection failed" for every attempt; connect()
+# already reports failures (once per outage), so keep only its critical lines.
+logging.getLogger("ib_insync.client").setLevel(logging.CRITICAL)
+# The gateway needs a manual (2FA) login after every restart and weekly reset.
+# docker-compose.yml publishes its VNC server on host port 5901.
+LOGIN_HINT = (
+    "restart the ibgateway container and approve the IBKR 2FA prompt, or log in "
+    "via VNC on port 5901"
+)
 
 _MAX_FLOAT = sys.float_info.max
 _ACCOUNT_TAGS = (
@@ -222,8 +231,12 @@ class IbkrGateway:
             if self._ib is not None and self._ib.isConnected():
                 return True
 
+            # While the gateway stays down, only the first failure of the
+            # outage is logged loudly; the retries every few minutes go to DEBUG.
+            retrying = self.last_error is not None
             try:
-                logger.info(
+                logger.log(
+                    logging.DEBUG if retrying else logging.INFO,
                     "[ibkr] connecting to %s:%d (client %d, timeout=%.1fs)",
                     self._host,
                     self._port,
@@ -240,29 +253,25 @@ class IbkrGateway:
                 self.last_error = None
                 return True
             except ConnectionRefusedError:
-                self.last_error = "Connection refused — log in to IB Gateway via VNC at localhost:5900"
-                logger.warning(
-                    "[ibkr] connection refused on %s:%d — "
-                    "log in to IB Gateway first via VNC at localhost:5900",
-                    self._host,
-                    self._port,
+                self._fail(
+                    f"Connection refused on {self._host}:{self._port} — {LOGIN_HINT}"
                 )
                 return False
-            except TimeoutError as exc:
-                self.last_error = (
-                    f"Connect timeout after {self._connect_timeout:.1f}s "
-                    "(gateway not ready/auth pending)"
-                )
-                logger.error(
-                    "[ibkr] connect timed out after %.1fs: %r",
-                    self._connect_timeout,
-                    exc,
+            except TimeoutError:
+                self._fail(
+                    f"Connect timeout after {self._connect_timeout:.1f}s; IB Gateway "
+                    f"is not logged in — {LOGIN_HINT}"
                 )
                 return False
             except Exception as exc:
-                self.last_error = str(exc)
-                logger.error("[ibkr] connect failed: %r", exc)
+                self._fail(f"Connect failed: {exc!r}")
                 return False
+
+    def _fail(self, message: str) -> None:
+        """Record a connect failure; log it loudly only when it is new."""
+        repeated = message == self.last_error
+        self.last_error = message
+        logger.log(logging.DEBUG if repeated else logging.ERROR, "[ibkr] %s", message)
 
     async def _connect_on_ib_loop(self) -> None:
         """Runs entirely on the ib_insync loop — all internal Futures stay there."""

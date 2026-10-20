@@ -29,6 +29,7 @@ async def run_ibkr_sync(
     :param interval: Seconds between syncs (default 60).
     """
     backoff = _MIN_BACKOFF
+    reported_error: str | None = None
 
     while True:
         try:
@@ -51,6 +52,9 @@ async def run_ibkr_sync(
 
             gateway.last_sync = datetime.now(timezone.utc)
             gateway.last_error = None
+            if reported_error is not None:
+                logger.info("[ibkr-sync] recovered after: %s", reported_error)
+                reported_error = None
             backoff = _MIN_BACKOFF
 
             logger.info(
@@ -66,6 +70,15 @@ async def run_ibkr_sync(
 
         except Exception as exc:
             gateway.last_error = str(exc)
-            logger.error("[ibkr-sync] error: %r — retrying in %ds", exc, backoff)
+            # The gateway can stay logged out for days; report each distinct
+            # error once instead of every retry.
+            repeated = gateway.last_error == reported_error
+            reported_error = gateway.last_error
+            logger.log(
+                logging.DEBUG if repeated else logging.ERROR,
+                "[ibkr-sync] error: %r — retrying in %ds",
+                exc,
+                backoff,
+            )
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, _MAX_BACKOFF)
