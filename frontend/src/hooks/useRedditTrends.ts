@@ -36,7 +36,9 @@ export function useRedditTrends(limit = 10) {
           if (err.name === 'AbortError') return
           setError(true)
         })
-        .finally(() => setLoading(false))
+        .finally(() => {
+          if (!signal?.aborted) setLoading(false)
+        })
     },
     [limit],
   )

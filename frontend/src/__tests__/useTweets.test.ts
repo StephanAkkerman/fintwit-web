@@ -52,6 +52,7 @@ describe('useTweets', () => {
   it('loads initial tweets from /api/posts', async () => {
     const initialData = [makeTweet(1), makeTweet(2)]
     vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
       json: async () => initialData,
     } as Response)
 
@@ -65,8 +66,8 @@ describe('useTweets', () => {
 
   it('uses selected lookback window and reloads when it changes', async () => {
     vi.mocked(fetch)
-      .mockResolvedValueOnce({ json: async () => [makeTweet(1)] } as Response)
-      .mockResolvedValueOnce({ json: async () => [makeTweet(2)] } as Response)
+      .mockResolvedValueOnce({ ok: true, json: async () => [makeTweet(1)] } as Response)
+      .mockResolvedValueOnce({ ok: true, json: async () => [makeTweet(2)] } as Response)
 
     const { result, rerender } = renderHook(
       ({ hours }) => useTweets('', 2000, 200, false, hours),
@@ -102,8 +103,8 @@ describe('useTweets', () => {
     ]
 
     vi.mocked(fetch)
-      .mockResolvedValueOnce({ json: async () => firstPage } as Response)
-      .mockResolvedValueOnce({ json: async () => secondPage } as Response)
+      .mockResolvedValueOnce({ ok: true, json: async () => firstPage } as Response)
+      .mockResolvedValueOnce({ ok: true, json: async () => secondPage } as Response)
 
     const { result } = renderHook(() => useTweets('', 2000, 2, false, 24))
 
@@ -121,8 +122,8 @@ describe('useTweets', () => {
     const initialData = [makeTweet(5), makeTweet(4)]
     const olderData = [makeTweet(3), makeTweet(2)]
     vi.mocked(fetch)
-      .mockResolvedValueOnce({ json: async () => initialData } as Response)
-      .mockResolvedValueOnce({ json: async () => olderData } as Response)
+      .mockResolvedValueOnce({ ok: true, json: async () => initialData } as Response)
+      .mockResolvedValueOnce({ ok: true, json: async () => olderData } as Response)
 
     const { result } = renderHook(() => useTweets('', 2000, 2, false, null))
     await waitFor(() => expect(result.current.tweets).toHaveLength(2))
@@ -141,6 +142,7 @@ describe('useTweets', () => {
   it('prepends new tweet received via SSE', async () => {
     const initialData = [makeTweet(1)]
     vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
       json: async () => initialData,
     } as Response)
 
@@ -159,6 +161,7 @@ describe('useTweets', () => {
   it('deduplicates tweets with the same id', async () => {
     const initialData = [makeTweet(1)]
     vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
       json: async () => initialData,
     } as Response)
 
@@ -175,8 +178,32 @@ describe('useTweets', () => {
     expect(result.current.tweets[0].text).toBe('Updated Tweet 1')
   })
 
+  it('reports loading from the first render until the backend answers', async () => {
+    let resolve!: (r: Response) => void
+    vi.mocked(fetch).mockReturnValueOnce(new Promise<Response>((r) => (resolve = r)))
+
+    const { result } = renderHook(() => useTweets(''))
+    expect(result.current.isInitialLoading).toBe(true)
+
+    resolve({ ok: true, json: async () => [] } as Response)
+    await waitFor(() => expect(result.current.isInitialLoading).toBe(false))
+    expect(result.current.loadError).toBe(false)
+  })
+
+  it('flags a failed initial load instead of an empty timeline', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 503, json: async () => ({}) } as Response)
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const { result } = renderHook(() => useTweets(''))
+
+    await waitFor(() => expect(result.current.loadError).toBe(true))
+    expect(result.current.isInitialLoading).toBe(false)
+    expect(result.current.tweets).toHaveLength(0)
+  })
+
   it('caps the list at maxItems', async () => {
     vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
       json: async () => [],
     } as Response)
 
@@ -196,6 +223,7 @@ describe('useTweets', () => {
 
   it('closes the EventSource on unmount', async () => {
     vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
       json: async () => [],
     } as Response)
 
@@ -210,8 +238,8 @@ describe('useTweets', () => {
     const initialData = [makeTweet(10)]
     const olderData = [makeTweet(9)]
     vi.mocked(fetch)
-      .mockResolvedValueOnce({ json: async () => initialData } as Response)
-      .mockResolvedValueOnce({ json: async () => olderData } as Response)
+      .mockResolvedValueOnce({ ok: true, json: async () => initialData } as Response)
+      .mockResolvedValueOnce({ ok: true, json: async () => olderData } as Response)
 
     const { result } = renderHook(() => useTweets('', 2000, 1, true, null))
 

@@ -56,7 +56,7 @@ export function useInsiderTrades(days = 30) {
         if (err instanceof Error && err.name === 'AbortError') return
         setError(true)
       } finally {
-        setLoading(false)
+        if (!controller.signal.aborted) setLoading(false)
       }
     }
 

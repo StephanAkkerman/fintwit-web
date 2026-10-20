@@ -27,7 +27,9 @@ export function useTickerPriceHistory(ticker: string | null) {
       .catch((e) => {
         if (e.name !== 'AbortError') setError(true)
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
     return () => controller.abort()
   }, [ticker])
 

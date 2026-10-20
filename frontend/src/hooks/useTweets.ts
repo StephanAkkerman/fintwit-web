@@ -15,7 +15,9 @@ export function useTweets(
 ) {
   const [tweets, setTweets] = useState<Tweet[]>([])
   const [hasMore, setHasMore] = useState(true)
-  const [isInitialLoading, setIsInitialLoading] = useState(false)
+  // Starts true so the first render shows the loading state, not "no tweets".
+  const [isInitialLoading, setIsInitialLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [isLoadingOlder, setIsLoadingOlder] = useState(false)
   const [lastLoadDurationMs, setLastLoadDurationMs] = useState<number | null>(null)
   const [lastLoadedCount, setLastLoadedCount] = useState(0)
@@ -49,13 +51,16 @@ export function useTweets(
     const r = await fetch(`${apiBase}/api/posts?${query}`, {
       credentials: 'include',
     })
-    return (await r.json()) as Tweet[]
+    if (!r.ok) throw new Error(`/api/posts returned ${r.status}`)
+    const page: unknown = await r.json()
+    return Array.isArray(page) ? (page as Tweet[]) : []
   }
 
   // initial load
   useEffect(() => {
     let cancelled = false
     setIsInitialLoading(true)
+    setLoadError(false)
     ;(async () => {
       const startedAt = globalThis.performance?.now?.() ?? Date.now()
       try {
@@ -95,6 +100,7 @@ export function useTweets(
       } catch (e) {
         if (cancelled) return
         console.error('initial load failed', e)
+        setLoadError(true)
         setLastLoadedCount(0)
         setHasMore(false)
       } finally {
@@ -175,11 +181,12 @@ export function useTweets(
       tweets,
       hasMore,
       isInitialLoading,
+      loadError,
       isLoadingOlder,
       loadOlder,
       lastLoadDurationMs,
       lastLoadedCount,
     }),
-    [tweets, hasMore, isInitialLoading, isLoadingOlder, lastLoadDurationMs, lastLoadedCount]
+    [tweets, hasMore, isInitialLoading, loadError, isLoadingOlder, lastLoadDurationMs, lastLoadedCount]
   )
 }

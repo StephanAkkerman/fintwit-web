@@ -22,7 +22,9 @@ export function useRedditCategories() {
       .catch((err) => {
         if (err.name === 'AbortError') return
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
 
     return () => controller.abort()
   }, [])

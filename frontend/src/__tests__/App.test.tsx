@@ -159,6 +159,38 @@ describe('App', () => {
     )
   })
 
+  it('shows a loading state, not an empty one, while tweets are being fetched', async () => {
+    const fallback = fetchMock.getMockImplementation() as (input: string | URL | Request) => Promise<Response>
+    let answerPosts!: (r: Response) => void
+    fetchMock.mockImplementation((input: string | URL | Request) =>
+      String(input).includes('/api/posts')
+        ? new Promise<Response>((r) => (answerPosts = r))
+        : fallback(input)
+    )
+    render(<App />)
+
+    expect(screen.getByRole('status', { name: 'Loading tweets' })).toBeInTheDocument()
+    expect(screen.queryByText(/No tweets/)).not.toBeInTheDocument()
+
+    answerPosts({ ok: true, json: async () => [] } as Response)
+    await waitFor(() => expect(screen.getByText('No tweets in the last 24h.')).toBeInTheDocument())
+    expect(screen.queryByRole('status', { name: 'Loading tweets' })).not.toBeInTheDocument()
+  })
+
+  it('says so when the timeline failed to load', async () => {
+    const fallback = fetchMock.getMockImplementation() as (input: string | URL | Request) => Promise<Response>
+    fetchMock.mockImplementation((input: string | URL | Request) =>
+      String(input).includes('/api/posts')
+        ? Promise.resolve({ ok: false, status: 500, json: async () => ({}) } as Response)
+        : fallback(input)
+    )
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    render(<App />)
+
+    await waitFor(() => expect(screen.getByText(/Couldn't load tweets/)).toBeInTheDocument())
+    expect(screen.queryByText(/No tweets/)).not.toBeInTheDocument()
+  })
+
   it('does not render legacy category filter widget', async () => {
     render(<App />)
 
