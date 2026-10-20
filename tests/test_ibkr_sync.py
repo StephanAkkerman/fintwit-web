@@ -71,3 +71,28 @@ async def test_run_ibkr_sync_success_sets_last_sync(monkeypatch):
 
     assert isinstance(gateway.last_sync, datetime)
     gateway.connect.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_run_ibkr_sync_logs_a_lasting_outage_once(monkeypatch, caplog):
+    repo = _RepoStub()
+    gateway = _GatewayStub(connected=False, connect_result=False)
+    gateway.last_error = "Connect timeout"
+    sleeps = 0
+
+    async def _sleep(_seconds):
+        nonlocal sleeps
+        sleeps += 1
+        if sleeps == 3:
+            raise asyncio.CancelledError
+
+    monkeypatch.setattr("app.runtime.ibkr_sync.asyncio.sleep", _sleep)
+
+    with (
+        caplog.at_level("ERROR", logger="app.runtime.ibkr_sync"),
+        pytest.raises(asyncio.CancelledError),
+    ):
+        await run_ibkr_sync(repo, gateway, interval=60)
+
+    assert gateway.connect.await_count == 3
+    assert caplog.text.count("[ibkr-sync] error") == 1

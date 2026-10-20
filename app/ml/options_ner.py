@@ -23,6 +23,7 @@ import json
 import logging
 import os
 import re
+import warnings
 from typing import Any, Iterable
 
 logger = logging.getLogger(__name__)
@@ -289,6 +290,27 @@ def build_options_result(
     return {"is_options_tweet": is_options, "options_context": context}
 
 
+def _quiet_from_pretrained(auto_cls, name: str):
+    """Load the GLiNER2 base model without its two harmless startup warnings.
+
+    transformers warns that a model of type ``extractor`` is loaded into a
+    model of another type (GLiNER2's own config class), and gliner2 warns
+    that DeBERTa falls back from SDPA to eager attention. Neither is
+    actionable, and together they read like errors in the startup log.
+    """
+    config_logger = logging.getLogger("transformers.configuration_utils")
+    level = config_logger.level
+    config_logger.setLevel(logging.ERROR)
+    try:
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore", message="Encoder rejected attn_implementation"
+            )
+            return auto_cls.from_pretrained(name, map_location="cpu")
+    finally:
+        config_logger.setLevel(level)
+
+
 class OptionsRecognizer:
     def __init__(self, model_name: str | None = None, cache_dir: str = "models/"):
         self._model_name = model_name or os.getenv("OPTIONS_NER_MODEL", DEFAULT_MODEL)
@@ -316,7 +338,7 @@ class OptionsRecognizer:
                 f"which this app does not implement"
             )
 
-        model = AutoExtractor.from_pretrained(cfg["base_model"], map_location="cpu")
+        model = _quiet_from_pretrained(AutoExtractor, cfg["base_model"])
         model.load_adapter(adapter_dir)
         model.set_word_splitter(splitter_cls())
         model.eval()
