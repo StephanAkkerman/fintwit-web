@@ -34,6 +34,12 @@ from datetime import datetime, timezone
 from ib_insync import IB
 
 logger = logging.getLogger(__name__)
+# The gateway needs a manual (2FA) login after every restart and weekly reset.
+# docker-compose.yml publishes its VNC server on host port 5901.
+LOGIN_HINT = (
+    "restart the ibgateway container and approve the IBKR 2FA prompt, or log in "
+    "via VNC on port 5901"
+)
 
 _MAX_FLOAT = sys.float_info.max
 _ACCOUNT_TAGS = (
@@ -240,21 +246,20 @@ class IbkrGateway:
                 self.last_error = None
                 return True
             except ConnectionRefusedError:
-                self.last_error = "Connection refused — log in to IB Gateway via VNC at localhost:5900"
+                self.last_error = f"Connection refused — {LOGIN_HINT}"
                 logger.warning(
-                    "[ibkr] connection refused on %s:%d — "
-                    "log in to IB Gateway first via VNC at localhost:5900",
+                    "[ibkr] connection refused on %s:%d — " + LOGIN_HINT,
                     self._host,
                     self._port,
                 )
                 return False
             except TimeoutError as exc:
                 self.last_error = (
-                    f"Connect timeout after {self._connect_timeout:.1f}s "
-                    "(gateway not ready/auth pending)"
+                    f"Connect timeout after {self._connect_timeout:.1f}s; IB Gateway "
+                    f"is not logged in — {LOGIN_HINT}"
                 )
                 logger.error(
-                    "[ibkr] connect timed out after %.1fs: %r",
+                    "[ibkr] connect timed out after %.1fs: %r — " + LOGIN_HINT,
                     self._connect_timeout,
                     exc,
                 )

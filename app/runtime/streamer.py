@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -27,10 +28,14 @@ ENGAGEMENT_FIELDS = ("replies", "likes", "views", "retweets")
 # X answers these once the session cookies have expired or been logged out.
 AUTH_FAILURE_STATUSES = (401, 403)
 STATUS_POLL_INTERVAL_S = 5.0
+# Longest a single post may spend in enrichment/ML before it is skipped.
+TWEET_TIMEOUT_S = float(os.getenv("X_STREAM_TWEET_TIMEOUT", "120"))
+# No poll or finished post for this long means the stream loop is stuck.
+STALL_AFTER_S = float(os.getenv("X_STREAM_STALL_AFTER", "300"))
 logger = logging.getLogger(__name__)
 
 # Why the timeline is (or isn't) filling up; served by GET /api/x/status.
-# ``state`` is one of: disabled, connecting, ok, auth_failed, error.
+# ``state`` is one of: disabled, connecting, ok, auth_failed, error, stalled.
 STREAM_STATUS: dict[str, str | None] = {
     "state": "disabled",
     "source": None,
@@ -40,6 +45,29 @@ STREAM_STATUS: dict[str, str | None] = {
 
 def _set_status(state: str, source: str | None, detail: str | None = None) -> None:
     STREAM_STATUS.update(state=state, source=source, detail=detail)
+
+
+# Monotonic time of the last timeline poll or finished post.
+_LAST_PROGRESS: dict[str, float] = {"at": time.monotonic()}
+
+
+def _mark_progress() -> None:
+    _LAST_PROGRESS["at"] = time.monotonic()
+
+
+def _track_polls(xc: xclient.XTimelineClient) -> None:
+    """Stamp ``_LAST_PROGRESS`` every time ``xc`` finishes a timeline fetch."""
+    fetch = getattr(xc, "fetch_tweets", None)
+    if fetch is None:
+        return
+
+    async def tracked(*args, **kwargs):
+        try:
+            return await fetch(*args, **kwargs)
+        finally:
+            _mark_progress()
+
+    xc.fetch_tweets = tracked
 
 
 def _credential_source() -> str | None:
@@ -65,16 +93,36 @@ def _open_client(source: str, last_id_path: str) -> xclient.XTimelineClient:
     )
 
 
-async def _watch_status(xc: xclient.XTimelineClient, source: str) -> None:
+async def _watch_status(
+    xc: xclient.XTimelineClient, source: str, progress: dict[str, str] | None = None
+) -> None:
     """Mirror the client's last HTTP status into ``STREAM_STATUS``.
 
     ``xc.stream`` swallows HTTP errors and just yields nothing, so without this
-    an expired session is indistinguishable from a quiet timeline.
+    an expired session is indistinguishable from a quiet timeline. It also
+    flags the loop as ``stalled`` when nothing has been polled or processed for
+    ``STALL_AFTER_S``; ``progress["step"]`` names the step it is stuck in.
     """
     reported: int | None = None
+    stalled = False
     while True:
         status = getattr(xc, "last_status", None)
-        if status is not None and status != reported:
+        idle = time.monotonic() - _LAST_PROGRESS["at"]
+        if idle > STALL_AFTER_S:
+            if not stalled:
+                stalled = True
+                step = (progress or {}).get("step") or "polling X"
+                _set_status(
+                    "stalled", source, f"No progress for {idle:.0f}s (stuck in {step})"
+                )
+                logger.error(
+                    "[stream] no poll or post for %.0fs; stuck in %s", idle, step
+                )
+        elif stalled:
+            stalled = False
+            reported = None
+            logger.info("[stream] progress resumed")
+        if not stalled and status is not None and status != reported:
             reported = status
             if status < 400:
                 _set_status("ok", source)
@@ -120,6 +168,210 @@ def _extract_photo_urls(tweet_payload: dict) -> list[str]:
     return urls
 
 
+async def _process_tweet(
+    t,
+    progress: dict[str, str],
+    repo: TweetRepo,
+    bc: Broadcaster,
+    enricher: AssetEnricher,
+    sentiment_model: FinTwitSentiment | None,
+    trader_call_repo: TraderCallRepo | None,
+    options_recognizer: OptionsRecognizer | None,
+) -> None:
+    """Enrich, store and broadcast one streamed post.
+
+    ``progress["step"]`` names the stage being worked on, so a post that
+    times out can say where it got stuck.
+    """
+    progress["step"] = "lookup"
+    # Convert to dict for easier manipulation
+    t_dict = t.to_dict()
+
+    # X gives an edited post a new id (issue #202). Keep one
+    # row per post: find the version already stored, if any,
+    # and write this version over it instead of adding another.
+    tweet_id = t_dict.get("id")
+    progress["post"] = str(tweet_id)
+    # Every version's id, oldest first; empty if never edited.
+    versions = [int(i) for i in t_dict.get("edit_tweet_ids") or []]
+    stored = await repo.first_existing(versions) if versions else None
+
+    if getattr(t, "is_update", False):
+        if tweet_id is None:
+            return
+
+        updates = _extract_engagement_fields(t_dict)
+        if not updates:
+            return
+
+        target_id = stored["id"] if stored else int(tweet_id)
+        updated_tweet = await repo.update_fields(target_id, updates)
+        if updated_tweet is not None:
+            await bc.publish(updated_tweet)
+        return
+
+    # SQLAlchemy DateTime requires a datetime object, not a string
+    if isinstance(t_dict.get("created_at"), str):
+        t_dict["created_at"] = datetime.fromisoformat(t_dict["created_at"])
+
+    if versions:
+        # An older version showing up after a newer one is
+        # stale; the stored row already has newer content.
+        if stored and int(tweet_id) != versions[-1]:
+            return
+        # The edit's own timestamp is when it was edited; the
+        # row keeps the original post time and id, so the card
+        # stays in place and updates over SSE.
+        t_dict["edited_at"] = t_dict.get("created_at")
+        if stored:
+            t_dict["id"] = stored["id"]
+            if stored.get("created_at"):
+                t_dict["created_at"] = datetime.fromisoformat(stored["created_at"])
+
+    # X's smart cashtags arrive as "bitcoin:native"; show and
+    # detect them as the "$BTC" the post displays (issue #216).
+    t_dict["text"] = normalize_smart_cashtags(t_dict.get("text"), t_dict.get("tickers"))
+    if isinstance(t_dict.get("quoted_tweet"), dict):
+        quoted = t_dict["quoted_tweet"]
+        quoted["text"] = normalize_smart_cashtags(
+            quoted.get("text"), quoted.get("tickers")
+        )
+
+    # Ensure financial symbols are still detected when source payloads
+    # don't explicitly include ticker/hashtag arrays.
+    tickers, hashtags = merge_symbols(
+        t_dict.get("text"),
+        t_dict.get("tickers"),
+        t_dict.get("hashtags"),
+    )
+
+    progress["step"] = "chart detection"
+    # Run chart detection on all photo tweets so chart filters
+    # don't fallback to treating every image as a chart.
+    media_urls = _extract_photo_urls(t_dict)
+    if media_urls:
+        results = await asyncio.gather(
+            *[is_chart(url) for url in media_urls],
+            return_exceptions=True,
+        )
+        chart_urls = [
+            url
+            for url, is_chart_result in zip(media_urls, results)
+            if is_chart_result is True
+        ]
+        t_dict["has_chart"] = bool(chart_urls)
+    else:
+        chart_urls = []
+        t_dict["has_chart"] = False
+
+    progress["step"] = "image OCR"
+    # Some posters (options-flow screenshots, etc.) carry no
+    # tweet text of their own — the only signal is inside a
+    # non-chart image. OCR those (opt-in, issue #88) so any
+    # $TICKER/#HASHTAG printed in the screenshot still feeds
+    # enrichment, the same way it would from the tweet text.
+    # Gated like chart extraction below: only when the text
+    # named nothing on its own.
+    t_dict["image_text"] = None
+    if not tickers:
+        non_chart_urls = [u for u in media_urls if u not in chart_urls]
+        for photo_url in non_chart_urls:
+            image_text = await extract_image_text(photo_url)
+            if not image_text:
+                continue
+
+            t_dict["image_text"] = image_text
+            ocr_tickers, ocr_hashtags = extract_symbols_from_text(image_text)
+            if ocr_tickers or ocr_hashtags:
+                tickers, hashtags = merge_symbols(
+                    None,
+                    [*tickers, *ocr_tickers],
+                    [*hashtags, *ocr_hashtags],
+                )
+            break
+
+    t_dict["tickers"] = tickers
+    t_dict["hashtags"] = hashtags
+    symbols = [*tickers, *hashtags]
+    asset_symbols = [*tickers]
+
+    progress["step"] = "options detection"
+    quoted_tweet = t_dict.get("quoted_tweet")
+    options_signal = await detect_options(
+        t_dict.get("text"),
+        (quoted_tweet.get("text") if isinstance(quoted_tweet, dict) else None),
+        options_recognizer,
+        tickers,
+    )
+    t_dict["is_options_tweet"] = options_signal["is_options_tweet"]
+    t_dict["options_context"] = (
+        options_signal["options_context"]
+        if options_signal["is_options_tweet"]
+        else None
+    )
+
+    progress["step"] = "asset enrichment"
+    # Enrich assets from cashtags/tickers only. Hashtags are kept
+    # for display/filter metadata but are too noisy for asset cards.
+    if asset_symbols:
+        assets = await enricher.classify(asset_symbols)
+        t_dict["assets"] = assets
+    else:
+        t_dict["assets"] = []
+
+    progress["step"] = "chart extraction"
+    # Only extract chart data when the tweet text doesn't already
+    # name a ticker — a mentioned ticker is a stronger, cheaper
+    # signal than OCR off the chart image.
+    t_dict["chart_extraction"] = None
+    if chart_urls and not tickers:
+        for chart_url in chart_urls:
+            extraction = await extract_chart_data(chart_url)
+            if extraction is not None:
+                t_dict["chart_extraction"] = extraction
+                break
+
+    progress["step"] = "sentiment"
+    main_sentiment = None
+    quoted_sentiment = None
+    ticker_sentiment = {}
+    if sentiment_model is not None and symbols:
+        try:
+            sentiment_parts = await sentiment_model.classify_parts(
+                t_dict.get("text") or "", asset_symbols
+            )
+            main_sentiment = sentiment_parts.get("main")
+            quoted_sentiment = sentiment_parts.get("quoted")
+            ticker_sentiment = sentiment_parts.get("tickers") or {}
+        except Exception as exc:
+            logger.warning("[stream] sentiment classification failed: %r", exc)
+
+    t_dict["sentiment_label"] = main_sentiment["label"] if main_sentiment else None
+    t_dict["sentiment_emoji"] = main_sentiment["emoji"] if main_sentiment else None
+    t_dict["sentiment_score"] = main_sentiment["score"] if main_sentiment else None
+    t_dict["quoted_sentiment_label"] = (
+        quoted_sentiment["label"] if quoted_sentiment else None
+    )
+    t_dict["quoted_sentiment_emoji"] = (
+        quoted_sentiment["emoji"] if quoted_sentiment else None
+    )
+    t_dict["quoted_sentiment_score"] = (
+        quoted_sentiment["score"] if quoted_sentiment else None
+    )
+    t_dict["ticker_sentiment"] = ticker_sentiment or None
+
+    progress["step"] = "saving"
+    # 1) persist (idempotent)
+    await repo.upsert_many([t_dict])
+    # 2) broadcast after successful commit
+    await bc.publish(t_dict)
+    # 3) record any directional calls for credibility scoring
+    if trader_call_repo is not None:
+        calls = extract_calls(t_dict)
+        if calls:
+            await trader_call_repo.insert_calls(calls)
+
+
 async def run_stream(
     repo: TweetRepo,
     bc: Broadcaster,
@@ -148,206 +400,37 @@ async def run_stream(
     while True:
         try:
             async with _open_client(source, last_id_path) as xc:
-                watcher = asyncio.create_task(_watch_status(xc, source))
+                progress: dict[str, str] = {"step": "polling X"}
+                _track_polls(xc)
+                _mark_progress()
+                watcher = asyncio.create_task(_watch_status(xc, source, progress))
                 async for t in xc.stream(interval_s=5.0, mode="with_updates"):
-                    # Convert to dict for easier manipulation
-                    t_dict = t.to_dict()
-
-                    # X gives an edited post a new id (issue #202). Keep one
-                    # row per post: find the version already stored, if any,
-                    # and write this version over it instead of adding another.
-                    tweet_id = t_dict.get("id")
-                    # Every version's id, oldest first; empty if never edited.
-                    versions = [int(i) for i in t_dict.get("edit_tweet_ids") or []]
-                    stored = await repo.first_existing(versions) if versions else None
-
-                    if getattr(t, "is_update", False):
-                        if tweet_id is None:
-                            continue
-
-                        updates = _extract_engagement_fields(t_dict)
-                        if not updates:
-                            continue
-
-                        target_id = stored["id"] if stored else int(tweet_id)
-                        updated_tweet = await repo.update_fields(target_id, updates)
-                        if updated_tweet is not None:
-                            await bc.publish(updated_tweet)
-                        continue
-
-                    # SQLAlchemy DateTime requires a datetime object, not a string
-                    if isinstance(t_dict.get("created_at"), str):
-                        t_dict["created_at"] = datetime.fromisoformat(
-                            t_dict["created_at"]
+                    progress.update(step="start", post="?")
+                    try:
+                        await asyncio.wait_for(
+                            _process_tweet(
+                                t,
+                                progress,
+                                repo,
+                                bc,
+                                enricher,
+                                sentiment_model,
+                                trader_call_repo,
+                                options_recognizer,
+                            ),
+                            timeout=TWEET_TIMEOUT_S,
                         )
-
-                    if versions:
-                        # An older version showing up after a newer one is
-                        # stale; the stored row already has newer content.
-                        if stored and int(tweet_id) != versions[-1]:
-                            continue
-                        # The edit's own timestamp is when it was edited; the
-                        # row keeps the original post time and id, so the card
-                        # stays in place and updates over SSE.
-                        t_dict["edited_at"] = t_dict.get("created_at")
-                        if stored:
-                            t_dict["id"] = stored["id"]
-                            if stored.get("created_at"):
-                                t_dict["created_at"] = datetime.fromisoformat(
-                                    stored["created_at"]
-                                )
-
-                    # X's smart cashtags arrive as "bitcoin:native"; show and
-                    # detect them as the "$BTC" the post displays (issue #216).
-                    t_dict["text"] = normalize_smart_cashtags(
-                        t_dict.get("text"), t_dict.get("tickers")
-                    )
-                    if isinstance(t_dict.get("quoted_tweet"), dict):
-                        quoted = t_dict["quoted_tweet"]
-                        quoted["text"] = normalize_smart_cashtags(
-                            quoted.get("text"), quoted.get("tickers")
+                    except TimeoutError:
+                        # A step blocked (a download or model call that never
+                        # returns). Skip the post rather than freeze the feed.
+                        logger.error(
+                            "[stream] post %s timed out after %.0fs during %s; skipped",
+                            progress.get("post", "?"),
+                            TWEET_TIMEOUT_S,
+                            progress["step"],
                         )
-
-                    # Ensure financial symbols are still detected when source payloads
-                    # don't explicitly include ticker/hashtag arrays.
-                    tickers, hashtags = merge_symbols(
-                        t_dict.get("text"),
-                        t_dict.get("tickers"),
-                        t_dict.get("hashtags"),
-                    )
-
-                    # Run chart detection on all photo tweets so chart filters
-                    # don't fallback to treating every image as a chart.
-                    media_urls = _extract_photo_urls(t_dict)
-                    if media_urls:
-                        results = await asyncio.gather(
-                            *[is_chart(url) for url in media_urls],
-                            return_exceptions=True,
-                        )
-                        chart_urls = [
-                            url
-                            for url, is_chart_result in zip(media_urls, results)
-                            if is_chart_result is True
-                        ]
-                        t_dict["has_chart"] = bool(chart_urls)
-                    else:
-                        chart_urls = []
-                        t_dict["has_chart"] = False
-
-                    # Some posters (options-flow screenshots, etc.) carry no
-                    # tweet text of their own — the only signal is inside a
-                    # non-chart image. OCR those (opt-in, issue #88) so any
-                    # $TICKER/#HASHTAG printed in the screenshot still feeds
-                    # enrichment, the same way it would from the tweet text.
-                    # Gated like chart extraction below: only when the text
-                    # named nothing on its own.
-                    t_dict["image_text"] = None
-                    if not tickers:
-                        non_chart_urls = [u for u in media_urls if u not in chart_urls]
-                        for photo_url in non_chart_urls:
-                            image_text = await extract_image_text(photo_url)
-                            if not image_text:
-                                continue
-
-                            t_dict["image_text"] = image_text
-                            ocr_tickers, ocr_hashtags = extract_symbols_from_text(
-                                image_text
-                            )
-                            if ocr_tickers or ocr_hashtags:
-                                tickers, hashtags = merge_symbols(
-                                    None,
-                                    [*tickers, *ocr_tickers],
-                                    [*hashtags, *ocr_hashtags],
-                                )
-                            break
-
-                    t_dict["tickers"] = tickers
-                    t_dict["hashtags"] = hashtags
-                    symbols = [*tickers, *hashtags]
-                    asset_symbols = [*tickers]
-
-                    quoted_tweet = t_dict.get("quoted_tweet")
-                    options_signal = await detect_options(
-                        t_dict.get("text"),
-                        (
-                            quoted_tweet.get("text")
-                            if isinstance(quoted_tweet, dict)
-                            else None
-                        ),
-                        options_recognizer,
-                        tickers,
-                    )
-                    t_dict["is_options_tweet"] = options_signal["is_options_tweet"]
-                    t_dict["options_context"] = (
-                        options_signal["options_context"]
-                        if options_signal["is_options_tweet"]
-                        else None
-                    )
-
-                    # Enrich assets from cashtags/tickers only. Hashtags are kept
-                    # for display/filter metadata but are too noisy for asset cards.
-                    if asset_symbols:
-                        assets = await enricher.classify(asset_symbols)
-                        t_dict["assets"] = assets
-                    else:
-                        t_dict["assets"] = []
-
-                    # Only extract chart data when the tweet text doesn't already
-                    # name a ticker — a mentioned ticker is a stronger, cheaper
-                    # signal than OCR off the chart image.
-                    t_dict["chart_extraction"] = None
-                    if chart_urls and not tickers:
-                        for chart_url in chart_urls:
-                            extraction = await extract_chart_data(chart_url)
-                            if extraction is not None:
-                                t_dict["chart_extraction"] = extraction
-                                break
-
-                    main_sentiment = None
-                    quoted_sentiment = None
-                    ticker_sentiment = {}
-                    if sentiment_model is not None and symbols:
-                        try:
-                            sentiment_parts = await sentiment_model.classify_parts(
-                                t_dict.get("text") or "", asset_symbols
-                            )
-                            main_sentiment = sentiment_parts.get("main")
-                            quoted_sentiment = sentiment_parts.get("quoted")
-                            ticker_sentiment = sentiment_parts.get("tickers") or {}
-                        except Exception as exc:
-                            logger.warning(
-                                "[stream] sentiment classification failed: %r", exc
-                            )
-
-                    t_dict["sentiment_label"] = (
-                        main_sentiment["label"] if main_sentiment else None
-                    )
-                    t_dict["sentiment_emoji"] = (
-                        main_sentiment["emoji"] if main_sentiment else None
-                    )
-                    t_dict["sentiment_score"] = (
-                        main_sentiment["score"] if main_sentiment else None
-                    )
-                    t_dict["quoted_sentiment_label"] = (
-                        quoted_sentiment["label"] if quoted_sentiment else None
-                    )
-                    t_dict["quoted_sentiment_emoji"] = (
-                        quoted_sentiment["emoji"] if quoted_sentiment else None
-                    )
-                    t_dict["quoted_sentiment_score"] = (
-                        quoted_sentiment["score"] if quoted_sentiment else None
-                    )
-                    t_dict["ticker_sentiment"] = ticker_sentiment or None
-
-                    # 1) persist (idempotent)
-                    await repo.upsert_many([t_dict])
-                    # 2) broadcast after successful commit
-                    await bc.publish(t_dict)
-                    # 3) record any directional calls for credibility scoring
-                    if trader_call_repo is not None:
-                        calls = extract_calls(t_dict)
-                        if calls:
-                            await trader_call_repo.insert_calls(calls)
+                    progress["step"] = "polling X"
+                    _mark_progress()
 
             backoff = 1.0
         except Exception as e:

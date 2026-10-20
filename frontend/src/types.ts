@@ -1654,7 +1654,8 @@ export type XStreamState =
   | "connecting"
   | "ok"
   | "auth_failed"
-  | "error";
+  | "error"
+  | "stalled";
 
 export type XStreamStatus = {
   state: XStreamState;

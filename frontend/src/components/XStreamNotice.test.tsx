@@ -22,6 +22,12 @@ describe('XStreamNotice', () => {
     expect(screen.getByRole('status')).toHaveTextContent('X answered HTTP 401')
   })
 
+  it('says the stream is stuck and where when it stalls', () => {
+    render(<XStreamNotice status={status('stalled', 'No progress for 400s (stuck in sentiment)')} />)
+    expect(screen.getByText('X timeline stalled')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('stuck in sentiment')
+  })
+
   it.each(['ok', 'connecting', 'error'] as XStreamState[])('renders nothing when %s', (state) => {
     const { container } = render(<XStreamNotice status={status(state)} />)
     expect(container).toBeEmptyDOMElement()
