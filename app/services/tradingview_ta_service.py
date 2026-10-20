@@ -21,6 +21,9 @@ except Exception as exc:  # pragma: no cover - optional dependency safety net
 logger = logging.getLogger(__name__)
 
 _CACHE_TTL_SECONDS = 900
+# A miss is often TradingView throttling us; retry it soon rather than
+# reporting "no technicals" for the full TTL.
+_MISS_TTL_SECONDS = 60
 _REQUEST_SEMAPHORE = asyncio.Semaphore(4)
 _cache: dict[tuple[str, str], tuple[float, Optional[dict[str, Any]]]] = {}
 _cache_lock = asyncio.Lock()
@@ -331,7 +334,8 @@ async def _get_cached(
             return False, None
 
         ts, payload = item
-        if time.time() - ts > _CACHE_TTL_SECONDS:
+        ttl = _CACHE_TTL_SECONDS if payload is not None else _MISS_TTL_SECONDS
+        if time.time() - ts > ttl:
             _cache.pop(cache_key, None)
             return False, None
 

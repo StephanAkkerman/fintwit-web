@@ -522,7 +522,7 @@ async def collect_ticker(
             "/api/earnings/calendar",
             {"days": 14, "limit_per_day": 50},
         ),
-        "portfolio_positions": ("/api/portfolio/positions", {"active_only": True}),
+        "portfolio_positions": ("/api/portfolio/insights", None),
     }
     limiter = asyncio.Semaphore(_BUNDLE_CONCURRENCY)
     payloads = await asyncio.gather(
@@ -537,6 +537,8 @@ async def collect_ticker(
         else _earnings_by_symbol(calendar, {symbol}).get(symbol, [])
     )
     positions = result.pop("portfolio_positions")
+    if isinstance(positions, dict):
+        positions = positions.get("positions")
     if isinstance(positions, list):
         result["your_position"] = [
             p for p in positions if str(p.get("symbol") or "").upper() == symbol
@@ -618,7 +620,8 @@ async def collect_candidates(
         ),
         "top_traders": ("/api/traders/leaderboard", {"limit": 10}),
         "strategy": ("/api/advisor/strategy", None),
-        "positions": ("/api/portfolio/positions", {"active_only": True}),
+        # Insights, not /positions: it reads IBKR when that is synced.
+        "positions": ("/api/portfolio/insights", None),
         "insider_buying": ("/api/stocks/insider-trades", {"days": 14, "limit": 1}),
         "fund_buying": ("/api/stocks/fund-holdings", None),
     }
@@ -639,6 +642,8 @@ async def collect_candidates(
         }
 
     positions = result.pop("positions")
+    if isinstance(positions, dict):
+        positions = positions.get("positions")
     held = sorted(
         {
             str(p.get("symbol") or "").upper()

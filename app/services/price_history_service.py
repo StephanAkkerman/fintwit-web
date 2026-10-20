@@ -102,7 +102,8 @@ def _is_intraday(interval: str) -> bool:
 
 
 def _parse_chart(payload: dict, *, intraday: bool = False) -> Optional[list[dict]]:
-    """Flatten a Yahoo chart response into ``{t, close, high, low}`` points.
+    """Flatten a Yahoo chart response into ``{t, close, high, low}`` points,
+    plus ``volume`` where Yahoo reports it.
 
     :param payload: Raw Yahoo chart JSON.
     :param intraday: When true, keep the full timestamp so sub-daily bars stay
@@ -118,6 +119,7 @@ def _parse_chart(payload: dict, *, intraday: bool = False) -> Optional[list[dict
     closes = quote.get("close") or []
     highs = quote.get("high") or []
     lows = quote.get("low") or []
+    volumes = quote.get("volume") or []
 
     points: list[dict] = []
     for index, ts in enumerate(timestamps):
@@ -128,14 +130,16 @@ def _parse_chart(payload: dict, *, intraday: bool = False) -> Optional[list[dict
         moment = datetime.fromtimestamp(int(ts), tz=timezone.utc)
         high = _as_float(highs[index] if index < len(highs) else None)
         low = _as_float(lows[index] if index < len(lows) else None)
-        points.append(
-            {
-                "t": moment.isoformat() if intraday else moment.date().isoformat(),
-                "close": close,
-                "high": high if high is not None else close,
-                "low": low if low is not None else close,
-            }
-        )
+        point = {
+            "t": moment.isoformat() if intraday else moment.date().isoformat(),
+            "close": close,
+            "high": high if high is not None else close,
+            "low": low if low is not None else close,
+        }
+        volume = _as_float(volumes[index] if index < len(volumes) else None)
+        if volume is not None:
+            point["volume"] = volume
+        points.append(point)
 
     return points or None
 
@@ -166,7 +170,7 @@ async def _fetch_chart(symbol: str, range_: str, interval: str) -> Optional[list
 
 
 async def get_price_series(symbol: str, range_key: str = DEFAULT_RANGE) -> list[dict]:
-    """Return daily ``{t, close, high, low}`` points for a symbol.
+    """Return daily ``{t, close, high, low[, volume]}`` points for a symbol.
 
     :param symbol: Ticker symbol.
     :param range_key: Key from :data:`RANGE_PRESETS`.

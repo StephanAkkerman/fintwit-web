@@ -2,6 +2,7 @@ import pytest
 
 import app.services.technical_indicators_service as svc
 from app.services.technical_indicators_service import (
+    compute_from_history,
     get_indicators,
     normalize_symbol,
     parse_row,
@@ -14,6 +15,27 @@ def _reset_cache():
     svc._reset_cache_for_tests()
     yield
     svc._reset_cache_for_tests()
+
+
+@pytest.fixture(autouse=True)
+def history(monkeypatch):
+    """Daily bars per Yahoo symbol for the fallback; none unless a test adds."""
+    series: dict[str, list[dict]] = {}
+    calls: list[str] = []
+
+    async def get_price_series(symbol, range_key):
+        calls.append(symbol)
+        return series.get(symbol, [])
+
+    monkeypatch.setattr(svc, "get_price_series", get_price_series)
+    return series, calls
+
+
+def _bars(closes: list[float], volume: float = 1000.0) -> list[dict]:
+    return [
+        {"t": f"d{i}", "close": c, "high": c + 1, "low": c - 1, "volume": volume}
+        for i, c in enumerate(closes)
+    ]
 
 
 def _row(ticker: str, **overrides) -> dict:
@@ -153,6 +175,60 @@ async def test_crypto_lookup_takes_the_first_known_pair(monkeypatch):
     assert result["BTC-USD"]["tv_symbol"] == "BINANCE:BTCUSDT"
     assert result["SOL"]["tv_symbol"] == "COINBASE:SOLUSD"
     assert result["NOPE"] is None
+
+
+def test_compute_from_history():
+    # Falls for 150 days, then rises for 100: above every average, RSI
+    # pinned high, and the 50-day crossed the 200-day on the last bar or
+    # earlier.
+    closes = [300.0 - i for i in range(150)] + [151.0 + 2 * i for i in range(100)]
+    ind = compute_from_history(_bars(closes), "XYZ")
+
+    assert ind["source"] == "price_history"
+    assert ind["tv_symbol"] is None
+    assert ind["price"] == 349.0
+    assert ind["rsi"]["value"] == 100.0
+    assert ind["rsi"]["state"] == "overbought"
+    assert ind["rsi"]["four_h"] is None
+    assert ind["macd"]["above_signal"] is True
+    ma = ind["moving_averages"]
+    assert ma["sma20"] == pytest.approx(sum(closes[-20:]) / 20, abs=1e-4)
+    assert ma["sma200"] == pytest.approx(sum(closes[-200:]) / 200, abs=1e-4)
+    assert ma["price_vs_sma50_percent"] > 0
+    # A 2-point daily rise plus the 1-point wick: true range is 3.
+    assert ind["atr"]["value"] == pytest.approx(3.0, abs=0.01)
+    assert ind["adx"]["direction"] == "up"
+    assert ind["volume"]["vs_avg_30d"] == 1.0
+    assert ind["rating"] == {
+        "one_d": None,
+        "four_h": None,
+        "moving_averages": None,
+        "oscillators": None,
+    }
+    assert compute_from_history(_bars(closes[:30]), "XYZ") is None
+
+
+async def test_falls_back_to_price_history(monkeypatch, history):
+    series, calls = history
+    series["BRK-B"] = _bars([100.0 + i for i in range(60)])
+    series["ETH-USD"] = _bars([100.0 + i for i in range(60)])
+
+    async def throttled(session, market, payload):
+        return None
+
+    monkeypatch.setattr(svc, "_scan", throttled)
+    stocks = await get_indicators(["BRK.B", "NOPE"])
+    coins = await get_indicators(["ETH"], "crypto")
+    again = await get_indicators(["BRK.B"])
+
+    assert stocks["BRK.B"]["source"] == "price_history"
+    assert stocks["BRK.B"]["symbol"] == "BRK.B"
+    assert stocks["BRK.B"]["moving_averages"]["sma200"] is None  # too short
+    assert stocks["NOPE"] is None
+    assert coins["ETH"]["price"] == 159.0
+    assert again == {"BRK.B": stocks["BRK.B"]}
+    # The hit was cached; the miss is retried.
+    assert calls == ["BRK-B", "NOPE", "ETH-USD"]
 
 
 async def test_failed_scans_are_not_cached(monkeypatch):

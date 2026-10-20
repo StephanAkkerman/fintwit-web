@@ -306,10 +306,6 @@ def _bundle_handler(seen: list):
             return httpx.Response(200, json=CALENDAR)
         if path == "/api/options/gamma-exposure":
             return httpx.Response(404, json={"detail": "no options"})
-        if path == "/api/portfolio/positions":
-            return httpx.Response(
-                200, json=[{"symbol": "aapl", "quantity": 5}, {"symbol": "MSFT"}]
-            )
         if path == "/api/research/price-context":
             return httpx.Response(200, json=PRICE_CONTEXT)
         if path == "/api/research/indicators":
@@ -456,7 +452,7 @@ async def test_ticker_bundle():
     assert result["earnings"] == [
         {"date": "2026-10-12", "symbol": "AAPL", "time": "amc"}
     ]
-    assert result["your_position"] == [{"symbol": "aapl", "quantity": 5}]
+    assert result["your_position"] == [{"symbol": "AAPL", "market_value": 2000.0}]
     assert "404" in result["gamma_exposure"]["error"]
     assert "earnings_calendar" not in result
     assert ("/api/reddit/trends/AAPL/history", {"days": "30"}) in seen
@@ -479,8 +475,8 @@ def _market_handler(seen: list):
             )
         if path == "/api/advisor/strategy":
             return httpx.Response(200, json={"rules": "", "watchlist": ["NVDA", "AMD"]})
-        if path == "/api/portfolio/positions":
-            return httpx.Response(200, json=[{"symbol": "nvda"}])
+        if path == "/api/portfolio/insights":
+            return httpx.Response(200, json={"positions": [{"symbol": "nvda"}]})
         if path == "/api/overview/ticker-timeseries":
             return httpx.Response(200, json={"points": [], "summary": {"total": 1}})
         if path == "/api/fear-greed":

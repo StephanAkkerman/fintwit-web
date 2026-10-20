@@ -24,6 +24,11 @@ What comes back is the set a buy/sell check actually leans on:
 Stocks and ETFs are matched by name on the ``america`` scanner, preferring the
 primary listing; crypto is looked up as a USD(T) pair on a few large spot
 exchanges. The scanner's US data is delayed by 15 minutes.
+
+TradingView throttles and sometimes fails these lookups. Any symbol it
+doesn't answer is computed instead from a year of daily Yahoo bars (the
+``price_history_service`` series, already cached there): the same
+indicators, without TradingView's ratings and 4-hour RSI.
 """
 
 from __future__ import annotations
@@ -33,6 +38,8 @@ import logging
 import time
 
 import aiohttp
+
+from .price_history_service import get_price_series
 
 logger = logging.getLogger(__name__)
 
@@ -167,8 +174,14 @@ def parse_row(row: dict, symbol: str) -> dict | None:
     values = row.get("d") if isinstance(row, dict) else None
     if not isinstance(values, list) or len(values) < len(_COLUMNS):
         return None
-    f = dict(zip(_COLUMNS, values))
-    price = _num(f["close"])
+    return _build(dict(zip(_COLUMNS, values)), symbol, str(row.get("s") or ""))
+
+
+def _build(
+    f: dict, symbol: str, tv_symbol: str | None, source: str = "tradingview"
+) -> dict | None:
+    """The indicator set from scanner-named fields (see ``_COLUMNS``)."""
+    price = _num(f.get("close"))
     if price is None:
         return None
 
@@ -217,13 +230,14 @@ def parse_row(row: dict, symbol: str) -> dict | None:
     sma = {"sma20": _num(f["SMA20"]), "sma50": sma50, "sma200": sma200}
     result = {
         "symbol": symbol,
-        "tv_symbol": str(row.get("s") or ""),
-        "type": f["subtype"] or f["type"] or None,
+        "source": source,
+        "tv_symbol": tv_symbol,
+        "type": f.get("subtype") or f.get("type") or None,
         "price": price,
         "rsi": {
             "value": _round(rsi, 1),
             "state": rsi_state,
-            "four_h": _round(_num(f["RSI|240"]), 1),
+            "four_h": _round(_num(f.get("RSI|240")), 1),
         },
         "macd": {
             "macd": _round(macd, 4),
@@ -261,10 +275,10 @@ def parse_row(row: dict, symbol: str) -> dict | None:
             "vs_avg_30d": vs_avg,
         },
         "rating": {
-            "one_d": rating_label(_num(f["Recommend.All"])),
-            "four_h": rating_label(_num(f["Recommend.All|240"])),
-            "moving_averages": rating_label(_num(f["Recommend.MA"])),
-            "oscillators": rating_label(_num(f["Recommend.Other"])),
+            "one_d": rating_label(_num(f.get("Recommend.All"))),
+            "four_h": rating_label(_num(f.get("Recommend.All|240"))),
+            "moving_averages": rating_label(_num(f.get("Recommend.MA"))),
+            "oscillators": rating_label(_num(f.get("Recommend.Other"))),
         },
     }
     result["signals"] = _signals(result)
@@ -373,15 +387,141 @@ async def _fetch_crypto(
     return result
 
 
+def _sma(values: list[float], n: int, back: int = 0) -> float | None:
+    end = len(values) - back
+    if n <= 0 or end < n:
+        return None
+    return sum(values[end - n : end]) / n
+
+
+def _ema_series(values: list[float], n: int) -> list[float]:
+    """EMA seeded with the SMA of the first ``n`` values; empty if too short."""
+    if len(values) < n:
+        return []
+    alpha = 2 / (n + 1)
+    out = [sum(values[:n]) / n]
+    for value in values[n:]:
+        out.append(out[-1] + alpha * (value - out[-1]))
+    return out
+
+
+def _wilder_series(values: list[float], n: int) -> list[float]:
+    """Wilder's smoothing (RSI/ATR/ADX), seeded with the first ``n`` mean."""
+    if len(values) < n:
+        return []
+    out = [sum(values[:n]) / n]
+    for value in values[n:]:
+        out.append((out[-1] * (n - 1) + value) / n)
+    return out
+
+
+def _rsi(closes: list[float], n: int = 14) -> float | None:
+    changes = [b - a for a, b in zip(closes, closes[1:])]
+    gains = _wilder_series([max(c, 0.0) for c in changes], n)
+    losses = _wilder_series([max(-c, 0.0) for c in changes], n)
+    if not gains:
+        return None
+    if losses[-1] == 0:
+        return 100.0
+    return 100 - 100 / (1 + gains[-1] / losses[-1])
+
+
+def _atr_adx(
+    highs: list[float], lows: list[float], closes: list[float], n: int = 14
+) -> tuple[float | None, float | None, float | None, float | None]:
+    """ATR, ADX, +DI and -DI over ``n`` bars, Wilder-smoothed."""
+    tr, plus_dm, minus_dm = [], [], []
+    for i in range(1, len(closes)):
+        up, down = highs[i] - highs[i - 1], lows[i - 1] - lows[i]
+        tr.append(
+            max(
+                highs[i] - lows[i],
+                abs(highs[i] - closes[i - 1]),
+                abs(lows[i] - closes[i - 1]),
+            )
+        )
+        plus_dm.append(up if up > down and up > 0 else 0.0)
+        minus_dm.append(down if down > up and down > 0 else 0.0)
+    atr = _wilder_series(tr, n)
+    if not atr:
+        return None, None, None, None
+    plus = _wilder_series(plus_dm, n)
+    minus = _wilder_series(minus_dm, n)
+    plus_di = [100 * p / a if a else 0.0 for p, a in zip(plus, atr)]
+    minus_di = [100 * m / a if a else 0.0 for m, a in zip(minus, atr)]
+    dx = [
+        100 * abs(p - m) / (p + m) if p + m else 0.0 for p, m in zip(plus_di, minus_di)
+    ]
+    adx = _wilder_series(dx, n)
+    return atr[-1], adx[-1] if adx else None, plus_di[-1], minus_di[-1]
+
+
+def compute_from_history(points: list[dict], symbol: str) -> dict | None:
+    """The same indicator set, computed from daily ``{close, high, low,
+    volume}`` bars (oldest first). The fallback for when the scanner fails;
+    the ratings and 4-hour RSI stay empty since they need TradingView."""
+    bars = [p for p in points if _num(p.get("close")) is not None]
+    if len(bars) < 35:  # MACD's slow EMA plus its signal line
+        return None
+    closes = [float(p["close"]) for p in bars]
+    highs = [_num(p.get("high")) or c for p, c in zip(bars, closes)]
+    lows = [_num(p.get("low")) or c for p, c in zip(bars, closes)]
+    volumes = [_num(p.get("volume")) for p in bars]
+
+    fast, slow = _ema_series(closes, 12), _ema_series(closes, 26)
+    macd = [f - s for f, s in zip(fast[26 - 12 :], slow)]
+    signal = _ema_series(macd, 9)
+    atr, adx, plus_di, minus_di = _atr_adx(highs, lows, closes)
+    recent = [v for v in volumes[-30:] if v is not None]
+
+    fields = {
+        "close": round(closes[-1], 4),
+        "RSI": _rsi(closes),
+        "MACD.macd": macd[-1],
+        "MACD.signal": signal[-1] if signal else None,
+        "MACD.macd[1]": macd[-2] if len(signal) > 1 else None,
+        "MACD.signal[1]": signal[-2] if len(signal) > 1 else None,
+        "SMA20": _sma(closes, 20),
+        "SMA50": _sma(closes, 50),
+        "SMA200": _sma(closes, 200),
+        "SMA50[1]": _sma(closes, 50, back=1),
+        "SMA200[1]": _sma(closes, 200, back=1),
+        "ATR": atr,
+        "ADX": adx,
+        "ADX+DI": plus_di,
+        "ADX-DI": minus_di,
+        "volume": volumes[-1],
+        "average_volume_30d_calc": sum(recent) / len(recent) if recent else None,
+    }
+    return _build(fields, symbol, None, source="price_history")
+
+
+def _history_symbol(requested: str, asset_kind: str) -> str:
+    """The Yahoo spelling: BRK-B for share classes, BTC-USD for coins."""
+    if asset_kind == "crypto":
+        return f"{normalize_symbol(requested, 'crypto')}-USD"
+    return normalize_symbol(requested, asset_kind).replace(".", "-")
+
+
+async def _from_history(requested: str, asset_kind: str) -> dict | None:
+    try:
+        points = await get_price_series(_history_symbol(requested, asset_kind), "1Y")
+    except Exception as exc:  # never let the fallback break the request
+        logger.warning("[indicators] price history for %s failed: %r", requested, exc)
+        return None
+    return compute_from_history(points, normalize_symbol(requested, asset_kind))
+
+
 async def get_indicators(
     symbols: list[str], asset_kind: str = "stock"
 ) -> dict[str, dict | None]:
-    """Indicators per requested symbol (``None`` where TradingView has none).
+    """Indicators per requested symbol (``None`` where there is no data).
 
     Keys are the symbols as passed in, upper-cased. ``asset_kind`` is
     ``stock`` or ``etf`` (both on the US scanner) or ``crypto``; anything else
-    returns ``None`` for every symbol. A failed scanner request is not cached,
-    so the next call retries it.
+    returns ``None`` for every symbol. Symbols the scanner doesn't answer are
+    computed from daily price history (``source: "price_history"``). Misses
+    are not cached, so the next call retries them.
     """
     kind = "crypto" if asset_kind == "crypto" else "us"
     requested = {
@@ -411,9 +551,21 @@ async def get_indicators(
                 if kind == "crypto"
                 else _fetch_us(session, batch)
             )
-        if fetched is None:
-            continue
-        for name, value in fetched.items():
+        for name, value in (fetched or {}).items():
+            if value is not None:
+                _cache[(kind, name)] = (now, value)
+                found[name] = value
+
+    # Whatever the scanner didn't answer (it failed, throttled us or doesn't
+    # list the symbol) is computed from a year of daily bars instead.
+    fallback = [
+        (symbol, name) for symbol, name in requested.items() if not found.get(name)
+    ]
+    computed = await asyncio.gather(
+        *(_from_history(symbol, asset_kind) for symbol, _ in fallback)
+    )
+    for (_, name), value in zip(fallback, computed):
+        if value is not None:
             _cache[(kind, name)] = (now, value)
             found[name] = value
 

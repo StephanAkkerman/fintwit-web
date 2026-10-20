@@ -73,9 +73,11 @@ async def indicators(
 ):
     """Daily RSI(14), MACD, distance from the 20/50/200-day SMAs and their
     golden/death cross, ATR(14), ADX(14) and volume against its 30-day
-    average, for up to 50 symbols in one TradingView scanner request.
+    average, for up to 50 symbols in one TradingView scanner request. Symbols
+    the scanner misses are computed from daily price history instead
+    (``source: "price_history"``, no ratings).
 
-    Keyed by symbol; ``null`` where TradingView has no data for it.
+    Keyed by symbol; ``null`` where neither source has data for it.
     """
     names = list(dict.fromkeys(_symbol(s) for s in symbols.split(",") if s.strip()))
     if not names:
