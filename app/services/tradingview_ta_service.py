@@ -107,7 +107,9 @@ def _scanner_priority(asset_hint: str | None) -> list[str]:
     return ["america", "global"]
 
 
-def _pick_best_row(rows: list[dict], asset_hint: str | None) -> Optional[dict]:
+def _pick_best_row(
+    rows: list[dict], asset_hint: str | None, symbol: str = ""
+) -> Optional[dict]:
     hint = str(asset_hint or "").strip().lower()
     best: tuple[float, dict] | None = None
 
@@ -116,6 +118,11 @@ def _pick_best_row(rows: list[dict], asset_hint: str | None) -> Optional[dict]:
         row_type = str(row.get("type") or "").lower()
         row_symbol = str(row.get("symbol") or "").upper()
         volume = row.get("volume")
+
+        # The search is fuzzy (EWZ also finds EWZS and NEWZ); an exact name
+        # match beats any of the type and volume hints below.
+        if symbol and row_symbol.split(":", 1)[-1] == symbol:
+            score += 10.0
 
         try:
             if volume is not None and float(volume) > 0:
@@ -128,6 +135,8 @@ def _pick_best_row(rows: list[dict], asset_hint: str | None) -> Optional[dict]:
             if row_symbol.endswith("USD") or row_symbol.endswith("USDT"):
                 score += 1.0
         elif hint == "forex" and "forex" in row_type:
+            score += 5.0
+        elif hint == "etf" and row_type == "fund":
             score += 5.0
         elif hint in {"stock", "equity", "index", "future", ""}:
             if "stock" in row_type:
@@ -214,11 +223,11 @@ def _resolve_symbol_context(symbol: str, asset_hint: str | None) -> Optional[dic
         if isinstance(data, list):
             rows.extend([row for row in data if isinstance(row, dict)])
 
-        best = _pick_best_row(rows, asset_hint)
+        best = _pick_best_row(rows, asset_hint, normalized)
         if best is not None:
             return _build_symbol_context(best, scanner, normalized, asset_hint)
 
-    best = _pick_best_row(rows, asset_hint)
+    best = _pick_best_row(rows, asset_hint, normalized)
     if best is not None:
         return _build_symbol_context(
             best, _scanner_priority(asset_hint)[0], normalized, asset_hint

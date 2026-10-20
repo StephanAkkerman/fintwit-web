@@ -107,3 +107,15 @@ def test_backoff_logs_warning_on_rate_limit(caplog):
 
     messages = [r.getMessage() for r in caplog.records]
     assert any("rate limit hit on AAPL" in m and "backing off" in m for m in messages)
+
+
+def test_pick_best_row_prefers_the_exact_name():
+    from app.services.tradingview_ta_service import _pick_best_row
+
+    rows = [
+        {"symbol": "NASDAQ:EWZS", "type": "fund", "volume": 2_600_000},
+        {"symbol": "NASDAQ:NEWZ", "type": "fund", "volume": 7_000},
+        {"symbol": "AMEX:EWZ", "type": "fund", "volume": 63_000_000},
+    ]
+    assert _pick_best_row(rows, "etf", "EWZ")["symbol"] == "AMEX:EWZ"
+    assert _pick_best_row(rows[::-1], "stock", "EWZS")["symbol"] == "NASDAQ:EWZS"

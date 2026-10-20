@@ -355,6 +355,31 @@ def _valuation_summary(valuation: Any) -> Any:
     return {k: v for k, v in summary.items() if v is not None}
 
 
+def _technicals_summary(ind: Any) -> Any:
+    """The decision-relevant slice of one /api/research/indicators entry."""
+    if not isinstance(ind, dict):
+        return ind
+    ma = ind.get("moving_averages") or {}
+    macd = ind.get("macd") or {}
+    rating = ind.get("rating") or {}
+    return {
+        "rsi": (ind.get("rsi") or {}).get("value"),
+        "macd_above_signal": macd.get("above_signal"),
+        "macd_cross": macd.get("cross"),
+        "price_vs_sma20_percent": ma.get("price_vs_sma20_percent"),
+        "price_vs_sma50_percent": ma.get("price_vs_sma50_percent"),
+        "price_vs_sma200_percent": ma.get("price_vs_sma200_percent"),
+        "sma50_vs_sma200": ma.get("sma50_vs_sma200"),
+        "atr": (ind.get("atr") or {}).get("value"),
+        "atr_percent": (ind.get("atr") or {}).get("percent_of_price"),
+        "adx": (ind.get("adx") or {}).get("value"),
+        "volume_vs_avg_30d": (ind.get("volume") or {}).get("vs_avg_30d"),
+        "rating_1d": rating.get("one_d"),
+        "rating_4h": rating.get("four_h"),
+        "signals": ind.get("signals"),
+    }
+
+
 async def collect_portfolio(client: httpx.AsyncClient) -> str:
     """Every portfolio view in one payload."""
     views = await asyncio.gather(*(_safe(client, path) for path in PORTFOLIO_PATHS))
@@ -370,7 +395,8 @@ async def collect_holdings_check(
 ) -> str:
     """Per holding: the position, tweet mentions/sentiment, Reddit buzz, recent
     news with its sentiment, where the price sits in its 52-week range and
-    trend, analyst targets, and earnings inside ``earnings_days``."""
+    trend, daily technical indicators (RSI, MACD, MA distance, ATR), analyst
+    targets, and earnings inside ``earnings_days``."""
     insights = await _request(client, "/api/portfolio/insights", None)
     positions = [p for p in insights.get("positions") or [] if p.get("symbol")]
     positions.sort(key=lambda p: p.get("market_value") or 0, reverse=True)
@@ -410,12 +436,16 @@ async def collect_holdings_check(
             "analysts": _valuation_summary(valuation),
         }
 
-    calendar, *details = await asyncio.gather(
+    calendar, indicators, *details = await asyncio.gather(
         _safe(
             client,
             "/api/earnings/calendar",
             {"days": min(max(earnings_days, 1), 14), "limit_per_day": 50},
         ),
+        # One scanner request covers every holding.
+        _safe(client, "/api/research/indicators", {"symbols": ",".join(symbols)})
+        if symbols
+        else asyncio.sleep(0, result={}),
         *(per_symbol(symbol) for symbol in symbols),
     )
     earnings = _earnings_by_symbol(calendar, set(symbols))
@@ -428,6 +458,11 @@ async def collect_holdings_check(
                 "symbol": symbol,
                 "position": position,
                 **detail,
+                "technicals": (
+                    indicators
+                    if isinstance(indicators, dict) and "error" in indicators
+                    else _technicals_summary((indicators or {}).get(symbol))
+                ),
                 "earnings": (
                     {"error": earnings_error}
                     if earnings_error
@@ -740,8 +775,10 @@ async def holdings_check(window_hours: int = 168, earnings_days: int = 14) -> st
     mentions and sentiment over ``window_hours`` (default 7 days), the latest
     Reddit trend reading, the three newest headlines with their sentiment, and
     any earnings in the next ``earnings_days`` (at most 14), plus where the price
-    sits against its 52-week range and 200-day average and the analyst rating
-    and price target. Use it for
+    sits against its 52-week range and 200-day average, its daily technicals
+    (RSI(14), MACD, distance from the 20/50/200-day averages, ATR(14) for stop
+    distances, ADX, volume against its 30-day average, TradingView ratings),
+    and the analyst rating and price target. Use it for
     questions like "anything I should worry about in my portfolio?"."""
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         return await collect_holdings_check(client, window_hours, earnings_days)
@@ -755,7 +792,10 @@ async def ticker(
     sentiment over time, today's intraday price, the 52-week/all-time range
     with 1-12 month returns and 50/200-day averages, valuation (P/E, EPS,
     market cap), analyst rating and price targets, short interest, TradingView
-    4-hour and daily technicals, news with sentiment, Reddit trend history,
+    4-hour and daily technicals (TradingView's rating plus ``indicators``:
+    RSI(14), MACD and its latest cross, distance from the 20/50/200-day
+    averages and the golden/death cross, ATR(14), ADX, volume against its
+    30-day average), news with sentiment, Reddit trend history,
     options overview and gamma exposure, insider purchases and sales over the
     last 180 days (SEC Form 4), upcoming earnings, and your own
     position in it if you hold it. ``asset_kind`` (``stock``, ``etf`` or

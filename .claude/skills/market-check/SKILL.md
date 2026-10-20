@@ -31,7 +31,8 @@ Call these:
   with it.
 - `holdings_check`: what is happening around each holding, including where
   its price sits in the 52-week range, its trend against the 200-day average,
-  and the analyst rating and price target.
+  its daily `technicals` (RSI, MACD, distance from the 20/50/200-day
+  averages, ATR, volume), and the analyst rating and price target.
 - `candidates`: buy ideas. Ignore `held_symbols` as new ideas; they are covered
   by holdings_check.
 - `unseen_posts`: every post since the last check, one lead per ticker, the
@@ -40,8 +41,8 @@ Call these:
   below. Keep its `cursor` and `posts` for `finish_check`.
 - `ticker` for any symbol you are about to suggest, to check the full picture
   before you commit: valuation (P/E, analyst targets, short interest),
-  TradingView technicals, 52-week range and trend, news, options and
-  earnings. Pass `asset_kind="crypto"` or `"etf"` when it is one.
+  TradingView technicals and their `indicators`, 52-week range and trend,
+  news, options and earnings. Pass `asset_kind="crypto"` or `"etf"` when it is one.
 - Signa, if its tools are available: look up its verdict for every symbol you
   are about to suggest. Treat it as one more signal, not the deciding one, and
   say in the reasoning when Signa disagrees. If the Signa tools are missing or
@@ -53,7 +54,10 @@ For each holding and candidate, decide whether anything is actionable now:
 
 - **sell / trim**: a strategy rule is breached (position too large, stop level
   hit), the thesis broke (bad news, sentiment collapse), or there are
-  earnings risks the owner's rules say to avoid.
+  earnings risks the owner's rules say to avoid. A broken trend backs this
+  up: a close below the 200-day average, a fresh death cross
+  (`sma50_vs_sma200` turned `death_cross`), or a bearish MACD cross on heavy
+  volume. A broken trend alone is a `watch`, not a sell.
 - **buy / add**: there is a strong, multi-signal case (for example, credible
   traders plus a sentiment shift plus a news catalyst), it fits the rules, the
   valuation and technicals don't argue against it, and it isn't already up a
@@ -90,7 +94,23 @@ For each one you look at, judge two things separately:
 - **Technicals**: TradingView's summary and moving-average ratings, trend
   against the 50- and 200-day averages, where it sits in the 52-week range,
   and how far it has run since the trader posted (`price_at_post`). Pass when
-  the trend is up or basing and the entry isn't a chase.
+  the trend is up or basing and the entry isn't a chase. Use the
+  `indicators` from `ticker` for both:
+  - *Trend*: price above the 200-day average and `sma50_vs_sma200` a
+    `golden_cross` is an uptrend; MACD above its signal and ADX 25+ with
+    direction `up` confirm it. Below the 200-day is a downtrend, whatever
+    the rating says.
+  - *Chase*: daily RSI of 70 or more, or price more than about two ATRs
+    above its 20-day average (`price_vs_sma20_percent` against
+    `atr.percent_of_price`), means it has run; log a `watch` for a pullback
+    instead of a buy. RSI under 30 in an uptrend is a dip worth a look, not
+    a reason to skip.
+  - *Volume*: a breakout or a big move on `heavy_volume` counts for more
+    than one on thin volume.
+
+  For every buy or add, give a stop about two ATRs below the entry (or just
+  under the 50-day average when that is close), and say how far that is in
+  percent.
 
 Only when **both** pass is it a `buy`. If one passes and the other doesn't,
 log a `watch` that names the side that failed and what would change your mind.
@@ -143,8 +163,8 @@ owner should know, reply with exactly "Nothing new" so the run stays quiet.
 Otherwise write a short report, at most about 12 lines:
 
 - One line on the market mood (fear & greed, the main mover or sector).
-- Each call as `ACTION SYMBOL (conviction): why`, with the rule if any, and the
-  amount for a buy or add when cash is set.
+- Each call as `ACTION SYMBOL (conviction): why`, with the rule if any, and for a
+  buy or add the stop and, when cash is set, the amount.
   A swap gets one line instead of two: `SWAP SELL_SYMBOL -> BUY_SYMBOL: why`.
 - Any holding that needs attention without a call (for example, earnings
   tomorrow).
