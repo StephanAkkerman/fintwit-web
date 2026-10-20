@@ -413,7 +413,14 @@ export function MentionHeatmap({
   )
 
   if (loading) {
-    return <div className="rounded-2xl border border-zinc-800 bg-zinc-900 h-[200px] animate-pulse" />
+    return (
+      <div
+        role="status"
+        className="rounded-2xl border border-zinc-800 bg-zinc-900 h-[200px] animate-pulse flex items-center justify-center text-zinc-500 text-sm"
+      >
+        Loading mentions…
+      </div>
+    )
   }
 
   if (error) {

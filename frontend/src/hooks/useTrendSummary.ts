@@ -26,7 +26,9 @@ export function useTrendSummary(
         else setError(true)
       })
       .catch(e => { if (e.name !== 'AbortError') setError(true) })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
     return () => controller.abort()
   }, [trendWindow, assetKind, userFilter, subscriberOnly])
 

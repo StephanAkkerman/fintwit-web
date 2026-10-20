@@ -21,7 +21,9 @@ export function useMentionHeat(
       .then(r => { if (!r.ok) throw new Error('mention-heat'); return r.json() })
       .then(p => setData(Array.isArray(p) ? p : []))
       .catch(e => { if (e.name !== 'AbortError') setError(true) })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
     return () => controller.abort()
   }, [assetKind, windowHours, userFilter, subscriberOnly])
 

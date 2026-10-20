@@ -20,7 +20,9 @@ export function useSectorMentions(
       .then(r => { if (!r.ok) throw new Error('sector-mentions'); return r.json() })
       .then(p => setData(Array.isArray(p) ? p : []))
       .catch(e => { if (e.name !== 'AbortError') setError(true) })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
     return () => controller.abort()
   }, [windowHours, userFilter, subscriberOnly])
 

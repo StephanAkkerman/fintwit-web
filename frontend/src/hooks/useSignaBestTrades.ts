@@ -24,7 +24,9 @@ export function useSignaBestTrades(limit = 100) {
         if (err.name === 'AbortError') return
         setError(true)
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
 
     return () => controller.abort()
   }, [limit])

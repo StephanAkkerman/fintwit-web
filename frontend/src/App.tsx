@@ -243,6 +243,46 @@ function isSubscriberOnlyTweet(tweet: Tweet): boolean {
   return Boolean(tweet.is_subscriber_only || tweet.quoted_tweet?.is_subscriber_only)
 }
 
+const emptyStateClass =
+  'rounded-2xl border border-dashed border-zinc-300 bg-white/70 p-5 text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-400'
+
+/** What the timeline shows instead of tweets: still fetching, failed, or truly empty. */
+function TimelineEmptyState({
+  loading,
+  error,
+  filteredOut,
+  windowLabel,
+}: {
+  loading: boolean
+  error: boolean
+  filteredOut: boolean
+  windowLabel: string
+}) {
+  if (loading) {
+    return (
+      <div role="status" aria-label="Loading tweets" className="space-y-3">
+        <p className="flex items-center gap-2 px-1 text-sm text-zinc-500 dark:text-zinc-400">
+          <span className="h-3 w-3 animate-spin rounded-full border-2 border-zinc-400 border-t-transparent" />
+          Loading tweets from the server…
+        </p>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div
+            key={i}
+            className="h-32 animate-pulse rounded-2xl border border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900"
+          />
+        ))}
+      </div>
+    )
+  }
+  if (error) {
+    return <div className={emptyStateClass}>Couldn't load tweets from the server. Reload the page to try again.</div>
+  }
+  if (filteredOut) {
+    return <div className={emptyStateClass}>No tweets match this filter.</div>
+  }
+  return <div className={emptyStateClass}>No tweets in the last {windowLabel}.</div>
+}
+
 export default function App() {
   const [route, setRoute] = useState<RouteKey>(() => routeFromPath(window.location.pathname))
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
@@ -251,6 +291,7 @@ export default function App() {
     tweets,
     hasMore,
     isInitialLoading,
+    loadError,
     isLoadingOlder,
     loadOlder,
     lastLoadDurationMs,
@@ -979,7 +1020,7 @@ export default function App() {
                     />
                   </ErrorBoundary>
                 ))}
-                {hasMore && (
+                {hasMore && !isInitialLoading && (
                   <div className="flex justify-center py-2">
                     <button
                       type="button"
@@ -992,9 +1033,12 @@ export default function App() {
                   </div>
                 )}
                 {displayedTweets.length === 0 && (
-                  <div className="rounded-2xl border border-dashed border-zinc-300 bg-white/70 p-5 text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-400">
-                    No tweets in this filter yet.
-                  </div>
+                  <TimelineEmptyState
+                    loading={isInitialLoading}
+                    error={loadError}
+                    filteredOut={tweets.length > 0}
+                    windowLabel={LOOKBACK_WINDOWS.find((w) => w.value === lookbackHours)?.label ?? `${lookbackHours}h`}
+                  />
                 )}
               </>
             )}

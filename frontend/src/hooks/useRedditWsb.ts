@@ -25,7 +25,9 @@ export function useRedditWsb(limit = 8, subreddit = 'wallstreetbets') {
         if (err.name === 'AbortError') return
         setError(true)
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
 
     return () => controller.abort()
   }, [limit, subreddit])

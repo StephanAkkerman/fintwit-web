@@ -4044,6 +4044,9 @@ def _sample_tweets() -> list[dict]:
 
 def fixtures_for(scenario: str) -> dict[str, object]:
     """Map a URL fragment to the JSON served for it."""
+    if scenario == "loading":
+        return {}
+
     if scenario == "broken":
         # The payload that used to blank the whole dashboard: `summary` comes
         # back as a list, so `.totals.market_value` was read off it during
@@ -4415,7 +4418,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         # Reddit route's subreddit filter.
         "/api/reddit/categories": _reddit_categories(),
         # Timeline: without this every route's tweet feed (and the ticker /
-        # user filter demo) sits on "No tweets in this filter yet."
+        # user filter demo) sits on "No tweets in the last 24h."
         "/api/posts": _sample_tweets(),
         # Admin route: object-shaped, the catch-all's `[]` has no `.emails`
         # and AccessAllowlistPanel throws reading it during render.
@@ -4429,7 +4432,9 @@ def fixtures_for(scenario: str) -> dict[str, object]:
     }
 
 
-SCENARIOS = ("loaded", "empty", "broken")
+# `loading` never answers /api/**, so every widget and the timeline stay on
+# their loading state: what a visitor sees while the backend is still busy.
+SCENARIOS = ("loaded", "empty", "broken", "loading")
 
 
 # ---------------------------------------------------------------------------
@@ -4477,11 +4482,14 @@ def capture(
 
     fixtures = fixtures_for(scenario)
     out.parent.mkdir(parents=True, exist_ok=True)
+    pending: list = []
 
     def handle(route_obj, request):
         # SSE would hold the page open; the hook treats a failure as "no stream".
         if "/api/stream" in request.url:
             return route_obj.abort()
+        if scenario == "loading":
+            return pending.append(route_obj)  # answered only after the capture
 
         for fragment, payload in fixtures.items():
             if fragment in request.url:
@@ -4510,10 +4518,14 @@ def capture(
             device_scale_factor=2,
         )
         page.route("**/api/**", handle)
-        page.goto(f"http://127.0.0.1:{port}{route}", wait_until="networkidle")
+        # Pending requests never let the network go idle.
+        wait_until = "load" if scenario == "loading" else "networkidle"
+        page.goto(f"http://127.0.0.1:{port}{route}", wait_until=wait_until)
         # Recharts animates in; let it settle before capturing.
         page.wait_for_timeout(900)
         page.screenshot(path=str(out), full_page=True)
+        for held in pending:
+            held.abort()
         browser.close()
 
     return out
