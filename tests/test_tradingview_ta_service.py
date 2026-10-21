@@ -119,3 +119,56 @@ def test_pick_best_row_prefers_the_exact_name():
     ]
     assert _pick_best_row(rows, "etf", "EWZ")["symbol"] == "AMEX:EWZ"
     assert _pick_best_row(rows[::-1], "stock", "EWZS")["symbol"] == "NASDAQ:EWZS"
+
+
+def test_pick_best_row_prefers_a_listed_exchange_over_otc():
+    from app.services.tradingview_ta_service import _pick_best_row
+
+    rows = [
+        {"symbol": "OTC:NOW", "type": "stock", "volume": 70_000},
+        {"symbol": "NYSE:NOW", "type": "stock", "volume": 6_600_000},
+    ]
+    assert _pick_best_row(rows, "stock", "NOW")["symbol"] == "NYSE:NOW"
+
+
+def test_resolve_prefers_the_exact_us_primary_listing(monkeypatch):
+    from unittest.mock import MagicMock
+
+    import app.services.tradingview_ta_service as svc
+
+    resp = MagicMock()
+    resp.json.return_value = {
+        "data": [
+            {"s": "OTC:NOW", "d": ["NOW", "OTC", "stock", False, 900_000]},
+            {"s": "NYSE:NOW", "d": ["NOW", "NYSE", "stock", True, 6_600_000]},
+        ]
+    }
+    post = MagicMock(return_value=resp)
+    monkeypatch.setattr(svc.requests, "post", post)
+
+    context = svc._resolve_symbol_context("NOW", "stock")
+
+    assert context["exchange"] == "NYSE"
+    assert context["symbol"] == "NOW"
+    assert post.call_args.kwargs["json"]["filter"][0]["right"] == "NOW"
+
+
+def test_resolve_falls_back_to_the_search_when_the_scanner_fails(monkeypatch):
+    from unittest.mock import MagicMock
+
+    import app.services.tradingview_ta_service as svc
+
+    monkeypatch.setattr(svc.requests, "post", MagicMock(side_effect=OSError("down")))
+    markets = MagicMock()
+    markets.scrape.return_value = {
+        "data": [
+            {"symbol": "OTC:NOWVF", "type": "stock", "volume": 70_000},
+            {"symbol": "NYSE:NOW", "type": "stock", "volume": 6_600_000},
+        ]
+    }
+    monkeypatch.setattr(svc, "SymbolMarkets", MagicMock(return_value=markets))
+
+    assert svc._resolve_symbol_context("NOW", "stock")["exchange"] == "NYSE"
+    # Crypto never asks the US scanner.
+    svc._resolve_symbol_context("BTC", "crypto")
+    assert svc.requests.post.call_count == 1
