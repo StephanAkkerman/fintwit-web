@@ -4,6 +4,7 @@ curl.txt
 /.playwright-mcp
 node_modules/
 /state
+/export
 /ibgateway-settings
 package-lock.json
 logs/
