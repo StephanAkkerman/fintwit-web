@@ -122,6 +122,8 @@ def test_catalogue_from_the_real_app_schema():
         "/api/options/overview",
         "/api/options/gamma-exposure",
         "/api/earnings/calendar",
+        "/api/research/indicators",
+        "/api/research/technicals",
     } <= set(paths)
     # The schema must sit under /api/ so the tunnel's nginx proxies it.
     assert app.openapi_url == mcp_server.OPENAPI_PATH
@@ -304,12 +306,16 @@ def _bundle_handler(seen: list):
             return httpx.Response(200, json=CALENDAR)
         if path == "/api/options/gamma-exposure":
             return httpx.Response(404, json={"detail": "no options"})
-        if path == "/api/portfolio/positions":
-            return httpx.Response(
-                200, json=[{"symbol": "aapl", "quantity": 5}, {"symbol": "MSFT"}]
-            )
         if path == "/api/research/price-context":
             return httpx.Response(200, json=PRICE_CONTEXT)
+        if path == "/api/research/indicators":
+            return httpx.Response(
+                200,
+                json={
+                    symbol: INDICATORS if symbol == "AAPL" else None
+                    for symbol in params["symbols"].split(",")
+                },
+            )
         if path == "/api/research/valuation":
             if params["symbol"] == "MSFT":
                 return httpx.Response(404, json={"detail": "No valuation data"})
@@ -334,6 +340,27 @@ PRICE_CONTEXT = {
         "sma_200": {"value": 220.0, "price_vs_percent": 13.0},
         "trend": "uptrend",
     },
+}
+
+INDICATORS = {
+    "symbol": "AAPL",
+    "tv_symbol": "NASDAQ:AAPL",
+    "price": 250.0,
+    "rsi": {"value": 72.4, "state": "overbought", "four_h": 65.0},
+    "macd": {"macd": 1.2, "signal": 0.9, "above_signal": True, "cross": None},
+    "moving_averages": {
+        "sma200": 220.0,
+        "price_vs_sma20_percent": 2.0,
+        "price_vs_sma50_percent": 4.0,
+        "price_vs_sma200_percent": 13.6,
+        "sma50_vs_sma200": "golden_cross",
+        "cross_today": None,
+    },
+    "atr": {"value": 5.0, "percent_of_price": 2.0},
+    "adx": {"value": 27.0, "trend_strength": "strong", "direction": "up"},
+    "volume": {"today": 1, "avg_30d": 2, "vs_avg_30d": 0.5},
+    "rating": {"one_d": "Buy", "four_h": "Strong Buy"},
+    "signals": ["rsi_overbought", "above_sma200", "strong_uptrend"],
 }
 
 VALUATION = {
@@ -374,6 +401,26 @@ async def test_holdings_check_joins_every_view_per_holding():
         "forward_pe": 28.0,
         "short_percent_of_float": 0.7,
     }
+    assert aapl["technicals"] == {
+        "rsi": 72.4,
+        "macd_above_signal": True,
+        "macd_cross": None,
+        "price_vs_sma20_percent": 2.0,
+        "price_vs_sma50_percent": 4.0,
+        "price_vs_sma200_percent": 13.6,
+        "sma50_vs_sma200": "golden_cross",
+        "atr": 5.0,
+        "atr_percent": 2.0,
+        "adx": 27.0,
+        "volume_vs_avg_30d": 0.5,
+        "rating_1d": "Buy",
+        "rating_4h": "Strong Buy",
+        "signals": ["rsi_overbought", "above_sma200", "strong_uptrend"],
+    }
+    assert msft["technicals"] is None
+    # All holdings share one indicators request.
+    assert [p for p, _ in seen].count("/api/research/indicators") == 1
+    assert ("/api/research/indicators", {"symbols": "AAPL,MSFT"}) in seen
     assert "404" in msft["analysts"]["error"]
     # One failing view leaves the rest of that holding intact.
     assert "503" in msft["news"]["error"]
@@ -405,7 +452,7 @@ async def test_ticker_bundle():
     assert result["earnings"] == [
         {"date": "2026-10-12", "symbol": "AAPL", "time": "amc"}
     ]
-    assert result["your_position"] == [{"symbol": "aapl", "quantity": 5}]
+    assert result["your_position"] == [{"symbol": "AAPL", "market_value": 2000.0}]
     assert "404" in result["gamma_exposure"]["error"]
     assert "earnings_calendar" not in result
     assert ("/api/reddit/trends/AAPL/history", {"days": "30"}) in seen
@@ -428,8 +475,8 @@ def _market_handler(seen: list):
             )
         if path == "/api/advisor/strategy":
             return httpx.Response(200, json={"rules": "", "watchlist": ["NVDA", "AMD"]})
-        if path == "/api/portfolio/positions":
-            return httpx.Response(200, json=[{"symbol": "nvda"}])
+        if path == "/api/portfolio/insights":
+            return httpx.Response(200, json={"positions": [{"symbol": "nvda"}]})
         if path == "/api/overview/ticker-timeseries":
             return httpx.Response(200, json={"points": [], "summary": {"total": 1}})
         if path == "/api/fear-greed":

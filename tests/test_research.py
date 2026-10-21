@@ -107,6 +107,10 @@ async def test_research_api(async_client, monkeypatch):
     async def context(symbol):
         return None
 
+    async def indicators(symbol, kind):
+        return None
+
+    monkeypatch.setattr(research_api, "get_symbol_indicators", indicators)
     monkeypatch.setattr(research_api, "get_valuation", valuation)
     monkeypatch.setattr(research_api, "get_tradingview_ta_summary", technicals)
     monkeypatch.setattr(research_api, "get_price_context", context)
@@ -125,7 +129,7 @@ async def test_research_api(async_client, monkeypatch):
         params={"symbol": "btc", "asset_kind": "crypto"},
         headers=HEADERS,
     )
-    assert resp.json() == {"symbol": "BTC", "hint": "crypto"}
+    assert resp.json() == {"symbol": "BTC", "hint": "crypto", "indicators": None}
     resp = await async_client.get(
         "/api/research/technicals",
         params={"symbol": "btc", "asset_kind": "nft"},
@@ -141,3 +145,53 @@ async def test_research_api(async_client, monkeypatch):
         "/api/research/price-context", params={"symbol": "NVDA"}
     )
     assert resp.status_code == 401
+
+
+async def test_technicals_falls_back_to_indicators(async_client, monkeypatch):
+    async def no_summary(symbol, hint):
+        return None
+
+    async def indicators(symbol, kind):
+        return {"symbol": symbol, "rsi": {"value": 66.6}}
+
+    monkeypatch.setattr(research_api, "get_tradingview_ta_summary", no_summary)
+    monkeypatch.setattr(research_api, "get_symbol_indicators", indicators)
+
+    resp = await async_client.get(
+        "/api/research/technicals",
+        params={"symbol": "ewz", "asset_kind": "etf"},
+        headers=HEADERS,
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "symbol": "EWZ",
+        "indicators": {"symbol": "EWZ", "rsi": {"value": 66.6}},
+    }
+
+
+async def test_indicators_api(async_client, monkeypatch):
+    seen = []
+
+    async def indicators(symbols, kind):
+        seen.append((symbols, kind))
+        return {s: None for s in symbols}
+
+    monkeypatch.setattr(research_api, "get_indicators", indicators)
+
+    resp = await async_client.get(
+        "/api/research/indicators",
+        params={"symbols": "aapl, ewz,AAPL,,", "asset_kind": "etf"},
+        headers=HEADERS,
+    )
+    assert resp.json() == {"AAPL": None, "EWZ": None}
+    assert seen == [(["AAPL", "EWZ"], "etf")]
+
+    too_many = ",".join(f"T{i}" for i in range(51))
+    resp = await async_client.get(
+        "/api/research/indicators", params={"symbols": too_many}, headers=HEADERS
+    )
+    assert resp.status_code == 422
+    resp = await async_client.get(
+        "/api/research/indicators", params={"symbols": " , "}, headers=HEADERS
+    )
+    assert resp.status_code == 422

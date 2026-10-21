@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from ..runtime.enricher import AssetEnricher
+from ..runtime.portfolio_valuation import resolve_holdings
 from ..services.advisor import (
     ACTIONS,
     CONVICTIONS,
@@ -130,8 +131,11 @@ async def followed_mentions(
 
 
 async def _held_symbols() -> set[str]:
-    positions = await _main().PORTFOLIO_REPO.list_positions(active_only=True)
-    return {str(p.get("symbol") or "").upper() for p in positions}
+    """What the owner holds, from IBKR when it is synced, else the manual list
+    (the same choice ``/api/portfolio/insights`` makes)."""
+    main = _main()
+    _, holdings = await resolve_holdings(main.PORTFOLIO_REPO, main.IBKR_REPO)
+    return {str(h.get("symbol") or "").upper() for h in holdings}
 
 
 async def _track_records(names: list[str]) -> dict[str, dict]:

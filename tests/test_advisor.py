@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from app.api import advisor as advisor_api
 from app.api import main as api_main
 from app.infra.db import AdvisorCallRow
-from app.infra.repos import AdvisorRepo, PortfolioRepo, TweetRepo
+from app.infra.repos import AdvisorRepo, IbkrRepo, PortfolioRepo, TweetRepo
 from app.runtime.advisor_evaluator import evaluate_due_advisor_calls
 from app.services.advisor import (
     build_scorecard,
@@ -321,6 +321,7 @@ async def test_api_followed_mentions(api, db_engine, monkeypatch):
     Session = async_sessionmaker(db_engine, expire_on_commit=False)
     portfolio = PortfolioRepo(Session)
     monkeypatch.setattr(api_main, "PORTFOLIO_REPO", portfolio)
+    monkeypatch.setattr(api_main, "IBKR_REPO", IbkrRepo(Session))
     monkeypatch.setattr(api_main, "Session", Session)
 
     resp = await api.get("/api/advisor/followed-mentions", headers=HEADERS)
@@ -365,7 +366,22 @@ async def test_api_followed_mentions(api, db_engine, monkeypatch):
 async def test_api_unseen_posts_and_runs(api, db_engine, monkeypatch):
     Session = async_sessionmaker(db_engine, expire_on_commit=False)
     monkeypatch.setattr(api_main, "PORTFOLIO_REPO", PortfolioRepo(Session))
+    ibkr = IbkrRepo(Session)
+    monkeypatch.setattr(api_main, "IBKR_REPO", ibkr)
     monkeypatch.setattr(api_main, "Session", Session)
+    # Held through IBKR only: the manual positions list is empty.
+    await ibkr.sync_positions(
+        "U1",
+        [
+            {
+                "account": "U1",
+                "symbol": "TSLA",
+                "sec_type": "STK",
+                "quantity": 3.0,
+                "avg_cost": 200.0,
+            }
+        ],
+    )
     tweets = TweetRepo(Session)
     await tweets.upsert_many(
         [
@@ -386,6 +402,7 @@ async def test_api_unseen_posts_and_runs(api, db_engine, monkeypatch):
     assert first["cursor"] == "102"
     assert (first["posts"], first["posts_with_tickers"]) == (3, 2)
     assert [lead["symbol"] for lead in first["leads"]] == ["GTLB", "TSLA"]
+    assert [lead["held"] for lead in first["leads"]] == [False, True]
     assert first["truncated"] is False
 
     resp = await api.post(
