@@ -21,6 +21,52 @@ export type AssetTechnicalAnalysis = {
   one_d?: AssetTradingViewSummary | null;
 };
 
+/** One symbol's daily indicators from `/api/research/indicators`. */
+export type TechnicalIndicators = {
+  symbol: string;
+  /** `tradingview` (scanner) or `price_history` (computed fallback, no ratings). */
+  source: "tradingview" | "price_history" | string;
+  tv_symbol?: string | null;
+  type?: string | null;
+  price: number;
+  rsi: {
+    value: number | null;
+    state: "overbought" | "oversold" | "neutral" | null;
+    four_h?: number | null;
+  };
+  macd: {
+    macd: number | null;
+    signal: number | null;
+    histogram: number | null;
+    above_signal: boolean | null;
+    cross: "bullish" | "bearish" | null;
+  };
+  moving_averages: {
+    sma20: number | null;
+    sma50: number | null;
+    sma200: number | null;
+    price_vs_sma20_percent: number | null;
+    price_vs_sma50_percent: number | null;
+    price_vs_sma200_percent: number | null;
+    sma50_vs_sma200: "golden_cross" | "death_cross" | null;
+    cross_today: "golden_cross" | "death_cross" | null;
+  };
+  atr: { value: number | null; percent_of_price: number | null };
+  adx: {
+    value: number | null;
+    trend_strength: "strong" | "moderate" | "weak" | null;
+    direction: "up" | "down" | null;
+  };
+  volume: { today: number | null; avg_30d: number | null; vs_avg_30d: number | null };
+  rating: {
+    one_d: string | null;
+    four_h: string | null;
+    moving_averages: string | null;
+    oscillators: string | null;
+  };
+  signals: string[];
+};
+
 export type AssetSignaSignal = {
   source?: string | null;
   symbol?: string | null;

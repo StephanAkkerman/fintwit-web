@@ -4042,6 +4042,83 @@ def _sample_tweets() -> list[dict]:
     ]
 
 
+def _indicator(
+    symbol: str,
+    price: float,
+    rsi: float,
+    vs: tuple[float, float, float],
+    atr_pct: float,
+    adx: float,
+    volume_ratio: float,
+    macd_above: bool = True,
+) -> dict:
+    """One /api/research/indicators entry; states derived like the service."""
+    vs20, vs50, vs200 = vs
+    return {
+        "symbol": symbol,
+        "source": "tradingview",
+        "price": price,
+        "rsi": {
+            "value": rsi,
+            "state": "overbought"
+            if rsi >= 70
+            else "oversold"
+            if rsi <= 30
+            else "neutral",
+            "four_h": round(rsi - 4.2, 1),
+        },
+        "macd": {
+            "macd": 1.2 if macd_above else -0.8,
+            "signal": 0.9 if macd_above else -0.4,
+            "histogram": 0.3 if macd_above else -0.4,
+            "above_signal": macd_above,
+            "cross": None,
+        },
+        "moving_averages": {
+            "sma20": round(price / (1 + vs20 / 100), 2),
+            "sma50": round(price / (1 + vs50 / 100), 2),
+            "sma200": round(price / (1 + vs200 / 100), 2),
+            "price_vs_sma20_percent": vs20,
+            "price_vs_sma50_percent": vs50,
+            "price_vs_sma200_percent": vs200,
+            "sma50_vs_sma200": "golden_cross" if vs200 > vs50 else "death_cross",
+            "cross_today": None,
+        },
+        "atr": {"value": round(price * atr_pct / 100, 2), "percent_of_price": atr_pct},
+        "adx": {
+            "value": adx,
+            "trend_strength": "strong"
+            if adx >= 25
+            else "weak"
+            if adx < 20
+            else "moderate",
+            "direction": "up" if vs50 >= 0 else "down",
+        },
+        "volume": {"today": None, "avg_30d": None, "vs_avg_30d": volume_ratio},
+        "rating": {
+            "one_d": "Buy",
+            "four_h": "Neutral",
+            "moving_averages": "Buy",
+            "oscillators": "Neutral",
+        },
+        "signals": [],
+    }
+
+
+def _indicators() -> dict:
+    """Indicators for the sample tweets' tickers (the panel opens on click)."""
+    return {
+        "NVDA": _indicator("NVDA", 182.4, 71.8, (4.1, 9.6, 31.2), 3.1, 32.5, 1.62),
+        "INTC": _indicator(
+            "INTC", 21.3, 38.2, (-3.4, -6.1, -9.8), 2.7, 22.1, 0.84, macd_above=False
+        ),
+        "BTC": _indicator("BTC", 82_730.0, 51.6, (1.2, 3.9, 13.8), 2.5, 20.0, 0.88),
+        "TSLA": _indicator("TSLA", 186.4, 58.4, (2.2, 5.0, -4.1), 4.6, 18.7, 1.05),
+        "AAPL": _indicator("AAPL", 339.5, 55.5, (0.6, 3.9, 15.8), 1.9, 17.9, 0.87),
+        "SOL": _indicator("SOL", 171.2, 44.0, (-1.8, 2.4, -6.5), 4.9, 15.2, 0.71),
+    }
+
+
 def fixtures_for(scenario: str) -> dict[str, object]:
     """Map a URL fragment to the JSON served for it."""
     if scenario == "loading":
@@ -4392,6 +4469,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         },
         # Longer fragment first: fixture matching is substring-based, and
         # "/gamma-exposure" is itself a substring of "/gamma-exposure/history".
+        "/api/research/indicators": _indicators(),
         "/api/options/gamma-exposure/history": _gamma_exposure_history(),
         "/api/options/gamma-exposure": _gamma_exposure_snapshot(),
         "/api/market/positioning": _market_positioning(),

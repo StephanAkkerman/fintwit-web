@@ -20,6 +20,7 @@ import { Sparkline } from './Sparkline'
 import StocktwitsSentiment from './StocktwitsSentiment'
 import TradingViewAnalysis from './TradingViewAnalysis'
 import OptionContractCard from './OptionContractCard'
+import TechnicalIndicatorsPanel, { indicatorsKind } from './TechnicalIndicatorsPanel'
 import { linkifyMentions, normalizeSmartCashtags } from '../utils/tweetText'
 import { specificContracts, uniqueContracts } from '../utils/optionContracts'
 import { TraderCredibilityBadge } from './TraderCredibilityBadge'
@@ -702,6 +703,7 @@ export default function TweetCard({
             const fullName =
               typeof asset.name === 'string' && asset.name.trim().length > 0 ? asset.name : ticker
             const typeLabel = formatAssetKind(asset.kind)
+            const indicatorKind = indicatorsKind(asset.kind)
             const hasPrice = typeof financials?.price === 'number'
             const sparkline = financials?.sparkline ?? []
             const hasChange = typeof financials?.change_percent === 'number'
@@ -817,6 +819,13 @@ export default function TweetCard({
                 )}
                 <AssetFundamentals asset={asset} className="mt-1.5" />
                 <TradingViewAnalysis analysis={financials?.technical_analysis} className="mt-1.5" />
+                {indicatorKind && (
+                  <TechnicalIndicatorsPanel
+                    symbol={asset.symbol.toUpperCase()}
+                    assetKind={indicatorKind}
+                    className="mt-1.5"
+                  />
+                )}
                 <SignaSignal signal={financials?.signa} className="mt-1.5" />
                 <StocktwitsSentiment
                   sentiment={financials?.stocktwits_sentiment}
