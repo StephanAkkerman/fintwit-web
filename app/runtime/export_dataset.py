@@ -174,6 +174,55 @@ async def export_tweets(
     return stats
 
 
+async def export_subscriber_ids(
+    *, engine: AsyncEngine, path: Path, batch_size: int = 5000
+) -> int:
+    """Write the id of every subscriber-only tweet to ``path``, one per line.
+
+    Uses the same rule as the export (the tweet or the one it quotes), so the
+    list can be used to filter other collections of the same tweets.
+    """
+    async with engine.connect() as conn:
+        present = await conn.run_sync(
+            lambda c: {col["name"] for col in inspect(c).get_columns("tweets")}
+        )
+    if "is_subscriber_only" not in present:
+        raise RuntimeError(
+            "tweets.is_subscriber_only is missing; start the app once against this "
+            "database to migrate it."
+        )
+    has_quoted = "quoted_tweet" in present
+    quoted_col = TweetRow.quoted_tweet if has_quoted else literal(None)
+
+    count = 0
+    last_id = -1
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        while True:
+            stmt = (
+                select(TweetRow.id, TweetRow.is_subscriber_only, quoted_col)
+                .where(TweetRow.id > last_id)
+                .where(
+                    or_(
+                        TweetRow.is_subscriber_only.is_(True),
+                        # Only these rows can be flagged through the quoted tweet
+                        *([TweetRow.quoted_tweet.is_not(None)] if has_quoted else []),
+                    )
+                )
+                .order_by(TweetRow.id)
+                .limit(batch_size)
+            )
+            async with engine.connect() as conn:
+                rows = (await conn.execute(stmt)).all()
+            if not rows:
+                return count
+            for tweet_id, flag, quoted in rows:
+                last_id = tweet_id
+                if _is_subscriber_only(flag, quoted):
+                    fh.write(f"{tweet_id}\n")
+                    count += 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Export public (non-subscriber) tweets to JSONL for Hugging Face"
@@ -194,6 +243,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--limit", type=int, default=None, help="Max rows to export")
     parser.add_argument(
         "--quiet", action="store_true", help="Don't print progress while exporting"
+    )
+    parser.add_argument(
+        "--subscriber-ids",
+        metavar="FILE",
+        help="Instead of exporting, write the ids of subscriber-only tweets to FILE "
+        "(for filtering other copies of the same tweets, e.g. fintwit-bot's)",
     )
     parser.add_argument(
         "--push-to",
@@ -253,6 +308,15 @@ class _ProgressPrinter:
 
 async def _run(args: argparse.Namespace) -> int:
     engine = create_engine(args.db_url)
+    if args.subscriber_ids:
+        try:
+            count = await export_subscriber_ids(
+                engine=engine, path=Path(args.subscriber_ids)
+            )
+        finally:
+            await engine.dispose()
+        print(f"[export] {count} subscriber-only tweet ids -> {args.subscriber_ids}")
+        return 0
     progress = _ProgressPrinter()
     try:
         stats = await export_tweets(

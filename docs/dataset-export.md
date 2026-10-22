@@ -47,6 +47,7 @@ python -m app.runtime.export_dataset --out export --push-to youruser/fintwit-twe
 | `--since` / `--until` | none | ISO datetimes filtering on `created_at` (`>=` / `<`) |
 | `--limit` | none | Stop after N exported rows (good for a trial run) |
 | `--quiet` | off | Hide the progress output |
+| `--subscriber-ids FILE` | none | Write the ids of subscriber-only tweets to FILE and exit, instead of exporting. Feed it to fintwit-bot's `upload_hf.py --exclude-ids` |
 | `--push-to` | none | HF repo id; files land under `data/` |
 | `--private` | off | Create the repo as private |
 

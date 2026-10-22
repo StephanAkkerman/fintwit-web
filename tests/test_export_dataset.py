@@ -5,7 +5,7 @@ import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.infra.db import TweetRow
-from app.runtime.export_dataset import export_tweets
+from app.runtime.export_dataset import export_subscriber_ids, export_tweets
 
 
 def _row(id: int, **kw) -> TweetRow:
@@ -54,6 +54,27 @@ async def test_export_excludes_subscriber_tweets(db_engine, tmp_path):
     assert "is_subscriber_only" not in rows[0]
     assert stats.exported == 3
     assert stats.skipped_subscriber == 1  # id 4; id 3 is filtered in SQL
+
+
+@pytest.mark.asyncio
+async def test_subscriber_ids_covers_own_and_quoted_flags(db_engine, tmp_path):
+    async with async_sessionmaker(db_engine)() as session:
+        session.add_all(
+            [
+                _row(1, is_subscriber_only=False),
+                _row(2, is_subscriber_only=None),
+                _row(3, is_subscriber_only=True),
+                _row(4, quoted_tweet={"is_subscriber_only": True}),
+                _row(5, quoted_tweet={"is_subscriber_only": False}),
+            ]
+        )
+        await session.commit()
+    path = tmp_path / "ids.txt"
+
+    count = await export_subscriber_ids(engine=db_engine, path=path, batch_size=1)
+
+    assert path.read_text().split() == ["3", "4"]
+    assert count == 2
 
 
 @pytest.mark.asyncio
