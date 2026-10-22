@@ -307,11 +307,16 @@ def _signals(ind: dict) -> list[str]:
 
 
 def _pick_listing(rows: list[dict]) -> dict | None:
-    """Among same-named US listings, the primary one, then the most traded."""
+    """Among same-named US listings: the primary one, then exchange-listed over
+    OTC, then the most traded."""
 
-    def key(row: dict) -> tuple[bool, float]:
+    def key(row: dict) -> tuple[bool, bool, float]:
         values = dict(zip(_COLUMNS, row.get("d") or []))
-        return bool(values.get("is_primary")), _num(values.get("volume")) or 0.0
+        return (
+            bool(values.get("is_primary")),
+            values.get("exchange") != "OTC",
+            _num(values.get("volume")) or 0.0,
+        )
 
     return max(rows, key=key) if rows else None
 

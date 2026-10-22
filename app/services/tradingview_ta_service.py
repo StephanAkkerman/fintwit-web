@@ -3,6 +3,8 @@ import logging
 import time
 from typing import Any, Optional
 
+import requests
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -126,6 +128,10 @@ def _pick_best_row(
         # match beats any of the type and volume hints below.
         if symbol and row_symbol.split(":", 1)[-1] == symbol:
             score += 10.0
+        # An OTC line (NOWVF, a foreign ADR) loses to the same name on a
+        # US exchange.
+        if row_symbol.startswith("OTC:"):
+            score -= 3.0
 
         try:
             if volume is not None and float(volume) > 0:
@@ -196,9 +202,55 @@ def _build_symbol_context(
     }
 
 
+_SCANNER_URL = "https://scanner.tradingview.com/america/scan"
+
+
+def _us_listing(symbol: str) -> Optional[dict]:
+    """The US listing named exactly ``symbol``: primary first, then exchange
+    listed over OTC, then the most traded. One scanner request; ``None`` when
+    there is no such name or the request fails."""
+    try:
+        resp = requests.post(
+            _SCANNER_URL,
+            json={
+                "filter": [{"left": "name", "operation": "equal", "right": symbol}],
+                "columns": ["name", "exchange", "type", "is_primary", "volume"],
+                "range": [0, 10],
+            },
+            timeout=5,
+        )
+        resp.raise_for_status()
+        rows = resp.json().get("data") or []
+    except Exception as exc:
+        logger.debug(
+            "[tradingview-ta] US listing lookup failed for %s: %r", symbol, exc
+        )
+        return None
+
+    def key(row: dict) -> tuple[bool, bool, float]:
+        _, exchange, _, primary, volume = row["d"][:5]
+        return bool(primary), exchange != "OTC", float(volume or 0)
+
+    rows = [r for r in rows if isinstance(r, dict) and len(r.get("d") or []) >= 5]
+    if not rows:
+        return None
+    best = max(rows, key=key)
+    return {"symbol": str(best.get("s") or ""), "type": best["d"][2]}
+
+
 def _resolve_symbol_context(symbol: str, asset_hint: str | None) -> Optional[dict]:
     normalized = _normalize_symbol(symbol)
-    if not normalized or SymbolMarkets is None:
+    if not normalized:
+        return None
+
+    # US names: ask the scanner for the exact name first. The fuzzy search
+    # below can miss the real listing and land on a lookalike (NOW -> NOWVF).
+    if _scanner_priority(asset_hint)[0] == "america":
+        listing = _us_listing(normalized)
+        if listing is not None:
+            return _build_symbol_context(listing, "america", normalized, asset_hint)
+
+    if SymbolMarkets is None:
         return None
 
     try:

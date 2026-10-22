@@ -143,21 +143,25 @@ async def test_us_lookup_prefers_the_primary_listing(monkeypatch):
         return [
             _row("OTC:BRK.B", is_primary=False, volume=10),
             _row("NYSE:BRK.B", is_primary=True, volume=5),
+            # No primary flag on either: the listed one beats busier OTC.
+            _row("OTC:NOW", is_primary=False, volume=900),
+            _row("NYSE:NOW", is_primary=False, volume=500),
             _row("AMEX:EWZ"),
         ]
 
     monkeypatch.setattr(svc, "_scan", scan)
-    result = await get_indicators(["BRK-B", "ewz", "NOPE"], "stock")
+    result = await get_indicators(["BRK-B", "ewz", "NOPE", "NOW"], "stock")
     again = await get_indicators(["EWZ"], "etf")
 
     assert result["BRK-B"]["tv_symbol"] == "NYSE:BRK.B"
     assert result["EWZ"]["symbol"] == "EWZ"
     assert result["NOPE"] is None
+    assert result["NOW"]["tv_symbol"] == "NYSE:NOW"
     assert again["EWZ"] == result["EWZ"]
     assert len(calls) == 1  # the second call came from the cache
     market, payload = calls[0]
     assert market == "america"
-    assert payload["filter"][0]["right"] == ["BRK.B", "EWZ", "NOPE"]
+    assert payload["filter"][0]["right"] == ["BRK.B", "EWZ", "NOPE", "NOW"]
 
 
 async def test_crypto_lookup_takes_the_first_known_pair(monkeypatch):
