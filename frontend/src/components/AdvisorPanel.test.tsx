@@ -38,6 +38,7 @@ function mockState(overrides: Partial<ReturnType<typeof useAdvisor>> = {}) {
     calls: [],
     runs: [],
     scorecard: { total_calls: 0, horizons: {} },
+    paper: [],
     loading: false,
     error: false,
     saveStrategy,
@@ -144,6 +145,66 @@ describe('AdvisorPanel', () => {
     fireEvent.change(cash, { target: { value: '' } })
     fireEvent.click(screen.getByText('Save strategy'))
     await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({ available_cash: null })))
+  })
+
+  it('ranks the paper strategies by return and lists their trades', () => {
+    const portfolio = {
+      entry: 'Three insiders bought',
+      exit: 'Below the 50-day',
+      max_hold_days: 30,
+      open: 0,
+      closed: 0,
+      win_rate: null,
+      avg_return_pct: null,
+      positions: [],
+      scores: {},
+    }
+    mockState({
+      paper: [
+        { ...portfolio, strategy: 'call_flow', label: 'Big call buying' },
+        {
+          ...portfolio,
+          strategy: 'insider_cluster',
+          label: 'Insider cluster buys',
+          open: 1,
+          closed: 1,
+          win_rate: 1,
+          avg_return_pct: 6.5,
+          scores: { '7': { graded: 2, hit_rate: 0.5, avg_return_pct: 3 } },
+          positions: [
+            {
+              symbol: 'KMI',
+              entry_call_id: 4,
+              entry_price: 26,
+              entered_at: '2026-10-20T14:00:00Z',
+              exit_price: null,
+              exited_at: null,
+              exit_reason: null,
+              status: 'open',
+              price_now: 27.3,
+              return_pct: 5,
+              days_held: 3,
+            },
+          ],
+        },
+      ],
+    })
+    render(<AdvisorPanel />)
+    const rows = screen.getAllByRole('row').map((row) => row.textContent)
+    const insider = rows.findIndex((text) => text?.startsWith('Insider cluster buys'))
+    const flow = rows.findIndex((text) => text?.startsWith('Big call buying'))
+    expect(insider).toBeGreaterThan(0)
+    expect(insider).toBeLessThan(flow)
+    expect(rows[insider]).toContain('+6.5%')
+    expect(rows[insider]).toContain('50% of 2')
+    expect(screen.getByText('26.00 → 27.30')).toBeTruthy()
+    expect(screen.getByText('open, 3d')).toBeTruthy()
+  })
+
+  it('hides the paper strategies when there are none', () => {
+    mockState()
+    render(<AdvisorPanel />)
+    expect(screen.queryByText('Paper strategies')).toBeNull()
   })
 
   it('shows an error state', () => {

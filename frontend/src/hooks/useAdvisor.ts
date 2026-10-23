@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { AdvisorCall, AdvisorRun, AdvisorScorecard, AdvisorStrategy, AdvisorStrategyDraft } from '../types'
+import type {
+  AdvisorCall,
+  AdvisorRun,
+  AdvisorScorecard,
+  AdvisorStrategy,
+  AdvisorStrategyDraft,
+  PaperPortfolio,
+} from '../types'
 
 const EMPTY_STRATEGY: AdvisorStrategy = {
   rules: '',
@@ -21,6 +28,7 @@ export function useAdvisor() {
   const [calls, setCalls] = useState<AdvisorCall[]>([])
   const [runs, setRuns] = useState<AdvisorRun[]>([])
   const [scorecard, setScorecard] = useState<AdvisorScorecard | null>(null)
+  const [paper, setPaper] = useState<PaperPortfolio[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
 
@@ -28,11 +36,17 @@ export function useAdvisor() {
     setLoading(true)
     setError(false)
     try {
-      const [s, c, card, r] = await Promise.all([
+      const [s, c, card, r, p] = await Promise.all([
         getJson<AdvisorStrategy>('/api/advisor/strategy', signal),
         getJson<AdvisorCall[]>('/api/advisor/calls?limit=100', signal),
         getJson<AdvisorScorecard>('/api/advisor/scorecard', signal),
         getJson<AdvisorRun[]>('/api/advisor/runs?limit=10', signal),
+        // Prices every open paper position, so it can fail on its own without
+        // taking the rest of the page down.
+        getJson<{ strategies: PaperPortfolio[] }>('/api/advisor/paper', signal).catch((err: Error) => {
+          if (err.name === 'AbortError') throw err
+          return null
+        }),
       ])
       setStrategy({
         ...EMPTY_STRATEGY,
@@ -42,6 +56,7 @@ export function useAdvisor() {
       })
       setCalls(Array.isArray(c) ? c : [])
       setRuns(Array.isArray(r) ? r : [])
+      setPaper(Array.isArray(p?.strategies) ? p.strategies : [])
       setScorecard(card && typeof card === 'object' && 'horizons' in card ? card : null)
     } catch (err) {
       if ((err as Error).name === 'AbortError') return
@@ -69,5 +84,5 @@ export function useAdvisor() {
     return saved
   }, [])
 
-  return { strategy, calls, runs, scorecard, loading, error, saveStrategy, reload: load }
+  return { strategy, calls, runs, scorecard, paper, loading, error, saveStrategy, reload: load }
 }

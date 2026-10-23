@@ -10,6 +10,7 @@ from app.infra.db import AdvisorCallRow
 from app.infra.repos import AdvisorRepo, IbkrRepo, PortfolioRepo, TweetRepo
 from app.runtime.advisor_evaluator import evaluate_due_advisor_calls
 from app.services.advisor import (
+    build_paper_portfolios,
     build_scorecard,
     group_ticker_posts,
     normalize_screen_names,
@@ -50,8 +51,9 @@ async def _backdate(repo: AdvisorRepo, call_id: int, days: int) -> None:
             )
 
 
-def _call(symbol="NVDA", action="buy", price=100.0, kind="EQUITY"):
+def _call(symbol="NVDA", action="buy", price=100.0, kind="EQUITY", strategy=None):
     return {
+        "strategy": strategy,
         "symbol": symbol,
         "action": action,
         "conviction": "high",
@@ -439,3 +441,142 @@ async def test_api_unseen_posts_and_runs(api, db_engine, monkeypatch):
         "/api/advisor/runs", json={"cursor": "abc", "summary": ""}, headers=HEADERS
     )
     assert bad.status_code == 422
+
+
+async def test_paper_calls_stay_out_of_the_advice(advisor_repo):
+    advice = await advisor_repo.create_call(_call("NVDA", "buy", 100.0))
+    entry = await advisor_repo.create_call(
+        _call("AAPL", "buy", 10.0, strategy="insider_cluster")
+    )
+    exit_ = await advisor_repo.create_call(
+        _call("AAPL", "sell", 12.0, strategy="insider_cluster")
+    )
+    for call in (advice, entry, exit_):
+        await _backdate(advisor_repo, call["id"], 8)
+
+    enricher = FakeEnricher({"NVDA": 110.0, "AAPL": 11.0})
+    # The paper sell only closes the position, so it isn't graded.
+    assert await evaluate_due_advisor_calls(advisor_repo, enricher) == 2
+
+    assert [c["symbol"] for c in await advisor_repo.list_calls()] == ["NVDA"]
+    assert len(await advisor_repo.list_calls(strategy=None)) == 3
+    assert await advisor_repo.count_calls() == 1
+    assert await advisor_repo.last_paper_trade("insider_cluster", "AAPL") == "sell"
+    assert await advisor_repo.last_paper_trade("call_flow", "AAPL") is None
+
+    card = build_scorecard(await advisor_repo.graded_calls(), 1)
+    assert card["horizons"]["7"]["graded"] == 1
+    paper = card["strategies"]["insider_cluster"]["7"]
+    assert paper["graded"] == 1
+    assert paper["avg_return_pct"] == pytest.approx(10.0)
+    assert card["strategies"]["call_flow"]["7"]["graded"] == 0
+
+
+def _paper(call_id, symbol, action, price, day, strategy="insider_cluster", **rest):
+    return {
+        "id": call_id,
+        "symbol": symbol,
+        "action": action,
+        "price_at_call": price,
+        "strategy": strategy,
+        "called_at": f"2026-10-{day:02d}T14:00:00+00:00",
+        "results": rest.get("results", {}),
+    }
+
+
+def test_build_paper_portfolios():
+    held_out = {
+        "30": {
+            "price_at_horizon": 90.0,
+            "evaluated_at": "2026-11-01T15:00:00+00:00",
+            "excluded": False,
+        }
+    }
+    calls = [
+        _paper(1, "AAPL", "buy", 100.0, 1),
+        _paper(2, "AAPL", "buy", 105.0, 2),  # already held: ignored
+        _paper(3, "AAPL", "sell", 120.0, 5),
+        _paper(4, "MSFT", "buy", 100.0, 1, results=held_out),
+        _paper(5, "NVDA", "buy", 50.0, 20),
+        _paper(6, "SPY", "buy", 400.0, 10, strategy="extreme_fear"),
+    ]
+    today = datetime(2026, 10, 23, 15, tzinfo=timezone.utc)
+    portfolios = {
+        p["strategy"]: p
+        for p in build_paper_portfolios(calls, {"NVDA": 55.0, "SPY": 380.0}, today)
+    }
+
+    insider = portfolios["insider_cluster"]
+    by_symbol = {p["symbol"]: p for p in insider["positions"]}
+    assert by_symbol["AAPL"]["exit_reason"] == "sell"
+    assert by_symbol["AAPL"]["return_pct"] == pytest.approx(20.0)
+    assert by_symbol["AAPL"]["days_held"] == 4
+    # Past the 30-day holding period: closed at the graded price.
+    assert by_symbol["MSFT"]["exit_reason"] == "held 30 days"
+    assert by_symbol["MSFT"]["return_pct"] == pytest.approx(-10.0)
+    assert by_symbol["NVDA"]["status"] == "open"
+    assert by_symbol["NVDA"]["return_pct"] == pytest.approx(10.0)
+    assert by_symbol["NVDA"]["days_held"] == 3
+    assert (insider["open"], insider["closed"]) == (1, 2)
+    assert insider["win_rate"] == 0.5
+    assert insider["avg_return_pct"] == pytest.approx(20 / 3)
+    assert [p["symbol"] for p in insider["positions"]] == ["NVDA", "AAPL", "MSFT"]
+
+    fear = portfolios["extreme_fear"]
+    assert fear["max_hold_days"] is None
+    assert fear["positions"][0]["return_pct"] == pytest.approx(-5.0)
+    assert fear["win_rate"] is None
+    assert portfolios["call_flow"]["avg_return_pct"] is None
+
+
+async def test_api_paper_trades(api, advisor_api_prices):
+    async def log(**body):
+        return await api.post(
+            "/api/advisor/calls",
+            json={"symbol": "NVDA", "reasoning": "r", **body},
+            headers=HEADERS,
+        )
+
+    resp = await log(action="buy", strategy="Call_Flow")
+    assert resp.status_code == 201
+    assert resp.json()["strategy"] == "call_flow"
+    # One position per symbol at a time.
+    assert (await log(action="buy", strategy="call_flow")).status_code == 409
+    assert (await log(action="sell", strategy="earnings_drift")).status_code == 409
+    assert (await log(action="trim", strategy="call_flow")).status_code == 422
+    assert (await log(action="buy", strategy="yolo")).status_code == 422
+    # "advisor" is the owner's advice, not a paper trade.
+    resp = await log(action="buy", strategy="advisor")
+    assert resp.status_code == 201
+    assert resp.json()["strategy"] is None
+
+    calls = (await api.get("/api/advisor/calls", headers=HEADERS)).json()
+    assert [c["strategy"] for c in calls] == [None]
+    calls = (
+        await api.get("/api/advisor/calls?strategy=call_flow", headers=HEADERS)
+    ).json()
+    assert [c["action"] for c in calls] == ["buy"]
+    all_calls = await api.get("/api/advisor/calls?strategy=all", headers=HEADERS)
+    assert len(all_calls.json()) == 2
+    bad = await api.get("/api/advisor/calls?strategy=nope", headers=HEADERS)
+    assert bad.status_code == 422
+
+    advisor_api_prices["NVDA"] = 135.3
+    paper = (await api.get("/api/advisor/paper", headers=HEADERS)).json()
+    flow = {p["strategy"]: p for p in paper["strategies"]}["call_flow"]
+    assert flow["label"] == "Big call buying"
+    [position] = flow["positions"]
+    assert position["status"] == "open"
+    assert position["entry_price"] == 123.0
+    assert position["return_pct"] == pytest.approx(10.0)
+    assert flow["scores"]["7"]["graded"] == 0
+
+    assert (await log(action="sell", strategy="call_flow")).status_code == 201
+    paper = (await api.get("/api/advisor/paper", headers=HEADERS)).json()
+    flow = {p["strategy"]: p for p in paper["strategies"]}["call_flow"]
+    assert (flow["open"], flow["closed"], flow["win_rate"]) == (0, 1, 1.0)
+
+
+@pytest.fixture
+def advisor_api_prices(api):
+    return advisor_api._enricher.prices

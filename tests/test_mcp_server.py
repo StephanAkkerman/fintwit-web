@@ -609,6 +609,41 @@ async def test_unseen_posts_and_finish_check_tools(monkeypatch):
     ]
 
 
+async def test_paper_trading_tools(monkeypatch):
+    seen = []
+
+    async def fake_request(client, path, params, body=None, *, method="GET"):
+        seen.append((method, path, params, body))
+        return {"ok": True}
+
+    monkeypatch.setattr(mcp_server, "_request", fake_request)
+    await mcp_server.mcp.call_tool("paper_portfolios", {})
+    await mcp_server.mcp.call_tool(
+        "log_call",
+        {
+            "symbol": "SPY",
+            "action": "buy",
+            "reasoning": "Fear & greed at 14",
+            "strategy": "extreme_fear",
+        },
+    )
+
+    assert seen == [
+        ("GET", "/api/advisor/paper", None, None),
+        (
+            "POST",
+            "/api/advisor/calls",
+            None,
+            {
+                "symbol": "SPY",
+                "action": "buy",
+                "reasoning": "Fear & greed at 14",
+                "strategy": "extreme_fear",
+            },
+        ),
+    ]
+
+
 def test_generic_get_cannot_write_the_journal_or_strategy():
     endpoints = mcp_server.list_readable_endpoints(app.openapi())
     calls = mcp_server.match_endpoint(endpoints, "/api/advisor/calls")

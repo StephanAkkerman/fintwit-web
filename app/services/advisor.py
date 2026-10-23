@@ -5,9 +5,18 @@ server's ``log_call`` tool). The call is priced when it is logged, re-priced
 at each horizon by ``app/runtime/advisor_evaluator.py``, and graded the same
 way trader calls are (``trader_scoring.grade_call``), so after a few weeks the
 owner can see whether the suggestions are worth following.
+
+Alongside the owner's own advice, the check paper-trades a few rule-based
+strategies (``PAPER_STRATEGIES``). Their calls carry a ``strategy`` tag, never
+reach the owner's journal, and each strategy keeps a paper portfolio: a
+``buy`` opens an equal-sized position, a ``sell`` closes it, and a strategy
+with a holding period closes it at the graded price when that runs out. The
+/advisor page compares them, so a strategy earns real money only after it has
+shown it works.
 """
 
 import re
+from datetime import datetime, timezone
 from typing import Iterable
 
 from .trader_scoring import _direction, grade_call
@@ -20,6 +29,52 @@ GRADED_ACTIONS = tuple(DIRECTION)
 CONVICTIONS: tuple[str, ...] = ("low", "medium", "high")
 HORIZONS: tuple[int, ...] = (7, 30)
 
+#: The tag of the owner's own advice; every other tag is a paper strategy.
+ADVISOR = "advisor"
+
+#: Rule-based strategies the market check paper-trades. ``entry`` and ``exit``
+#: are what the check follows (and the /advisor page shows); ``max_hold_days``
+#: closes a position at that horizon's graded price when no sell came first,
+#: so it must be one of ``HORIZONS`` (None: held until a sell).
+PAPER_STRATEGIES: dict[str, dict] = {
+    "insider_cluster": {
+        "label": "Insider cluster buys",
+        "entry": "Three or more insiders bought on the open market (SEC Form 4, "
+        "no option exercises) within about two weeks, and the stock is above "
+        "its 200-day average.",
+        "exit": "Sell when it closes below the 50-day average or falls 15% from "
+        "entry; otherwise held for 30 days.",
+        "max_hold_days": 30,
+    },
+    "earnings_drift": {
+        "label": "Post-earnings drift",
+        "entry": "Beat the EPS consensus (and revenue, where it is known), "
+        "gapped up, and held the gain for two trading days after the report.",
+        "exit": "Sell when it gives back the whole earnings gap; otherwise held "
+        "for 30 days.",
+        "max_hold_days": 30,
+    },
+    "extreme_fear": {
+        "label": "Buying extreme fear",
+        "entry": "Stock fear & greed below 20 with broad weakness (most stocks "
+        "below their 50-day average): buy SPY, or a quality name that is down "
+        "with the market rather than on its own news.",
+        "exit": "Sell when fear & greed is back above 60.",
+        "max_hold_days": None,
+    },
+    "call_flow": {
+        "label": "Big call buying",
+        "entry": "Unusually large call buying (Signa options flow: sweeps or "
+        "blocks at the ask, well above normal volume) and the stock confirms it "
+        "by closing up on above-average volume.",
+        "exit": "Sell when it closes below the price it had when the flow came "
+        "in; otherwise held for 7 days.",
+        "max_hold_days": 7,
+    },
+}
+#: What a paper call can be: a position is opened and closed, never sized.
+PAPER_ACTIONS: tuple[str, ...] = ("buy", "sell", "watch")
+
 MAX_WATCHLIST = 50
 MAX_FOLLOWED_TRADERS = 50
 _SYMBOL = re.compile(r"^[A-Z0-9][A-Z0-9.\-=^]{0,19}$")
@@ -31,6 +86,19 @@ def normalize_symbol(symbol: str) -> str | None:
     """``$nvda`` -> ``NVDA``; None for anything that isn't a ticker."""
     cleaned = str(symbol or "").strip().upper().lstrip("$")
     return cleaned if _SYMBOL.match(cleaned) else None
+
+
+def normalize_strategy(strategy: str | None) -> str | None:
+    """``None``/``"advisor"`` -> ``None`` (the owner's advice), a paper
+    strategy's key -> that key, anything else -> ``ValueError``."""
+    key = str(strategy or "").strip().lower()
+    if key in ("", ADVISOR):
+        return None
+    if key not in PAPER_STRATEGIES:
+        raise ValueError(
+            f"strategy must be {ADVISOR!r} or one of {tuple(PAPER_STRATEGIES)}"
+        )
+    return key
 
 
 def normalize_watchlist(symbols: list[str]) -> list[str]:
@@ -173,7 +241,11 @@ def _bucket(rows: list[dict]) -> dict:
 
 
 def build_scorecard(graded: list[dict], total_calls: int) -> dict:
-    """Hit rate and average followed-return per horizon, and per action."""
+    """Hit rate and average followed-return per horizon, and per action, of
+    the owner's advice; the paper strategies' entries are scored apart, under
+    ``strategies``, so they never flatter or drag the real record."""
+    paper = [r for r in graded if r.get("strategy")]
+    graded = [r for r in graded if not r.get("strategy")]
     horizons = {}
     for horizon in HORIZONS:
         rows = [r for r in graded if r["horizon_days"] == horizon]
@@ -185,4 +257,125 @@ def build_scorecard(graded: list[dict], total_calls: int) -> dict:
                 if any(r["action"] == action for r in rows)
             },
         }
-    return {"total_calls": total_calls, "horizons": horizons}
+    strategies = {
+        key: {
+            str(horizon): _bucket(
+                [
+                    r
+                    for r in paper
+                    if r["strategy"] == key and r["horizon_days"] == horizon
+                ]
+            )
+            for horizon in HORIZONS
+        }
+        for key in PAPER_STRATEGIES
+    }
+    return {"total_calls": total_calls, "horizons": horizons, "strategies": strategies}
+
+
+def build_paper_portfolios(
+    calls: list[dict], prices: dict[str, float], today=None
+) -> list[dict]:
+    """Every paper strategy's positions and how they did.
+
+    ``calls`` are the strategy-tagged calls, oldest first, each with its graded
+    ``results``; ``prices`` the current price of the open symbols. A ``buy``
+    opens a position (one per symbol at a time), the next ``sell`` of that
+    symbol closes it at the sell's price, and a position held past its
+    strategy's ``max_hold_days`` closes at that horizon's graded price. Open
+    positions are marked at ``prices`` and count towards the return, so a
+    strategy sitting on losers isn't flattered by its few closed winners.
+    """
+    now = today or datetime.now(timezone.utc)
+    by_strategy: dict[str, list[dict]] = {key: [] for key in PAPER_STRATEGIES}
+    open_by: dict[tuple[str, str], dict] = {}
+    for call in calls:
+        key = call.get("strategy")
+        if key not in by_strategy:
+            continue
+        slot = (key, call["symbol"])
+        if call["action"] == "buy" and slot not in open_by:
+            if not call.get("price_at_call"):
+                continue
+            position = {
+                "symbol": call["symbol"],
+                "entry_call_id": call["id"],
+                "entry_price": call["price_at_call"],
+                "entered_at": call["called_at"],
+                "exit_price": None,
+                "exited_at": None,
+                "exit_reason": None,
+                "results": call.get("results") or {},
+            }
+            open_by[slot] = position
+            by_strategy[key].append(position)
+        elif call["action"] == "sell" and slot in open_by:
+            position = open_by.pop(slot)
+            if call.get("price_at_call"):
+                position["exit_price"] = call["price_at_call"]
+                position["exited_at"] = call["called_at"]
+                position["exit_reason"] = "sell"
+            else:
+                open_by[slot] = position
+
+    portfolios = []
+    for key, spec in PAPER_STRATEGIES.items():
+        positions = by_strategy[key]
+        hold = spec["max_hold_days"]
+        for position in positions:
+            results = position.pop("results")
+            result = results.get(str(hold)) if hold else None
+            if position["exit_price"] is None and result and not result.get("excluded"):
+                position["exit_price"] = result["price_at_horizon"]
+                position["exited_at"] = result.get("evaluated_at")
+                position["exit_reason"] = f"held {hold} days"
+            closed = position["exit_price"] is not None
+            price = position["exit_price"] if closed else prices.get(position["symbol"])
+            position["status"] = "closed" if closed else "open"
+            position["price_now"] = None if closed else price
+            position["return_pct"] = (
+                (price - position["entry_price"]) / position["entry_price"] * 100.0
+                if price
+                else None
+            )
+            entered = _parse_time(position["entered_at"])
+            ended = _parse_time(position["exited_at"]) if closed else now
+            position["days_held"] = (
+                max(0, (ended - entered).days) if entered and ended else None
+            )
+        priced = [p for p in positions if p["return_pct"] is not None]
+        closed = [p for p in priced if p["status"] == "closed"]
+        portfolios.append(
+            {
+                "strategy": key,
+                **spec,
+                "positions": sorted(
+                    positions, key=lambda p: p["entered_at"] or "", reverse=True
+                ),
+                "open": sum(1 for p in positions if p["status"] == "open"),
+                "closed": len(closed),
+                # Of the closed positions, the share that made money.
+                "win_rate": (
+                    sum(1 for p in closed if p["return_pct"] > 0) / len(closed)
+                    if closed
+                    else None
+                ),
+                # Equal money in every position: the portfolio's return.
+                "avg_return_pct": (
+                    sum(p["return_pct"] for p in priced) / len(priced)
+                    if priced
+                    else None
+                ),
+            }
+        )
+    return portfolios
+
+
+def _parse_time(value):
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)

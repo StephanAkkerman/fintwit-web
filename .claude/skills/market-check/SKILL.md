@@ -147,7 +147,47 @@ Log every buy/add/trim/sell/watch with `log_call`. Give the reasoning in two or
 three sentences citing the numbers you saw, the strategy rule if one applies,
 and a conviction.
 
-## 4. Finish
+## 4. Paper trades
+
+Next to the advice, you paper-trade four rule-based strategies so the owner can
+see which ones work before risking money on them. Call `paper_portfolios`: it
+gives each strategy's entry and exit rules (follow them as written there, they
+are the source of truth), its open positions with the price now and days held,
+and how it has done. Paper trades never count as advice: don't put them in
+the calls section of the report and don't let them change what you advise.
+
+**Exits first.** For every open position, check its strategy's exit rule with
+the data you already have (`ticker`, `market_snapshot`) and log
+`log_call(symbol, "sell", reasoning, strategy=KEY)` when it is met. A
+position past its holding period closes itself at the graded price; don't sell
+it by hand.
+
+**Entries.** Look for new ones with these sources, and log
+`log_call(symbol, "buy", reasoning, strategy=KEY)` only when every part of the
+entry rule holds, citing the numbers in the reasoning:
+
+- `insider_cluster`: `get` `/api/stocks/insider-trades` with `side=buy` and
+  `days=14` (SEC Form 4 open-market buys, via OpenInsider). Three or more
+  different insiders in one company, then `ticker` for the 200-day trend.
+- `earnings_drift`: `get` `/api/earnings/results` with `days=5` (reported EPS
+  against consensus). A beat (revenue too, when `ticker` or the news has it)
+  that gapped up, and two trading days later still holds the
+  gain (`ticker` price history).
+- `extreme_fear`: `stock_fear_greed` and `breadth` in `market_snapshot`. When
+  the stock fear & greed index is below 20 and most S&P members are under
+  their 50-day average, buy `SPY` (and at most one quality name that fell with
+  the market). Sell everything in this book once the index is back above 60.
+- `call_flow`: Signa's options flow (`get_curated_flow`, `get_options_flow`,
+  or the options flow in the check data when it's there). Large call sweeps or
+  blocks at the ask, then confirmation: the stock closes up on above-average
+  volume. Skip this strategy when Signa isn't available.
+
+A strategy holds one position per symbol: a buy of a symbol it already holds,
+or a sell of one it doesn't, is refused, so a refusal just means it was
+already logged. At most two new paper entries per strategy per check, so no
+single day dominates a book. Use `buy`, `sell` and `watch` only.
+
+## 5. Finish
 
 Call `finish_check` with the `cursor` and `posts` from `unseen_posts`, the
 session from `market_hours`, and a one- or two-sentence summary (your report's
@@ -155,9 +195,9 @@ gist, or "Nothing new"). Do it on every run that got this far, quiet or not,
 so the next check starts after these posts. If `unseen_posts` said
 `truncated`, mention in the summary that older posts were skipped.
 
-## 5. Report
+## 6. Report
 
-If you logged no calls and nothing about the holdings changed in a way the
+If you logged no calls (paper trades don't count) and nothing about the holdings changed in a way the
 owner should know, reply with exactly "Nothing new" so the run stays quiet.
 
 Otherwise write a short report, at most about 12 lines:
@@ -168,5 +208,7 @@ Otherwise write a short report, at most about 12 lines:
   A swap gets one line instead of two: `SWAP SELL_SYMBOL -> BUY_SYMBOL: why`.
 - Any holding that needs attention without a call (for example, earnings
   tomorrow).
+- At most one line for paper trades, when there were any:
+  `Paper: insider_cluster buy KMI, call_flow sell AMD`.
 
 No disclaimers or preamble. Use plain sentences.

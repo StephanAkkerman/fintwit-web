@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from typing import Iterable
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -1018,6 +1018,7 @@ def _advisor_call_to_dict(row: AdvisorCallRow) -> dict:
         "asset_kind": row.asset_kind,
         "reasoning": row.reasoning,
         "rule": row.rule,
+        "strategy": row.strategy,
         "called_at": _iso_utc(row.called_at),
     }
 
@@ -1115,9 +1116,17 @@ class AdvisorRepo:
         limit: int = 50,
         symbol: str | None = None,
         since_hours: int | None = None,
+        strategy: str | None = "advisor",
     ) -> list[dict]:
-        """Newest first, each with its graded results keyed by horizon."""
+        """Newest first, each with its graded results keyed by horizon.
+
+        ``strategy``: ``"advisor"`` (the owner's advice, untagged), a paper
+        strategy's key, or None for every call."""
         stmt = select(AdvisorCallRow).order_by(AdvisorCallRow.id.desc()).limit(limit)
+        if strategy == "advisor":
+            stmt = stmt.where(AdvisorCallRow.strategy.is_(None))
+        elif strategy:
+            stmt = stmt.where(AdvisorCallRow.strategy == strategy)
         if symbol:
             stmt = stmt.where(AdvisorCallRow.symbol == symbol.upper())
         if since_hours:
@@ -1152,8 +1161,33 @@ class AdvisorRepo:
         ]
 
     async def count_calls(self) -> int:
+        """How many calls of the owner's advice (paper calls left out)."""
+        stmt = select(func.count(AdvisorCallRow.id)).where(
+            AdvisorCallRow.strategy.is_(None)
+        )
         async with self.Session() as s:
-            return (await s.execute(select(func.count(AdvisorCallRow.id)))).scalar_one()
+            return (await s.execute(stmt)).scalar_one()
+
+    async def paper_calls(self) -> list[dict]:
+        """Every paper strategy's buys and sells, oldest first, with results."""
+        calls = await self.list_calls(limit=100_000, strategy=None)
+        return [c for c in reversed(calls) if c["strategy"] and c["action"] != "watch"]
+
+    async def last_paper_trade(self, strategy: str, symbol: str) -> str | None:
+        """``buy`` when ``strategy`` holds ``symbol`` on paper, else ``sell``
+        or None (never traded)."""
+        stmt = (
+            select(AdvisorCallRow.action)
+            .where(
+                AdvisorCallRow.strategy == strategy,
+                AdvisorCallRow.symbol == symbol,
+                AdvisorCallRow.action.in_(["buy", "sell"]),
+            )
+            .order_by(AdvisorCallRow.id.desc())
+            .limit(1)
+        )
+        async with self.Session() as s:
+            return (await s.execute(stmt)).scalar_one_or_none()
 
     async def record_run(
         self,
@@ -1256,6 +1290,8 @@ class AdvisorRepo:
                 AdvisorCallRow.action.in_(list(actions)),
                 AdvisorCallRow.price_at_call.is_not(None),
                 AdvisorCallRow.id.not_in(graded),
+                # A paper sell only closes a position; its entry is graded.
+                or_(AdvisorCallRow.strategy.is_(None), AdvisorCallRow.action == "buy"),
             )
             .order_by(AdvisorCallRow.called_at)
             .limit(limit)

@@ -16,10 +16,15 @@ from ..runtime.enricher import AssetEnricher
 from ..runtime.portfolio_valuation import resolve_holdings
 from ..services.advisor import (
     ACTIONS,
+    ADVISOR,
     CONVICTIONS,
+    PAPER_ACTIONS,
+    PAPER_STRATEGIES,
+    build_paper_portfolios,
     build_scorecard,
     group_ticker_posts,
     normalize_screen_names,
+    normalize_strategy,
     normalize_symbol,
     normalize_watchlist,
     price_from_assets,
@@ -72,6 +77,9 @@ class CallIn(BaseModel):
     rule: str | None = Field(default=None, max_length=500)
     # Used only when the server can't price the symbol itself.
     price: float | None = Field(default=None, gt=0)
+    # A paper strategy's key, for a paper trade; empty or "advisor" for advice
+    # to the owner.
+    strategy: str | None = Field(default=None, max_length=40)
 
 
 def _main():
@@ -206,8 +214,20 @@ async def list_calls(
     limit: int = Query(default=50, ge=1, le=500),
     symbol: str | None = Query(default=None),
     since_hours: int | None = Query(default=None, ge=1, le=24 * 365),
+    strategy: str = Query(
+        default=ADVISOR,
+        description="'advisor' (the owner's advice), a paper strategy, or 'all'",
+    ),
 ):
-    return await _repo().list_calls(limit=limit, symbol=symbol, since_hours=since_hours)
+    key = strategy.strip().lower()
+    if key not in (ADVISOR, "all", *PAPER_STRATEGIES):
+        raise HTTPException(status_code=422, detail="unknown strategy")
+    return await _repo().list_calls(
+        limit=limit,
+        symbol=symbol,
+        since_hours=since_hours,
+        strategy=None if key == "all" else key,
+    )
 
 
 @router.post("/calls", status_code=201)
@@ -223,6 +243,27 @@ async def create_call(payload: CallIn):
         raise HTTPException(
             status_code=422, detail=f"conviction must be one of {CONVICTIONS}"
         )
+    try:
+        strategy = normalize_strategy(payload.strategy)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if strategy is not None:
+        if action not in PAPER_ACTIONS:
+            raise HTTPException(
+                status_code=422,
+                detail=f"a paper trade's action must be one of {PAPER_ACTIONS}",
+            )
+        # One paper position per symbol at a time, so a repeated check can't
+        # double it, and a sell needs something to close.
+        held = await _repo().last_paper_trade(strategy, symbol) == "buy"
+        if action == "buy" and held:
+            raise HTTPException(
+                status_code=409, detail=f"{strategy} already holds {symbol}"
+            )
+        if action == "sell" and not held:
+            raise HTTPException(
+                status_code=409, detail=f"{strategy} holds no {symbol} to sell"
+            )
 
     # Price the call ourselves, the way the grader will re-price it, so the
     # return is measured against one consistent source.
@@ -245,6 +286,7 @@ async def create_call(payload: CallIn):
             "asset_kind": kind,
             "reasoning": payload.reasoning.strip(),
             "rule": (payload.rule or "").strip() or None,
+            "strategy": strategy,
         }
     )
 
@@ -253,3 +295,35 @@ async def create_call(payload: CallIn):
 async def scorecard():
     repo = _repo()
     return build_scorecard(await repo.graded_calls(), await repo.count_calls())
+
+
+@router.get("/paper")
+async def paper_portfolios():
+    """The paper strategies the market check trades on the side: each one's
+    rules, positions (open ones marked at the current price) and return, plus
+    its entries' hit rate after 7 and 30 days."""
+    repo = _repo()
+    calls = await repo.paper_calls()
+    open_symbols = sorted(
+        {
+            p["symbol"]
+            for portfolio in build_paper_portfolios(calls, {})
+            for p in portfolio["positions"]
+            if p["status"] == "open"
+        }
+    )
+    prices: dict[str, float] = {}
+    if open_symbols:
+        try:
+            assets = await _get_enricher().classify(open_symbols)
+            for symbol in open_symbols:
+                price, _ = price_from_assets(assets, symbol)
+                if price is not None:
+                    prices[symbol] = price
+        except Exception as exc:
+            logger.warning("[advisor] pricing paper positions failed: %r", exc)
+    portfolios = build_paper_portfolios(calls, prices)
+    scores = build_scorecard(await repo.graded_calls(), 0)["strategies"]
+    for portfolio in portfolios:
+        portfolio["scores"] = scores[portfolio["strategy"]]
+    return {"strategies": portfolios}
