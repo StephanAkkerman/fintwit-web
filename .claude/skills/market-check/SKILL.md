@@ -177,10 +177,13 @@ entry rule holds, citing the numbers in the reasoning:
   the stock fear & greed index is below 20 and most S&P members are under
   their 50-day average, buy `SPY` (and at most one quality name that fell with
   the market). Sell everything in this book once the index is back above 60.
-- `call_flow`: Signa's options flow (`get_curated_flow`, `get_options_flow`,
-  or the options flow in the check data when it's there). Large call sweeps or
-  blocks at the ask, then confirmation: the stock closes up on above-average
-  volume. Skip this strategy when Signa isn't available.
+- `call_flow`: `get` `/api/signa/options-flow` once, market-wide, and read
+  `top_call_buying` (cached for 5 minutes; the bundles carry the same flow per
+  symbol). Large call sweeps or blocks at the ask, then confirmation: the stock
+  closes up on above-average volume. Signa's daily quota is small, so don't
+  call its flow tools per symbol; if the endpoint isn't there yet, make at
+  most one `get_curated_flow` call per check. Skip this strategy when Signa
+  isn't available.
 
 A strategy holds one position per symbol: a buy of a symbol it already holds,
 or a sell of one it doesn't, is refused, so a refusal just means it was
