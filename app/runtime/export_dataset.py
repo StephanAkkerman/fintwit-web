@@ -306,8 +306,22 @@ class _ProgressPrinter:
             print(file=sys.stderr)
 
 
+def resolve_db_url(value: str) -> str:
+    """Accept a SQLAlchemy URL or the path of a SQLite file (``state/data.db``).
+
+    A missing file is an error rather than a new empty database, which SQLite
+    would otherwise create silently.
+    """
+    if "://" in value:
+        return value
+    path = Path(value)
+    if not path.is_file():
+        raise SystemExit(f"{value} is not a SQLAlchemy URL or an existing file")
+    return f"sqlite+aiosqlite:///{path.resolve().as_posix()}"
+
+
 async def _run(args: argparse.Namespace) -> int:
-    engine = create_engine(args.db_url)
+    engine = create_engine(resolve_db_url(args.db_url))
     if args.subscriber_ids:
         try:
             count = await export_subscriber_ids(

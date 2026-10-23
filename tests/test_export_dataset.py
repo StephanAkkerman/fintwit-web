@@ -5,7 +5,11 @@ import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.infra.db import TweetRow
-from app.runtime.export_dataset import export_subscriber_ids, export_tweets
+from app.runtime.export_dataset import (
+    export_subscriber_ids,
+    export_tweets,
+    resolve_db_url,
+)
 
 
 def _row(id: int, **kw) -> TweetRow:
@@ -75,6 +79,19 @@ async def test_subscriber_ids_covers_own_and_quoted_flags(db_engine, tmp_path):
 
     assert path.read_text().split() == ["3", "4"]
     assert count == 2
+
+
+def test_resolve_db_url_accepts_urls_and_existing_files(tmp_path):
+    db = tmp_path / "data.db"
+    db.touch()
+
+    assert resolve_db_url("postgresql+asyncpg://u@h/db") == (
+        "postgresql+asyncpg://u@h/db"
+    )
+    assert resolve_db_url(str(db)) == f"sqlite+aiosqlite:///{db.as_posix()}"
+    with pytest.raises(SystemExit):
+        resolve_db_url(str(tmp_path / "missing.db"))
+    assert not (tmp_path / "missing.db").exists()
 
 
 @pytest.mark.asyncio
