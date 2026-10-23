@@ -380,6 +380,81 @@ def _technicals_summary(ind: Any) -> Any:
     }
 
 
+def _trend_stage_summary(view: Any) -> Any:
+    """Stage and relative strength from /api/research/trend-stage, flattened."""
+    if not isinstance(view, dict) or "error" in view:
+        return view
+    stage = view.get("stage") or {}
+    market = view.get("vs_market") or {}
+    sector = view.get("sector") or {}
+    summary = {
+        "stage": stage.get("stage"),
+        "stage_name": stage.get("name"),
+        "weeks_in_stage": stage.get("weeks_in_stage"),
+        "previous_stage": stage.get("previous_stage"),
+        "price_vs_ma30w_percent": stage.get("price_vs_ma30w_percent"),
+        "ma30w_slope_5w_percent": stage.get("ma30w_slope_5w_percent"),
+        "rs_vs_market": market.get("mansfield"),
+        "rs_vs_market_rising": market.get("mansfield_rising_4w"),
+        "outperformance_13w_pp": market.get("outperformance_13w_pp"),
+        "sector_etf": sector.get("etf"),
+        "sector_stage": (sector.get("stage") or {}).get("stage"),
+        "sector_rs_vs_market": (sector.get("vs_market") or {}).get("mansfield"),
+        "rs_vs_sector": (sector.get("stock_vs_sector") or {}).get("mansfield"),
+    }
+    return {k: v for k, v in summary.items() if v is not None}
+
+
+def _analyst_activity_summary(view: Any) -> Any:
+    """Rating changes and estimate revisions from /api/research/analysts."""
+    if not isinstance(view, dict) or "error" in view:
+        return view
+    changes = view.get("rating_changes") or {}
+    recs = view.get("recommendations") or {}
+    estimates = view.get("estimates") or {}
+    year = (estimates.get("periods") or {}).get("0y") or {}
+    summary = {
+        "days": changes.get("days"),
+        "upgrades": changes.get("upgrades"),
+        "downgrades": changes.get("downgrades"),
+        "target_raises": changes.get("target_raises"),
+        "target_cuts": changes.get("target_cuts"),
+        "latest_actions": (changes.get("recent_actions") or [])[:3],
+        "buy_percent": recs.get("buy_percent"),
+        "buy_percent_change_3m": recs.get("buy_percent_change_3m"),
+        "eps_revisions": estimates.get("direction"),
+        "eps_this_year_change_30d_percent": year.get("change_30d_percent"),
+        "eps_this_year_up_30d": year.get("up_30d"),
+        "eps_this_year_down_30d": year.get("down_30d"),
+    }
+    return {k: v for k, v in summary.items() if v is not None}
+
+
+def _flow_for(flow: Any, symbol: str) -> Any:
+    """One symbol's slice of the market-wide /api/signa/options-flow."""
+    if not isinstance(flow, dict) or "error" in flow:
+        return flow
+    entry = (flow.get("by_symbol") or {}).get(symbol)
+    if entry is None:
+        return {"bias": None, "note": "no notable flow in the last day"}
+    keep = (
+        "bias",
+        "scored_bullish_premium",
+        "scored_bearish_premium",
+        "call_premium",
+        "put_premium",
+        "top_scored",
+    )
+    return {k: entry[k] for k in keep if k in entry}
+
+
+def _market_flow_summary(flow: Any) -> Any:
+    """The market-wide flow without the per-symbol breakdown."""
+    if not isinstance(flow, dict) or "error" in flow:
+        return flow
+    return {k: v for k, v in flow.items() if k not in ("by_symbol", "top_large")}
+
+
 async def collect_portfolio(client: httpx.AsyncClient) -> str:
     """Every portfolio view in one payload."""
     views = await asyncio.gather(*(_safe(client, path) for path in PORTFOLIO_PATHS))
@@ -395,8 +470,10 @@ async def collect_holdings_check(
 ) -> str:
     """Per holding: the position, tweet mentions/sentiment, Reddit buzz, recent
     news with its sentiment, where the price sits in its 52-week range and
-    trend, daily technical indicators (RSI, MACD, MA distance, ATR), analyst
-    targets, and earnings inside ``earnings_days``."""
+    trend, its weekly (Weinstein) stage and strength against the market and
+    sector, daily technical indicators (RSI, MACD, MA distance, ATR), analyst
+    targets plus recent rating changes and estimate revisions, the last day's
+    unusual options flow, and earnings inside ``earnings_days``."""
     insights = await _request(client, "/api/portfolio/insights", None)
     positions = [p for p in insights.get("positions") or [] if p.get("symbol")]
     positions.sort(key=lambda p: p.get("market_value") or 0, reverse=True)
@@ -407,7 +484,15 @@ async def collect_holdings_check(
     limiter = asyncio.Semaphore(_BUNDLE_CONCURRENCY)
 
     async def per_symbol(symbol: str) -> dict:
-        mentions, reddit, news, context, valuation = await asyncio.gather(
+        (
+            mentions,
+            reddit,
+            news,
+            context,
+            valuation,
+            stage,
+            analysts,
+        ) = await asyncio.gather(
             _safe(
                 client,
                 "/api/overview/ticker-timeseries",
@@ -425,6 +510,8 @@ async def collect_holdings_check(
             ),
             _safe(client, "/api/research/price-context", {"symbol": symbol}, limiter),
             _safe(client, "/api/research/valuation", {"symbol": symbol}, limiter),
+            _safe(client, "/api/research/trend-stage", {"symbol": symbol}, limiter),
+            _safe(client, "/api/research/analysts", {"symbol": symbol}, limiter),
         )
         if isinstance(mentions, dict) and "summary" in mentions:
             mentions = mentions["summary"]
@@ -433,15 +520,20 @@ async def collect_holdings_check(
             "reddit_latest": _latest_point(reddit),
             "news": news,
             "price_context": _price_summary(context),
+            "trend_stage": _trend_stage_summary(stage),
             "analysts": _valuation_summary(valuation),
+            "analyst_activity": _analyst_activity_summary(analysts),
         }
 
-    calendar, indicators, *details = await asyncio.gather(
+    calendar, flow, indicators, *details = await asyncio.gather(
         _safe(
             client,
             "/api/earnings/calendar",
             {"days": min(max(earnings_days, 1), 14), "limit_per_day": 50},
         ),
+        # One market-wide flow request covers every holding (Signa's daily
+        # quota is shared with everything else that reads it).
+        _safe(client, "/api/signa/options-flow"),
         # One scanner request covers every holding.
         _safe(client, "/api/research/indicators", {"symbols": ",".join(symbols)})
         if symbols
@@ -463,6 +555,7 @@ async def collect_holdings_check(
                     if isinstance(indicators, dict) and "error" in indicators
                     else _technicals_summary((indicators or {}).get(symbol))
                 ),
+                "options_flow": _flow_for(flow, symbol),
                 "earnings": (
                     {"error": earnings_error}
                     if earnings_error
@@ -503,6 +596,8 @@ async def collect_ticker(
         "price_today": ("/api/overview/ticker-price-history", {"ticker": symbol}),
         "price_context": ("/api/research/price-context", {"symbol": symbol}),
         "valuation": ("/api/research/valuation", {"symbol": symbol}),
+        "analyst_activity": ("/api/research/analysts", {"symbol": symbol}),
+        "trend_stage": ("/api/research/trend-stage", {"symbol": symbol}),
         "technicals": (
             "/api/research/technicals",
             {"symbol": symbol, "asset_kind": asset_kind},
@@ -514,6 +609,8 @@ async def collect_ticker(
         ),
         "options": ("/api/options/overview", {"symbols": symbol}),
         "gamma_exposure": ("/api/options/gamma-exposure", {"symbol": symbol}),
+        "options_flow": ("/api/signa/options-flow", {"symbol": symbol}),
+        "dark_pool": ("/api/signa/dark-pool", {"symbol": symbol}),
         "insider_trades": (
             "/api/stocks/insider-trades",
             {"ticker": symbol, "days": 180, "min_value": 0, "limit": 20},
@@ -602,8 +699,9 @@ async def collect_candidates(
     client: httpx.AsyncClient, window_hours: int = 24, asset_kind: str = "equity"
 ) -> str:
     """Buy ideas: what fintwit is newly excited about, what is moving, what the
-    most credible traders call, and the owner's watchlist, with held symbols
-    flagged so they aren't mistaken for new ideas."""
+    most credible traders call, where big options money went (Signa flow),
+    and the owner's watchlist with each symbol's trend stage, with held
+    symbols flagged so they aren't mistaken for new ideas."""
     overview = {"window_hours": window_hours, "asset_kind": asset_kind}
     views = {
         "hidden_gems": ("/api/overview/hidden-gems", overview),
@@ -624,8 +722,10 @@ async def collect_candidates(
         "positions": ("/api/portfolio/insights", None),
         "insider_buying": ("/api/stocks/insider-trades", {"days": 14, "limit": 1}),
         "fund_buying": ("/api/stocks/fund-holdings", None),
+        "options_flow": ("/api/signa/options-flow", None),
     }
     result = await _gather_views(client, views)
+    result["options_flow"] = _market_flow_summary(result["options_flow"])
     for key in ("gainers", "most_active"):
         result[key] = _head(result[key])
     insiders = result["insider_buying"]
@@ -659,7 +759,7 @@ async def collect_candidates(
     limiter = asyncio.Semaphore(_BUNDLE_CONCURRENCY)
 
     async def watch(symbol: str) -> dict:
-        mentions, news = await asyncio.gather(
+        mentions, news, stage = await asyncio.gather(
             _safe(
                 client,
                 "/api/overview/ticker-timeseries",
@@ -669,6 +769,7 @@ async def collect_candidates(
             _safe(
                 client, "/api/news/company", {"symbols": symbol, "limit": 2}, limiter
             ),
+            _safe(client, "/api/research/trend-stage", {"symbol": symbol}, limiter),
         )
         if isinstance(mentions, dict) and "summary" in mentions:
             mentions = mentions["summary"]
@@ -677,6 +778,7 @@ async def collect_candidates(
             "held": symbol in held,
             "tweets": mentions,
             "news": news,
+            "trend_stage": _trend_stage_summary(stage),
         }
 
     result["watchlist"] = list(
@@ -783,8 +885,15 @@ async def holdings_check(window_hours: int = 168, earnings_days: int = 14) -> st
     sits against its 52-week range and 200-day average, its daily technicals
     (RSI(14), MACD, distance from the 20/50/200-day averages, ATR(14) for stop
     distances, ADX, volume against its 30-day average, TradingView ratings),
-    and the analyst rating and price target. Use it for
-    questions like "anything I should worry about in my portfolio?"."""
+    the weekly Weinstein stage (``trend_stage``: 1 basing, 2 advancing, 3
+    topping, 4 declining, from the 30-week average) with Mansfield relative
+    strength against SPY and the sector ETF, the analyst rating and price
+    target, ``analyst_activity`` (upgrades/downgrades and target moves over 90
+    days, the buy share against three months ago, whether EPS estimates are
+    being revised up or down), and ``options_flow`` (the last day's unusual
+    options flow from Signa: bias, scored bullish/bearish premium, calls vs
+    puts). Use it for questions like "anything I should worry about in my
+    portfolio?"."""
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         return await collect_holdings_check(client, window_hours, earnings_days)
 
@@ -796,12 +905,19 @@ async def ticker(
     """Everything about one symbol (e.g. ``NVDA``, ``BTC``): tweet mentions and
     sentiment over time, today's intraday price, the 52-week/all-time range
     with 1-12 month returns and 50/200-day averages, valuation (P/E, EPS,
-    market cap), analyst rating and price targets, short interest, TradingView
+    market cap), analyst rating and price targets, ``analyst_activity``
+    (rating changes, price-target moves, buy/hold/sell mix shift, EPS
+    estimate revisions), ``trend_stage`` (weekly Weinstein stage, relative
+    strength against SPY and the sector ETF, the sector's own stage), short
+    interest, TradingView
     4-hour and daily technicals (TradingView's rating plus ``indicators``:
     RSI(14), MACD and its latest cross, distance from the 20/50/200-day
     averages and the golden/death cross, ATR(14), ADX, volume against its
     30-day average), news with sentiment, Reddit trend history,
-    options overview and gamma exposure, insider purchases and sales over the
+    options overview and gamma exposure, ``options_flow`` (the last day's
+    Signa-scored and $250k+ trades) and ``dark_pool`` (latest off-exchange
+    prints and whether they hit the ask or the bid), insider purchases and
+    sales over the
     last 180 days (SEC Form 4), upcoming earnings, and your own
     position in it if you hold it. ``asset_kind`` (``stock``, ``etf`` or
     ``crypto``) picks the TradingView market. Parts that don't apply (no
@@ -832,8 +948,11 @@ async def candidates(window_hours: int = 24, asset_kind: str = "equity") -> str:
     shifts, unusual mention volume, the 1-day trend summary, top US gainers and
     most active, the most credible traders on the leaderboard, insider cluster
     buys and biggest insider purchases of the last 14 days (SEC Form 4), the
-    stocks most tracked funds bought last quarter (13F, a quarter old), and
-    each watchlist symbol's chatter and news. ``held_symbols`` lists what the
+    stocks most tracked funds bought last quarter (13F, a quarter old),
+    ``options_flow`` (the last day's unusual options flow from Signa: market
+    bias and the symbols with the most bullish, bearish and call-buying
+    premium), and each watchlist symbol's chatter, news and weekly trend
+    stage. ``held_symbols`` lists what the
     owner already holds. ``asset_kind``: ``equity``, ``crypto`` or ``all``."""
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         return await collect_candidates(client, window_hours, asset_kind)

@@ -1,3 +1,4 @@
+import time
 from datetime import date, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -8,8 +9,9 @@ from app.services import earnings_service
 
 
 @pytest.fixture(autouse=True)
-def _clear_cache():
+def _clear_cache(monkeypatch):
     earnings_service._reset_cache_for_tests()
+    monkeypatch.setattr(earnings_service, "_RETRY_DELAY_SECONDS", 0)
     yield
     earnings_service._reset_cache_for_tests()
 
@@ -19,6 +21,10 @@ def _response(status_code=200, json_data=None):
     response.status_code = status_code
     response.json.return_value = json_data
     return response
+
+
+def _row(symbol):
+    return {"symbol": symbol, "name": symbol, "time": "time-pre-market"}
 
 
 @pytest.mark.asyncio
@@ -111,16 +117,60 @@ async def test_get_earnings_calendar_returns_none_when_every_day_fails():
 
 @pytest.mark.asyncio
 async def test_get_earnings_calendar_partial_failure_still_returns_payload():
+    today = date.today().isoformat()
+
+    async def get(url, params, headers):
+        if params["date"] == today:
+            return _response(status_code=500, json_data={})
+        return _response(json_data={"data": {"rows": []}})
+
     client = AsyncMock(spec=httpx.AsyncClient)
-    client.get.side_effect = [
-        _response(status_code=500, json_data={}),
-        _response(json_data={"data": {"rows": []}}),
-    ]
+    client.get.side_effect = get
 
     result = await earnings_service.get_earnings_calendar(client, days=2)
 
     assert result is not None
     assert len(result["days"]) == 2
+    # Today failed twice (request + retry): unknown, not "no earnings".
+    assert result["failed_dates"] == [today]
+    assert client.get.await_count == 3
+
+
+@pytest.mark.asyncio
+async def test_get_earnings_calendar_retries_a_failed_day_once():
+    client = AsyncMock(spec=httpx.AsyncClient)
+    client.get.side_effect = [
+        _response(status_code=503, json_data={}),
+        _response(json_data={"data": {"rows": [_row("AAPL")]}}),
+    ]
+
+    result = await earnings_service.get_earnings_calendar(client, days=1)
+
+    assert result["days"][0]["count"] == 1
+    assert "failed_dates" not in result
+
+
+@pytest.mark.asyncio
+async def test_get_earnings_calendar_reuses_days_across_windows_and_stale_rows():
+    client = AsyncMock(spec=httpx.AsyncClient)
+    client.get.return_value = _response(json_data={"data": {"rows": [_row("AAPL")]}})
+    await earnings_service.get_earnings_calendar(client, days=3, limit_per_day=50)
+    calls = client.get.await_count
+
+    # A different window over the same days needs no new requests.
+    result = await earnings_service.get_earnings_calendar(client, days=1)
+    assert client.get.await_count == calls
+    assert result["days"][0]["rows"][0]["symbol"] == "AAPL"
+
+    # Once fresh data has expired, a failing Nasdaq gets the last good rows.
+    earnings_service._CACHE.clear()
+    expired = time.time() - 2 * earnings_service._CACHE_TTL_SECONDS
+    for key, (_, rows) in list(earnings_service._DAY_CACHE.items()):
+        earnings_service._DAY_CACHE[key] = (expired, rows)
+    client.get.return_value = _response(status_code=503, json_data={})
+    result = await earnings_service.get_earnings_calendar(client, days=1)
+    assert result["days"][0]["rows"][0]["symbol"] == "AAPL"
+    assert "failed_dates" not in result
 
 
 @pytest.mark.asyncio

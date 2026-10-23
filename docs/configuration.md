@@ -109,7 +109,7 @@ The `ibgateway` container also honours `TWS_ACCEPT_INCOMING`, `TWS_SETTINGS_PATH
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `SIGNA_KEY` | — | Signa signal API key; adds signal verdicts to equity cards and the Signa route. |
+| `SIGNA_KEY` | — | Signa signal API key; adds signal verdicts to equity cards and the Signa route, and enables `/api/signa/options-flow` and `/api/signa/dark-pool` (read by the market check). |
 | `CLOUDFLARE_TUNNEL_TOKEN` | — | Token for the `tunnel` profile's `cloudflared` container. |
 | `CLOUDFLARE_ACCESS_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ACCESS_APP_ID`, `CLOUDFLARE_ACCESS_POLICY_ID` | — | All four enable the Admin page's invite panel; see [infra/README.md](../infra/README.md#admin-page-invites). |
 

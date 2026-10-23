@@ -129,6 +129,7 @@ from ..services.market_positioning_service import get_market_positioning
 from ..services.world_indices_service import get_world_indices
 from ..services.sector_rotation_service import get_sector_rotation
 from ..services.signa import get_signa_best_trades, get_signa_live_feed, has_signa_key
+from ..services.signa_flow import get_dark_pool, get_options_flow
 from ..services.stock_fear_greed_service import (
     HISTORY_WINDOWS as STOCK_FEAR_GREED_WINDOWS,
     get_stock_feargreed,
@@ -1593,3 +1594,42 @@ async def signa_live_feed(
     # Public getsigna.ai raw per-model live feed; only directional
     # (BUY/SELL/SHORT) signals are returned — AVOID/HOLD/WATCH are dropped.
     return await get_signa_live_feed(limit=limit)
+
+
+def _require_signa_key() -> None:
+    if not has_signa_key():
+        raise HTTPException(
+            status_code=503, detail="Signa options flow needs SIGNA_KEY to be set"
+        )
+
+
+@app.get("/api/signa/options-flow")
+async def signa_options_flow(
+    symbol: str | None = Query(None, max_length=20),
+    _=Depends(api_key_dep),
+):
+    """Unusual options flow from Signa (Unusual Whales), about the last day.
+
+    With ``symbol``: that symbol's scored and large trades. Without: the
+    market's, with every symbol's summary under ``by_symbol`` and the
+    biggest bullish/bearish/call-buying names ranked. Needs ``SIGNA_KEY``.
+    """
+    _require_signa_key()
+    data = await get_options_flow(symbol)
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
+
+
+@app.get("/api/signa/dark-pool")
+async def signa_dark_pool(
+    symbol: str = Query(..., min_length=1, max_length=20),
+    _=Depends(api_key_dep),
+):
+    """The latest dark pool prints for a symbol: notional and whether they
+    printed at the ask (buyers) or the bid (sellers). Needs ``SIGNA_KEY``."""
+    _require_signa_key()
+    data = await get_dark_pool(symbol)
+    if data is None:
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return data
