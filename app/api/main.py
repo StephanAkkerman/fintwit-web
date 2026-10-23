@@ -90,7 +90,13 @@ from ..services.fear_greed_service import get_feargreed
 from ..services.fx_rates import get_fx_rates
 from ..services.gamma_exposure_service import DEFAULT_SYMBOL as GAMMA_EXPOSURE_SYMBOL
 from ..services.gamma_exposure_service import get_gamma_exposure
-from ..services.ibkr import IbkrGateway, ibkr_contract_label, quote_symbol
+from ..services.ibkr import (
+    IbkrGateway,
+    gateway_control_url,
+    ibkr_contract_label,
+    quote_symbol,
+    restart_gateway_container,
+)
 from ..services.macro_market import get_macro_snapshot
 from ..services.market_hours_service import get_stock_market_hours
 from ..services.nasdaq_service import get_halt_data
@@ -212,6 +218,7 @@ async def lifespan(app: FastAPI):
         gateway = IbkrGateway()
         app.state.ibkr_gateway = gateway
         ibkr_interval = int(os.getenv("IBKR_SYNC_INTERVAL", "60"))
+        gateway.sync_interval = ibkr_interval
         ibkr_task = asyncio.create_task(
             run_ibkr_sync(IBKR_REPO, gateway, interval=ibkr_interval)
         )
@@ -1433,15 +1440,56 @@ async def ibkr_status(request: Request, _=Depends(api_key_dep)):
         return {
             "configured": False,
             "connected": False,
+            "state": "off",
+            "relogin_available": False,
             "last_sync": None,
             "last_error": None,
         }
+    state = gateway.state()
     return {
         "configured": True,
-        "connected": gateway.is_connected(),
+        # Only a session that is syncing counts: the socket to the Gateway
+        # stays open after IBKR logs it out.
+        "connected": state == "ok",
+        "state": state,
+        "relogin_available": gateway_control_url() is not None,
         "last_sync": gateway.last_sync.isoformat() if gateway.last_sync else None,
         "last_error": gateway.last_error,
     }
+
+
+_RELOGIN_COOLDOWN = timedelta(minutes=2)
+
+
+@app.post("/api/ibkr/relogin")
+async def ibkr_relogin(request: Request, _=Depends(api_key_dep)):
+    """Restart the IB Gateway so it logs in again and sends a 2FA prompt."""
+    gateway: IbkrGateway | None = request.app.state.ibkr_gateway
+    if gateway is None:
+        raise HTTPException(status_code=409, detail="IBKR is not enabled")
+    if gateway_control_url() is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Re-login needs IBKR_GATEWAY_CONTROL_URL (see docs/configuration.md)",
+        )
+    now = datetime.now(timezone.utc)
+    previous = gateway.relogin_requested_at
+    if previous is not None and now - previous < _RELOGIN_COOLDOWN:
+        raise HTTPException(
+            status_code=429, detail="A re-login was requested less than 2 minutes ago"
+        )
+    # Claimed before the (slow) restart so a double click cannot restart twice.
+    gateway.relogin_requested_at = now
+    try:
+        await restart_gateway_container()
+    except httpx.HTTPError as exc:
+        gateway.relogin_requested_at = previous
+        logger.error("[ibkr] gateway restart failed: %r", exc)
+        raise HTTPException(
+            status_code=502, detail=f"Gateway restart failed: {exc}"
+        ) from exc
+    logger.info("[ibkr] gateway restarted from the dashboard; awaiting 2FA")
+    return {"state": gateway.state()}
 
 
 @app.get("/api/ibkr/positions")

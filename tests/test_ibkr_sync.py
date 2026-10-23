@@ -23,6 +23,7 @@ class _GatewayStub:
         self.disconnect_called = False
         self.last_sync = None
         self.last_error = "initial"
+        self.session_lost_at = None
 
     async def _connect(self):
         if self._connect_result:
@@ -96,3 +97,23 @@ async def test_run_ibkr_sync_logs_a_lasting_outage_once(monkeypatch, caplog):
 
     assert gateway.connect.await_count == 3
     assert caplog.text.count("[ibkr-sync] error") == 1
+
+
+@pytest.mark.asyncio
+async def test_run_ibkr_sync_does_not_sync_a_logged_out_session(monkeypatch):
+    repo = _RepoStub()
+    gateway = _GatewayStub(connected=True)
+    gateway.session_lost_at = datetime(2026, 10, 23, 15, 25)
+    gateway.last_error = "IB Gateway lost its IBKR session"
+
+    async def _cancel_sleep(_seconds):
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr("app.runtime.ibkr_sync.asyncio.sleep", _cancel_sleep)
+
+    with pytest.raises(asyncio.CancelledError):
+        await run_ibkr_sync(repo, gateway, interval=60)
+
+    gateway.get_positions.assert_not_awaited()
+    assert gateway.last_sync is None
+    assert gateway.last_error == "IB Gateway lost its IBKR session"

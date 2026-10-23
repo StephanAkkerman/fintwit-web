@@ -40,6 +40,23 @@ services:
       - "127.0.0.1:4002:4004" # TWS API (paper; socat)
       - "127.0.0.1:5901:5900" # VNC (optional inspection)
 
+  ibgateway-control:
+    # Lets the dashboard's "Re-login" button restart the Gateway, which starts a
+    # fresh 2FA login. A container holding the Docker socket is root on the
+    # host, so this proxy allows exactly one call (restart fintwit-ibgateway),
+    # only from the backend, and nothing else.
+    profiles: ["ibkr"]
+    image: wollomatic/socket-proxy:1.13.1
+    container_name: fintwit-ibgateway-control
+    restart: unless-stopped
+    logging: *default-logging
+    command:
+      - "-listenip=0.0.0.0"
+      - "-allowfrom=backend"
+      - "-allowPOST=(/v1\\.[0-9]+)?/containers/fintwit-ibgateway/restart"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
   backend:
     # Prebuilt by .github/workflows/docker-publish.yml; `up` pulls it and falls
     # back to building from source, and `up --build` always builds locally
@@ -65,6 +82,9 @@ services:
       # dependency is needed here. The port follows TRADING_MODE (4003 live,
       # 4004 paper) unless IBKR_PORT is set.
       IBKR_HOST: ibgateway
+      # The `ibkr` profile's ibgateway-control proxy; without that profile the
+      # re-login button reports the restart as failed.
+      IBKR_GATEWAY_CONTROL_URL: http://ibgateway-control:2375
       # A curl.txt placed in ./state/ is picked up when X_AUTH_TOKEN/X_CT0
       # are not set (legacy auth; see README).
       X_CURL_PATH: state/curl.txt

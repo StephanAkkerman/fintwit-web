@@ -36,6 +36,9 @@ async def run_ibkr_sync(
             connected = gateway.is_connected() or await gateway.connect()
             if not connected:
                 raise RuntimeError(gateway.last_error or "IBKR connect failed")
+            if gateway.session_lost_at is not None:
+                # Positions would come from a cache that no longer updates.
+                raise RuntimeError(gateway.last_error or "IBKR session lost")
 
             positions = await gateway.get_positions()
 

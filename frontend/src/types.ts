@@ -1383,9 +1383,22 @@ export type IbkrAccountSummary = {
   GrossPositionValue?: IbkrAccountValue;
 };
 
+export type IbkrSessionState =
+  | 'ok'
+  | 'stale'
+  | 'logged_out'
+  | 'disconnected'
+  | 'restarting'
+  | 'off';
+
 export type IbkrStatus = {
   configured: boolean;
+  /** Only true while the gateway is syncing (`state === 'ok'`). */
   connected: boolean;
+  /** Absent from backends that predate session tracking. */
+  state?: IbkrSessionState;
+  /** Whether the backend can restart the gateway for a fresh 2FA login. */
+  relogin_available?: boolean;
   last_sync: string | null;
   last_error: string | null;
 };

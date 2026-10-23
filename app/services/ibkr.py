@@ -21,6 +21,10 @@ Configuration (env vars):
                                     For direct/non-socat setups: often 4001 live, 4002 paper. (default: 4001)
   IBKR_CLIENT_ID  client slot number                     (default: 1)
     IBKR_CONNECT_TIMEOUT  connect timeout in seconds       (default: 30)
+  IBKR_REQUEST_TIMEOUT  seconds to wait for a request's answer (default: 30)
+  IBKR_GATEWAY_CONTROL_URL  Docker API proxy allowed to restart the Gateway
+                            container; unset disables the re-login button
+  IBKR_GATEWAY_CONTAINER    container to restart (default: fintwit-ibgateway)
 """
 
 import asyncio
@@ -29,8 +33,9 @@ import math
 import os
 import sys
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
+import httpx
 from ib_insync import IB
 
 logger = logging.getLogger(__name__)
@@ -40,9 +45,19 @@ logging.getLogger("ib_insync.client").setLevel(logging.CRITICAL)
 # The gateway needs a manual (2FA) login after every restart and weekly reset.
 # docker-compose.yml publishes its VNC server on host port 5901.
 LOGIN_HINT = (
-    "restart the ibgateway container and approve the IBKR 2FA prompt, or log in "
-    "via VNC on port 5901"
+    "press Re-login on the dashboard (or restart the ibgateway container) and "
+    "approve the IBKR 2FA prompt, or log in via VNC on port 5901"
 )
+
+# TWS API codes for the Gateway's own link to IBKR's servers. Logging in with
+# the same username elsewhere ends that link, but the socket to the Gateway
+# stays open, so isConnected() alone keeps reporting a healthy session.
+_SESSION_LOST_CODES = {1100, 2110}
+_SESSION_RESTORED_CODES = {1101, 1102}
+
+# How long the dashboard shows "restarting" after a re-login request: the
+# Gateway's 2FA prompt times out after about 3 minutes.
+RELOGIN_WINDOW = timedelta(minutes=5)
 
 _MAX_FLOAT = sys.float_info.max
 _ACCOUNT_TAGS = (
@@ -184,8 +199,13 @@ class IbkrGateway:
         )
         self._client_id = client_id or int(os.getenv("IBKR_CLIENT_ID", "1"))
         self._connect_timeout = float(os.getenv("IBKR_CONNECT_TIMEOUT", "30"))
+        self._request_timeout = float(os.getenv("IBKR_REQUEST_TIMEOUT", "30"))
         self.last_sync: datetime | None = None
         self.last_error: str | None = None
+        # Set when the Gateway reports it lost its IBKR session (code 1100/2110).
+        self.session_lost_at: datetime | None = None
+        self.relogin_requested_at: datetime | None = None
+        self.sync_interval = 60
         self._connect_lock = asyncio.Lock()
 
         self._ib: IB | None = None
@@ -210,6 +230,7 @@ class IbkrGateway:
         """
         asyncio.set_event_loop(self._ib_loop)
         self._ib = IB()
+        self._ib.errorEvent += self._on_error
         self._ready.set()
         self._ib_loop.run_forever()
 
@@ -251,6 +272,7 @@ class IbkrGateway:
                     self._client_id,
                 )
                 self.last_error = None
+                self.session_lost_at = None
                 return True
             except ConnectionRefusedError:
                 self._fail(
@@ -266,6 +288,20 @@ class IbkrGateway:
             except Exception as exc:
                 self._fail(f"Connect failed: {exc!r}")
                 return False
+
+    def _on_error(self, req_id, code, message, *_args) -> None:
+        """Track the Gateway's session with IBKR from its status messages."""
+        if code in _SESSION_LOST_CODES:
+            if self.session_lost_at is None:
+                self.session_lost_at = datetime.now(timezone.utc)
+                logger.error("[ibkr] gateway lost its IBKR session: %s", message)
+            self.last_error = (
+                f"IB Gateway lost its IBKR session ({code}: {message}); it is "
+                f"usually logged in elsewhere with the same username — {LOGIN_HINT}"
+            )
+        elif code in _SESSION_RESTORED_CODES and self.session_lost_at is not None:
+            logger.info("[ibkr] gateway session restored: %s", message)
+            self.session_lost_at = None
 
     def _fail(self, message: str) -> None:
         """Record a connect failure; log it loudly only when it is new."""
@@ -297,6 +333,17 @@ class IbkrGateway:
 
     def is_connected(self) -> bool:
         return self._ib is not None and self._ib.isConnected()
+
+    def state(self, now: datetime | None = None) -> str:
+        """Summarise the session for the dashboard; see :func:`session_state`."""
+        return session_state(
+            socket_connected=self.is_connected(),
+            session_lost_at=self.session_lost_at,
+            last_sync=self.last_sync,
+            relogin_requested_at=self.relogin_requested_at,
+            stale_after=max(3 * self.sync_interval, 180),
+            now=now or datetime.now(timezone.utc),
+        )
 
     def disconnect(self) -> None:
         if self._ib and self._ib.isConnected():
@@ -336,7 +383,16 @@ class IbkrGateway:
         if not await self._ensure_connected():
             return []
         try:
-            return await self._submit(self._executions_on_ib_loop())
+            return await asyncio.wait_for(
+                self._submit(self._executions_on_ib_loop()), self._request_timeout
+            )
+        except TimeoutError as exc:
+            # A Gateway without an IBKR session never answers; failing here
+            # keeps the sync loop from hanging with a stale "last sync".
+            raise RuntimeError(
+                f"reqExecutions got no answer in {self._request_timeout:.0f}s; "
+                f"the Gateway may be logged out — {LOGIN_HINT}"
+            ) from exc
         except Exception as exc:
             logger.error("[ibkr] reqExecutions failed: %r", exc)
             return []
@@ -403,3 +459,67 @@ class IbkrGateway:
                 except ValueError:
                     pass
         return result
+
+
+def session_state(
+    *,
+    socket_connected: bool,
+    session_lost_at: datetime | None,
+    last_sync: datetime | None,
+    relogin_requested_at: datetime | None,
+    stale_after: float,
+    now: datetime,
+) -> str:
+    """Name the state of the Gateway session.
+
+    Returns
+    -------
+    str
+        ``restarting`` while a re-login is pending, ``disconnected`` when the
+        Gateway is unreachable, ``logged_out`` when it reported losing its IBKR
+        session, ``stale`` when no sync finished in ``stale_after`` seconds,
+        and ``ok`` otherwise.
+    """
+    if (
+        relogin_requested_at is not None
+        and now - relogin_requested_at < RELOGIN_WINDOW
+        and (last_sync is None or last_sync < relogin_requested_at)
+    ):
+        return "restarting"
+    if not socket_connected:
+        return "disconnected"
+    if session_lost_at is not None:
+        return "logged_out"
+    if last_sync is None or (now - last_sync).total_seconds() > stale_after:
+        return "stale"
+    return "ok"
+
+
+def gateway_control_url() -> str | None:
+    """Base URL of the Docker API proxy that may restart the Gateway, if set."""
+    return os.getenv("IBKR_GATEWAY_CONTROL_URL") or None
+
+
+async def restart_gateway_container() -> None:
+    """Restart the IB Gateway container, which starts a fresh 2FA login.
+
+    Goes through the ``ibgateway-control`` proxy in docker-compose.yml, which
+    allows this one Docker API call and nothing else.
+
+    Raises
+    ------
+    RuntimeError
+        When ``IBKR_GATEWAY_CONTROL_URL`` is not set.
+    httpx.HTTPError
+        When the proxy refuses or Docker fails the restart.
+    """
+    base = gateway_control_url()
+    if base is None:
+        raise RuntimeError("IBKR_GATEWAY_CONTROL_URL is not set")
+    container = os.getenv("IBKR_GATEWAY_CONTAINER", "fintwit-ibgateway")
+    # Docker waits up to 10s for a clean stop before killing the container.
+    async with httpx.AsyncClient(timeout=60) as client:
+        resp = await client.post(
+            f"{base.rstrip('/')}/containers/{container}/restart", params={"t": 10}
+        )
+        resp.raise_for_status()

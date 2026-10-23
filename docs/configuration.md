@@ -77,6 +77,16 @@ accepted in place of the client id, secret and user agent.
 | `IBKR_CLIENT_ID` | `1` | TWS API client id. |
 | `IBKR_CONNECT_TIMEOUT` | `30` | Seconds to wait for a gateway connection. |
 | `IBKR_SYNC_INTERVAL` | `60` | Seconds between position/trade syncs. |
+| `IBKR_REQUEST_TIMEOUT` | `30` | Seconds to wait for the gateway to answer a request. A logged-out gateway never answers, so the sync fails instead of hanging. |
+| `IBKR_GATEWAY_CONTROL_URL` | — | Docker API proxy that may restart the gateway, which powers the dashboard's **Re-login** button. Docker Compose sets it to the `ibgateway-control` service; unset hides the button. |
+| `IBKR_GATEWAY_CONTAINER` | `fintwit-ibgateway` | Container the Re-login button restarts. The `ibgateway-control` proxy only allows this name, so change both together. |
+
+`/api/ibkr/status` reports a `state`: `ok` (syncing), `stale` (no sync for three
+intervals), `logged_out` (the gateway lost its IBKR session, usually because the
+same username logged in elsewhere), `disconnected`, `restarting` (a re-login is
+waiting for 2FA) or `off`. Logging in to IBKR Mobile or the website with the
+gateway's username logs the gateway out; a second IBKR username for the gateway
+(Settings, Users & Access Rights) avoids that.
 
 The `ibgateway` container also honours `TWS_ACCEPT_INCOMING`, `TWS_SETTINGS_PATH`,
 `TWOFA_TIMEOUT_ACTION`, `RELOGIN_AFTER_TWOFA_TIMEOUT` and `AUTO_RESTART_TIME`; see
