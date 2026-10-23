@@ -298,7 +298,7 @@ export default function App() {
     lastLoadedCount,
   } = useTweets('', 2000, 200, route === 'options', lookbackHours) // same-origin API (proxied in dev)
   const xStatus = useXStatus()
-  const { status: ibkrStatus, positions: ibkrPositions, trades: ibkrTrades, account: ibkrAccount, loading: ibkrLoading, error: ibkrError, reload: reloadIbkr } = useIbkr()
+  const { status: ibkrStatus, positions: ibkrPositions, trades: ibkrTrades, account: ibkrAccount, loading: ibkrLoading, error: ibkrError, reload: reloadIbkr, relogin: reloginIbkr, reloginError: ibkrReloginError } = useIbkr()
   const { signa: signaConfigured, reddit: redditConfigured } = useIntegrationsStatus()
   const [tickerFilter, setTickerFilter] = useState<string | null>(null)
   const [tickerInput, setTickerInput] = useState('')
@@ -981,6 +981,8 @@ export default function App() {
                       loading={ibkrLoading}
                       error={ibkrError}
                       reload={reloadIbkr}
+                      relogin={reloginIbkr}
+                      reloginError={ibkrReloginError}
                     />
                   </ErrorBoundary>
                 )}

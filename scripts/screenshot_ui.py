@@ -4134,6 +4134,26 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         healthy = fixtures_for("loaded")
         return {**healthy, "/api/portfolio/summary": []}
 
+    if scenario == "ibkr-logged-out":
+        # The gateway was kicked out by a login elsewhere with the same
+        # username: the socket is still open, but the session is gone, so the
+        # IBKR panel shows "Logged out" with its Re-login button.
+        healthy = fixtures_for("loaded")
+        return {
+            **healthy,
+            "/api/ibkr/status": {
+                "configured": True,
+                "connected": False,
+                "state": "logged_out",
+                "relogin_available": True,
+                "last_sync": "2026-01-01T00:00:00Z",
+                "last_error": (
+                    "IB Gateway lost its IBKR session (1100: Connectivity between "
+                    "IB and TWS has been lost.)"
+                ),
+            },
+        }
+
     if scenario == "empty":
         return {
             "/api/portfolio/history": _empty_history(),
@@ -4197,6 +4217,8 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             "/api/ibkr/status": {
                 "configured": False,
                 "connected": False,
+                "state": "off",
+                "relogin_available": False,
                 "last_sync": None,
                 "last_error": None,
             },
@@ -4251,6 +4273,8 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         "/api/ibkr/status": {
             "configured": True,
             "connected": True,
+            "state": "ok",
+            "relogin_available": True,
             "last_sync": "2026-01-01T00:00:00Z",
             "last_error": None,
         },
@@ -4512,7 +4536,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
 
 # `loading` never answers /api/**, so every widget and the timeline stay on
 # their loading state: what a visitor sees while the backend is still busy.
-SCENARIOS = ("loaded", "empty", "broken", "loading")
+SCENARIOS = ("loaded", "empty", "broken", "loading", "ibkr-logged-out")
 
 
 # ---------------------------------------------------------------------------
@@ -4524,6 +4548,7 @@ def _chromium_executable() -> str | None:
     """Prefer the environment's prebuilt Chromium over a managed download."""
     for pattern in (
         "/opt/pw-browsers/chromium-*/chrome-linux/chrome",
+        "/opt/pw-browsers/chromium-*/chrome-linux64/chrome",
         "/opt/pw-browsers/chromium/chrome-linux/chrome",
     ):
         matches = sorted(glob.glob(pattern))

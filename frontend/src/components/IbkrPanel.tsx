@@ -1,6 +1,8 @@
+import { useState } from "react";
 import type {
   IbkrAccountSummary,
   IbkrPosition,
+  IbkrSessionState,
   IbkrStatus,
   IbkrTrade,
 } from "../types";
@@ -34,33 +36,82 @@ function PnlCell({ value }: { value: number }) {
   );
 }
 
+const STATE_LABELS: Record<
+  Exclude<IbkrSessionState, "off">,
+  { label: string; dot: string }
+> = {
+  ok: { label: "Connected", dot: "bg-green-500" },
+  stale: { label: "Not syncing", dot: "bg-amber-500" },
+  logged_out: { label: "Logged out", dot: "bg-red-500" },
+  disconnected: { label: "Disconnected", dot: "bg-red-500" },
+  restarting: {
+    label: "Restarting: approve the IBKR 2FA prompt on your phone",
+    dot: "bg-amber-500 animate-pulse",
+  },
+};
+
+// States a fresh Gateway login can fix.
+const RELOGIN_STATES: ReadonlySet<IbkrSessionState> = new Set([
+  "stale",
+  "logged_out",
+  "disconnected",
+]);
+
 function StatusBadge({
-  connected,
-  lastSync,
-  lastError,
+  status,
+  relogin,
+  reloginError,
 }: {
-  connected: boolean;
-  lastSync: string | null;
-  lastError: string | null;
+  status: IbkrStatus;
+  relogin?: () => Promise<void>;
+  reloginError?: string | null;
 }) {
-  const dotColor = connected ? "bg-green-500" : "bg-red-500";
-  const label = connected ? "Connected" : "Disconnected";
-  const syncText = lastSync
-    ? `Last sync ${new Date(lastSync).toLocaleTimeString()}`
+  const [pending, setPending] = useState(false);
+  // Older backends send no state; fall back to the plain socket flag.
+  const state: IbkrSessionState =
+    status.state ?? (status.connected ? "ok" : "disconnected");
+  const { label, dot } =
+    state === "off" ? STATE_LABELS.disconnected : STATE_LABELS[state];
+  const syncText = status.last_sync
+    ? `Last sync ${new Date(status.last_sync).toLocaleTimeString()}`
     : "Not yet synced";
+  const canRelogin =
+    relogin != null && status.relogin_available && RELOGIN_STATES.has(state);
+  // The panel already says what is happening while a re-login is pending.
+  const lastError = state === "restarting" ? null : status.last_error;
+
+  const onRelogin = async () => {
+    setPending(true);
+    try {
+      await relogin?.();
+    } finally {
+      setPending(false);
+    }
+  };
 
   return (
     <div className="flex flex-wrap items-center gap-3 rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm">
       <span className="flex items-center gap-1.5">
-        <span className={`inline-block h-2 w-2 rounded-full ${dotColor}`} />
+        <span className={`inline-block h-2 w-2 rounded-full ${dot}`} />
         <span className="text-zinc-200">{label}</span>
       </span>
       <span className="text-zinc-400">{syncText}</span>
+      {canRelogin && (
+        <button
+          onClick={() => void onRelogin()}
+          disabled={pending}
+          className="rounded border border-amber-600 px-2 py-0.5 text-xs text-amber-300 hover:border-amber-400 hover:text-amber-200 disabled:opacity-50"
+          title="Restart IB Gateway so it logs in again; approve the 2FA prompt on your phone"
+        >
+          {pending ? "Restarting…" : "Re-login"}
+        </button>
+      )}
       {lastError && (
         <span className="text-red-400" title={lastError}>
           Error: {lastError.slice(0, 80)}
         </span>
       )}
+      {reloginError && <span className="text-red-400">{reloginError}</span>}
     </div>
   );
 }
@@ -243,6 +294,8 @@ type IbkrPanelProps = {
   loading: boolean;
   error: string | null;
   reload: () => void;
+  relogin?: () => Promise<void>;
+  reloginError?: string | null;
 };
 
 export default function IbkrPanel({
@@ -253,6 +306,8 @@ export default function IbkrPanel({
   loading,
   error,
   reload,
+  relogin,
+  reloginError,
 }: IbkrPanelProps) {
   return (
     <div className="space-y-4">
@@ -270,9 +325,9 @@ export default function IbkrPanel({
 
       {status && (
         <StatusBadge
-          connected={status.connected}
-          lastSync={status.last_sync}
-          lastError={status.last_error}
+          status={status}
+          relogin={relogin}
+          reloginError={reloginError}
         />
       )}
 
