@@ -8,6 +8,7 @@ import type {
   AdvisorScorecard,
   AdvisorStrategy,
   AdvisorStrategyDraft,
+  PaperPortfolio,
 } from '../types'
 
 const RULES_PLACEHOLDER = `For example:
@@ -89,6 +90,127 @@ function Scorecard({ scorecard }: { scorecard: AdvisorScorecard | null }) {
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <ScoreTile label="After 7 days" bucket={scorecard?.horizons?.['7']} />
         <ScoreTile label="After 30 days" bucket={scorecard?.horizons?.['30']} />
+      </div>
+    </section>
+  )
+}
+
+function formatRate(value: number | null | undefined): string {
+  return value === null || value === undefined ? '—' : `${Math.round(value * 100)}%`
+}
+
+function hitRate(bucket: AdvisorScoreBucket | undefined): string {
+  return bucket && bucket.graded > 0 ? `${formatRate(bucket.hit_rate)} of ${bucket.graded}` : '—'
+}
+
+function PaperPositions({
+  portfolio,
+  onTickerClick,
+}: {
+  portfolio: PaperPortfolio
+  onTickerClick?: (ticker: string) => void
+}) {
+  return (
+    <div className="mt-2 grid gap-2 text-xs text-zinc-600 dark:text-zinc-300">
+      <p>
+        <span className="font-semibold text-zinc-500">Buy: </span>
+        {portfolio.entry}
+      </p>
+      <p>
+        <span className="font-semibold text-zinc-500">Sell: </span>
+        {portfolio.exit}
+      </p>
+      {portfolio.positions.length === 0 ? (
+        <p className="text-zinc-500">No paper trades yet.</p>
+      ) : (
+        <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+          {portfolio.positions.map((position) => (
+            <li key={position.entry_call_id} className="flex flex-wrap items-baseline gap-x-3 py-1.5">
+              <button
+                type="button"
+                onClick={() => onTickerClick?.(position.symbol)}
+                className="w-14 font-semibold text-zinc-900 hover:underline dark:text-zinc-100"
+              >
+                {position.symbol}
+              </button>
+              <span className="tabular-nums">
+                {position.entry_price.toFixed(2)} →{' '}
+                {(position.status === 'open' ? position.price_now : position.exit_price)?.toFixed(2) ?? '—'}
+              </span>
+              <span className={`font-semibold tabular-nums ${pctTone(position.return_pct)}`}>
+                {formatPct(position.return_pct)}
+              </span>
+              <span className="text-zinc-500">
+                {position.status === 'open' ? 'open' : position.exit_reason === 'sell' ? 'sold' : position.exit_reason}
+                {position.days_held != null && `, ${position.days_held}d`}
+              </span>
+              <span className="ml-auto text-zinc-500">{formatTime(position.entered_at)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+function PaperStrategies({
+  portfolios,
+  onTickerClick,
+}: {
+  portfolios: PaperPortfolio[]
+  onTickerClick?: (ticker: string) => void
+}) {
+  if (portfolios.length === 0) return null
+  const ranked = [...portfolios].sort((a, b) => (b.avg_return_pct ?? -Infinity) - (a.avg_return_pct ?? -Infinity))
+  return (
+    <section className={card}>
+      <h2 className={heading}>Paper strategies</h2>
+      <p className="mt-1 text-xs text-zinc-500">
+        Rule-based strategies Claude trades on paper during each check, with the same money in every position. None of
+        this is advice to you; a strategy earns that once it beats the rest here.
+      </p>
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full min-w-[560px] text-left text-sm">
+          <thead className="text-xs uppercase tracking-wider text-zinc-500">
+            <tr>
+              <th className="py-2 pr-3 font-medium">Strategy</th>
+              <th className="py-2 pr-3 text-right font-medium">Return</th>
+              <th className="py-2 pr-3 text-right font-medium">Won</th>
+              <th className="py-2 pr-3 text-right font-medium">Up after 7d</th>
+              <th className="py-2 pr-3 text-right font-medium">Up after 30d</th>
+              <th className="py-2 text-right font-medium">Open</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+            {ranked.map((portfolio) => (
+              <tr key={portfolio.strategy}>
+                <td className="py-2 pr-3 font-medium">{portfolio.label}</td>
+                <td className={`py-2 pr-3 text-right font-semibold tabular-nums ${pctTone(portfolio.avg_return_pct)}`}>
+                  {formatPct(portfolio.avg_return_pct)}
+                </td>
+                <td className="py-2 pr-3 text-right tabular-nums">
+                  {portfolio.closed > 0 ? `${formatRate(portfolio.win_rate)} of ${portfolio.closed}` : '—'}
+                </td>
+                <td className="py-2 pr-3 text-right tabular-nums">{hitRate(portfolio.scores?.['7'])}</td>
+                <td className="py-2 pr-3 text-right tabular-nums">{hitRate(portfolio.scores?.['30'])}</td>
+                <td className="py-2 text-right tabular-nums">{portfolio.open}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="mt-3 divide-y divide-zinc-100 dark:divide-zinc-800">
+        {ranked.map((portfolio) => (
+          <details key={portfolio.strategy} className="py-2">
+            <summary className="cursor-pointer text-sm font-medium">
+              {portfolio.label}{' '}
+              <span className="text-xs font-normal text-zinc-500">
+                {portfolio.positions.length} trade{portfolio.positions.length === 1 ? '' : 's'}
+              </span>
+            </summary>
+            <PaperPositions portfolio={portfolio} onTickerClick={onTickerClick} />
+          </details>
+        ))}
       </div>
     </section>
   )
@@ -352,7 +474,7 @@ function Journal({ calls, onTickerClick }: { calls: AdvisorCall[]; onTickerClick
 }
 
 export default function AdvisorPanel({ onTickerClick }: { onTickerClick?: (ticker: string) => void }) {
-  const { strategy, calls, runs, scorecard, loading, error, saveStrategy } = useAdvisor()
+  const { strategy, calls, runs, scorecard, paper, loading, error, saveStrategy } = useAdvisor()
 
   if (loading) {
     return <section className={`${card} h-40 animate-pulse`} aria-label="Loading advisor" />
@@ -368,6 +490,7 @@ export default function AdvisorPanel({ onTickerClick }: { onTickerClick?: (ticke
   return (
     <>
       <Scorecard scorecard={scorecard} />
+      <PaperStrategies portfolios={paper} onTickerClick={onTickerClick} />
       <RecentChecks runs={runs} />
       <Journal calls={calls} onTickerClick={onTickerClick} />
       <StrategyForm strategy={strategy} onSave={saveStrategy} />

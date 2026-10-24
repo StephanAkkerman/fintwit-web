@@ -436,6 +436,10 @@ class AdvisorCallRow(Base):
 
     ``buy``/``add`` are graded as bullish and ``trim``/``sell`` as bearish by
     AdvisorCallResultRow; ``watch`` is a note and never graded.
+
+    ``strategy`` is None for the owner's advice, or the key of the paper
+    strategy (``services.advisor.PAPER_STRATEGIES``) the call was made for;
+    a paper ``sell`` closes a position and is not graded.
     """
 
     __tablename__ = "advisor_calls"
@@ -448,6 +452,7 @@ class AdvisorCallRow(Base):
     asset_kind: Mapped[str] = mapped_column(String, nullable=True)
     reasoning: Mapped[str] = mapped_column(String)
     rule: Mapped[str] = mapped_column(String, nullable=True)
+    strategy: Mapped[str] = mapped_column(String, nullable=True)
     called_at: Mapped[DateTime] = mapped_column(DateTime, index=True)
 
 

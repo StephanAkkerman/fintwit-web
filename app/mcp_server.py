@@ -16,10 +16,11 @@ tools make the calls a common question needs in one go: ``portfolio`` (every
 portfolio view), ``holdings_check`` (what is happening around each holding),
 ``ticker`` (everything about one symbol), ``market_snapshot`` (the market
 right now) and ``candidates`` (buy ideas). ``strategy`` and ``journal`` read
-the owner's rules and Claude's past calls for the market check.
+the owner's rules and Claude's past calls for the market check;
+``paper_portfolios`` the strategies Claude paper-trades next to it.
 
-Two writes, both append-only: ``log_call`` adds a suggestion to the decision
-journal (``POST /api/advisor/calls``) and ``finish_check`` records a finished
+Two writes, both append-only: ``log_call`` adds a suggestion (or a paper
+trade) to the decision journal (``POST /api/advisor/calls``) and ``finish_check`` records a finished
 check and how far it read the timeline (``POST /api/advisor/runs``). Nothing
 else can be changed, the strategy included, so the rules Claude is judged
 against stay the owner's.
@@ -696,8 +697,11 @@ async def collect_journal(
     limit: int = 30,
     symbol: str | None = None,
     since_hours: int | None = None,
+    strategy: str | None = None,
 ) -> str:
     params: dict[str, Any] = {"limit": limit}
+    if strategy:
+        params["strategy"] = strategy
     if symbol:
         params["symbol"] = symbol.strip().upper().lstrip("$")
     if since_hours:
@@ -722,7 +726,9 @@ mcp = MCPServer(
         "just posted about, unseen_posts for every post since the last check. "
         "A scheduled check ends with finish_check. For a market check read strategy (the owner's rules) and "
         "journal (your earlier calls and how they did), and record each "
-        "buy/add/trim/sell/watch suggestion with log_call. You advise; the "
+        "buy/add/trim/sell/watch suggestion with log_call. paper_portfolios "
+        "lists the strategies you paper-trade on the side; log their trades "
+        "with log_call's strategy. You advise; the "
         "owner decides and trades. For anything else call list_endpoints, then get with one of its paths."
     ),
 )
@@ -924,14 +930,33 @@ async def strategy() -> str:
 
 @mcp.tool()
 async def journal(
-    limit: int = 30, symbol: str | None = None, since_hours: int | None = None
+    limit: int = 30,
+    symbol: str | None = None,
+    since_hours: int | None = None,
+    strategy: str | None = None,
 ) -> str:
     """Your earlier market-check calls, newest first, with how each did after 7
     and 30 days, plus the scorecard (hit rate and average return of following
     the calls). Check it before suggesting something, so you don't repeat a
-    call from the last few hours and you learn from what didn't work."""
+    call from the last few hours and you learn from what didn't work.
+
+    Shows your advice to the owner; pass ``strategy`` as a paper strategy's
+    key, or ``"all"``, for paper trades. The scorecard's ``strategies`` scores
+    each paper strategy's entries."""
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-        return await collect_journal(client, limit, symbol, since_hours)
+        return await collect_journal(client, limit, symbol, since_hours, strategy)
+
+
+@mcp.tool()
+async def paper_portfolios() -> str:
+    """The rule-based strategies you paper-trade next to your advice: each
+    one's entry and exit rules, its paper positions (open ones marked at the
+    current price, with days held) and how it has done (return, win rate of
+    closed positions, hit rate of its entries after 7 and 30 days). Check the
+    open positions on every market check and log a paper ``sell`` when a
+    strategy's exit rule is met."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        return truncate(await _request(client, "/api/advisor/paper", None))
 
 
 @mcp.tool()
@@ -941,9 +966,15 @@ async def log_call(
     reasoning: str,
     conviction: str | None = None,
     rule: str | None = None,
+    strategy: str | None = None,
 ) -> str:
     """Record one suggestion in the decision journal, so it is scored after 7
     and 30 days. The dashboard prices it at the moment it is logged.
+
+    With ``strategy``, it is a paper trade for that strategy instead (see
+    ``paper_portfolios``): ``buy`` opens a position, ``sell`` closes it, and it
+    never shows up as advice to the owner. A paper buy of a symbol the strategy
+    already holds, or a sell of one it doesn't, is refused.
 
     Parameters
     ----------
@@ -958,12 +989,18 @@ async def log_call(
         ``low``, ``medium`` or ``high``.
     rule
         The strategy rule that triggered it, if any.
+    strategy
+        A paper strategy's key (``insider_cluster``, ``earnings_drift``,
+        ``extreme_fear``, ``call_flow``), for a paper trade: ``buy``, ``sell``
+        or ``watch`` only. Leave it out for advice to the owner.
     """
     call = {"symbol": symbol, "action": action, "reasoning": reasoning}
     if conviction:
         call["conviction"] = conviction
     if rule:
         call["rule"] = rule
+    if strategy:
+        call["strategy"] = strategy
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         return await log_journal_call(client, call)
 

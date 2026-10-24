@@ -1772,6 +1772,8 @@ export interface AdvisorCall {
   asset_kind: string | null;
   reasoning: string;
   rule: string | null;
+  /** A paper strategy's key, or null for advice to the owner. */
+  strategy?: string | null;
   called_at: string | null;
   results: Record<string, AdvisorCallResult>;
 }
@@ -1788,6 +1790,40 @@ export interface AdvisorScorecard {
     string,
     AdvisorScoreBucket & { by_action: Record<string, AdvisorScoreBucket> }
   >;
+  /** Each paper strategy's entries, scored apart: strategy -> horizon -> bucket. */
+  strategies?: Record<string, Record<string, AdvisorScoreBucket>>;
+}
+
+export interface PaperPosition {
+  symbol: string;
+  entry_call_id: number;
+  entry_price: number;
+  entered_at: string | null;
+  exit_price: number | null;
+  exited_at: string | null;
+  /** "sell", or "held N days" when the holding period ran out. */
+  exit_reason: string | null;
+  status: "open" | "closed";
+  price_now: number | null;
+  return_pct: number | null;
+  days_held: number | null;
+}
+
+/** One rule-based strategy the market check paper-trades (GET /api/advisor/paper). */
+export interface PaperPortfolio {
+  strategy: string;
+  label: string;
+  entry: string;
+  exit: string;
+  max_hold_days: number | null;
+  positions: PaperPosition[];
+  open: number;
+  closed: number;
+  /** Share of closed positions that made money. */
+  win_rate: number | null;
+  /** Equal money in every position, open ones marked at today's price. */
+  avg_return_pct: number | null;
+  scores: Record<string, AdvisorScoreBucket>;
 }
 
 export type InsiderTrade = {

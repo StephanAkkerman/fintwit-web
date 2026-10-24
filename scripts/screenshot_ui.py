@@ -3565,6 +3565,92 @@ def _advisor_scorecard() -> dict:
     }
 
 
+def _paper_position(
+    call_id: int,
+    symbol: str,
+    entry: float,
+    now: float,
+    entered: str,
+    days: int,
+    exit_reason: str | None = None,
+) -> dict:
+    closed = exit_reason is not None
+    return {
+        "symbol": symbol,
+        "entry_call_id": call_id,
+        "entry_price": entry,
+        "entered_at": f"{entered}T15:00:00+00:00",
+        "exit_price": now if closed else None,
+        "exited_at": "2026-10-21T15:00:00+00:00" if closed else None,
+        "exit_reason": exit_reason,
+        "status": "closed" if closed else "open",
+        "price_now": None if closed else now,
+        "return_pct": (now - entry) / entry * 100.0,
+        "days_held": days,
+    }
+
+
+def _advisor_paper() -> dict:
+    from app.services.advisor import PAPER_STRATEGIES
+
+    def bucket(graded: int, hits: int, avg: float | None) -> dict:
+        return {
+            "graded": graded,
+            "hit_rate": hits / graded if graded else None,
+            "avg_return_pct": avg,
+        }
+
+    books = {
+        "insider_cluster": (
+            [
+                _paper_position(31, "KMI", 26.1, 27.4, "2026-10-14", 9),
+                _paper_position(
+                    22, "CVS", 61.8, 66.2, "2026-09-18", 30, "held 30 days"
+                ),
+                _paper_position(18, "ZION", 48.0, 45.9, "2026-09-25", 12, "sell"),
+            ],
+            {"7": bucket(3, 2, 2.1), "30": bucket(1, 1, 7.1)},
+        ),
+        "earnings_drift": (
+            [
+                _paper_position(33, "NFLX", 1182.0, 1214.5, "2026-10-21", 2),
+                _paper_position(25, "JPM", 301.2, 296.4, "2026-10-16", 4, "sell"),
+            ],
+            {"7": bucket(1, 0, -1.6), "30": bucket(0, 0, None)},
+        ),
+        "extreme_fear": ([], {"7": bucket(0, 0, None), "30": bucket(0, 0, None)}),
+        "call_flow": (
+            [_paper_position(29, "AMD", 236.0, 229.8, "2026-10-17", 6)],
+            {"7": bucket(0, 0, None), "30": bucket(0, 0, None)},
+        ),
+    }
+    strategies = []
+    for key, spec in PAPER_STRATEGIES.items():
+        positions, scores = books[key]
+        closed = [p for p in positions if p["status"] == "closed"]
+        strategies.append(
+            {
+                "strategy": key,
+                **spec,
+                "positions": positions,
+                "open": len(positions) - len(closed),
+                "closed": len(closed),
+                "win_rate": (
+                    sum(p["return_pct"] > 0 for p in closed) / len(closed)
+                    if closed
+                    else None
+                ),
+                "avg_return_pct": (
+                    sum(p["return_pct"] for p in positions) / len(positions)
+                    if positions
+                    else None
+                ),
+                "scores": scores,
+            }
+        )
+    return {"strategies": strategies}
+
+
 def _trader_leaderboard() -> list[dict]:
     return [
         {
@@ -4207,6 +4293,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
                 "updated_at": None,
             },
             "/api/advisor/scorecard": {"total_calls": 0, "horizons": {}},
+            "/api/advisor/paper": {"strategies": []},
             "/api/overview/trend-summary": _empty_trend_summary(),
             # Reached via a `/traders/<handle>` deep link; the panel reads
             # `.recent_calls`/`.tickers` off it.
@@ -4531,6 +4618,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         "/api/advisor/calls": _advisor_calls(),
         "/api/advisor/runs": _advisor_runs(),
         "/api/advisor/scorecard": _advisor_scorecard(),
+        "/api/advisor/paper": _advisor_paper(),
     }
 
 
