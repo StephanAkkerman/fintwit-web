@@ -4119,6 +4119,285 @@ def _indicators() -> dict:
     }
 
 
+def _trend_stage() -> dict:
+    """/api/research/trend-stage: an early stage 2 in a leading sector."""
+    return {
+        "symbol": "NVDA",
+        "as_of": "2026-10-23",
+        "stage": {
+            "stage": 2,
+            "name": "advancing",
+            "weeks_in_stage": 6,
+            "previous_stage": 1,
+            "ma30w": 186.42,
+            "price_vs_ma30w_percent": 7.8,
+            "ma30w_slope_5w_percent": 3.7,
+        },
+        "vs_market": {
+            "mansfield": 9.4,
+            "mansfield_rising_4w": True,
+            "outperformance_13w_pp": 6.1,
+            "outperformance_26w_pp": 11.3,
+        },
+        "benchmark": "SPY",
+        "sector": {
+            "name": "Technology",
+            "etf": "XLK",
+            "stage": {
+                "stage": 2,
+                "name": "advancing",
+                "weeks_in_stage": 28,
+                "previous_stage": 3,
+                "ma30w": 180.96,
+                "price_vs_ma30w_percent": 1.5,
+                "ma30w_slope_5w_percent": 5.3,
+            },
+            "vs_market": {
+                "mansfield": 5.9,
+                "mansfield_rising_4w": False,
+                "outperformance_13w_pp": 2.8,
+                "outperformance_26w_pp": 7.7,
+            },
+            "stock_vs_sector": {
+                "mansfield": 3.2,
+                "mansfield_rising_4w": True,
+                "outperformance_13w_pp": 3.3,
+                "outperformance_26w_pp": 3.6,
+            },
+        },
+    }
+
+
+def _analyst_activity() -> dict:
+    """/api/research/analysts: upgrades and rising estimates."""
+
+    def action(day, firm, kind, old, new, target, prior):
+        return {
+            "date": f"2026-10-{day:02d}",
+            "firm": firm,
+            "action": kind,
+            "from_grade": old,
+            "to_grade": new,
+            "price_target": target,
+            "prior_price_target": prior,
+            "target_change_percent": round((target / prior - 1) * 100, 2)
+            if prior
+            else None,
+        }
+
+    return {
+        "symbol": "NVDA",
+        "rating_changes": {
+            "days": 90,
+            "upgrades": 2,
+            "downgrades": 0,
+            "initiations": 1,
+            "target_raises": 9,
+            "target_cuts": 1,
+            "recent_actions": [
+                action(22, "Needham", "reiterated", "Buy", "Buy", 300.0, 280.0),
+                action(
+                    17,
+                    "Morgan Stanley",
+                    "upgrade",
+                    "Equal-Weight",
+                    "Overweight",
+                    290.0,
+                    240.0,
+                ),
+                action(9, "UBS", "maintained", "Buy", "Buy", 275.0, 285.0),
+                action(2, "Piper Sandler", "initiated", None, "Overweight", 300.0, 0.0),
+            ],
+        },
+        "recommendations": {
+            "now": {"strongBuy": 12, "buy": 46, "hold": 3, "sell": 1, "strongSell": 0},
+            "three_months_ago": {
+                "strongBuy": 10,
+                "buy": 44,
+                "hold": 6,
+                "sell": 1,
+                "strongSell": 0,
+            },
+            "buy_percent": 93.5,
+            "buy_percent_change_3m": 5.0,
+        },
+        "estimates": {
+            "direction": "rising",
+            "periods": {
+                "0y": {
+                    "eps_estimate": 9.31,
+                    "change_7d_percent": 0.4,
+                    "change_30d_percent": 2.6,
+                    "change_90d_percent": 6.1,
+                    "up_7d": 2,
+                    "down_7d": 0,
+                    "up_30d": 9,
+                    "down_30d": 1,
+                }
+            },
+        },
+    }
+
+
+def _options_flow() -> dict:
+    """/api/signa/options-flow, market-wide (also served per symbol)."""
+
+    def scored(symbol, direction, kind, strike, premium, conviction, rationale):
+        return {
+            "symbol": symbol,
+            "direction": direction,
+            "conviction": conviction,
+            "option_type": kind,
+            "strike": strike,
+            "expiry": "2026-11-20",
+            "dte": 28,
+            "premium": premium,
+            "sweep": premium > 1_000_000,
+            "block": False,
+            "confirms_signal": True,
+            "rationale": rationale,
+            "at": "2026-10-23T15:42:00+00:00",
+        }
+
+    top_scored = [
+        scored(
+            "HWM",
+            "BEARISH",
+            "PUT",
+            190,
+            8_435_610,
+            72,
+            "Large put buying into earnings",
+        ),
+        scored(
+            "MU",
+            "BULLISH",
+            "CALL",
+            240,
+            3_820_000,
+            68,
+            "Call sweep; confirms BUY signal (grade A)",
+        ),
+        scored("QQQ", "BULLISH", "PUT", 590, 2_607_396, 61, "Bullish via sold puts"),
+        scored(
+            "NVDA",
+            "BULLISH",
+            "CALL",
+            220,
+            1_471_205,
+            59,
+            "Flow confirms stock signal: BUY (grade B)",
+        ),
+        scored(
+            "AAPL",
+            "BULLISH",
+            "CALL",
+            340,
+            1_286_981,
+            57,
+            "Call buying ahead of earnings",
+        ),
+    ]
+    return {
+        "symbol": None,
+        "source": "Signa (Unusual Whales)",
+        "curated_available": True,
+        "raw_available": True,
+        "bias": "bullish",
+        "scored_trades": 100,
+        "scored_bullish": 69,
+        "scored_bearish": 31,
+        "scored_bullish_premium": 19_159_380,
+        "scored_bearish_premium": 9_749_870,
+        "avg_conviction": 60,
+        "large_trades": 200,
+        "call_premium": 50_982_966,
+        "put_premium": 40_005_983,
+        "bullish_call_premium": 28_936_477,
+        "bearish_put_premium": 23_422_296,
+        "top_scored": top_scored,
+        "top_large": [],
+        "top_bullish": [
+            {"symbol": "MU", "scored_bullish_premium": 6_817_025, "bias": "bullish"},
+            {"symbol": "QQQ", "scored_bullish_premium": 2_607_396, "bias": "bullish"},
+            {"symbol": "NVDA", "scored_bullish_premium": 1_471_205, "bias": "bullish"},
+            {"symbol": "AAPL", "scored_bullish_premium": 1_286_981, "bias": "bullish"},
+            {"symbol": "XOM", "scored_bullish_premium": 610_280, "bias": "bullish"},
+        ],
+        "top_bearish": [
+            {"symbol": "HWM", "scored_bearish_premium": 8_435_610, "bias": "bearish"},
+            {"symbol": "VXX", "scored_bearish_premium": 1_701_424, "bias": "bearish"},
+            {"symbol": "RBLX", "scored_bearish_premium": 399_259, "bias": "bearish"},
+        ],
+        "top_call_buying": [
+            {"symbol": "MU", "bullish_call_premium": 7_590_325, "bias": "bullish"},
+            {"symbol": "TSLA", "bullish_call_premium": 3_784_110, "bias": "mixed"},
+            {"symbol": "QQQ", "bullish_call_premium": 3_409_559, "bias": "bullish"},
+            {"symbol": "NVDA", "bullish_call_premium": 1_860_920, "bias": "bullish"},
+        ],
+        "by_symbol": {},
+    }
+
+
+def _symbol_options_flow() -> dict:
+    """/api/signa/options-flow?symbol=NVDA: the ticker modal's view."""
+    market = _options_flow()
+    nvda = [t for t in market["top_scored"] if t["symbol"] == "NVDA"]
+    hedge = {
+        **nvda[0],
+        "direction": "BEARISH",
+        "option_type": "CALL",
+        "strike": 260,
+        "premium": 513_743,
+        "conviction": 47,
+        "sweep": False,
+        "rationale": "Bearish via sold calls",
+    }
+    return {
+        **{
+            k: v
+            for k, v in market.items()
+            if not k.startswith("top_") and k != "by_symbol"
+        },
+        "symbol": "NVDA",
+        "bias": "bullish",
+        "scored_trades": 6,
+        "scored_bullish": 5,
+        "scored_bearish": 1,
+        "scored_bullish_premium": 1_471_205,
+        "scored_bearish_premium": 513_743,
+        "large_trades": 9,
+        "call_premium": 2_774_663,
+        "put_premium": 1_503_851,
+        "bullish_call_premium": 1_860_920,
+        "bearish_put_premium": 550_291,
+        "top_scored": [*nvda, hedge],
+        "top_large": [],
+    }
+
+
+def _dark_pool() -> dict:
+    return {
+        "symbol": "NVDA",
+        "source": "Signa (Unusual Whales)",
+        "prints": 50,
+        "notional": 11_331_467,
+        "at_or_above_ask_notional": 4_680_332,
+        "at_or_below_bid_notional": 2_697_932,
+        "lean": "buyers",
+        "from": "2026-10-23T16:24:40Z",
+        "to": "2026-10-23T16:26:05Z",
+        "largest": [
+            {
+                "price": 211.92,
+                "size": 7521,
+                "notional": 1_593_850,
+                "at": "2026-10-23T16:25:26Z",
+            }
+        ],
+    }
+
+
 def fixtures_for(scenario: str) -> dict[str, object]:
     """Map a URL fragment to the JSON served for it."""
     if scenario == "loading":
@@ -4494,6 +4773,13 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         # Longer fragment first: fixture matching is substring-based, and
         # "/gamma-exposure" is itself a substring of "/gamma-exposure/history".
         "/api/research/indicators": _indicators(),
+        # Ticker modal (trend stage, analysts, flow on click) and /options.
+        "/api/research/trend-stage": _trend_stage(),
+        "/api/research/analysts": _analyst_activity(),
+        # Longer fragment first: the ticker modal asks for one symbol.
+        "/api/signa/options-flow?symbol=": _symbol_options_flow(),
+        "/api/signa/options-flow": _options_flow(),
+        "/api/signa/dark-pool": _dark_pool(),
         "/api/options/gamma-exposure/history": _gamma_exposure_history(),
         "/api/options/gamma-exposure": _gamma_exposure_snapshot(),
         "/api/market/positioning": _market_positioning(),
