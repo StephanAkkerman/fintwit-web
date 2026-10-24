@@ -14,6 +14,7 @@ import {
 import { useTickerPriceHistory } from '../hooks/useTickerPriceHistory'
 import { useTickerTimeseries } from '../hooks/useTickerTimeseries'
 import type { TickerPriceHistoryPoint, TickerTimeseriesPoint } from '../types'
+import TickerResearchPanel from './TickerResearchPanel'
 
 const MENTIONS_COLOR = '#6366f1' // indigo-500
 const BULL_COLOR = '#10b981' // emerald-500
@@ -177,7 +178,7 @@ export default function TickerDetailModal({ ticker, onClose }: TickerDetailModal
               ${ticker}
             </h2>
             <p className="text-xs text-zinc-500">
-              Today's price, plus mentions and sentiment from the tracked tweet history.
+              Today's price, the weekly trend, analysts and options flow, plus mentions and sentiment from the tracked tweet history.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -275,6 +276,8 @@ export default function TickerDetailModal({ ticker, onClose }: TickerDetailModal
             )}
           </div>
         </div>
+
+        <TickerResearchPanel ticker={ticker} />
 
         {error && (
           <p className="mt-3 text-sm text-rose-500">Failed to load ${ticker} details.</p>

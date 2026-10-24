@@ -2,7 +2,10 @@
 
 These fill what a buy or sell decision needs beyond today's move: what the
 company is valued at and what analysts expect, TradingView's technical rating
-and daily indicators (RSI, MACD, moving averages, ATR, ADX, volume), and where the price sits against its 52-week range and moving averages. The
+and daily indicators (RSI, MACD, moving averages, ATR, ADX, volume), where the
+price sits against its 52-week range and moving averages, its weekly trend
+stage and strength against the market and its sector, and what analysts did
+lately (rating changes, estimate revisions). The
 dashboard's ticker cards show parts of this already (via tweet enrichment);
 here it is available for any symbol on demand, mainly for the MCP server.
 """
@@ -11,6 +14,7 @@ import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from ..services.analyst_service import get_analyst_activity
 from ..services.fundamentals_service import get_valuation
 from ..services.price_context import get_price_context
 from ..services.technical_indicators_service import (
@@ -19,6 +23,7 @@ from ..services.technical_indicators_service import (
     get_symbol_indicators,
 )
 from ..services.tradingview_ta_service import get_tradingview_ta_summary
+from ..services.trend_stage import get_trend_stage
 from .auth import api_key_dep
 
 router = APIRouter(
@@ -96,4 +101,33 @@ async def price_context(symbol: str = Query(...)):
     data = await get_price_context(symbol)
     if data is None:
         raise HTTPException(status_code=404, detail=f"No price history for {symbol}")
+    return data
+
+
+@router.get("/analysts")
+async def analysts(
+    symbol: str = Query(...),
+    days: int = Query(default=90, ge=1, le=365),
+):
+    """Upgrades, downgrades and price-target changes in the last ``days``,
+    the buy/hold/sell mix against three months ago, and EPS estimate
+    revisions (``estimates.direction``: rising, falling or flat)."""
+    symbol = _symbol(symbol)
+    data = await get_analyst_activity(symbol, days)
+    if data is None:
+        raise HTTPException(status_code=404, detail=f"No analyst data for {symbol}")
+    return data
+
+
+@router.get("/trend-stage")
+async def trend_stage(symbol: str = Query(...)):
+    """Weinstein stage (1 basing, 2 advancing, 3 topping, 4 declining) from the
+    30-week moving average, Mansfield relative strength against SPY, and the
+    sector ETF's own stage and strength with the stock measured against it."""
+    symbol = _symbol(symbol)
+    data = await get_trend_stage(symbol)
+    if data is None:
+        raise HTTPException(
+            status_code=404, detail=f"Not enough weekly history for {symbol}"
+        )
     return data

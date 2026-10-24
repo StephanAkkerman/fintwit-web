@@ -2006,3 +2006,163 @@ export type MarketBreadthPoint = {
   pct_above_sma200: number | null;
   benchmark_change_pct: number | null;
 };
+
+// /api/research/trend-stage: Weinstein stage from the 30-week average.
+export type WeinsteinStage = {
+  stage: 1 | 2 | 3 | 4;
+  name: "basing" | "advancing" | "topping" | "declining";
+  weeks_in_stage: number;
+  previous_stage: number | null;
+  ma30w: number;
+  price_vs_ma30w_percent: number | null;
+  ma30w_slope_5w_percent: number | null;
+};
+
+export type RelativeStrength = {
+  mansfield: number | null;
+  mansfield_rising_4w: boolean | null;
+  outperformance_13w_pp: number | null;
+  outperformance_26w_pp: number | null;
+};
+
+export type TrendStage = {
+  symbol: string;
+  as_of: string;
+  stage: WeinsteinStage;
+  vs_market: RelativeStrength | null;
+  benchmark: string;
+  sector: {
+    name: string;
+    etf: string;
+    stage: WeinsteinStage | null;
+    vs_market: RelativeStrength | null;
+    stock_vs_sector: RelativeStrength | null;
+  } | null;
+};
+
+// /api/research/analysts
+export type AnalystAction = {
+  date: string;
+  firm: string | null;
+  action: string | null;
+  from_grade: string | null;
+  to_grade: string | null;
+  price_target: number | null;
+  prior_price_target: number | null;
+  target_change_percent: number | null;
+};
+
+export type EpsPeriodEstimate = {
+  eps_estimate: number | null;
+  change_7d_percent: number | null;
+  change_30d_percent: number | null;
+  change_90d_percent: number | null;
+  up_7d?: number;
+  down_7d?: number;
+  up_30d?: number;
+  down_30d?: number;
+};
+
+export type AnalystActivity = {
+  symbol: string;
+  rating_changes: {
+    days: number;
+    upgrades: number;
+    downgrades: number;
+    initiations: number;
+    target_raises: number;
+    target_cuts: number;
+    recent_actions: AnalystAction[];
+  };
+  recommendations: {
+    now: Record<string, number>;
+    three_months_ago: Record<string, number> | null;
+    buy_percent: number | null;
+    buy_percent_change_3m: number | null;
+  } | null;
+  estimates: {
+    direction: "rising" | "falling" | "flat" | null;
+    periods: Record<string, EpsPeriodEstimate>;
+  };
+};
+
+// /api/signa/options-flow and /api/signa/dark-pool
+export type FlowBias = "bullish" | "bearish" | "mixed" | null;
+
+export type ScoredFlowTrade = {
+  symbol: string;
+  direction: string | null;
+  conviction: number | null;
+  option_type: string | null;
+  strike: number | string | null;
+  expiry: string | null;
+  dte: number | null;
+  premium: number;
+  sweep: boolean;
+  block: boolean;
+  confirms_signal: boolean | null;
+  rationale: string | null;
+  at: string | null;
+};
+
+export type LargeFlowTrade = {
+  symbol: string;
+  option_type: string | null;
+  sentiment: string | null;
+  strike: number | string | null;
+  expiry: string | null;
+  dte: number | null;
+  premium: number;
+  sweep: boolean;
+  block: boolean;
+  volume_oi_ratio: number | null;
+  at: string | null;
+};
+
+export type FlowSummary = {
+  bias: FlowBias;
+  scored_trades: number;
+  scored_bullish: number;
+  scored_bearish: number;
+  scored_bullish_premium: number;
+  scored_bearish_premium: number;
+  avg_conviction: number | null;
+  large_trades: number;
+  call_premium: number;
+  put_premium: number;
+  bullish_call_premium: number;
+  bearish_put_premium: number;
+  top_scored: ScoredFlowTrade[];
+  top_large: LargeFlowTrade[];
+};
+
+export type FlowRanking = {
+  symbol: string;
+  bias: FlowBias;
+  scored_bullish_premium?: number;
+  scored_bearish_premium?: number;
+  bullish_call_premium?: number;
+};
+
+export type OptionsFlow = FlowSummary & {
+  symbol: string | null;
+  source: string;
+  curated_available: boolean;
+  raw_available: boolean;
+  top_bullish?: FlowRanking[];
+  top_bearish?: FlowRanking[];
+  top_call_buying?: FlowRanking[];
+};
+
+export type DarkPool = {
+  symbol: string;
+  source: string;
+  prints: number;
+  notional: number;
+  at_or_above_ask_notional: number;
+  at_or_below_bid_notional: number;
+  lean: "buyers" | "sellers" | "balanced" | null;
+  from: string | null;
+  to: string | null;
+  largest: { price: number; size: number | null; notional: number; at: string | null }[];
+};

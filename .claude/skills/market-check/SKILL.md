@@ -32,9 +32,12 @@ Call these:
 - `holdings_check`: what is happening around each holding, including where
   its price sits in the 52-week range, its trend against the 200-day average,
   its daily `technicals` (RSI, MACD, distance from the 20/50/200-day
-  averages, ATR, volume), and the analyst rating and price target.
+  averages, ATR, volume), its weekly `trend_stage`, the analyst rating and
+  price target, `analyst_activity` (recent upgrades/downgrades, target moves,
+  EPS estimate revisions) and the last day's `options_flow`.
 - `candidates`: buy ideas. Ignore `held_symbols` as new ideas; they are covered
-  by holdings_check.
+  by holdings_check. `options_flow` ranks the symbols with the most bullish
+  (`top_bullish`, `top_call_buying`) and bearish premium over the last day.
 - `unseen_posts`: every post since the last check, one lead per ticker, the
   followed traders' leads first. This is the timeline the owner would
   otherwise scroll themselves, so read all of it; see "Reading the timeline"
@@ -42,7 +45,8 @@ Call these:
 - `ticker` for any symbol you are about to suggest, to check the full picture
   before you commit: valuation (P/E, analyst targets, short interest),
   TradingView technicals and their `indicators`, 52-week range and trend,
-  news, options and earnings. Pass `asset_kind="crypto"` or `"etf"` when it is one.
+  weekly `trend_stage`, `analyst_activity`, news, options, `options_flow`,
+  `dark_pool` and earnings. Pass `asset_kind="crypto"` or `"etf"` when it is one.
 - Signa, if its tools are available: look up its verdict for every symbol you
   are about to suggest. Treat it as one more signal, not the deciding one, and
   say in the reasoning when Signa disagrees. If the Signa tools are missing or
@@ -90,7 +94,10 @@ For each one you look at, judge two things separately:
 - **Fundamentals**: valuation against growth (P/E or EV/sales against peers
   and its own history), revenue and earnings trend, balance sheet, analyst
   rating and target versus price, short interest. Pass when the business is
-  sound and the price isn't stretched for what it delivers.
+  sound and the price isn't stretched for what it delivers. In
+  `analyst_activity`, EPS estimates being revised up (`eps_revisions:
+  rising`) and upgrades or target raises in the last weeks support the case;
+  falling estimates or a run of downgrades argue against it.
 - **Technicals**: TradingView's summary and moving-average ratings, trend
   against the 50- and 200-day averages, where it sits in the 52-week range,
   and how far it has run since the trader posted (`price_at_post`). Pass when
@@ -107,6 +114,16 @@ For each one you look at, judge two things separately:
     a reason to skip.
   - *Volume*: a breakout or a big move on `heavy_volume` counts for more
     than one on thin volume.
+  - *Stage*: `trend_stage` reads the weekly chart. Stage 2 (advancing) is
+    where to buy, ideally with `rs_vs_market` above 0 and rising and the
+    sector ETF in stage 2 too; an early stage 2 (few `weeks_in_stage`) is
+    better than a late one. Stage 4 (declining) is not a buy, whatever the
+    daily chart says; stage 3 (topping) on a holding is a reason to look
+    harder at it.
+  - *Flow*: big bullish `options_flow` (scored bullish premium, call buying)
+    or `dark_pool` prints leaning on `buyers` confirm a case; they don't make
+    one on their own. Signa reads sold puts as bullish, so go by `bias`, not
+    by calls versus puts.
 
   For every buy or add, give a stop about two ATRs below the entry (or just
   under the 50-day average when that is close), and say how far that is in

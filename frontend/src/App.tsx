@@ -40,6 +40,7 @@ import IbkrPanel from './components/IbkrPanel'
 import GammaExposureWidget from './components/GammaExposureWidget'
 import NewsOverviewWidget from './components/NewsOverviewWidget'
 import MarketPositioningWidget from './components/MarketPositioningWidget'
+import OptionsFlowWidget from './components/OptionsFlowWidget'
 import OptionsChainWidget from './components/OptionsChainWidget'
 import OptionsOverviewWidget from './components/OptionsOverviewWidget'
 import PutCallRatioWidget from './components/PutCallRatioWidget'
@@ -916,6 +917,11 @@ export default function App() {
                 <ErrorBoundary label="Put/call ratio">
                   <PutCallRatioWidget />
                 </ErrorBoundary>
+                {signaConfigured !== false && (
+                  <ErrorBoundary label="Options flow">
+                    <OptionsFlowWidget onTickerClick={setDetailTicker} />
+                  </ErrorBoundary>
+                )}
                 <ErrorBoundary label="Options overview">
                   <OptionsOverviewWidget />
                 </ErrorBoundary>

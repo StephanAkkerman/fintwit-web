@@ -1,13 +1,30 @@
 import asyncio
 import logging
 from collections import OrderedDict
+from datetime import timezone
+from email.utils import parsedate_to_datetime
 from typing import Any, Protocol, Sequence
+from urllib.parse import urlparse
+
+import httpx
+from lxml import etree
 
 from ..ml.sentiment import label_from_score
 
 logger = logging.getLogger(__name__)
 
 _DEFAULT_LIMIT = 10
+
+#: Yahoo's per-symbol headline RSS: no crumb or cookie, so it still answers
+#: when yfinance's news call is rate-limited or refused.
+_RSS_URL = "https://feeds.finance.yahoo.com/rss/2.0/headline"
+_RSS_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    )
+}
+_RSS_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
 
 #: Headlines are re-requested every time the widget loads a symbol; the same
 #: article reads the same way every time, so skip the model on a repeat.
@@ -72,13 +89,64 @@ def _fetch_news_sync(symbol: str, limit: int) -> list[dict]:
     return articles
 
 
+def _parse_rss(xml: bytes, symbol: str, limit: int) -> list[dict]:
+    """Articles from a Yahoo headline RSS feed, shaped like the yfinance ones."""
+    parser = etree.XMLParser(resolve_entities=False, no_network=True)
+    root = etree.fromstring(xml, parser=parser)
+    articles = []
+    for item in root.iter("item"):
+        title = (item.findtext("title") or "").strip()
+        url = (item.findtext("link") or "").strip()
+        try:
+            published = parsedate_to_datetime(item.findtext("pubDate") or "")
+        except (TypeError, ValueError):
+            continue
+        if not (title and url):
+            continue
+        articles.append(
+            {
+                "symbols": [symbol],
+                "title": title,
+                "excerpt": (item.findtext("description") or "").strip() or None,
+                "url": url,
+                "date": published.astimezone(timezone.utc).strftime(
+                    "%Y-%m-%dT%H:%M:%SZ"
+                ),
+                # The feed names no publisher; the link's site is the next best.
+                "source": (urlparse(url).hostname or "").removeprefix("www.") or None,
+            }
+        )
+        if len(articles) >= limit:
+            break
+    return articles
+
+
+async def _fetch_rss(symbol: str, limit: int) -> list[dict]:
+    params = {"s": symbol, "region": "US", "lang": "en-US"}
+    try:
+        async with httpx.AsyncClient(timeout=_RSS_TIMEOUT) as client:
+            response = await client.get(_RSS_URL, params=params, headers=_RSS_HEADERS)
+        if response.status_code != 200:
+            logger.warning(
+                "[news] RSS fallback for %s returned HTTP %s",
+                symbol,
+                response.status_code,
+            )
+            return []
+        return _parse_rss(response.content, symbol, limit)
+    except (httpx.HTTPError, etree.XMLSyntaxError) as exc:
+        logger.warning("[news] RSS fallback failed for %s: %r", symbol, exc)
+        return []
+
+
 async def get_company_news(
     symbols: list[str], limit: int = _DEFAULT_LIMIT
 ) -> list[dict] | None:
     """Fetch recent company news for one or more tickers from Yahoo Finance.
 
     The blocking yfinance/requests call runs in a worker thread
-    (asyncio.to_thread) so it never blocks the event loop.
+    (asyncio.to_thread) so it never blocks the event loop. A symbol yfinance
+    returns nothing for is retried on Yahoo's headline RSS feed.
     """
     normalized = [sym.strip().upper() for sym in symbols if sym.strip()]
     if not normalized:
@@ -86,10 +154,13 @@ async def get_company_news(
 
     async def fetch_one(symbol: str) -> list[dict]:
         try:
-            return await asyncio.to_thread(_fetch_news_sync, symbol, limit)
+            articles = await asyncio.to_thread(_fetch_news_sync, symbol, limit)
         except Exception as exc:
             logger.warning("[news] yfinance fetch failed for %s: %r", symbol, exc)
-            return []
+            articles = []
+        # yfinance's news call needs a crumb that Yahoo rate-limits; the RSS
+        # feed doesn't, so an empty answer gets a second try there.
+        return articles or await _fetch_rss(symbol, limit)
 
     results = await asyncio.gather(*(fetch_one(sym) for sym in normalized))
     articles = [article for group in results for article in group]

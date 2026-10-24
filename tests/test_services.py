@@ -4,6 +4,7 @@ import httpx
 import pandas as pd
 import pytest
 
+import app.services.events_service as events_service
 import app.services.market_hours_service as market_hours_service
 import app.services.options_service as options_service
 from app.services.events_service import get_economic_events
@@ -27,7 +28,9 @@ def _reset_service_caches():
         reset_market_hours_cache()
     if callable(reset_options_cache):
         reset_options_cache()
+    events_service._reset_cache_for_tests()
     yield
+    events_service._reset_cache_for_tests()
     if callable(reset_market_hours_cache):
         reset_market_hours_cache()
     if callable(reset_options_cache):
@@ -57,6 +60,7 @@ async def test_get_economic_events_success_parses_rows():
         """
 
     client = AsyncMock()
+    client.get = AsyncMock(return_value=_httpx_response(503, {}))
     client.post = AsyncMock(return_value=_httpx_response(200, {"data": html_fragment}))
 
     result = await get_economic_events(client, limit=10)
@@ -77,11 +81,103 @@ async def test_get_economic_events_success_parses_rows():
 @pytest.mark.asyncio
 async def test_get_economic_events_http_error_returns_none():
     client = AsyncMock()
+    client.get = AsyncMock(return_value=_httpx_response(503, {}))
     client.post = AsyncMock(return_value=_httpx_response(503, {}))
 
     result = await get_economic_events(client)
 
     assert result is None
+
+
+TV_EVENTS = {
+    "status": "ok",
+    "result": [
+        {
+            "id": "2",
+            "title": "Fed Interest Rate Decision",
+            "country": "US",
+            "currency": "USD",
+            "importance": 1,
+            "date": "2026-10-28T18:00:00.000Z",
+            "actual": None,
+            "forecast": 4.0,
+            "previous": 4.25,
+            "unit": "%",
+        },
+        {
+            "id": "1",
+            "title": "Durable Goods Orders MoM",
+            "country": "US",
+            "currency": "USD",
+            "importance": 1,
+            "date": "2026-10-27T12:30:00.000Z",
+            "actual": 0.4,
+            "forecast": 0.6,
+            "previous": 0,
+            "unit": "%",
+        },
+        {
+            "id": "3",
+            "title": "Trade Balance",
+            "country": "EU",
+            "currency": "EUR",
+            "importance": 1,
+            "date": "2026-10-27T09:00:00.000Z",
+            "actual": 12.1,
+            "forecast": None,
+            "previous": 9.5,
+            "scale": "B",
+        },
+        {
+            "id": "4",
+            "title": "Some speech",
+            "country": "EU",
+            "importance": -1,
+            "date": "2026-10-27T08:00:00.000Z",
+        },
+    ],
+}
+
+
+@pytest.mark.asyncio
+async def test_get_economic_events_prefers_tradingview():
+    client = AsyncMock()
+    client.get = AsyncMock(return_value=_httpx_response(200, TV_EVENTS))
+    client.post = AsyncMock()
+
+    result = await get_economic_events(client, limit=10)
+
+    client.post.assert_not_called()
+    assert [e["event"] for e in result] == [
+        "Trade Balance",
+        "Durable Goods Orders MoM",
+        "Fed Interest Rate Decision",
+    ]
+    trade, durable, fed = result
+    # US Eastern, like the Investing feed it stands in for.
+    assert (durable["date"], durable["time"]) == ("27/10/2026", "08:30")
+    assert durable["zone"] == "united states"
+    assert (durable["actual"], durable["forecast"], durable["previous"]) == (
+        "0.4%",
+        "0.6%",
+        "0%",
+    )
+    assert trade["zone"] == "euro zone"
+    assert (trade["actual"], trade["forecast"]) == ("12.1B", None)
+    assert fed["impact_score"] == 3 and fed["impact_emoji"] == "🟥"
+    params = client.get.call_args.kwargs["params"]
+    assert params["countries"] == "US,EU"
+
+
+@pytest.mark.asyncio
+async def test_get_economic_events_serves_the_last_good_list_when_all_fail():
+    client = AsyncMock()
+    client.get = AsyncMock(return_value=_httpx_response(200, TV_EVENTS))
+    first = await get_economic_events(client, limit=10)
+
+    client.get = AsyncMock(side_effect=httpx.ConnectError("down"))
+    client.post = AsyncMock(return_value=_httpx_response(403, {}))
+    assert await get_economic_events(client, limit=2) == first[:2]
 
 
 # ---------------------------------------------------------------------------

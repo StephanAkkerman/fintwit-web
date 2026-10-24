@@ -42,6 +42,15 @@ _SESSION_MAP: dict[str, tuple[str, str]] = {
 
 _CACHE_TTL_SECONDS = 900
 _CACHE: dict[tuple, tuple[float, dict]] = {}
+#: Rows per date, shared by every window and limit so a 14-day request and a
+#: 1-day request don't each hit Nasdaq for today.
+_DAY_CACHE: dict[str, tuple[float, list[dict]]] = {}
+#: How long a day's last good rows stand in when Nasdaq fails for it.
+_STALE_TTL_SECONDS = 86400
+#: Nasdaq starts refusing a burst of 14 parallel requests; keep it to a few.
+_NASDAQ_CONCURRENCY = 4
+_nasdaq_slots = asyncio.Semaphore(_NASDAQ_CONCURRENCY)
+_RETRY_DELAY_SECONDS = 1.0
 
 #: A surprise within this many percent of the estimate counts as in line.
 INLINE_SURPRISE_PCT = 1.0
@@ -96,40 +105,64 @@ def _parse_row(raw: dict, date_str: str) -> dict | None:
     }
 
 
-async def _fetch_day(
-    client: httpx.AsyncClient, day: date
-) -> tuple[str, list[dict], bool]:
-    """Returns (date_str, rows, failed). `failed` is only set on a transport/HTTP
-    error — a day with no earnings scheduled (e.g. a weekend) still counts as a
-    successful fetch, just with zero rows.
-    """
-    date_str = day.isoformat()
+async def _request_day(
+    client: httpx.AsyncClient, date_str: str
+) -> tuple[list[dict], bool]:
+    """One Nasdaq request: ``(rows, failed)``."""
     try:
-        response = await client.get(
-            _NASDAQ_EARNINGS_URL, params={"date": date_str}, headers=_HEADERS
-        )
+        async with _nasdaq_slots:
+            response = await client.get(
+                _NASDAQ_EARNINGS_URL, params={"date": date_str}, headers=_HEADERS
+            )
         if response.status_code != 200:
             logger.warning(
                 "[earnings] Nasdaq request failed for %s: status=%s",
                 date_str,
                 response.status_code,
             )
-            return date_str, [], True
+            return [], True
         payload = response.json()
     except (httpx.RequestError, ValueError) as exc:
         logger.warning("[earnings] Nasdaq request failed for %s: %r", date_str, exc)
-        return date_str, [], True
+        return [], True
 
     data = payload.get("data") if isinstance(payload, dict) else None
     rows = data.get("rows") if isinstance(data, dict) else None
     if not isinstance(rows, list):
         # No `data`/`rows` key at all means Nasdaq has nothing for this date
         # (typical for weekends), not a failure.
-        return date_str, [], False
+        return [], False
 
     # Nasdaq already orders rows by market cap descending.
     parsed = [_parse_row(row, date_str) for row in rows if isinstance(row, dict)]
-    return date_str, [row for row in parsed if row is not None], False
+    return [row for row in parsed if row is not None], False
+
+
+async def _fetch_day(
+    client: httpx.AsyncClient, day: date
+) -> tuple[str, list[dict], bool]:
+    """Returns (date_str, rows, failed). `failed` is only set on a transport/HTTP
+    error — a day with no earnings scheduled (e.g. a weekend) still counts as a
+    successful fetch, just with zero rows.
+
+    A failed request is retried once; if that fails too, the day's last good
+    rows (up to a day old) are returned instead of a failure.
+    """
+    date_str = day.isoformat()
+    cached = _DAY_CACHE.get(date_str)
+    if cached and time.time() - cached[0] <= _CACHE_TTL_SECONDS:
+        return date_str, cached[1], False
+
+    rows, failed = await _request_day(client, date_str)
+    if failed:
+        await asyncio.sleep(_RETRY_DELAY_SECONDS)
+        rows, failed = await _request_day(client, date_str)
+    if not failed:
+        _DAY_CACHE[date_str] = (time.time(), rows)
+        return date_str, rows, False
+    if cached and time.time() - cached[0] <= _STALE_TTL_SECONDS:
+        return date_str, cached[1], False
+    return date_str, [], True
 
 
 def _get_cached(key: tuple) -> dict | None:
@@ -149,6 +182,7 @@ def _set_cached(key: tuple, payload: dict) -> None:
 
 def _reset_cache_for_tests() -> None:
     _CACHE.clear()
+    _DAY_CACHE.clear()
 
 
 async def get_earnings_calendar(
@@ -156,9 +190,11 @@ async def get_earnings_calendar(
 ) -> dict | None:
     """Fetch the earnings calendar for the next `days` days, starting today.
 
-    Returns `{start_date, end_date, days: [{date, count, rows}], source}`, or
-    `None` if every day's request failed (transport/HTTP error) so the caller
-    can distinguish "Nasdaq is unreachable" from "no earnings this week".
+    Returns `{start_date, end_date, days: [{date, count, rows}], source}`, plus
+    `failed_dates` when Nasdaq failed for some days (their rows are empty, not
+    known to be empty), or `None` if every day's request failed
+    (transport/HTTP error) so the caller can distinguish "Nasdaq is
+    unreachable" from "no earnings this week".
     """
     bounded_days = max(1, min(int(days), 14))
     bounded_limit = max(1, min(int(limit_per_day), 50))
@@ -175,14 +211,18 @@ async def get_earnings_calendar(
     )
 
     days_payload: list[dict] = []
+    failed_dates: list[str] = []
     any_success = False
     for result, day in zip(results, dates):
         if isinstance(result, BaseException):
+            failed_dates.append(day.isoformat())
             days_payload.append({"date": day.isoformat(), "count": 0, "rows": []})
             continue
 
         date_str, rows, failed = result
-        if not failed:
+        if failed:
+            failed_dates.append(date_str)
+        else:
             any_success = True
         days_payload.append(
             {"date": date_str, "count": len(rows), "rows": rows[:bounded_limit]}
@@ -197,6 +237,11 @@ async def get_earnings_calendar(
         "days": days_payload,
         "source": "nasdaq",
     }
+    if failed_dates:
+        # A failed day reads as "no earnings" otherwise; say it is unknown,
+        # and don't cache the gap.
+        payload["failed_dates"] = failed_dates
+        return payload
     _set_cached(cache_key, payload)
     return payload
 

@@ -51,6 +51,7 @@ Route-level sections:
   - Chart-focused sort controls: Latest / Charts first / Charts only
 
 - `/options`
+  - `OptionsFlowWidget`: market-wide unusual options flow from Signa over about the last trading day (`/api/signa/options-flow`): bias badge, scored bullish/bearish and $250K+ call/put premium, the symbols with the most bullish, bearish and call-buying premium (each opens `TickerDetailModal`), and the biggest scored trades with Signa's rationale. Hidden when `/api/integrations/status` reports no Signa key.
   - `OptionsOverviewWidget`
   - Nasdaq-based options activity summary (calls/puts totals, put-call ratio, most-active contracts)
   - `OptionsChainWidget`
@@ -135,6 +136,7 @@ Route-level sections:
     - click tweet author name/avatar,
     - type user name manually and apply.
   - Every ticker click above (financial card, cashtag, hashtag, `MentionHeatmap` tile) also opens `TickerDetailModal`, in addition to applying the sidebar ticker filter.
+  - `TickerDetailModal` includes `TickerResearchPanel` under the price chart: the weekly Weinstein stage with relative strength vs SPY and the sector ETF (`/api/research/trend-stage`), analyst activity (`/api/research/analysts`: up/downgrades and target moves over 90 days, buy share vs three months ago, EPS revisions, latest actions), and, after a "Load flow and dark pool" click (each lookup spends Signa's daily quota), the symbol's options flow and dark pool lean (`/api/signa/options-flow?symbol=`, `/api/signa/dark-pool`).
 
 - `MentionHeatmap` (route-scoped, outside `/`)
   - Source data: `/api/overview/mention-heat`, scoped by route `assetKind` and the sidebar user filter.

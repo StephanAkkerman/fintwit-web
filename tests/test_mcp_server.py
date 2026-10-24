@@ -320,9 +320,82 @@ def _bundle_handler(seen: list):
             if params["symbol"] == "MSFT":
                 return httpx.Response(404, json={"detail": "No valuation data"})
             return httpx.Response(200, json=VALUATION)
+        if path == "/api/research/trend-stage":
+            return httpx.Response(200, json=TREND_STAGE)
+        if path == "/api/research/analysts":
+            if params["symbol"] == "MSFT":
+                return httpx.Response(404, json={"detail": "No analyst data"})
+            return httpx.Response(200, json=ANALYSTS)
+        if path == "/api/signa/options-flow" and "symbol" not in params:
+            return httpx.Response(200, json=MARKET_FLOW)
         return httpx.Response(200, json={"path": path})
 
     return handler
+
+
+TREND_STAGE = {
+    "symbol": "AAPL",
+    "as_of": "2026-10-23",
+    "stage": {
+        "stage": 2,
+        "name": "advancing",
+        "weeks_in_stage": 29,
+        "previous_stage": 3,
+        "ma30w": 312.1,
+        "price_vs_ma30w_percent": 11.2,
+        "ma30w_slope_5w_percent": 5.0,
+    },
+    "vs_market": {
+        "mansfield": 12.5,
+        "mansfield_rising_4w": True,
+        "outperformance_13w_pp": 10.4,
+        "outperformance_26w_pp": 18.2,
+    },
+    "benchmark": "SPY",
+    "sector": {
+        "name": "Technology",
+        "etf": "XLK",
+        "stage": {"stage": 2, "name": "advancing"},
+        "vs_market": {"mansfield": 5.9},
+        "stock_vs_sector": {"mansfield": 5.8},
+    },
+}
+
+ANALYSTS = {
+    "symbol": "AAPL",
+    "rating_changes": {
+        "days": 90,
+        "upgrades": 2,
+        "downgrades": 0,
+        "initiations": 1,
+        "target_raises": 5,
+        "target_cuts": 1,
+        "recent_actions": [{"firm": f"F{i}"} for i in range(6)],
+    },
+    "recommendations": {"buy_percent": 75.0, "buy_percent_change_3m": 5.0},
+    "estimates": {
+        "direction": "rising",
+        "periods": {"0y": {"change_30d_percent": 2.1, "up_30d": 9, "down_30d": 1}},
+    },
+}
+
+MARKET_FLOW = {
+    "symbol": None,
+    "bias": "mixed",
+    "top_bullish": [{"symbol": "AAPL"}],
+    "top_large": [{"symbol": "AAPL"}],
+    "by_symbol": {
+        "AAPL": {
+            "bias": "bullish",
+            "scored_bullish_premium": 1_000_000,
+            "scored_bearish_premium": 0,
+            "call_premium": 2_000_000,
+            "put_premium": 0,
+            "top_scored": [{"strike": 300}],
+            "top_large": [{"strike": 300}],
+        }
+    },
+}
 
 
 PRICE_CONTEXT = {
@@ -418,6 +491,47 @@ async def test_holdings_check_joins_every_view_per_holding():
         "signals": ["rsi_overbought", "above_sma200", "strong_uptrend"],
     }
     assert msft["technicals"] is None
+    assert aapl["trend_stage"] == {
+        "stage": 2,
+        "stage_name": "advancing",
+        "weeks_in_stage": 29,
+        "previous_stage": 3,
+        "price_vs_ma30w_percent": 11.2,
+        "ma30w_slope_5w_percent": 5.0,
+        "rs_vs_market": 12.5,
+        "rs_vs_market_rising": True,
+        "outperformance_13w_pp": 10.4,
+        "sector_etf": "XLK",
+        "sector_stage": 2,
+        "sector_rs_vs_market": 5.9,
+        "rs_vs_sector": 5.8,
+    }
+    assert aapl["analyst_activity"] == {
+        "days": 90,
+        "upgrades": 2,
+        "downgrades": 0,
+        "target_raises": 5,
+        "target_cuts": 1,
+        "latest_actions": [{"firm": "F0"}, {"firm": "F1"}, {"firm": "F2"}],
+        "buy_percent": 75.0,
+        "buy_percent_change_3m": 5.0,
+        "eps_revisions": "rising",
+        "eps_this_year_change_30d_percent": 2.1,
+        "eps_this_year_up_30d": 9,
+        "eps_this_year_down_30d": 1,
+    }
+    assert "404" in msft["analyst_activity"]["error"]
+    # One market-wide flow request, sliced per holding.
+    assert [p for p, _ in seen].count("/api/signa/options-flow") == 1
+    assert aapl["options_flow"] == {
+        "bias": "bullish",
+        "scored_bullish_premium": 1_000_000,
+        "scored_bearish_premium": 0,
+        "call_premium": 2_000_000,
+        "put_premium": 0,
+        "top_scored": [{"strike": 300}],
+    }
+    assert msft["options_flow"]["bias"] is None
     # All holdings share one indicators request.
     assert [p for p, _ in seen].count("/api/research/indicators") == 1
     assert ("/api/research/indicators", {"symbols": "AAPL,MSFT"}) in seen
@@ -463,6 +577,10 @@ async def test_ticker_bundle():
         "/api/research/technicals",
         {"symbol": "AAPL", "asset_kind": "stock"},
     ) in seen
+    assert result["trend_stage"] == TREND_STAGE
+    assert result["analyst_activity"] == ANALYSTS
+    assert ("/api/signa/options-flow", {"symbol": "AAPL"}) in seen
+    assert ("/api/signa/dark-pool", {"symbol": "AAPL"}) in seen
 
 
 def _market_handler(seen: list):
@@ -499,6 +617,10 @@ def _market_handler(seen: list):
                     "most_bought": [{"ticker": "GOOGL"}],
                 },
             )
+        if path == "/api/signa/options-flow":
+            return httpx.Response(200, json=MARKET_FLOW)
+        if path == "/api/research/trend-stage":
+            return httpx.Response(200, json=TREND_STAGE)
         if path == "/api/advisor/calls" and request.method == "POST":
             return httpx.Response(201, json={"id": 7, **json.loads(request.content)})
         return httpx.Response(200, json={"path": path})
@@ -541,6 +663,13 @@ async def test_candidates_flags_held_watchlist_symbols():
         p == "/api/overview/hidden-gems" and q["asset_kind"] == "equity"
         for _, p, q, _ in seen
     )
+    # The market-wide ranking, without the per-symbol breakdown.
+    assert result["options_flow"] == {
+        "symbol": None,
+        "bias": "mixed",
+        "top_bullish": [{"symbol": "AAPL"}],
+    }
+    assert result["watchlist"][1]["trend_stage"]["stage"] == 2
 
 
 async def test_log_call_and_journal():

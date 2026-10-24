@@ -1,5 +1,6 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from app.services import news_service
@@ -8,6 +9,33 @@ from app.services.news_service import (
     get_company_news,
     summarize_news_sentiment,
 )
+
+
+@pytest.fixture(autouse=True)
+def _no_rss_fallback(monkeypatch):
+    """Keep tests off the network: the RSS fallback finds nothing unless a
+    test says otherwise."""
+    monkeypatch.setattr(news_service, "_fetch_rss", AsyncMock(return_value=[]))
+
+
+RSS = b"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel>
+  <item>
+    <title>Apple hits a record</title>
+    <link>https://www.fool.com/investing/apple-record/</link>
+    <description>Shares rose.</description>
+    <pubDate>Fri, 23 Oct 2026 15:08:19 +0000</pubDate>
+  </item>
+  <item>
+    <title>No date here</title>
+    <link>https://example.com/b</link>
+  </item>
+  <item>
+    <title>Second story</title>
+    <link>https://example.com/c</link>
+    <pubDate>Fri, 23 Oct 2026 10:00:00 -0400</pubDate>
+  </item>
+</channel></rss>"""
 
 
 def _news_item(title="AAPL rallies", url="https://example.com/a", source="Reuters"):
@@ -79,6 +107,65 @@ async def test_get_company_news_merges_multiple_symbols():
 
     assert len(result) == 2
     assert {article["symbols"][0] for article in result} == {"AAPL", "TSLA"}
+
+
+@pytest.mark.asyncio
+async def test_get_company_news_falls_back_to_rss_when_yfinance_fails(monkeypatch):
+    fallback = AsyncMock(return_value=[{"date": "2026-10-23T15:08:19Z"}])
+    monkeypatch.setattr(news_service, "_fetch_rss", fallback)
+    with patch("yfinance.Ticker", side_effect=RuntimeError("Invalid Crumb")):
+        result = await get_company_news(["aapl"], limit=3)
+
+    assert result == [{"date": "2026-10-23T15:08:19Z"}]
+    fallback.assert_awaited_once_with("AAPL", 3)
+
+
+def test_parse_rss_shapes_articles_like_yfinance():
+    articles = news_service._parse_rss(RSS, "AAPL", limit=10)
+
+    assert articles == [
+        {
+            "symbols": ["AAPL"],
+            "title": "Apple hits a record",
+            "excerpt": "Shares rose.",
+            "url": "https://www.fool.com/investing/apple-record/",
+            "date": "2026-10-23T15:08:19Z",
+            "source": "fool.com",
+        },
+        {
+            "symbols": ["AAPL"],
+            "title": "Second story",
+            "excerpt": None,
+            "url": "https://example.com/c",
+            "date": "2026-10-23T14:00:00Z",
+            "source": "example.com",
+        },
+    ]
+    assert len(news_service._parse_rss(RSS, "AAPL", limit=1)) == 1
+
+
+@pytest.mark.asyncio
+async def test_fetch_rss_reads_the_feed_and_survives_errors(monkeypatch):
+    monkeypatch.undo()
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(dict(request.url.params))
+        if request.url.params["s"] == "BAD":
+            return httpx.Response(500)
+        return httpx.Response(200, content=RSS)
+
+    transport = httpx.MockTransport(handler)
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(
+        news_service.httpx,
+        "AsyncClient",
+        lambda **kwargs: real_client(transport=transport, **kwargs),
+    )
+
+    assert len(await news_service._fetch_rss("AAPL", 5)) == 2
+    assert await news_service._fetch_rss("BAD", 5) == []
+    assert calls[0] == {"s": "AAPL", "region": "US", "lang": "en-US"}
 
 
 @pytest.mark.asyncio

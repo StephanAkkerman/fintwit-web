@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import os
 import re
@@ -500,6 +501,77 @@ class SignaClient:
         """
         params = {"limit": int(limit)}
         return await self._request("/api/signals/feed", params=params)
+
+    async def call_tool(
+        self, name: str, arguments: dict[str, Any] | None = None
+    ) -> dict[str, Any] | list[Any] | None:
+        """Call one tool of Signa's MCP server (``POST /api/mcp``, JSON-RPC).
+
+        Options flow and dark pool prints have no ``/api/v1`` REST route; the
+        MCP server is the only documented way in. Needs ``SIGNA_KEY``. Shares
+        the response cache and the local quota with the REST calls, and
+        returns the tool's JSON text decoded, or ``None`` on any failure.
+        """
+        if not self.api_key:
+            return None
+        arguments = arguments or {}
+        endpoint = f"mcp:{name}"
+        cached = await self._get_cached(endpoint, arguments)
+        if cached is not None:
+            return cached
+        if not await self._consume_rate_budget():
+            logger.warning("[signa] local rate limit reached tool=%s", name)
+            return None
+
+        body = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": name, "arguments": arguments},
+        }
+        headers = {
+            **self.headers,
+            "Accept": "application/json, text/event-stream",
+            "Content-Type": "application/json",
+        }
+        timeout = aiohttp.ClientTimeout(total=self.timeout_seconds)
+        try:
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(
+                    f"{self.base_url}/api/mcp", json=body, headers=headers
+                ) as response:
+                    response.raise_for_status()
+                    raw = await response.text()
+        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+            logger.warning("[signa] tool call failed tool=%s error=%r", name, exc)
+            return None
+
+        payload = _decode_tool_result(raw)
+        if payload is None:
+            logger.warning("[signa] unusable tool result tool=%s", name)
+            return None
+        await self._set_cache(endpoint, arguments, payload)
+        return payload
+
+
+def _decode_tool_result(raw: str) -> dict[str, Any] | list[Any] | None:
+    """The JSON a tool returned, from a JSON-RPC body sent as plain JSON or as
+    a single server-sent event."""
+    text = raw.strip()
+    if not text.startswith("{"):
+        data_lines = [
+            line[5:].strip() for line in text.splitlines() if line.startswith("data:")
+        ]
+        text = data_lines[-1] if data_lines else ""
+    try:
+        envelope = json.loads(text)
+        result = envelope["result"]
+        if result.get("isError"):
+            return None
+        content = json.loads(result["content"][0]["text"])
+    except (ValueError, KeyError, IndexError, TypeError, AttributeError):
+        return None
+    return content if isinstance(content, (dict, list)) else None
 
 
 _default_client = SignaClient()
