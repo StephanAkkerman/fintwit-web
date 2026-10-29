@@ -122,12 +122,58 @@ def normalize_screen_names(names: list[str]) -> list[str]:
     return seen[:MAX_FOLLOWED_TRADERS]
 
 
+#: The kinds of posts a market check can read, the dashboard's feeds.
+FEED_MARKETS = ("stocks", "options", "crypto", "forex")
+DEFAULT_FEED_MARKETS = ["stocks", "options"]
+
+_FOREX_INDICES = {"DXY", "EXY", "BXY", "JXY", "USDOLLAR"}
+
+
+def normalize_feed_markets(markets: Iterable[str]) -> list[str]:
+    """Known feed names, lower-cased, deduped, in ``FEED_MARKETS`` order."""
+    wanted = {str(m).strip().lower() for m in markets}
+    return [m for m in FEED_MARKETS if m in wanted]
+
+
+def ticker_market(symbol: str, kind: str | None) -> str:
+    """Which dashboard feed a ticker belongs to: crypto, forex or stocks.
+
+    Mirrors the frontend's split (``isCryptoKind`` / ``isForexKind``), so a
+    check reads the same posts as the /stocks, /crypto and /forex pages.
+    """
+    kind = (kind or "").upper()
+    if "CRYPTO" in kind:
+        return "crypto"
+    if kind == "FOREX":
+        return "forex"
+    if kind == "INDEX" and (
+        symbol in _FOREX_INDICES or symbol.startswith(("US", "EU"))
+    ):
+        return "forex"
+    if kind == "FUTURE" and (symbol.startswith("6") or symbol == "DX"):
+        return "forex"
+    return "stocks"
+
+
+def in_feed(symbol: str, kind: str | None, options_post: bool, markets) -> bool:
+    """Whether a ticker in a post is in one of the chosen ``markets``.
+
+    An options post counts under "options" as well as its ticker's market, so
+    "options" alone keeps options posts about stocks and nothing else.
+    """
+    market = ticker_market(symbol, kind)
+    if market in markets:
+        return True
+    return options_post and market == "stocks" and "options" in markets
+
+
 def group_ticker_posts(
     tweets: list[dict],
     held: set[str],
     followed: Iterable[str] = (),
     max_posts: int = 3,
     max_traders: int = 10,
+    markets: Iterable[str] | None = None,
 ) -> list[dict]:
     """Turn tweets into one buy-idea lead per ticker.
 
@@ -137,8 +183,11 @@ def group_ticker_posts(
     followed traders' first, then the most liked. ``held`` symbols are flagged
     rather than dropped, since chatter about a holding is still worth knowing.
     Leads a followed trader posted about come first, then the most mentioned.
+    ``markets`` limits the leads to those feeds (see ``in_feed``); None keeps
+    every ticker.
     """
     followed = {name.lower() for name in followed}
+    markets = None if markets is None else set(markets)
     leads: dict[str, dict] = {}
     candidates: dict[str, list[tuple[bool, int, dict]]] = {}
     for tweet in tweets:
@@ -149,6 +198,11 @@ def group_ticker_posts(
         for raw in tweet.get("tickers") or []:
             symbol = normalize_symbol(raw)
             if symbol is None:
+                continue
+            price, kind = price_from_assets(tweet.get("assets") or [], symbol)
+            if markets is not None and not in_feed(
+                symbol, kind, bool(tweet.get("is_options_tweet")), markets
+            ):
                 continue
             score = per_ticker.get(symbol, per_ticker.get(raw, tweet_score))
             lead = leads.setdefault(
@@ -176,7 +230,6 @@ def group_ticker_posts(
             if direction:
                 lead[direction] += 1
             if lead["price_at_post"] is None:
-                price, kind = price_from_assets(tweet.get("assets") or [], symbol)
                 lead["price_at_post"], lead["asset_kind"] = price, kind
             candidates.setdefault(symbol, []).append(
                 (

@@ -3,6 +3,7 @@ import { useAdvisor } from '../hooks/useAdvisor'
 import type {
   AdvisorAction,
   AdvisorCall,
+  AdvisorFeedMarket,
   AdvisorRun,
   AdvisorScoreBucket,
   AdvisorScorecard,
@@ -227,6 +228,13 @@ function formatHandles(handles: string[]): string {
   return handles.map((h) => `@${h}`).join(', ')
 }
 
+const FEED_MARKETS: { key: AdvisorFeedMarket; label: string }[] = [
+  { key: 'stocks', label: 'Stocks' },
+  { key: 'options', label: 'Options' },
+  { key: 'crypto', label: 'Crypto' },
+  { key: 'forex', label: 'Forex' },
+]
+
 function StrategyForm({
   strategy,
   onSave,
@@ -238,10 +246,12 @@ function StrategyForm({
     rules,
     watchlist,
     followed_traders: followed,
+    feed_markets: markets,
     available_cash: cash, cash_currency: currency, updated_at: updatedAt } = strategy
   const [draftRules, setDraftRules] = useState(rules)
   const [draftWatchlist, setDraftWatchlist] = useState(watchlist.join(', '))
   const [draftFollowed, setDraftFollowed] = useState(formatHandles(followed))
+  const [draftMarkets, setDraftMarkets] = useState(markets)
   const [draftCash, setDraftCash] = useState(cash == null ? '' : String(cash))
   const [draftCurrency, setDraftCurrency] = useState(currency ?? 'USD')
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
@@ -249,6 +259,7 @@ function StrategyForm({
   useEffect(() => setDraftRules(rules), [rules])
   useEffect(() => setDraftWatchlist(watchlist.join(', ')), [watchlist])
   useEffect(() => setDraftFollowed(formatHandles(followed)), [followed])
+  useEffect(() => setDraftMarkets(markets), [markets])
   useEffect(() => setDraftCash(cash == null ? '' : String(cash)), [cash])
   useEffect(() => setDraftCurrency(currency ?? 'USD'), [currency])
 
@@ -268,6 +279,7 @@ function StrategyForm({
         rules: draftRules,
         watchlist: symbols,
         followed_traders: splitList(draftFollowed).map((h) => h.replace(/^@/, '')),
+        feed_markets: FEED_MARKETS.map((m) => m.key).filter((key) => draftMarkets.includes(key)),
         available_cash: parsedCash,
         cash_currency: draftCurrency,
       })
@@ -320,6 +332,28 @@ function StrategyForm({
             if both look good.
           </span>
         </div>
+        <fieldset className="grid gap-1 text-xs font-medium text-zinc-500">
+          <legend>Posts Claude reads</legend>
+          <div className="flex flex-wrap gap-3 font-normal text-zinc-700 dark:text-zinc-300">
+            {FEED_MARKETS.map(({ key, label }) => (
+              <label key={key} className="flex items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  checked={draftMarkets.includes(key)}
+                  onChange={(ev) =>
+                    setDraftMarkets((prev) =>
+                      ev.target.checked ? [...prev, key] : prev.filter((m) => m !== key),
+                    )
+                  }
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+          <span className="font-normal">
+            Each check only turns posts from these feeds into ideas, the same split as the dashboard&apos;s pages.
+          </span>
+        </fieldset>
         <div className="grid gap-1 text-xs font-medium text-zinc-500">
           <label htmlFor="advisor-cash">Cash available to invest</label>
           <div className="flex gap-2">

@@ -1062,6 +1062,7 @@ class AdvisorRepo:
                 "rules": "",
                 "watchlist": [],
                 "followed_traders": [],
+                "feed_markets": ["stocks", "options"],
                 "available_cash": None,
                 "cash_currency": None,
                 "updated_at": None,
@@ -1070,6 +1071,11 @@ class AdvisorRepo:
             "rules": row.rules or "",
             "watchlist": list(row.watchlist or []),
             "followed_traders": list(row.followed_traders or []),
+            "feed_markets": list(
+                row.feed_markets
+                if row.feed_markets is not None
+                else ["stocks", "options"]
+            ),
             "available_cash": row.available_cash,
             "cash_currency": row.cash_currency,
             "updated_at": _iso_utc(row.updated_at),
@@ -1082,6 +1088,7 @@ class AdvisorRepo:
         available_cash: float | None = None,
         cash_currency: str | None = None,
         followed_traders: list[str] | None = None,
+        feed_markets: list[str] | None = None,
     ) -> dict:
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         async with self.Session() as s:
@@ -1094,6 +1101,8 @@ class AdvisorRepo:
                 row.watchlist = watchlist
                 if followed_traders is not None:
                     row.followed_traders = followed_traders
+                if feed_markets is not None:
+                    row.feed_markets = feed_markets
                 row.available_cash = available_cash
                 row.cash_currency = (
                     cash_currency if available_cash is not None else None

@@ -12,6 +12,7 @@ const EMPTY_STRATEGY: AdvisorStrategy = {
   rules: '',
   watchlist: [],
   followed_traders: [],
+  feed_markets: ['stocks', 'options'],
   available_cash: null,
   cash_currency: null,
   updated_at: null,
@@ -53,6 +54,7 @@ export function useAdvisor() {
         ...s,
         watchlist: Array.isArray(s?.watchlist) ? s.watchlist : [],
         followed_traders: Array.isArray(s?.followed_traders) ? s.followed_traders : [],
+        feed_markets: Array.isArray(s?.feed_markets) ? s.feed_markets : EMPTY_STRATEGY.feed_markets,
       })
       setCalls(Array.isArray(c) ? c : [])
       setRuns(Array.isArray(r) ? r : [])

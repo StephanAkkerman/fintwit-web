@@ -990,7 +990,9 @@ async def unseen_posts(limit: int = 40) -> str:
     hours on the very first one), grouped into one lead per ticker: mentions,
     who posted (``followed_traders`` are the owner's favourites; their leads
     come first), bullish and bearish counts, the price when first seen,
-    whether the owner holds it, and a few posts with links. ``track_records_7d``
+    whether the owner holds it, and a few posts with links. Only tickers in the
+    feeds the owner chose (``feed_markets``: stocks and options unless they
+    added crypto or forex) become leads. ``track_records_7d``
     has the hit rate of each poster with enough graded calls. Read it the way
     the owner would scroll the timeline. Keep the returned ``cursor`` and pass
     it to ``finish_check`` at the end, so the next check starts after it."""
@@ -1038,7 +1040,8 @@ async def finish_check(
 async def strategy() -> str:
     """The owner's trading rules (free text: position limits, take-profit and
     stop levels, sectors to avoid, risk appetite), watchlist, the traders
-    they follow (``followed_traders``), and the cash
+    they follow (``followed_traders``), the feeds checks read posts from
+    (``feed_markets``), and the cash
     they have available to invest (``available_cash``; null when not set), so
     buy ideas can be sized. Judge every
     suggestion against these rules and name the rule that triggered it. Only
