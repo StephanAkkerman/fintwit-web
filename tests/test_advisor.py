@@ -13,6 +13,7 @@ from app.services.advisor import (
     build_paper_portfolios,
     build_scorecard,
     group_ticker_posts,
+    normalize_feed_markets,
     normalize_screen_names,
     normalize_watchlist,
 )
@@ -144,11 +145,48 @@ def test_group_ticker_posts_puts_followed_traders_first():
     assert leads[1]["trader_count"] == 3
 
 
+def _assets(**kinds):
+    return [
+        {"symbol": s, "kind": k, "financials": {"price": 10.0}}
+        for s, k in kinds.items()
+    ]
+
+
+def test_group_ticker_posts_filters_by_feed():
+    tweets = [
+        _tweet(4, "a", ["BTC", "NVDA"], assets=_assets(BTC="crypto", NVDA="EQUITY")),
+        _tweet(3, "a", ["EURUSD"], assets=_assets(EURUSD="forex")),
+        _tweet(2, "a", ["DXY", "SPX"], assets=_assets(DXY="INDEX", SPX="INDEX")),
+        _tweet(1, "a", ["TSLA"], is_options_tweet=True),
+    ]
+
+    def symbols(markets):
+        leads = group_ticker_posts(tweets, held=set(), markets=markets)
+        return sorted(lead["symbol"] for lead in leads)
+
+    everything = ["BTC", "DXY", "EURUSD", "NVDA", "SPX", "TSLA"]
+    assert symbols(None) == everything
+    assert symbols(["stocks", "options"]) == ["NVDA", "SPX", "TSLA"]
+    # Options alone keeps only options posts about stocks.
+    assert symbols(["options"]) == ["TSLA"]
+    assert symbols(["crypto"]) == ["BTC"]
+    assert symbols(["forex"]) == ["DXY", "EURUSD"]
+    assert symbols([]) == []
+
+
+def test_normalize_feed_markets():
+    assert normalize_feed_markets(["Crypto", "stocks", "nfts", "stocks"]) == [
+        "stocks",
+        "crypto",
+    ]
+
+
 async def test_strategy_round_trip(advisor_repo):
     assert await advisor_repo.get_strategy() == {
         "rules": "",
         "watchlist": [],
         "followed_traders": [],
+        "feed_markets": ["stocks", "options"],
         "available_cash": None,
         "cash_currency": None,
         "updated_at": None,
@@ -174,6 +212,11 @@ async def test_strategy_round_trip(advisor_repo):
     assert again["cash_currency"] is None
     # Leaving followed_traders out keeps the stored list.
     assert again["followed_traders"] == ["shardib2"]
+    assert again["feed_markets"] == ["stocks", "options"]
+
+    crypto = await advisor_repo.set_strategy("Max 10%", [], feed_markets=["crypto"])
+    assert crypto["feed_markets"] == ["crypto"]
+    assert (await advisor_repo.set_strategy("x", []))["feed_markets"] == ["crypto"]
 
 
 async def test_grading_due_calls(advisor_repo):
@@ -270,6 +313,16 @@ async def test_api_strategy(api):
         "/api/advisor/strategy", json={"available_cash": -1}, headers=HEADERS
     )
     assert resp.status_code == 422
+
+    resp = await api.put(
+        "/api/advisor/strategy",
+        json={"feed_markets": ["Stocks", "crypto", "memes"]},
+        headers=HEADERS,
+    )
+    assert resp.json()["feed_markets"] == ["stocks", "crypto"]
+    # An older client's save keeps the choice.
+    resp = await api.put("/api/advisor/strategy", json={}, headers=HEADERS)
+    assert resp.json()["feed_markets"] == ["stocks", "crypto"]
 
 
 async def test_api_requires_the_key(api):
@@ -390,6 +443,8 @@ async def test_api_unseen_posts_and_runs(api, db_engine, monkeypatch):
             _tweet(100, "ShardiB2", ["GTLB"]),
             _tweet(101, "stranger", ["TSLA"]),
             _tweet(102, "stranger", []),  # read, but no lead
+            # Read too, but crypto is off by default.
+            _tweet(99, "stranger", ["BTC"], assets=_assets(BTC="CRYPTO")),
             _tweet(90, "stranger", ["AMD"], hours_ago=20),  # before the first run
         ]
     )
@@ -402,8 +457,9 @@ async def test_api_unseen_posts_and_runs(api, db_engine, monkeypatch):
     first = (await api.get("/api/advisor/unseen-posts", headers=HEADERS)).json()
     assert first["previous_cursor"] is None
     assert first["cursor"] == "102"
-    assert (first["posts"], first["posts_with_tickers"]) == (3, 2)
+    assert (first["posts"], first["posts_with_tickers"]) == (4, 3)
     assert [lead["symbol"] for lead in first["leads"]] == ["GTLB", "TSLA"]
+    assert first["feed_markets"] == ["stocks", "options"]
     assert [lead["held"] for lead in first["leads"]] == [False, True]
     assert first["truncated"] is False
 

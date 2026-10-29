@@ -31,6 +31,7 @@ function mockState(overrides: Partial<ReturnType<typeof useAdvisor>> = {}) {
       rules: 'No penny stocks',
       watchlist: ['NVDA', 'AMD'],
       followed_traders: ['shardib2'],
+      feed_markets: ['stocks', 'options'],
       available_cash: 2500,
       cash_currency: 'EUR',
       updated_at: null,
@@ -95,6 +96,7 @@ describe('AdvisorPanel', () => {
         rules: 'No penny stocks',
         watchlist: ['pltr', 'amd', 'msft'],
         followed_traders: ['shardib2'],
+        feed_markets: ['stocks', 'options'],
         available_cash: 2500,
         cash_currency: 'EUR',
       }),
@@ -130,6 +132,18 @@ describe('AdvisorPanel', () => {
     fireEvent.click(screen.getByText('Save strategy'))
     await waitFor(() =>
       expect(save).toHaveBeenCalledWith(expect.objectContaining({ followed_traders: ['ShardiB2', 'someone'] })),
+    )
+  })
+
+  it('lets the owner add crypto to the posts Claude reads', async () => {
+    const save = mockState()
+    render(<AdvisorPanel />)
+    expect((screen.getByLabelText('Crypto') as HTMLInputElement).checked).toBe(false)
+    fireEvent.click(screen.getByLabelText('Crypto'))
+    fireEvent.click(screen.getByLabelText('Options'))
+    fireEvent.click(screen.getByText('Save strategy'))
+    await waitFor(() =>
+      expect(save).toHaveBeenCalledWith(expect.objectContaining({ feed_markets: ['stocks', 'crypto'] })),
     )
   })
 

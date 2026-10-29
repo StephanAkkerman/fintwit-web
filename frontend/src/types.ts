@@ -1725,11 +1725,15 @@ export type XStreamStatus = {
 // Claude market check (/advisor): the owner's strategy and Claude's journal.
 export type AdvisorAction = "buy" | "add" | "trim" | "sell" | "watch";
 
+export type AdvisorFeedMarket = "stocks" | "options" | "crypto" | "forex";
+
 export interface AdvisorStrategy {
   rules: string;
   watchlist: string[];
   /** X handles whose ticker mentions Claude vets as buy ideas. */
   followed_traders: string[];
+  /** Which feeds market checks read posts from (stocks, options, crypto, forex). */
+  feed_markets: AdvisorFeedMarket[];
   /** Cash the owner is willing to invest; null when not set. */
   available_cash: number | null;
   cash_currency: string | null;
@@ -1738,7 +1742,7 @@ export interface AdvisorStrategy {
 
 export type AdvisorStrategyDraft = Pick<
   AdvisorStrategy,
-  "rules" | "watchlist" | "followed_traders" | "available_cash"
+  "rules" | "watchlist" | "followed_traders" | "feed_markets" | "available_cash"
 > & {
   cash_currency: string;
 };

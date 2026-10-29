@@ -23,6 +23,7 @@ from ..services.advisor import (
     build_paper_portfolios,
     build_scorecard,
     group_ticker_posts,
+    normalize_feed_markets,
     normalize_screen_names,
     normalize_strategy,
     normalize_symbol,
@@ -57,6 +58,9 @@ class StrategyIn(BaseModel):
     # None keeps the stored list, so an older client saving the form doesn't
     # wipe it.
     followed_traders: list[str] | None = Field(default=None, max_length=200)
+    # Which feeds the check reads (stocks, options, crypto, forex); None keeps
+    # the stored choice.
+    feed_markets: list[str] | None = Field(default=None, max_length=10)
     available_cash: float | None = Field(default=None, ge=0)
     cash_currency: str = Field(default="USD", pattern="^[A-Za-z]{3}$")
 
@@ -107,6 +111,9 @@ async def put_strategy(payload: StrategyIn):
         None
         if payload.followed_traders is None
         else normalize_screen_names(payload.followed_traders),
+        None
+        if payload.feed_markets is None
+        else normalize_feed_markets(payload.feed_markets),
     )
 
 
@@ -122,17 +129,26 @@ async def followed_mentions(
     """
     strategy = await _repo().get_strategy()
     traders = strategy["followed_traders"]
+    markets = strategy["feed_markets"]
     if not traders:
-        return {"traders": [], "since_hours": since_hours, "leads": []}
+        return {
+            "traders": [],
+            "feed_markets": markets,
+            "since_hours": since_hours,
+            "leads": [],
+        }
 
     tweets = await _repo().tweets_by_authors(traders, since_hours)
-    leads = group_ticker_posts(tweets, await _held_symbols(), traders)[:limit]
+    leads = group_ticker_posts(tweets, await _held_symbols(), traders, markets=markets)[
+        :limit
+    ]
     track_record = await _track_records(traders)
     return {
         "traders": [
             {"screen_name": name, "track_record_7d": track_record.get(name)}
             for name in traders
         ],
+        "feed_markets": markets,
         "since_hours": since_hours,
         "leads": leads,
     }
@@ -164,7 +180,9 @@ async def unseen_posts(
 
     The first check (no run recorded yet) reads the last ``first_run_hours``.
     Pass the returned ``cursor`` to ``POST /runs`` when the check is done, so
-    the next one starts after it.
+    the next one starts after it. Only tickers in the owner's chosen feeds
+    (``feed_markets``, stocks and options by default) become leads, but the
+    cursor moves past every post.
     """
     repo = _repo()
     previous = await repo.last_cursor()
@@ -172,7 +190,10 @@ async def unseen_posts(
     with_tickers = [t for t in tweets if t.get("tickers")]
     strategy = await repo.get_strategy()
     followed = strategy["followed_traders"]
-    leads = group_ticker_posts(with_tickers, await _held_symbols(), followed)[:limit]
+    markets = strategy["feed_markets"]
+    leads = group_ticker_posts(
+        with_tickers, await _held_symbols(), followed, markets=markets
+    )[:limit]
 
     authors = sorted({name.lower() for lead in leads for name in lead["traders"]})
     records = await _track_records(authors)
@@ -188,6 +209,7 @@ async def unseen_posts(
         # here were skipped.
         "truncated": len(tweets) >= MAX_UNSEEN_POSTS,
         "followed_traders": followed,
+        "feed_markets": markets,
         "track_records_7d": records,
         "tickers": len({lead["symbol"] for lead in leads}),
         "leads": leads,

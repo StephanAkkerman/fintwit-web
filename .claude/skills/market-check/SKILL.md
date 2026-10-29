@@ -39,8 +39,9 @@ Call these:
   by holdings_check. `options_flow` ranks the symbols with the most bullish
   (`top_bullish`, `top_call_buying`) and bearish premium over the last day.
 - `unseen_posts`: every post since the last check, one lead per ticker, the
-  followed traders' leads first. This is the timeline the owner would
-  otherwise scroll themselves, so read all of it; see "Reading the timeline"
+  followed traders' leads first, limited to the feeds the owner picked on
+  /advisor (`feed_markets`, stocks and options by default). This is the
+  timeline the owner would otherwise scroll themselves, so read all of it; see "Reading the timeline"
   below. Keep its `cursor` and `posts` for `finish_check`.
 - `ticker` for any symbol you are about to suggest, to check the full picture
   before you commit: valuation (P/E, analyst targets, short interest),
