@@ -48,7 +48,7 @@ function Story({ story, rank, onTickerClick }: StoryProps) {
           {story.sentiment_label && (
             <span
               className={`rounded-full px-1.5 py-px font-semibold ${sentimentBadgeClass(story.sentiment_label)}`}
-              title={story.sentiment_score != null ? `FinTwitBERT score ${fmtScore(story.sentiment_score)}` : undefined}
+              title={story.sentiment_score != null ? `FinTwitRoBERTa score ${fmtScore(story.sentiment_score)}` : undefined}
             >
               {emojiForLabel(story.sentiment_label)} {displayLabel(story.sentiment_label)}
             </span>

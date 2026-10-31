@@ -1,7 +1,9 @@
-"""Tweet sentiment classifier using StephanAkkerman/FinTwitBERT-sentiment.
+"""Tweet sentiment classifier using StephanAkkerman/FinTwitRoBERTa-sentiment.
 
-The model is loaded once and reused. Inference is executed in a worker thread so
-the async event loop remains responsive.
+The model's int8 ONNX export runs on onnxruntime (CPU), which keeps it small and
+fast enough for a Raspberry Pi and needs no torch. It is loaded once and reused.
+Inference is executed in a worker thread so the async event loop remains
+responsive.
 
 Scores are **signed by direction** — `+0.9` is confidently bullish, `-0.9`
 confidently bearish, `0.0` neutral — because that is what every consumer
@@ -11,7 +13,7 @@ The magnitude is the model's confidence, so `abs(score)` is how strongly it
 read the text either way.
 
 Long text is split into segments and classified per segment rather than in one
-truncated read, so a thesis that runs past 512 tokens is not judged on its
+truncated read, so a thesis that runs past the model's 128 tokens is not judged on its
 opening paragraph, and a tweet that is long one ticker and short another can
 say so per ticker instead of giving both the same label.
 """
@@ -19,6 +21,7 @@ say so per ticker instead of giving both the same label.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
 from typing import Iterable, Sequence
@@ -31,6 +34,12 @@ LABEL_TO_EMOJI = {
     "BULLISH": "🐂",
     "BEARISH": "🐻",
 }
+
+DEFAULT_MODEL = "StephanAkkerman/FinTwitRoBERTa-sentiment"
+#: Dynamic per-channel int8 export published alongside the fp32 weights.
+DEFAULT_ONNX_FILE = "onnx/model_int8.onnx"
+#: The sequence length the model was fine-tuned on.
+MAX_TOKENS = 128
 
 FALLBACK_ID_TO_LABEL = {
     0: "NEUTRAL",
@@ -169,41 +178,121 @@ def split_main_and_quoted_text(tweet: str) -> tuple[str | None, str | None]:
     return main_text, quoted_text
 
 
+class OnnxSentimentClassifier:
+    """FinTwitRoBERTa-sentiment's int8 ONNX export, run with onnxruntime.
+
+    Needs only ``onnxruntime``, ``tokenizers`` and ``huggingface_hub`` — no
+    torch — and is about 4x smaller and 5x faster on CPU than the fp32
+    PyTorch model, which is what makes it practical on a Raspberry Pi.
+
+    Called like a ``transformers`` text-classification pipeline: a list of
+    texts in, one ``{"label", "score"}`` dict per text out. ``score`` is the
+    calibrated probability of the predicted class. With
+    ``use_thresholds`` a bullish or bearish prediction below the model's
+    ``decision_thresholds`` (tuned for 0.9 precision) is reported as
+    ``NEUTRAL`` instead, as the model card recommends.
+    """
+
+    def __init__(
+        self,
+        model_name: str,
+        onnx_file: str,
+        cache_dir: str | None,
+        use_thresholds: bool = True,
+    ):
+        import onnxruntime as ort
+        from huggingface_hub import hf_hub_download
+        from tokenizers import Tokenizer
+
+        def fetch(filename: str) -> str:
+            return hf_hub_download(model_name, filename, cache_dir=cache_dir)
+
+        with open(fetch("config.json"), encoding="utf-8") as fh:
+            config = json.load(fh)
+
+        id2label = config.get("id2label") or {}
+        self._labels = [
+            str(id2label.get(str(i), FALLBACK_ID_TO_LABEL[i])).upper()
+            for i in range(len(FALLBACK_ID_TO_LABEL))
+        ]
+        self._temperature = float(config.get("calibration_temperature") or 1.0)
+        thresholds = config.get("decision_thresholds") or {}
+        self._thresholds = (
+            {str(k).upper(): float(v) for k, v in thresholds.items()}
+            if use_thresholds
+            else {}
+        )
+
+        self._tokenizer = Tokenizer.from_file(fetch("tokenizer.json"))
+        self._tokenizer.enable_padding(pad_id=int(config.get("pad_token_id", 1)))
+
+        options = ort.SessionOptions()
+        options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+        self._session = ort.InferenceSession(
+            fetch(onnx_file),
+            sess_options=options,
+            providers=["CPUExecutionProvider"],
+        )
+
+    def __call__(
+        self, texts: Sequence[str], max_length: int = MAX_TOKENS, **_: object
+    ) -> list[dict[str, str | float]]:
+        import numpy as np
+
+        if not texts:
+            return []
+
+        self._tokenizer.enable_truncation(max_length)
+        encodings = self._tokenizer.encode_batch(list(texts))
+        logits = self._session.run(
+            None,
+            {
+                "input_ids": np.array([e.ids for e in encodings], dtype=np.int64),
+                "attention_mask": np.array(
+                    [e.attention_mask for e in encodings], dtype=np.int64
+                ),
+            },
+        )[0]
+
+        logits = logits.astype(np.float64) / self._temperature
+        logits -= logits.max(axis=-1, keepdims=True)
+        probs = np.exp(logits)
+        probs /= probs.sum(axis=-1, keepdims=True)
+
+        results: list[dict[str, str | float]] = []
+        for row in probs:
+            index = int(row.argmax())
+            label = self._labels[index]
+            score = float(row[index])
+            if score < self._thresholds.get(label, 0.0):
+                label = "NEUTRAL"
+                score = float(row[self._labels.index("NEUTRAL")])
+            results.append({"label": label, "score": score})
+        return results
+
+
 class FinTwitSentiment:
     def __init__(
         self,
-        model_name: str = "StephanAkkerman/FinTwitBERT-sentiment",
+        model_name: str = DEFAULT_MODEL,
+        onnx_file: str = DEFAULT_ONNX_FILE,
         cache_dir: str = "models/",
+        use_thresholds: bool = True,
     ):
         self._model_name = model_name
+        self._onnx_file = onnx_file
         self._cache_dir = cache_dir
+        self._use_thresholds = use_thresholds
         self._pipeline = None
         self._load_lock = asyncio.Lock()
 
-    def _load_pipeline_sync(self):
-        from transformers import (
-            AutoModelForSequenceClassification,
-            AutoTokenizer,
-            pipeline,
-        )
-
-        model = AutoModelForSequenceClassification.from_pretrained(
+    def _load_pipeline_sync(self) -> OnnxSentimentClassifier:
+        return OnnxSentimentClassifier(
             self._model_name,
-            num_labels=3,
-            id2label=FALLBACK_ID_TO_LABEL,
-            label2id={v: k for k, v in FALLBACK_ID_TO_LABEL.items()},
-            cache_dir=self._cache_dir,
+            self._onnx_file,
+            self._cache_dir,
+            use_thresholds=self._use_thresholds,
         )
-        model.config.problem_type = "single_label_classification"
-        model.eval()
-
-        tokenizer = AutoTokenizer.from_pretrained(
-            self._model_name,
-            cache_dir=self._cache_dir,
-            use_fast=False,
-        )
-
-        return pipeline("text-classification", model=model, tokenizer=tokenizer)
 
     async def _ensure_pipeline(self) -> None:
         if self._pipeline is not None:
@@ -213,7 +302,9 @@ class FinTwitSentiment:
             if self._pipeline is not None:
                 return
 
-            logger.info("[sentiment] loading FinTwitBERT model...")
+            logger.info(
+                "[sentiment] loading %s (%s)...", self._model_name, self._onnx_file
+            )
             self._pipeline = await asyncio.to_thread(self._load_pipeline_sync)
             logger.info("[sentiment] model ready")
 
@@ -240,12 +331,12 @@ class FinTwitSentiment:
         if not segments:
             return []
 
-        # BERT supports up to 512 tokens; setting max_length avoids runtime
-        # warnings. Segmenting means the overflow is read rather than dropped.
+        # The model was trained on 128 tokens. Segments are sentence-sized,
+        # so truncation rarely bites, and the overflow of a long thesis is
+        # read in its own segment rather than dropped.
         results = self._pipeline(
             [preprocess_text(segment) for segment in segments],
-            truncation=True,
-            max_length=512,
+            max_length=MAX_TOKENS,
         )
         return [
             signed_score(

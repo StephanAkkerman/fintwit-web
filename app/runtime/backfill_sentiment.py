@@ -158,7 +158,7 @@ async def backfill_tweet_sentiment(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Backfill tweet sentiment fields using FinTwitBERT"
+        description="Backfill tweet sentiment fields using FinTwitRoBERTa"
     )
     parser.add_argument(
         "--db-url",

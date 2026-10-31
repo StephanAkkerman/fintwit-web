@@ -678,7 +678,7 @@ async def news_company(
     limit: int = Query(default=10, ge=1, le=50),
     _=Depends(api_key_dep),
 ):
-    """Recent headlines per symbol, each scored by FinTwitBERT (issue #180).
+    """Recent headlines per symbol, each scored by FinTwitRoBERTa (issue #180).
 
     ``sentiment`` summarises the whole batch so the widget can say which way
     the news is leaning without the reader opening every article.

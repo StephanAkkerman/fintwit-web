@@ -126,7 +126,7 @@ export function OverviewDashboard({ onTickerClick, userFilter = null, subscriber
             {SCOPE_LABEL[assetKind]} · trend summary
           </h2>
           <p className="mt-0.5 font-mono text-[10px] text-zinc-500">
-            sentiment from FinTwitBERT · {TREND_WINDOW_LABEL[trendWindow]} · compared with the {PREV_LABEL[trendWindow]}
+            sentiment from FinTwitRoBERTa · {TREND_WINDOW_LABEL[trendWindow]} · compared with the {PREV_LABEL[trendWindow]}
           </p>
         </div>
 

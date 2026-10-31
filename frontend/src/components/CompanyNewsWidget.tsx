@@ -158,7 +158,7 @@ export default function CompanyNewsWidget({ selectedTicker }: CompanyNewsWidgetP
                     {article.sentiment_label && article.sentiment_score != null && (
                       <span
                         className={`rounded-full px-1.5 py-px font-semibold ${sentimentBadgeClass(article.sentiment_label)}`}
-                        title={`FinTwitBERT score ${fmtScore(article.sentiment_score)}`}
+                        title={`FinTwitRoBERTa score ${fmtScore(article.sentiment_score)}`}
                       >
                         {emojiForLabel(article.sentiment_label)} {displayLabel(article.sentiment_label)}
                       </span>

@@ -12,7 +12,7 @@ The migration is ongoing and incremental. Many features still only exist in fint
 
 ## What fintwit-bot Does (Scope of Migration)
 
-- **Twitter/X:** Stream tweets, classify tickers, run sentiment (FinTwitBERT), detect chart images (chart-recognizer), post enriched embeds
+- **Twitter/X:** Stream tweets, classify tickers, run sentiment (FinTwitRoBERTa), detect chart images (chart-recognizer), post enriched embeds
 - **Crypto:** Price index, trending, gainers/losers, funding rates, liquidations, exchange listings, TradingView ideas
 - **Stocks:** Price index, earnings calendar, halts, StockTwits, TradingView ideas, gainers/losers
 - **Options:** Overview, volume, SPACs, short interest
@@ -68,7 +68,7 @@ reused across repos; do not re-add local `yahoo.py`/`coingecko.py` modules.
 integration, add it to `integration_status()` in `app/config.py` so it shows in the startup log.
 
 **ML Models (custom-trained):**
-- [`FinTwitBERT-sentiment`](https://huggingface.co/StephanAkkerman/FinTwitBERT-sentiment) — classifies financial tweet sentiment
+- [`FinTwitRoBERTa-sentiment`](https://huggingface.co/StephanAkkerman/FinTwitRoBERTa-sentiment) — classifies financial tweet sentiment; runs its int8 ONNX export (`onnx/model_int8.onnx`) on onnxruntime, no torch
 - [`chart-recognizer`](https://huggingface.co/StephanAkkerman/chart-recognizer) — detects if a tweet image is a financial chart
 - [`options-recognizer-gliner2-base`](https://huggingface.co/StephanAkkerman/options-recognizer-gliner2-base) — GLiNER2 NER adapter that extracts option contracts (ticker, strike, call/put, expiry, premium, price) and decides which tweets go to `/options`
 

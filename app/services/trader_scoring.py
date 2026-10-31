@@ -1,7 +1,7 @@
 """Trader credibility scoring.
 
 A "call" is a non-neutral-sentiment tweet mentioning a ticker — the tweet's
-sentiment (from FinTwitBERT) stands in for a buy/sell opinion, and the
+sentiment (from FinTwitRoBERTa) stands in for a buy/sell opinion, and the
 ticker's price at enrichment time (already computed for the tweet's
 ``assets`` payload) is the entry price. No separate signal-detection model
 is needed: both inputs already exist on every enriched tweet.
