@@ -26,7 +26,7 @@ enriched tweets, and live portfolio tracking. The migration is ongoing and incre
 ## Key Features 🔑
 
 - **Enriched tweet timeline** — streamed live from X/Twitter, classified by ticker, scored for
-  sentiment (FinTwitBERT), and flagged for chart images (chart-recognizer)
+  sentiment (FinTwitRoBERTa), and flagged for chart images (chart-recognizer)
 - **Crypto markets** — price index, trending coins, gainers/losers, funding rates, liquidations,
   exchange listings, TradingView ideas
 - **Stock markets** — price index, earnings calendar, halts, StockTwits, TradingView ideas,
@@ -42,8 +42,8 @@ enriched tweets, and live portfolio tracking. The migration is ongoing and incre
 Multiple custom-trained models power the enrichment pipeline. All are lightweight and load
 automatically when the backend starts:
 
-- [FinTwitBERT-sentiment](https://huggingface.co/StephanAkkerman/FinTwitBERT-sentiment) —
-  classifies the sentiment of financial tweets
+- [FinTwitRoBERTa-sentiment](https://huggingface.co/StephanAkkerman/FinTwitRoBERTa-sentiment) —
+  classifies the sentiment of financial tweets (int8 ONNX, run with onnxruntime)
 - [FinTwitBERT-wsb-sentiment](https://huggingface.co/StephanAkkerman/FinTwitBERT-wsb-sentiment) —
   classifies the sentiment of WallStreetBets posts
 - [chart-recognizer](https://huggingface.co/StephanAkkerman/chart-recognizer) — 

@@ -213,7 +213,7 @@ async def _classify_article(article: dict, model: SentimentModel) -> dict | None
 async def annotate_news_sentiment(
     articles: list[dict], model: SentimentModel | None
 ) -> list[dict]:
-    """Attach FinTwitBERT ``sentiment_label``/``sentiment_score`` to articles.
+    """Attach FinTwitRoBERTa ``sentiment_label``/``sentiment_score`` to articles.
 
     Headline and excerpt are classified together. Articles the model could not
     read (or every article, when no model is loaded) get ``None`` for both, so

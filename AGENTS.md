@@ -17,7 +17,7 @@ The application aggregates, analyzes, and streams financial data (Crypto, Stocks
 
 * **Backend:** Python, FastAPI, SQLAlchemy (async, SQLite/PostgreSQL), Pydantic, asyncio (for background tasks/SSE).
 * **Frontend:** React, TypeScript, TailwindCSS, Vite.
-* **Machine Learning:** PyTorch/HuggingFace (FinTwitBERT for sentiment analysis, timm for chart image classification).
+* **Machine Learning:** PyTorch/HuggingFace (FinTwitRoBERTa for sentiment analysis, as int8 ONNX on onnxruntime, timm for chart image classification).
 
 ---
 

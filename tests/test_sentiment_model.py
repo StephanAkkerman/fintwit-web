@@ -34,7 +34,7 @@ def test_split_main_and_quoted_text_without_quote_block():
 
 
 class _StubPipeline:
-    """Stands in for the FinTwitBERT pipeline with keyword rules.
+    """Stands in for the FinTwitRoBERTa pipeline with keyword rules.
 
     Lets the segmentation and attribution logic be exercised without loading
     half a gigabyte of BERT (or reaching the network) in the test suite.
@@ -201,3 +201,73 @@ class TestPerTickerAttribution:
     def test_cashtags_and_hashtags_both_match(self):
         assert attribute_segments(["$NVDA is printing"], ["NVDA"]) == {"NVDA": [0]}
         assert attribute_segments(["#NVDA is printing"], ["NVDA"]) == {"NVDA": [0]}
+
+
+class TestOnnxClassifier:
+    """Post-processing of the ONNX logits: calibration and decision thresholds."""
+
+    @staticmethod
+    def _classifier(logits, *, thresholds=None, temperature=1.0):
+        import numpy as np
+
+        from app.ml.sentiment import OnnxSentimentClassifier
+
+        class _Encoding:
+            ids = [0, 2]
+            attention_mask = [1, 1]
+
+        class _Tokenizer:
+            def enable_truncation(self, max_length):
+                self.max_length = max_length
+
+            def encode_batch(self, texts):
+                return [_Encoding() for _ in texts]
+
+        class _Session:
+            def __init__(self):
+                self.feeds = []
+
+            def run(self, _outputs, feed):
+                self.feeds.append(feed)
+                return [np.array(logits, dtype=np.float32)]
+
+        classifier = OnnxSentimentClassifier.__new__(OnnxSentimentClassifier)
+        classifier._labels = ["NEUTRAL", "BULLISH", "BEARISH"]
+        classifier._temperature = temperature
+        classifier._thresholds = thresholds or {}
+        classifier._tokenizer = _Tokenizer()
+        classifier._session = _Session()
+        return classifier
+
+    def test_argmax_label_with_softmax_confidence(self):
+        classifier = self._classifier([[0.0, 3.0, 0.0], [0.0, 0.0, 3.0]])
+
+        results = classifier(["up", "down"])
+
+        assert [r["label"] for r in results] == ["BULLISH", "BEARISH"]
+        assert results[0]["score"] == pytest.approx(0.9094, abs=1e-4)
+        feed = classifier._session.feeds[0]
+        assert feed["input_ids"].shape == (2, 2)
+        assert str(feed["attention_mask"].dtype) == "int64"
+
+    def test_temperature_softens_confidence(self):
+        sharp = self._classifier([[0.0, 3.0, 0.0]])(["x"])[0]["score"]
+        soft = self._classifier([[0.0, 3.0, 0.0]], temperature=2.0)(["x"])[0]["score"]
+        assert soft < sharp
+
+    def test_call_below_its_threshold_reads_as_neutral(self):
+        classifier = self._classifier(
+            [[0.0, 3.0, 0.0], [0.0, 0.0, 3.0]],
+            thresholds={"BULLISH": 0.95, "BEARISH": 0.5},
+        )
+
+        bull, bear = classifier(["weak bull", "bear"])
+
+        assert bull["label"] == "NEUTRAL"
+        assert signed_score(bull["label"], bull["score"]) == 0.0
+        assert bear["label"] == "BEARISH"
+
+    def test_empty_batch_skips_the_model(self):
+        classifier = self._classifier([[0.0, 0.0, 0.0]])
+        assert classifier([]) == []
+        assert classifier._session.feeds == []
