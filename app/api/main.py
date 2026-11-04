@@ -71,6 +71,9 @@ from ..runtime.portfolio_valuation import (
     value_holdings,
 )
 from ..config import integration_summary
+from ..runtime.backend_health import DEFAULT_INTERVAL as BACKEND_HEALTH_INTERVAL
+from ..runtime.backend_health import DEFAULT_PATH as BACKEND_HEALTH_PATH
+from ..runtime.backend_health import BackendHealth, run_heartbeat
 from ..runtime.streamer import STREAM_STATUS, run_stream
 from ..runtime.symbols import merge_symbols
 from ..runtime.trader_evaluator import (
@@ -177,6 +180,19 @@ logging.getLogger("httpcore").setLevel(logging.INFO)
 async def lifespan(app: FastAPI):
     startup_started = time.perf_counter()
     logger.info("[startup] initializing application")
+
+    # First, so a run that dies while loading its models is on record too.
+    backend_health = BackendHealth(
+        os.getenv("BACKEND_HEALTH_PATH", BACKEND_HEALTH_PATH)
+    )
+    backend_health.start()
+    app.state.backend_health = backend_health
+    heartbeat_task = asyncio.create_task(
+        run_heartbeat(
+            backend_health,
+            interval=int(os.getenv("BACKEND_HEALTH_INTERVAL", BACKEND_HEALTH_INTERVAL)),
+        )
+    )
 
     await init_db(ENGINE)
     app.state.API_KEY = os.getenv("API_KEY", "")
@@ -323,7 +339,13 @@ async def lifespan(app: FastAPI):
         logger.info("[startup] integrations: %s", integration_summary())
         yield
     finally:
+        # Before anything that can hang: Docker kills a slow shutdown, and that
+        # must not read as a crash on the next start.
+        backend_health.stop()
         logger.info("[shutdown] stopping background workers")
+        heartbeat_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await heartbeat_task
         task.cancel()
         with suppress(asyncio.CancelledError):
             await task
@@ -1432,6 +1454,15 @@ async def portfolio_insights(
 async def x_status(_=Depends(api_key_dep)):
     """Whether the X timeline stream is configured and authenticating."""
     return dict(STREAM_STATUS)
+
+
+@app.get("/api/backend/status")
+async def backend_status(request: Request, _=Depends(api_key_dep)):
+    """Uptime, unexpected restarts and peak memory of the backend itself."""
+    health: BackendHealth | None = getattr(request.app.state, "backend_health", None)
+    if health is None:
+        raise HTTPException(status_code=503, detail="Heartbeat is not running")
+    return health.snapshot()
 
 
 @app.get("/api/ibkr/status")

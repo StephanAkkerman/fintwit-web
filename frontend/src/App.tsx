@@ -74,6 +74,8 @@ import { useMentionFrequency } from './hooks/useMentionFrequency'
 import { useTraderCredibility } from './hooks/useTraderCredibility'
 import { usePortfolioTickers } from './hooks/usePortfolioTickers'
 import { useXStatus } from './hooks/useXStatus'
+import { useBackendStatus } from './hooks/useBackendStatus'
+import BackendStatusLine from './components/BackendStatusLine'
 import type { AssetKind, Tweet } from './types'
 import { hasChartSignal } from './utils/tweetSignals'
 
@@ -299,6 +301,7 @@ export default function App() {
     lastLoadedCount,
   } = useTweets('', 2000, 200, route === 'options', lookbackHours) // same-origin API (proxied in dev)
   const xStatus = useXStatus()
+  const backendStatus = useBackendStatus()
   const { status: ibkrStatus, positions: ibkrPositions, trades: ibkrTrades, account: ibkrAccount, loading: ibkrLoading, error: ibkrError, reload: reloadIbkr, relogin: reloginIbkr, reloginError: ibkrReloginError } = useIbkr()
   const { signa: signaConfigured, reddit: redditConfigured } = useIntegrationsStatus()
   const [tickerFilter, setTickerFilter] = useState<string | null>(null)
@@ -757,6 +760,7 @@ export default function App() {
                 <h1 className="text-2xl font-bold">fintwit-web</h1>
               </div>
               <p className="text-sm text-zinc-500">{activeSection.subtitle}</p>
+              <BackendStatusLine status={backendStatus} />
             </header>
 
             {route !== 'admin' && route !== 'advisor' && route !== 'signa' && route !== 'reddit' && route !== 'home' && route !== 'traders' && route !== 'movers' && route !== 'news' && route !== 'portfolio' && (

@@ -20,6 +20,7 @@ Last updated: 2026-10-23 (market-check data: trend stage, analyst activity, opti
 - FastAPI app lifecycle with DB init and background tweet stream worker.
 - API key dependency (`X-API-Key`) on all `/api/*` endpoints when `API_KEY` env var is set.
 - Tweet ingestion and persistence from X timeline (`xclient`) with idempotent upsert.
+- Backend heartbeat: `app/runtime/backend_health.py` records each run in `state/backend_health.json`, so a run killed without warning (SIGKILL leaves no log line) is logged by the next start and shown in the dashboard header as unexpected restarts, with peak memory.
 - Stream watchdog: each post gets `X_STREAM_TWEET_TIMEOUT` seconds (default 120) to get through enrichment/ML; a post that hangs is skipped and the log names the step it hung in (`chart detection`, `image OCR`, `sentiment`, ...). When nothing has been polled or processed for `X_STREAM_STALL_AFTER` seconds, `/api/x/status` reports `stalled` and the timeline shows a notice instead of silently going quiet while saying `ok`.
 - Symbol extraction fallback from tweet text (`$TICKER`, `#HASHTAG`) and symbol merge logic.
 - Asset enrichment via `ticker-classifier` + Yahoo (equities) + CoinGecko (crypto).

@@ -21,6 +21,8 @@ On startup the backend logs one line showing which integrations are active, e.g.
 | `X_CURL_PATH` | `curl.txt` (Docker: `state/curl.txt`) | Legacy auth: a captured `HomeLatestTimeline` cURL, used when the two cookies are unset. |
 | `X_STREAM_TWEET_TIMEOUT` | `120` | Seconds one post may spend in enrichment and the ML models before it is skipped, with the stuck step logged, so one hung download can't freeze the timeline. |
 | `X_STREAM_STALL_AFTER` | `300` | Seconds without a timeline poll or finished post before `/api/x/status` reports `stalled` (its `detail` names the stuck step) and the timeline shows a notice. |
+| `BACKEND_HEALTH_PATH` | `state/backend_health.json` | Heartbeat file that lets a killed backend leave a trace: the next start logs a warning, and the dashboard header counts the unexpected restart. Keep it on a volume that outlives the container. |
+| `BACKEND_HEALTH_INTERVAL` | `60` | Seconds between heartbeats. |
 | `XTIMELINE_LAST_ID_PATH` | `state/last_id.txt` | Where the newest seen tweet id is kept between restarts. |
 | `XCLIENT_DEBUG_HTTP` | off | `1` logs every timeline request, with secrets masked. |
 

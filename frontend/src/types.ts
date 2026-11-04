@@ -1716,6 +1716,13 @@ export type XStreamState =
   | "error"
   | "stalled";
 
+export interface BackendStatus {
+  started_at: string | null;
+  unexpected_restarts_24h: number;
+  last_unexpected_restart: string | null;
+  peak_memory_mb: number | null;
+}
+
 export type XStreamStatus = {
   state: XStreamState;
   source: "cookies" | "curl" | null;

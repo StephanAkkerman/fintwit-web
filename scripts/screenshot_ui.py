@@ -4519,6 +4519,20 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             },
         }
 
+    if scenario == "backend-restarting":
+        # The kernel keeps killing the backend for memory: the header line
+        # turns amber, which nothing else on the page would reveal.
+        healthy = fixtures_for("loaded")
+        return {
+            **healthy,
+            "/api/backend/status": {
+                "started_at": "2026-01-01T16:23:08Z",
+                "unexpected_restarts_24h": 4,
+                "last_unexpected_restart": "2026-01-01T16:22:06Z",
+                "peak_memory_mb": 6758.0,
+            },
+        }
+
     if scenario == "empty":
         return {
             "/api/portfolio/history": _empty_history(),
@@ -4588,6 +4602,12 @@ def fixtures_for(scenario: str) -> dict[str, object]:
                 "last_sync": None,
                 "last_error": None,
             },
+            "/api/backend/status": {
+                "started_at": "2026-01-01T00:00:00Z",
+                "unexpected_restarts_24h": 0,
+                "last_unexpected_restart": None,
+                "peak_memory_mb": None,
+            },
             # A first-time visitor has no X session configured yet, so the
             # timeline shows the "X timeline not connected" notice.
             "/api/x/status": {
@@ -4636,6 +4656,12 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         "/api/ibkr/account": {},
         "/api/fx/rates": _fx_rates(),
         "/api/x/status": {"state": "ok", "source": "cookies", "detail": None},
+        "/api/backend/status": {
+            "started_at": "2026-01-01T00:00:00Z",
+            "unexpected_restarts_24h": 0,
+            "last_unexpected_restart": None,
+            "peak_memory_mb": 2150.0,
+        },
         "/api/ibkr/status": {
             "configured": True,
             "connected": True,
@@ -4910,7 +4936,14 @@ def fixtures_for(scenario: str) -> dict[str, object]:
 
 # `loading` never answers /api/**, so every widget and the timeline stay on
 # their loading state: what a visitor sees while the backend is still busy.
-SCENARIOS = ("loaded", "empty", "broken", "loading", "ibkr-logged-out")
+SCENARIOS = (
+    "loaded",
+    "empty",
+    "broken",
+    "loading",
+    "ibkr-logged-out",
+    "backend-restarting",
+)
 
 
 # ---------------------------------------------------------------------------
