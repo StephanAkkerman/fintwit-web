@@ -22,6 +22,8 @@ const HISTORY: PortfolioHistory = {
     {
       t: '2026-01-02',
       value: 1000,
+      stock_value: 1000,
+      trade_proceeds: 0,
       cost_basis: 900,
       pnl: 100,
       pnl_percent: 11.11,
@@ -30,6 +32,8 @@ const HISTORY: PortfolioHistory = {
     {
       t: '2026-01-03',
       value: 1250,
+      stock_value: 1250,
+      trade_proceeds: 0,
       cost_basis: 900,
       pnl: 350,
       pnl_percent: 38.89,
@@ -37,6 +41,7 @@ const HISTORY: PortfolioHistory = {
     },
   ],
   cost_basis: 900,
+  trade_proceeds: 0,
   start_value: 1000,
   end_value: 1250,
   change: 250,
@@ -63,6 +68,30 @@ beforeEach(() => {
 })
 
 describe('PortfolioValueChart', () => {
+  it('splits the value into stocks and trade cash once there are trades', () => {
+    mockState({
+      history: {
+        ...HISTORY,
+        trade_proceeds: 400,
+        totals: {
+          positions: 2,
+          market_value: 850,
+          cost_basis: 800,
+          unrealized_pnl: 50,
+          unrealized_pnl_percent: 6.25,
+        },
+      },
+    })
+    render(<PortfolioValueChart />)
+    expect(screen.getByText(/net cash from trades/).textContent).toMatch(/850.*400/)
+  })
+
+  it('leaves out the split for a portfolio without trades', () => {
+    mockState()
+    render(<PortfolioValueChart />)
+    expect(screen.queryByText(/net cash from trades/)).toBeNull()
+  })
+
   it('shows a skeleton while loading', () => {
     mockState({ history: null, loading: true })
     render(<PortfolioValueChart />)

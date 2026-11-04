@@ -895,7 +895,13 @@ export type PortfolioHistoryRange =
 
 export type PortfolioHistoryPoint = {
   t: string;
+  /** `stock_value` + `trade_proceeds`, so buying or selling leaves it flat. */
   value: number;
+  /** Market value of the positions held at this point. */
+  stock_value: number;
+  /** Net cash from trades since the first snapshot: sales minus buys. */
+  trade_proceeds: number;
+  /** Capital at the first snapshot, so `pnl` includes realised gains. */
   cost_basis: number;
   pnl: number;
   pnl_percent: number;
@@ -911,6 +917,8 @@ export type PortfolioHistory = {
   totals?: PortfolioTotals;
   points: PortfolioHistoryPoint[];
   cost_basis: number;
+  /** Net cash from trades as of now. */
+  trade_proceeds: number;
   start_value: number | null;
   end_value: number | null;
   change: number | null;

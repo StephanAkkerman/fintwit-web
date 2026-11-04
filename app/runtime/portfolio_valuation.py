@@ -292,6 +292,86 @@ def _forward_filled(series: list[dict], timeline: list[str]) -> dict[str, float]
     return filled
 
 
+def _is_split(old: dict | None, new: dict | None) -> bool:
+    """Whether a quantity change is a stock split rather than a trade.
+
+    A split multiplies the share count while the position's value barely moves.
+    Selling or buying that much cannot leave the value unchanged, so a position
+    that changed size by 40%+ at (nearly) the same value was split.
+    """
+    if old is None or new is None or not old["market_value"]:
+        return False
+    size_ratio = new["quantity"] / old["quantity"]
+    value_ratio = new["market_value"] / old["market_value"]
+    return not 0.7 < size_ratio < 1.4 and 0.9 < value_ratio < 1.1
+
+
+def _net_trade_proceeds(previous: list[dict], current: list[dict]) -> float:
+    """Cash that moved out of the positions between two snapshots.
+
+    Compares quantities rather than reading ``ibkr_trades``: that log only holds
+    executions seen while the gateway was up, so it misses trades, while a
+    quantity change always shows. Sales are positive, buys negative. Each is
+    priced at the snapshot it first shows in, which cancels the change in stock
+    value exactly so a trade leaves the total flat.
+
+    :param previous: Earlier snapshot's ``breakdown``.
+    :param current: Later snapshot's ``breakdown``.
+    :return: Net proceeds, in the portfolio's currency.
+    """
+    before = {position["symbol"]: position for position in previous}
+    after = {position["symbol"]: position for position in current}
+    proceeds = 0.0
+
+    for symbol in before.keys() | after.keys():
+        old, new = before.get(symbol), after.get(symbol)
+        sold = (old["quantity"] if old else 0.0) - (new["quantity"] if new else 0.0)
+        if abs(sold) < 1e-9 or _is_split(old, new):
+            continue
+        priced = new or old
+        proceeds += sold * priced["market_value"] / priced["quantity"]
+
+    return proceeds
+
+
+def _with_trade_proceeds(snapshots: list[dict]) -> list[dict]:
+    """Attach each snapshot's running net trade proceeds, oldest first.
+
+    Snapshots without a ``breakdown`` cannot be compared and carry the running
+    total forward.
+    """
+    running = 0.0
+    previous: list[dict] | None = None
+    ledger: list[dict] = []
+
+    for snapshot in snapshots:
+        breakdown = snapshot.get("breakdown")
+        if breakdown is not None:
+            if previous is not None:
+                running += _net_trade_proceeds(previous, breakdown)
+            previous = breakdown
+        ledger.append({**snapshot, "trade_proceeds": running})
+
+    return ledger
+
+
+def _history_point(
+    stamp: str, stock_value: float, trade_proceeds: float, capital: float, source: str
+) -> dict:
+    """One chart point, valuing the portfolio as stocks plus trade proceeds."""
+    value = stock_value + trade_proceeds
+    return {
+        "t": stamp,
+        "value": value,
+        "stock_value": stock_value,
+        "trade_proceeds": trade_proceeds,
+        "cost_basis": capital,
+        "pnl": value - capital,
+        "pnl_percent": (value - capital) / capital * 100 if capital else 0.0,
+        "source": source,
+    }
+
+
 def _snapshot_overrides(snapshots: list[dict]) -> dict[str, dict]:
     """Index snapshots by calendar day, keeping the last one of each day."""
     by_day: dict[str, dict] = {}
@@ -308,6 +388,7 @@ async def build_value_history(
     range_key: str = DEFAULT_RANGE,
     snapshots: list[dict] | None = None,
     live_totals: dict | None = None,
+    live_positions: list[dict] | None = None,
 ) -> dict:
     """Build the portfolio value series for a range.
 
@@ -316,10 +397,19 @@ async def build_value_history(
     snapshot reflects the portfolio as it actually stood, the reconstruction
     only covers the period before snapshots existed.
 
+    Each point's ``value`` is stock value plus the net proceeds of every trade
+    since the first snapshot, so selling or buying moves money between the two
+    instead of moving the line: only price changes do. ``stock_value`` keeps the
+    holdings-only figure. Likewise ``cost_basis`` stays at the first snapshot's,
+    so ``pnl`` includes gains realised by selling.
+
     :param holdings: Rows from :func:`aggregate_holdings`.
     :param range_key: Key from ``price_history_service.RANGE_PRESETS``.
-    :param snapshots: Stored snapshots overlapping the range.
+    :param snapshots: Every stored snapshot, oldest first. Earlier ones count
+        too: leaving them out would change the proceeds with the chart's range.
     :param live_totals: Current totals, appended as the final point.
+    :param live_positions: Current positions, so a trade made since the last
+        snapshot does not dip the live point.
     :return: Series payload with points and start/end change metrics.
     """
     range_key = normalize_range(range_key)
@@ -329,6 +419,7 @@ async def build_value_history(
         "range": range_key,
         "points": [],
         "cost_basis": cost_basis,
+        "trade_proceeds": 0.0,
         "start_value": None,
         "end_value": None,
         "change": None,
@@ -363,49 +454,60 @@ async def build_value_history(
         (holding, _forward_filled(series, timeline)) for holding, series in priced
     ]
 
+    ledger = _with_trade_proceeds([*(snapshots or []), {"breakdown": live_positions}])
+    trade_proceeds = ledger[-1]["trade_proceeds"]
+    capital = snapshots[0]["cost_basis"] if snapshots else cost_basis
+
     # Snapshots are indexed by day, so they can only stand in for daily bars.
     # On an intraday timeline every bar of a day would collapse onto the same
     # snapshot value and flatten the curve, so the reconstruction is kept.
     is_daily = len(timeline[0]) == 10
-    overrides = _snapshot_overrides(snapshots or []) if is_daily else {}
+    overrides = _snapshot_overrides(ledger) if is_daily else {}
     points: list[dict] = []
+    reconstructed: list[float] = []
 
     for stamp in timeline:
-        value = sum(holding["quantity"] * closes[stamp] for holding, closes in filled)
+        rebuilt = sum(holding["quantity"] * closes[stamp] for holding, closes in filled)
+        reconstructed.append(rebuilt)
         snapshot = overrides.get(stamp[:10])
         if snapshot is not None:
-            value = snapshot["market_value"]
-            point_cost = snapshot["cost_basis"]
-            origin = "snapshot"
+            point = _history_point(
+                stamp,
+                snapshot["market_value"],
+                snapshot["trade_proceeds"],
+                capital,
+                "snapshot",
+            )
         else:
-            point_cost = cost_basis
-            origin = "reconstructed"
+            point = _history_point(
+                stamp, rebuilt, trade_proceeds, capital, "reconstructed"
+            )
+        points.append(point)
 
-        points.append(
-            {
-                "t": stamp,
-                "value": value,
-                "cost_basis": point_cost,
-                "pnl": value - point_cost,
-                "pnl_percent": (
-                    (value - point_cost) / point_cost * 100 if point_cost else 0.0
-                ),
-                "source": origin,
-            }
-        )
+    # The reconstruction assumes today's quantities, so it sits at a different
+    # level from the first real snapshot. Scale it to meet that snapshot, which
+    # keeps its returns while removing a jump no market move caused.
+    first = next((i for i, p in enumerate(points) if p["source"] == "snapshot"), 0)
+    if first and reconstructed[first]:
+        scale = points[first]["value"] / reconstructed[first]
+        for index in range(first):
+            points[index] = _history_point(
+                points[index]["t"],
+                reconstructed[index] * scale,
+                0.0,
+                capital,
+                "reconstructed",
+            )
 
     if live_totals and points:
         now = datetime.now(timezone.utc)
-        live_point = {
-            "t": now.date().isoformat()
-            if len(points[-1]["t"]) == 10
-            else now.isoformat(),
-            "value": live_totals["market_value"],
-            "cost_basis": live_totals["cost_basis"],
-            "pnl": live_totals["unrealized_pnl"],
-            "pnl_percent": live_totals["unrealized_pnl_percent"],
-            "source": "live",
-        }
+        live_point = _history_point(
+            now.date().isoformat() if len(points[-1]["t"]) == 10 else now.isoformat(),
+            live_totals["market_value"],
+            trade_proceeds,
+            capital,
+            "live",
+        )
         if points[-1]["t"][:10] == live_point["t"][:10]:
             points[-1] = live_point
         else:
@@ -418,7 +520,8 @@ async def build_value_history(
     return {
         "range": range_key,
         "points": points,
-        "cost_basis": cost_basis,
+        "cost_basis": capital,
+        "trade_proceeds": trade_proceeds,
         "start_value": start_value,
         "end_value": end_value,
         "change": change,

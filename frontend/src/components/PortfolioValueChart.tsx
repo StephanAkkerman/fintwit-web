@@ -75,6 +75,12 @@ function ChartTooltip({
       <div className="mt-1 font-mono text-sm text-zinc-900 dark:text-zinc-100">
         {moneyExact(point.value)}
       </div>
+      {point.trade_proceeds !== 0 && (
+        <div className="font-mono text-zinc-500">
+          {moneyExact(point.stock_value)} stocks + {moneyExact(point.trade_proceeds)} from
+          trades
+        </div>
+      )}
       <div
         className={
           point.pnl >= 0
@@ -144,6 +150,12 @@ export default function PortfolioValueChart() {
               <span className="font-normal text-zinc-500">over {range}</span>
             </span>
           </div>
+          {history?.trade_proceeds ? (
+            <p className="mt-1 text-xs text-zinc-500">
+              {moneyExact(history.totals?.market_value)} in stocks +{' '}
+              {moneyExact(history.trade_proceeds)} net cash from trades
+            </p>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -223,7 +235,7 @@ export default function PortfolioValueChart() {
                     className="text-zinc-400"
                     strokeDasharray="4 4"
                     label={{
-                      value: `Cost basis ${money(history.cost_basis)}`,
+                      value: `Invested ${money(history.cost_basis)}`,
                       position: 'insideTopLeft',
                       fontSize: 10,
                       fill: 'currentColor',
@@ -259,7 +271,7 @@ export default function PortfolioValueChart() {
               </div>
             </div>
             <div>
-              <div className="text-zinc-500">Cost basis</div>
+              <div className="text-zinc-500">Invested</div>
               <div className="font-mono text-zinc-800 dark:text-zinc-200">
                 {moneyExact(history?.cost_basis)}
               </div>

@@ -434,3 +434,184 @@ async def test_build_value_history_keeps_reconstruction_on_intraday_timelines(
         "reconstructed",
     ]
     assert [p["value"] for p in history["points"]] == [100.0, 110.0]
+
+
+def _flat_series(*stamps: str, close: float = 10.0):
+    async def fake_series(symbol, range_key):
+        return [{"t": stamp, "close": close} for stamp in stamps]
+
+    return fake_series
+
+
+def _snapshot(day: str, cost_basis: float, **positions: tuple[float, float]) -> dict:
+    """Snapshot at ``day`` holding ``SYMBOL=(quantity, price)`` positions."""
+    breakdown = [
+        {
+            "symbol": symbol,
+            "quantity": quantity,
+            "market_price": price,
+            "market_value": quantity * price,
+        }
+        for symbol, (quantity, price) in positions.items()
+    ]
+    return {
+        "captured_at": f"{day}T21:00:00+00:00",
+        "market_value": sum(p["market_value"] for p in breakdown),
+        "cost_basis": cost_basis,
+        "breakdown": breakdown,
+    }
+
+
+_HELD = [{"symbol": "AAA", "quantity": 10, "avg_cost": 5.0, "cost_basis": 50.0}]
+
+
+async def test_selling_a_position_does_not_dip_the_value_line(monkeypatch):
+    days = ("2026-01-02", "2026-01-03")
+    monkeypatch.setattr(pv, "get_price_series", _flat_series(*days))
+
+    history = await pv.build_value_history(
+        _HELD,
+        "1M",
+        snapshots=[
+            _snapshot(days[0], 150.0, AAA=(10, 10.0), BBB=(5, 20.0)),
+            _snapshot(days[1], 50.0, AAA=(10, 10.0)),
+        ],
+    )
+
+    before, after = history["points"]
+    assert after["value"] == before["value"] == pytest.approx(200.0)
+    assert after["stock_value"] == pytest.approx(100.0)
+    assert after["trade_proceeds"] == pytest.approx(100.0)
+    assert history["trade_proceeds"] == pytest.approx(100.0)
+    assert history["change"] == pytest.approx(0.0)
+
+
+async def test_buying_a_position_does_not_spike_the_value_line(monkeypatch):
+    days = ("2026-01-02", "2026-01-03")
+    monkeypatch.setattr(pv, "get_price_series", _flat_series(*days))
+
+    history = await pv.build_value_history(
+        _HELD,
+        "1M",
+        snapshots=[
+            _snapshot(days[0], 50.0, AAA=(10, 10.0)),
+            _snapshot(days[1], 150.0, AAA=(10, 10.0), BBB=(5, 20.0)),
+        ],
+    )
+
+    assert [p["value"] for p in history["points"]] == pytest.approx([100.0, 100.0])
+
+
+async def test_partial_sale_keeps_price_moves_visible(monkeypatch):
+    days = ("2026-01-02", "2026-01-03", "2026-01-04")
+    monkeypatch.setattr(pv, "get_price_series", _flat_series(*days))
+
+    history = await pv.build_value_history(
+        _HELD,
+        "1M",
+        snapshots=[
+            _snapshot(days[0], 100.0, AAA=(10, 10.0)),
+            _snapshot(days[1], 50.0, AAA=(5, 10.0)),
+            _snapshot(days[2], 50.0, AAA=(5, 12.0)),
+        ],
+    )
+
+    # Only the 5 shares still held earn the 2.00 move.
+    assert [p["value"] for p in history["points"]] == pytest.approx(
+        [100.0, 100.0, 110.0]
+    )
+
+
+async def test_realised_gains_stay_in_pnl_after_a_sale(monkeypatch):
+    days = ("2026-01-02", "2026-01-03")
+    monkeypatch.setattr(pv, "get_price_series", _flat_series(*days))
+
+    history = await pv.build_value_history(
+        _HELD,
+        "1M",
+        snapshots=[
+            _snapshot(days[0], 100.0, AAA=(10, 15.0)),
+            _snapshot(days[1], 50.0, AAA=(5, 15.0)),
+        ],
+    )
+
+    assert history["cost_basis"] == pytest.approx(100.0)
+    assert [p["pnl"] for p in history["points"]] == pytest.approx([50.0, 50.0])
+
+
+async def test_stock_split_is_not_treated_as_a_trade(monkeypatch):
+    days = ("2026-01-02", "2026-01-03")
+    monkeypatch.setattr(pv, "get_price_series", _flat_series(*days))
+
+    history = await pv.build_value_history(
+        _HELD,
+        "1M",
+        snapshots=[
+            _snapshot(days[0], 100.0, AAA=(10, 20.0)),
+            _snapshot(days[1], 100.0, AAA=(20, 10.1)),
+        ],
+    )
+
+    assert history["trade_proceeds"] == pytest.approx(0.0)
+    assert history["points"][-1]["value"] == pytest.approx(202.0)
+
+
+async def test_sale_since_the_last_snapshot_does_not_dip_the_live_point(monkeypatch):
+    monkeypatch.setattr(pv, "get_price_series", _flat_series("2020-01-02"))
+
+    history = await pv.build_value_history(
+        _HELD,
+        "1M",
+        snapshots=[_snapshot("2020-01-02", 150.0, AAA=(10, 10.0), BBB=(5, 20.0))],
+        live_totals={
+            "market_value": 100.0,
+            "cost_basis": 50.0,
+            "unrealized_pnl": 50.0,
+            "unrealized_pnl_percent": 100.0,
+        },
+        live_positions=[{"symbol": "AAA", "quantity": 10, "market_value": 100.0}],
+    )
+
+    assert history["points"][-1]["source"] == "live"
+    assert history["end_value"] == pytest.approx(200.0)
+    assert history["points"][-1]["stock_value"] == pytest.approx(100.0)
+
+
+async def test_intraday_bars_carry_the_current_trade_proceeds(monkeypatch):
+    stamps = ("2026-01-05T14:00:00+00:00", "2026-01-05T15:00:00+00:00")
+    monkeypatch.setattr(pv, "get_price_series", _flat_series(*stamps))
+
+    history = await pv.build_value_history(
+        _HELD,
+        "1W",
+        snapshots=[
+            _snapshot("2026-01-02", 150.0, AAA=(10, 10.0), BBB=(5, 20.0)),
+            _snapshot("2026-01-03", 50.0, AAA=(10, 10.0)),
+        ],
+    )
+
+    assert [p["value"] for p in history["points"]] == pytest.approx([200.0, 200.0])
+
+
+async def test_reconstruction_joins_the_first_snapshot_without_a_jump(monkeypatch):
+    series = {
+        "AAA": [
+            {"t": "2026-01-02", "close": 8.0},
+            {"t": "2026-01-03", "close": 10.0},
+        ]
+    }
+
+    async def fake_series(symbol, range_key):
+        return series[symbol]
+
+    monkeypatch.setattr(pv, "get_price_series", fake_series)
+
+    # Today's 10 shares are worth 100 but the portfolio held 300 back then.
+    history = await pv.build_value_history(
+        _HELD, "1M", snapshots=[_snapshot("2026-01-03", 250.0, AAA=(30, 10.0))]
+    )
+
+    first, second = history["points"]
+    assert first["source"] == "reconstructed"
+    assert first["value"] == pytest.approx(240.0)  # the 8.00 -> 10.00 return kept
+    assert second["value"] == pytest.approx(300.0)

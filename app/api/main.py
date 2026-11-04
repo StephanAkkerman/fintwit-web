@@ -1325,28 +1325,6 @@ async def portfolio_summary(_=Depends(api_key_dep)):
     }
 
 
-_RANGE_LOOKBACK_DAYS: dict[str, int | None] = {
-    "1W": 7,
-    "1M": 31,
-    "3M": 93,
-    "6M": 186,
-    "YTD": None,  # resolved against Jan 1 of the current year
-    "1Y": 366,
-    "5Y": 1830,
-    "MAX": None,
-}
-
-
-def _snapshot_cutoff(range_key: str) -> datetime | None:
-    """Earliest snapshot timestamp worth loading for a chart range."""
-    now = datetime.now(timezone.utc)
-    if range_key == "YTD":
-        return datetime(now.year, 1, 1, tzinfo=timezone.utc)
-
-    days = _RANGE_LOOKBACK_DAYS.get(range_key)
-    return now - timedelta(days=days) if days else None
-
-
 @app.get("/api/portfolio/history")
 async def portfolio_history(
     range: str = Query(default=DEFAULT_HISTORY_RANGE),
@@ -1356,7 +1334,8 @@ async def portfolio_history(
     """Portfolio value over time for the requested range.
 
     Values are reconstructed from each holding's historical closes and
-    overridden by stored snapshots wherever one exists for that day.
+    overridden by stored snapshots wherever one exists for that day. They
+    include the net proceeds of trades, so a sale does not read as a loss.
     """
     range_key = normalize_range(range)
     resolved_source, holdings = await resolve_holdings(
@@ -1371,6 +1350,7 @@ async def portfolio_history(
             "holdings": [],
             "points": [],
             "cost_basis": 0.0,
+            "trade_proceeds": 0.0,
             "start_value": None,
             "end_value": None,
             "change": None,
@@ -1378,15 +1358,14 @@ async def portfolio_history(
             "missing_symbols": [],
         }
 
-    snapshots = await PORTFOLIO_REPO.list_snapshots(
-        source=resolved_source, since=_snapshot_cutoff(range_key)
-    )
+    snapshots = await PORTFOLIO_REPO.list_snapshots(source=resolved_source)
     valuation = await value_holdings(holdings)
     history = await build_value_history(
         holdings,
         range_key,
         snapshots=snapshots,
         live_totals=valuation["totals"],
+        live_positions=valuation["positions"],
     )
 
     return {
