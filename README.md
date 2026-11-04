@@ -171,6 +171,7 @@ TRADING_MODE=live
 TWS_USERID=your-ibkr-username
 TWS_PASSWORD=your-ibkr-password
 VNC_SERVER_PASSWORD=change-me-to-a-strong-password
+DOCKER_GID=999   # from `stat -c %g /var/run/docker.sock`; powers the Re-login button
 COMPOSE_PROFILES=ibkr
 ```
 

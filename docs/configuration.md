@@ -80,6 +80,7 @@ accepted in place of the client id, secret and user agent.
 | `IBKR_REQUEST_TIMEOUT` | `30` | Seconds to wait for the gateway to answer a request. A logged-out gateway never answers, so the sync fails instead of hanging. |
 | `IBKR_GATEWAY_CONTROL_URL` | — | Docker API proxy that may restart the gateway, which powers the dashboard's **Re-login** button. Docker Compose sets it to the `ibgateway-control` service; unset hides the button. |
 | `IBKR_GATEWAY_CONTAINER` | `fintwit-ibgateway` | Container the Re-login button restarts. The `ibgateway-control` proxy only allows this name, so change both together. |
+| `DOCKER_GID` | `999` | Group that owns the host's Docker socket, read by Docker Compose. `ibgateway-control` needs it to open the socket and exits at startup with `permission denied` if it is wrong. Find it with `stat -c %g /var/run/docker.sock`. |
 
 `/api/ibkr/status` reports a `state`: `ok` (syncing), `stale` (no sync for three
 intervals), `logged_out` (the gateway lost its IBKR session, usually because the
