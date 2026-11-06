@@ -25,7 +25,7 @@ test = [
     "aiosqlite<=0.22.1",
     "asyncpraw==8.0.3",
     "exchange_calendars",
-    "fastapi==0.141.1",
+    "fastapi==0.162.0",
     "httpx==0.28.1",
     "ib_insync==0.9.86",
     "lxml==6.1.3",
