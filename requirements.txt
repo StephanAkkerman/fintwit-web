@@ -10,7 +10,7 @@ pandas
 aiohttp
 pydantic
 ticker-classifier==0.1.6
-Pillow==12.2.0
+Pillow==13.0.0
 pytesseract==0.3.13
 requests
 transformers==5.21.0
