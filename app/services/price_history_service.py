@@ -59,6 +59,11 @@ RANGE_PRESETS: dict[str, tuple[str, str]] = {
 
 DEFAULT_RANGE = "3M"
 
+#: Ranges for internal callers only, kept out of the chart's range picker.
+#: ``BACKTEST``: daily bars over 3 years, for 200-day averages and the
+#: backtest's exit study.
+_INTERNAL_RANGES: dict[str, tuple[str, str]] = {"BACKTEST": ("3y", "1d")}
+
 # Thresholds (percent) that decide which highlight flags an asset earns.
 _AT_EXTREME_PCT = 0.5
 _NEAR_EXTREME_PCT = 5.0
@@ -180,7 +185,8 @@ async def get_price_series(symbol: str, range_key: str = DEFAULT_RANGE) -> list[
     if not normalized:
         return []
 
-    range_key = normalize_range(range_key)
+    if range_key not in _INTERNAL_RANGES:
+        range_key = normalize_range(range_key)
     cache_key = (normalized, range_key)
 
     async with _cache_lock:
@@ -188,7 +194,7 @@ async def get_price_series(symbol: str, range_key: str = DEFAULT_RANGE) -> list[
         if cached and time.time() - cached[0] <= _SERIES_CACHE_TTL:
             return list(cached[1] or [])
 
-    range_, interval = RANGE_PRESETS[range_key]
+    range_, interval = _INTERNAL_RANGES.get(range_key) or RANGE_PRESETS[range_key]
     points = await _fetch_chart(normalized, range_, interval)
 
     async with _cache_lock:

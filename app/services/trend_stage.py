@@ -82,7 +82,7 @@ def _pct(now: float, then: Optional[float]) -> Optional[float]:
     return round((now / then - 1) * 100, 2)
 
 
-def _stage_at(closes: list[float], end: int) -> Optional[int]:
+def stage_at(closes: list[float], end: int) -> Optional[int]:
     """The Weinstein stage of the week at index ``end``."""
     ma = _sma(closes, MA_WEEKS, end)
     ma_before = _sma(closes, MA_WEEKS, end - SLOPE_WEEKS)
@@ -113,19 +113,19 @@ def stage_analysis(points: list[dict]) -> Optional[dict]:
     """
     closes = [p["close"] for p in points if p.get("close") is not None]
     last = len(closes) - 1
-    stage = _stage_at(closes, last)
+    stage = stage_at(closes, last)
     if stage is None:
         return None
 
     weeks = 1
-    while weeks < MAX_STAGE_LOOKBACK and _stage_at(closes, last - weeks) == stage:
+    while weeks < MAX_STAGE_LOOKBACK and stage_at(closes, last - weeks) == stage:
         weeks += 1
 
     ma = _sma(closes, MA_WEEKS, last)
     ma_before = _sma(closes, MA_WEEKS, last - SLOPE_WEEKS)
     previous = None
     for offset in range(weeks, min(weeks + MAX_STAGE_LOOKBACK, last)):
-        previous = _stage_at(closes, last - offset)
+        previous = stage_at(closes, last - offset)
         if previous is not None:
             break
 
