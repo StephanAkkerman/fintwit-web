@@ -319,6 +319,30 @@ class IbkrTradeRow(Base):
     created_at: Mapped[DateTime] = mapped_column(DateTime)
 
 
+class IbkrEquityRow(Base):
+    """Daily account value from the IBKR Flex statement, in base currency.
+
+    One row per account and statement day. ``total`` (net liquidation) and the
+    breakdown come from the NAV section; without it only ``cash`` is known.
+    """
+
+    __tablename__ = "ibkr_equity_daily"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    account: Mapped[str] = mapped_column(String, index=True)
+    report_date: Mapped[str] = mapped_column(String, index=True)  # YYYY-MM-DD
+    currency: Mapped[str] = mapped_column(String, nullable=True)
+    cash: Mapped[float] = mapped_column(Float, nullable=True)
+    stock: Mapped[float] = mapped_column(Float, nullable=True)
+    options: Mapped[float] = mapped_column(Float, nullable=True)
+    total: Mapped[float] = mapped_column(Float, nullable=True)
+    synced_at: Mapped[DateTime] = mapped_column(DateTime)
+
+    __table_args__ = (
+        UniqueConstraint("account", "report_date", name="uq_ibkr_equity_day"),
+    )
+
+
 class TraderCallRow(Base):
     """One directional call: a non-neutral sentiment tweet mentioning a ticker.
 

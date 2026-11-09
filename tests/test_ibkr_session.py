@@ -195,3 +195,49 @@ async def test_restart_gateway_container_calls_only_the_restart_endpoint(monkeyp
     await ibkr.restart_gateway_container()
 
     assert seen == [("POST", "/containers/fintwit-ibgateway/restart")]
+
+
+@pytest.mark.asyncio
+async def test_account_falls_back_to_flex_while_logged_out(
+    async_client, status_gateway
+):
+    status_gateway.is_connected = lambda: True
+    # The cached values a logged-out Gateway still holds.
+    status_gateway.get_account_summary = AsyncMock(
+        return_value={"TotalCashValue": {"value": 1.0, "currency": "EUR"}}
+    )
+    equity = [
+        {
+            "account": "U1",
+            "report_date": "2026-11-06",
+            "currency": "EUR",
+            "cash": 3159.2,
+            "stock": None,
+            "options": None,
+            "total": None,
+        }
+    ]
+    with patch(
+        "app.api.main.IBKR_REPO.latest_equity", new=AsyncMock(return_value=equity)
+    ):
+        response = await async_client.get("/api/ibkr/account", headers=HEADERS)
+
+    assert response.json() == {
+        "TotalCashValue": {
+            "value": 3159.2,
+            "currency": "EUR",
+            "as_of": "2026-11-06",
+            "source": "flex",
+        }
+    }
+
+
+@pytest.mark.asyncio
+async def test_account_prefers_a_syncing_gateway(async_client, status_gateway):
+    status_gateway._state = "ok"
+    status_gateway.is_connected = lambda: True
+    live = {"TotalCashValue": {"value": 10.0, "currency": "EUR"}}
+    status_gateway.get_account_summary = AsyncMock(return_value=live)
+    with patch("app.api.main.IBKR_REPO.latest_equity", new=AsyncMock(return_value=[])):
+        response = await async_client.get("/api/ibkr/account", headers=HEADERS)
+    assert response.json() == live

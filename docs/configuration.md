@@ -95,6 +95,37 @@ The `ibgateway` container also honours `TWS_ACCEPT_INCOMING`, `TWS_SETTINGS_PATH
 `TWOFA_TIMEOUT_ACTION`, `RELOGIN_AFTER_TWOFA_TIMEOUT` and `AUTO_RESTART_TIME`; see
 [docker-compose.yml](../docker-compose.yml) for their defaults.
 
+### IBKR Flex Query
+
+The Gateway loses its session after IBKR's weekly reset until someone approves
+2FA. The Flex Web Service keeps trades, cash and account value flowing in the
+meantime, and fills in fills the Gateway missed (it only sees today's).
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `IBKR_FLEX_TOKEN` | — | Flex Web Service token (Client Portal: Settings, Account Settings, Flex Web Service). Keep it secret. |
+| `IBKR_FLEX_QUERY_ID` | — | Id of the Activity Flex Query to fetch. The sync runs when both are set, with or without `IBKR_ENABLED`. |
+| `IBKR_FLEX_INTERVAL` | `21600` | Seconds between fetches. IBKR builds the statement once a day, so more often gains nothing. |
+
+Create the query under Performance & Reports, Flex Queries, Activity Flex Query:
+
+- **Open Positions**: all fields, Summary level.
+- **Trades**: all fields, Execution level. The IB Execution ID is how the
+  sync skips fills the Gateway already stored.
+- **Cash Report**: all fields.
+- **Net Asset Value (NAV) in Base**: optional; gives the daily account value
+  behind `/api/ibkr/equity`.
+- Delivery: format XML. Period Last 365 Calendar Days imports a year of
+  history on the first fetch; shorter periods work too, since stored rows are
+  kept and duplicates skipped.
+
+Positions from the statement are as of its close. They only replace stored
+positions when the Gateway is not syncing and has nothing newer, and their
+marks count as stale, so the dashboard prices them from Yahoo when it can.
+`/api/ibkr/account` falls back to the latest statement while the Gateway is not
+syncing; those values carry `as_of` and `source: "flex"`. `/api/ibkr/status`
+has a `flex` block with the last fetch, its error and the statement date.
+
 ## Background workers
 
 | Variable | Default | Purpose |

@@ -1381,6 +1381,9 @@ export type IbkrTrade = {
 export type IbkrAccountValue = {
   value: number;
   currency: string;
+  // Set when the value comes from the last Flex statement, not the Gateway.
+  as_of?: string;
+  source?: 'flex';
 };
 
 export type IbkrAccountSummary = {

@@ -45,6 +45,7 @@ from ..runtime.fund_holdings_refresh import (
     DEFAULT_INTERVAL as FUND_HOLDINGS_INTERVAL,
     run_fund_holdings_refresh,
 )
+from ..runtime.ibkr_flex_sync import FlexSyncState, run_ibkr_flex_sync
 from ..runtime.ibkr_sync import run_ibkr_sync
 from ..runtime.market_breadth_snapshot import (
     DEFAULT_INTERVAL as MARKET_BREADTH_INTERVAL,
@@ -100,6 +101,7 @@ from ..services.ibkr import (
     quote_symbol,
     restart_gateway_container,
 )
+from ..services.ibkr_flex import flex_account_summary, flex_credentials
 from ..services.macro_market import get_macro_snapshot
 from ..services.market_hours_service import get_stock_market_hours
 from ..services.nasdaq_service import get_halt_data
@@ -247,6 +249,23 @@ async def lifespan(app: FastAPI):
     else:
         app.state.ibkr_gateway = None
 
+    # The Flex statement works without the Gateway, so it has its own switch.
+    flex_task: asyncio.Task | None = None
+    app.state.ibkr_flex = None
+    if (credentials := flex_credentials()) is not None:
+        flex_state = FlexSyncState(
+            interval=int(os.getenv("IBKR_FLEX_INTERVAL", "21600"))
+        )
+        app.state.ibkr_flex = flex_state
+        flex_task = asyncio.create_task(
+            run_ibkr_flex_sync(
+                IBKR_REPO, *credentials, flex_state, app.state.ibkr_gateway
+            )
+        )
+        logger.info(
+            "[ibkr-flex] sync worker started (interval=%ds)", flex_state.interval
+        )
+
     snapshot_interval = int(os.getenv("PORTFOLIO_SNAPSHOT_INTERVAL", SNAPSHOT_INTERVAL))
     snapshot_task = asyncio.create_task(
         run_portfolio_snapshots(PORTFOLIO_REPO, IBKR_REPO, interval=snapshot_interval)
@@ -372,6 +391,10 @@ async def lifespan(app: FastAPI):
             with suppress(asyncio.CancelledError):
                 await reddit_task
             await reddit_trends_service.close()
+        if flex_task is not None:
+            flex_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await flex_task
         if ibkr_task is not None:
             ibkr_task.cancel()
             with suppress(asyncio.CancelledError):
@@ -1447,6 +1470,8 @@ async def backend_status(request: Request, _=Depends(api_key_dep)):
 @app.get("/api/ibkr/status")
 async def ibkr_status(request: Request, _=Depends(api_key_dep)):
     gateway: IbkrGateway | None = request.app.state.ibkr_gateway
+    flex_state: FlexSyncState | None = getattr(request.app.state, "ibkr_flex", None)
+    flex = flex_state.as_dict() if flex_state else {"configured": False}
     if gateway is None:
         return {
             "configured": False,
@@ -1455,9 +1480,11 @@ async def ibkr_status(request: Request, _=Depends(api_key_dep)):
             "relogin_available": False,
             "last_sync": None,
             "last_error": None,
+            "flex": flex,
         }
     state = gateway.state()
     return {
+        "flex": flex,
         "configured": True,
         # Only a session that is syncing counts: the socket to the Gateway
         # stays open after IBKR logs it out.
@@ -1573,10 +1600,24 @@ async def ibkr_trades(
 
 @app.get("/api/ibkr/account")
 async def ibkr_account(request: Request, _=Depends(api_key_dep)):
+    """Account values: live from the Gateway, else the last Flex statement.
+
+    Flex values carry ``as_of`` (the statement day) and ``source: "flex"``.
+    """
     gateway: IbkrGateway | None = request.app.state.ibkr_gateway
-    if gateway is None or not gateway.is_connected():
-        return {}
-    return await gateway.get_account_summary()
+    summary: dict = {}
+    if gateway is not None and gateway.is_connected():
+        summary = await gateway.get_account_summary()
+        if summary and gateway.state() == "ok":
+            return summary
+    return flex_account_summary(await IBKR_REPO.latest_equity()) or summary
+
+
+@app.get("/api/ibkr/equity")
+async def ibkr_equity(days: int = Query(365, ge=1, le=3650), _=Depends(api_key_dep)):
+    """Daily account value (cash, stock, options, total) from Flex statements."""
+    since = (datetime.now(timezone.utc).date() - timedelta(days=days)).isoformat()
+    return await IBKR_REPO.list_equity(since=since)
 
 
 @app.get("/api/trending-crypto")

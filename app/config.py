@@ -39,6 +39,11 @@ def integration_status() -> dict[str, str]:
             "authenticated" if has_reddit_credentials() else "unauthenticated fallback"
         ),
         "IBKR": "on" if _flag("IBKR_ENABLED") else "off",
+        "IBKR Flex": (
+            "on"
+            if os.getenv("IBKR_FLEX_TOKEN") and os.getenv("IBKR_FLEX_QUERY_ID")
+            else "off"
+        ),
         "Signa": "on" if has_signa_key() else "off",
         "Access admin": (
             "on" if all(os.getenv(v) for v in _CLOUDFLARE_ACCESS_VARS) else "off"

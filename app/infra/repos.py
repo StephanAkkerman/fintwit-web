@@ -12,6 +12,7 @@ from .db import (
     AdvisorStrategyRow,
     CusipTickerRow,
     GammaExposureSnapshotRow,
+    IbkrEquityRow,
     IbkrPositionRow,
     IbkrTradeRow,
     MarketBreadthSnapshotRow,
@@ -659,6 +660,19 @@ def _ibkr_position_to_dict(r: IbkrPositionRow) -> dict:
     }
 
 
+def _ibkr_equity_to_dict(r: IbkrEquityRow) -> dict:
+    return {
+        "account": r.account,
+        "report_date": r.report_date,
+        "currency": r.currency,
+        "cash": r.cash,
+        "stock": r.stock,
+        "options": r.options,
+        "total": r.total,
+        "synced_at": _iso_utc(r.synced_at),
+    }
+
+
 def _ibkr_trade_to_dict(r: IbkrTradeRow) -> dict:
     return {
         "id": r.id,
@@ -682,9 +696,20 @@ class IbkrRepo:
     def __init__(self, session_factory: async_sessionmaker):
         self.Session = session_factory
 
-    async def sync_positions(self, account: str, positions: list[dict]) -> None:
-        """Replace all positions for an account with the current snapshot."""
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
+    async def sync_positions(
+        self,
+        account: str,
+        positions: list[dict],
+        synced_at: datetime | None = None,
+    ) -> None:
+        """Replace all positions for an account with the current snapshot.
+
+        :param synced_at: When the marks were taken; defaults to now. A Flex
+            statement passes the close it was made at, so its marks never
+            count as fresh.
+        """
+        now = (synced_at or datetime.now(timezone.utc)).astimezone(timezone.utc)
+        now = now.replace(tzinfo=None)
         async with self.Session() as s:
             async with s.begin():
                 await s.execute(
@@ -735,6 +760,77 @@ class IbkrRepo:
         async with self.Session() as s:
             rows = (await s.execute(stmt)).scalars().all()
         return [_ibkr_trade_to_dict(r) for r in rows]
+
+    async def upsert_equity(self, rows: list[dict]) -> int:
+        """Store daily account values; a later statement overwrites a day.
+
+        A null field never erases a value: a statement without the NAV
+        section still updates ``cash`` without dropping ``total``.
+        """
+        if not rows:
+            return 0
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        fields = ("currency", "cash", "stock", "options", "total")
+        async with self.Session() as s:
+            async with s.begin():
+                for row in rows:
+                    stmt = sqlite_insert(IbkrEquityRow).values(
+                        {**row, "synced_at": now}
+                    )
+                    stmt = stmt.on_conflict_do_update(
+                        index_elements=["account", "report_date"],
+                        set_={
+                            **{
+                                f: func.coalesce(
+                                    stmt.excluded[f], getattr(IbkrEquityRow, f)
+                                )
+                                for f in fields
+                            },
+                            "synced_at": now,
+                        },
+                    )
+                    await s.execute(stmt)
+        return len(rows)
+
+    async def latest_equity(self) -> list[dict]:
+        """The newest daily value per account."""
+        newest = (
+            select(
+                IbkrEquityRow.account,
+                func.max(IbkrEquityRow.report_date).label("report_date"),
+            )
+            .group_by(IbkrEquityRow.account)
+            .subquery()
+        )
+        stmt = select(IbkrEquityRow).join(
+            newest,
+            (IbkrEquityRow.account == newest.c.account)
+            & (IbkrEquityRow.report_date == newest.c.report_date),
+        )
+        async with self.Session() as s:
+            rows = (await s.execute(stmt)).scalars().all()
+        return [_ibkr_equity_to_dict(r) for r in rows]
+
+    async def list_equity(self, since: str | None = None) -> list[dict]:
+        """Daily account values, oldest first, from ``since`` (YYYY-MM-DD)."""
+        stmt = select(IbkrEquityRow)
+        if since:
+            stmt = stmt.where(IbkrEquityRow.report_date >= since)
+        stmt = stmt.order_by(IbkrEquityRow.report_date.asc(), IbkrEquityRow.account)
+        async with self.Session() as s:
+            rows = (await s.execute(stmt)).scalars().all()
+        return [_ibkr_equity_to_dict(r) for r in rows]
+
+    async def latest_position_sync(self, account: str) -> datetime | None:
+        """When the account's stored positions were last written, in UTC."""
+        stmt = select(func.max(IbkrPositionRow.synced_at)).where(
+            IbkrPositionRow.account == account
+        )
+        async with self.Session() as s:
+            value = (await s.execute(stmt)).scalar()
+        if value is None:
+            return None
+        return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value
 
 
 class TraderCallRepo:
