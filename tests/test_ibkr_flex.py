@@ -272,3 +272,27 @@ def test_flex_account_summary_shapes_like_gateway():
     assert summary["NetLiquidation"]["value"] == 11999.2
     assert summary["GrossPositionValue"]["value"] == 8840.0
     assert flex_account_summary([]) == {}
+
+
+async def test_trades_list_newest_execution_first(repo):
+    def trade(exec_id, day):
+        return {
+            "exec_id": exec_id,
+            "account": "U123",
+            "symbol": "AAPL",
+            "sec_type": "STK",
+            "currency": "USD",
+            "side": "BOT",
+            "quantity": 1.0,
+            "price": 200.0,
+            "commission": None,
+            "executed_at": datetime(2026, 11, day, 15, tzinfo=timezone.utc),
+        }
+
+    # Stored out of time order, as a Flex import after Gateway fills does.
+    await repo.upsert_trades([trade("b", 9), trade("a", 3), trade("c", 6)])
+    trades = await repo.list_trades(min_value=0)
+    assert [t["exec_id"] for t in trades] == ["b", "c", "a"]
+
+    older = await repo.list_trades(min_value=0, before_id=trades[0]["id"])
+    assert [t["exec_id"] for t in older] == ["c", "a"]
