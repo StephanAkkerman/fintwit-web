@@ -20,6 +20,7 @@ import type { LucideIcon } from 'lucide-react'
 import AccessAllowlistPanel from './components/AccessAllowlistPanel'
 import AdvisorPanel from './components/AdvisorPanel'
 import BinanceGainersLosersWidget from './components/BinanceGainersLosersWidget'
+import BreakoutScreenerWidget from './components/BreakoutScreenerWidget'
 import CompanyNewsWidget from './components/CompanyNewsWidget'
 import CongressTradesWidget from './components/CongressTradesWidget'
 import FundHoldingsWidget from './components/FundHoldingsWidget'
@@ -831,6 +832,11 @@ export default function App() {
                 <div className="sm:col-span-2 2xl:col-span-3">
                   <ErrorBoundary label="Market breadth">
                     <MarketBreadthWidget />
+                  </ErrorBoundary>
+                </div>
+                <div className="sm:col-span-2 2xl:col-span-3">
+                  <ErrorBoundary label="Stage 2 breakouts">
+                    <BreakoutScreenerWidget portfolioLookup={portfolioLookup} onTickerClick={onTickerSelect} />
                   </ErrorBoundary>
                 </div>
                 <ErrorBoundary label="StockTwits">

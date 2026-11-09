@@ -583,6 +583,18 @@ async def test_ticker_bundle():
     assert ("/api/signa/dark-pool", {"symbol": "AAPL"}) in seen
 
 
+BREAKOUTS = {
+    "run": {"as_of": "2026-11-09", "ran_at": "2026-11-09T12:00:00+00:00"},
+    "breakouts": [
+        {"symbol": f"B{i}", "score": 60 - i, "failed": [], "checks": {}}
+        for i in range(12)
+    ]
+    + [{"symbol": "NVDA", "score": 1, "failed": []}],
+    "watch": [{"symbol": "W1", "failed": ["volume"], "volume_ratio": 1.2}],
+    "criteria": {"min_volume_ratio": 1.5},
+}
+
+
 def _market_handler(seen: list):
     def handler(request: httpx.Request) -> httpx.Response:
         path, params = request.url.path, dict(request.url.params)
@@ -621,6 +633,16 @@ def _market_handler(seen: list):
             return httpx.Response(200, json=MARKET_FLOW)
         if path == "/api/research/trend-stage":
             return httpx.Response(200, json=TREND_STAGE)
+        if path == "/api/stocks/breakouts":
+            return httpx.Response(200, json=BREAKOUTS)
+        if path == "/api/stocks/breakouts/history":
+            return httpx.Response(
+                200,
+                json={
+                    "summary": {"flagged": 1, "avg_return_pct": 4.0},
+                    "signals": [{"symbol": "CRDO", "return_since_flag_pct": 4.0}],
+                },
+            )
         if path == "/api/advisor/calls" and request.method == "POST":
             return httpx.Response(201, json={"id": 7, **json.loads(request.content)})
         return httpx.Response(200, json={"path": path})
@@ -670,6 +692,25 @@ async def test_candidates_flags_held_watchlist_symbols():
         "top_bullish": [{"symbol": "AAPL"}],
     }
     assert result["watchlist"][1]["trend_stage"]["stage"] == 2
+    # The screen's top ten, trimmed to what a check reads, with held flags.
+    breakouts = result["breakouts"]
+    assert breakouts["as_of"] == "2026-11-09"
+    assert [b["symbol"] for b in breakouts["breakouts"]] == [f"B{i}" for i in range(10)]
+    assert "checks" not in breakouts["breakouts"][0]
+    assert breakouts["breakouts"][0]["held"] is False
+    assert breakouts["watch"] == [
+        {"symbol": "W1", "volume_ratio": 1.2, "failed": ["volume"], "held": False}
+    ]
+
+
+async def test_breakouts_tool_returns_screen_and_track_record():
+    async with _mock_client(_market_handler([])) as client:
+        result = json.loads(await mcp_server.collect_breakouts(client, days=30))
+
+    assert len(result["screen"]["breakouts"]) == 13
+    assert result["screen"]["criteria"] == {"min_volume_ratio": 1.5}
+    assert result["history"]["summary"]["avg_return_pct"] == 4.0
+    assert result["history"]["signals"][0]["symbol"] == "CRDO"
 
 
 async def test_log_call_and_journal():

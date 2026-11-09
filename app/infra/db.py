@@ -276,6 +276,55 @@ class MarketBreadthSnapshotRow(Base):
     )
 
 
+class BreakoutScreenRunRow(Base):
+    """One pass of the stage-2 breakout screener (``breakout_screener``)."""
+
+    __tablename__ = "breakout_screen_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ran_at: Mapped[DateTime] = mapped_column(DateTime, index=True)
+    as_of: Mapped[str] = mapped_column(String, nullable=True)
+    universe: Mapped[int] = mapped_column(Integer, default=0)
+    evaluated: Mapped[int] = mapped_column(Integer, default=0)
+    breakouts: Mapped[int] = mapped_column(Integer, default=0)
+    watch: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class BreakoutSignalRow(Base):
+    """A stock the breakout screener flagged (or nearly flagged), one row per
+    breakout: the symbol plus the week it entered stage 2.
+
+    ``flagged_at``/``flag_price`` are set the first run it passes every check
+    and never move afterwards, so ``last_close`` against ``flag_price`` is the
+    screen's own track record. ``last_run_id`` says whether the latest run
+    still lists it.
+    """
+
+    __tablename__ = "breakout_signals"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(String, index=True)
+    breakout_week: Mapped[str] = mapped_column(String)
+    status: Mapped[str] = mapped_column(String, default="watch")
+    name: Mapped[str] = mapped_column(String, nullable=True)
+    sector: Mapped[str] = mapped_column(String, nullable=True)
+    industry: Mapped[str] = mapped_column(String, nullable=True)
+    first_seen_at: Mapped[DateTime] = mapped_column(DateTime)
+    flagged_at: Mapped[DateTime] = mapped_column(DateTime, nullable=True, index=True)
+    flag_price: Mapped[float] = mapped_column(Float, nullable=True)
+    last_seen_at: Mapped[DateTime] = mapped_column(DateTime)
+    last_run_id: Mapped[int] = mapped_column(Integer, index=True, nullable=True)
+    last_close: Mapped[float] = mapped_column(Float, nullable=True)
+    last_close_at: Mapped[DateTime] = mapped_column(DateTime, nullable=True)
+    details: Mapped[dict] = mapped_column(
+        JSON().with_variant(SQLITE_JSON, "sqlite"), nullable=True
+    )
+
+    __table_args__ = (
+        UniqueConstraint("symbol", "breakout_week", name="uq_breakout_symbol_week"),
+    )
+
+
 class IbkrPositionRow(Base):
     __tablename__ = "ibkr_positions"
 

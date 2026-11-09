@@ -19,6 +19,7 @@ from ticker_price_data import close_shared_pool, get_stock_info
 from ..infra.db import create_engine, init_db
 from ..infra.repos import (
     AdvisorRepo,
+    BreakoutRepo,
     CusipTickerRepo,
     GammaExposureRepo,
     MarketBreadthRepo,
@@ -35,6 +36,8 @@ from ..runtime.advisor_evaluator import (
     DEFAULT_INTERVAL as ADVISOR_EVAL_INTERVAL,
     run_advisor_evaluation,
 )
+from ..runtime.breakout_screen import DEFAULT_INTERVAL as BREAKOUT_SCREEN_INTERVAL
+from ..runtime.breakout_screen import run_breakout_screens
 from ..runtime.broadcast import Broadcaster
 from ..runtime.enricher import AssetEnricher
 from ..runtime.gamma_exposure_snapshot import (
@@ -124,6 +127,7 @@ from ..services.reddit_service import (
     is_valid_subreddit_name,
 )
 from ..services import reddit_trends_service
+from ..services.breakout_screener import CRITERIA as BREAKOUT_CRITERIA
 from ..services.market_breadth_service import (
     UNIVERSE_KEYS as BREADTH_UNIVERSES,
     get_market_breadth,
@@ -170,6 +174,7 @@ GAMMA_EXPOSURE_REPO = GammaExposureRepo(Session)
 CUSIP_TICKER_REPO = CusipTickerRepo(Session)
 MARKET_BREADTH_REPO = MarketBreadthRepo(Session)
 ADVISOR_REPO = AdvisorRepo(Session)
+BREAKOUT_REPO = BreakoutRepo(Session)
 BROADCAST = Broadcaster()
 logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.INFO)
@@ -331,6 +336,18 @@ async def lifespan(app: FastAPI):
         market_breadth_interval,
     )
 
+    breakout_interval = int(
+        os.getenv("BREAKOUT_SCREEN_INTERVAL", BREAKOUT_SCREEN_INTERVAL)
+    )
+    breakout_task = None
+    if breakout_interval > 0:
+        breakout_task = asyncio.create_task(
+            run_breakout_screens(BREAKOUT_REPO, interval=breakout_interval)
+        )
+        logger.info(
+            "[breakouts] screener worker started (interval=%ds)", breakout_interval
+        )
+
     try:
         logger.info(
             "[startup] application ready in %.2fs",
@@ -367,6 +384,10 @@ async def lifespan(app: FastAPI):
         market_breadth_task.cancel()
         with suppress(asyncio.CancelledError):
             await market_breadth_task
+        if breakout_task is not None:
+            breakout_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await breakout_task
         if reddit_task is not None:
             reddit_task.cancel()
             with suppress(asyncio.CancelledError):
@@ -915,6 +936,53 @@ async def market_breadth_history(
     since = (datetime.now(timezone.utc) - timedelta(days=days)).date().isoformat()
     points = await MARKET_BREADTH_REPO.list_sessions(key, since=since)
     return {"universe": key, "days": days, "points": points}
+
+
+@app.get("/api/stocks/breakouts")
+async def stock_breakouts(_=Depends(api_key_dep)):
+    """Stocks that just entered a weekly stage-2 uptrend (above a rising
+    30-week average) with relative strength and volume behind the move.
+
+    The latest screener run: ``breakouts`` pass every check, best first;
+    ``watch`` are fresh stage-2 entries missing one (``failed`` says which).
+    ``run`` is ``null`` until the worker's first pass has finished.
+    """
+    latest = await BREAKOUT_REPO.latest()
+    if latest is None:
+        return {
+            "run": None,
+            "breakouts": [],
+            "watch": [],
+            "criteria": BREAKOUT_CRITERIA,
+        }
+    return {**latest, "criteria": BREAKOUT_CRITERIA}
+
+
+@app.get("/api/stocks/breakouts/history")
+async def stock_breakouts_history(
+    days: int = Query(90, ge=1, le=730),
+    symbol: str | None = Query(default=None),
+    _=Depends(api_key_dep),
+):
+    """Every breakout the screener flagged in the last ``days``, newest first,
+    with the price when flagged and the return since (its track record)."""
+    rows = await BREAKOUT_REPO.flagged(days=days, symbol=symbol)
+    returns = [
+        r["return_since_flag_pct"]
+        for r in rows
+        if r.get("return_since_flag_pct") is not None
+    ]
+    summary = {
+        "flagged": len(rows),
+        "with_return": len(returns),
+        "avg_return_pct": round(sum(returns) / len(returns), 2) if returns else None,
+        "win_rate_pct": (
+            round(100 * sum(1 for r in returns if r > 0) / len(returns), 1)
+            if returns
+            else None
+        ),
+    }
+    return {"days": days, "summary": summary, "signals": rows}
 
 
 @app.get("/api/market/world-indices")

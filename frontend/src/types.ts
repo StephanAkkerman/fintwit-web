@@ -2185,3 +2185,75 @@ export type DarkPool = {
   to: string | null;
   largest: { price: number; size: number | null; notional: number; at: string | null }[];
 };
+
+// Stage-2 breakout screener (/api/stocks/breakouts, app/services/breakout_screener.py)
+export type BreakoutCheck =
+  | 'stage_2'
+  | 'fresh'
+  | 'from_base'
+  | 'relative_strength'
+  | 'rs_rising'
+  | 'volume'
+  | 'not_extended'
+
+export type Breakout = {
+  symbol: string
+  name: string | null
+  sector: string | null
+  industry: string | null
+  close: number | null
+  breakout_week: string
+  weeks_since_breakout: number | null
+  base_weeks: number | null
+  price_vs_ma30w_percent: number | null
+  mansfield_rs: number | null
+  rs_rising_4w: boolean | null
+  volume_ratio: number | null
+  strong_volume: boolean
+  score: number | null
+  signal: boolean
+  failed: BreakoutCheck[]
+  status: 'breakout' | 'watch'
+  flagged_at: string | null
+  flag_price: number | null
+  last_close: number | null
+  return_since_flag_pct: number | null
+}
+
+export type BreakoutRun = {
+  id: number
+  ran_at: string | null
+  as_of: string | null
+  universe: number
+  evaluated: number
+  breakouts: number
+  watch: number
+}
+
+export type BreakoutCriteria = {
+  fresh_weeks: number
+  ma_weeks: number
+  min_volume_ratio: number
+  strong_volume_ratio: number
+  min_mansfield: number
+  max_extension_pct: number
+  min_base_weeks: number
+}
+
+export type BreakoutScreen = {
+  run: BreakoutRun | null
+  breakouts: Breakout[]
+  watch: Breakout[]
+  criteria: BreakoutCriteria | null
+}
+
+export type BreakoutHistory = {
+  days: number
+  summary: {
+    flagged: number
+    with_return: number
+    avg_return_pct: number | null
+    win_rate_pct: number | null
+  }
+  signals: Breakout[]
+}

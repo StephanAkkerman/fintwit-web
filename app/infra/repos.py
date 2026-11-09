@@ -10,6 +10,8 @@ from .db import (
     AdvisorCallRow,
     AdvisorRunRow,
     AdvisorStrategyRow,
+    BreakoutScreenRunRow,
+    BreakoutSignalRow,
     CusipTickerRow,
     GammaExposureSnapshotRow,
     IbkrPositionRow,
@@ -569,6 +571,193 @@ class MarketBreadthRepo:
                 result = await s.execute(
                     delete(MarketBreadthSnapshotRow).where(
                         MarketBreadthSnapshotRow.session_date < cutoff
+                    )
+                )
+        return result.rowcount or 0
+
+
+def _breakout_row_to_dict(r: BreakoutSignalRow) -> dict:
+    return_pct = None
+    if r.flag_price and r.last_close:
+        return_pct = round((r.last_close / r.flag_price - 1) * 100, 2)
+    return {
+        **(r.details or {}),
+        "symbol": r.symbol,
+        "breakout_week": r.breakout_week,
+        "status": r.status,
+        "name": r.name,
+        "sector": r.sector,
+        "industry": r.industry,
+        "first_seen_at": _iso_utc(r.first_seen_at),
+        "flagged_at": _iso_utc(r.flagged_at),
+        "flag_price": r.flag_price,
+        "last_seen_at": _iso_utc(r.last_seen_at),
+        "last_close": r.last_close,
+        "last_close_at": _iso_utc(r.last_close_at),
+        "return_since_flag_pct": return_pct,
+    }
+
+
+def _breakout_run_to_dict(r: BreakoutScreenRunRow) -> dict:
+    return {
+        "id": r.id,
+        "ran_at": _iso_utc(r.ran_at),
+        "as_of": r.as_of,
+        "universe": r.universe,
+        "evaluated": r.evaluated,
+        "breakouts": r.breakouts,
+        "watch": r.watch,
+    }
+
+
+#: Fields of a screen result that live in their own columns, not ``details``.
+_BREAKOUT_COLUMNS = ("symbol", "breakout_week", "name", "sector", "industry")
+
+
+class BreakoutRepo:
+    """Async repo for the stage-2 breakout screener's runs and signals."""
+
+    def __init__(self, session_factory: async_sessionmaker):
+        self.Session = session_factory
+
+    async def record_run(self, screen: dict) -> dict:
+        """Store a screen (``breakout_screener.run_screen``'s result).
+
+        A row is keyed by symbol and breakout week, so the same breakout seen
+        on later runs updates one row. A ``watch`` row is promoted once it
+        passes every check; a ``breakout`` row is never demoted, so its flag
+        date and price stay put.
+
+        :return: The stored run's summary.
+        """
+        now = datetime.now(timezone.utc)
+        entries = [(r, "breakout") for r in screen.get("breakouts") or []] + [
+            (r, "watch") for r in screen.get("watch") or []
+        ]
+        async with self.Session() as s:
+            async with s.begin():
+                run = BreakoutScreenRunRow(
+                    ran_at=now,
+                    as_of=screen.get("as_of"),
+                    universe=screen.get("universe") or 0,
+                    evaluated=screen.get("evaluated") or 0,
+                    breakouts=len(screen.get("breakouts") or []),
+                    watch=len(screen.get("watch") or []),
+                )
+                s.add(run)
+                await s.flush()
+                for result, status in entries:
+                    week = result.get("breakout_week")
+                    if not result.get("symbol") or not week:
+                        continue
+                    row = (
+                        await s.execute(
+                            select(BreakoutSignalRow).where(
+                                BreakoutSignalRow.symbol == result["symbol"],
+                                BreakoutSignalRow.breakout_week == week,
+                            )
+                        )
+                    ).scalar_one_or_none()
+                    if row is None:
+                        row = BreakoutSignalRow(
+                            symbol=result["symbol"],
+                            breakout_week=week,
+                            status=status,
+                            first_seen_at=now,
+                        )
+                        s.add(row)
+                    if status == "breakout" and row.flagged_at is None:
+                        row.status = "breakout"
+                        row.flagged_at = now
+                        row.flag_price = result.get("close")
+                    row.name = result.get("name")
+                    row.sector = result.get("sector")
+                    row.industry = result.get("industry")
+                    row.last_seen_at = now
+                    row.last_run_id = run.id
+                    row.last_close = result.get("close")
+                    row.last_close_at = now
+                    row.details = {
+                        k: v for k, v in result.items() if k not in _BREAKOUT_COLUMNS
+                    }
+            await s.refresh(run)
+        return _breakout_run_to_dict(run)
+
+    async def latest(self) -> dict | None:
+        """The last run with what it listed, best first; None before any run."""
+        async with self.Session() as s:
+            run = (
+                await s.execute(
+                    select(BreakoutScreenRunRow)
+                    .order_by(BreakoutScreenRunRow.id.desc())
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+            if run is None:
+                return None
+            rows = (
+                (
+                    await s.execute(
+                        select(BreakoutSignalRow).where(
+                            BreakoutSignalRow.last_run_id == run.id
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        listed = [_breakout_row_to_dict(r) for r in rows]
+        current = [r for r in listed if r.get("signal")]
+        watch = [r for r in listed if not r.get("signal")]
+        current.sort(key=lambda r: r.get("score") or 0, reverse=True)
+        watch.sort(
+            key=lambda r: ((r.get("mansfield_rs") or 0), (r.get("volume_ratio") or 0)),
+            reverse=True,
+        )
+        return {"run": _breakout_run_to_dict(run), "breakouts": current, "watch": watch}
+
+    async def flagged(self, *, days: int = 90, symbol: str | None = None) -> list[dict]:
+        """Breakouts flagged in the last ``days``, newest first."""
+        cutoff = datetime.now(timezone.utc) - timedelta(days=max(1, days))
+        stmt = (
+            select(BreakoutSignalRow)
+            .where(BreakoutSignalRow.flagged_at.is_not(None))
+            .where(BreakoutSignalRow.flagged_at >= cutoff)
+            .order_by(BreakoutSignalRow.flagged_at.desc())
+        )
+        if symbol:
+            stmt = stmt.where(BreakoutSignalRow.symbol == symbol.upper())
+        async with self.Session() as s:
+            rows = (await s.execute(stmt)).scalars().all()
+        return [_breakout_row_to_dict(r) for r in rows]
+
+    async def update_last_close(self, symbol: str, close: float) -> int:
+        """Mark ``symbol``'s flagged breakouts to ``close`` (for their return)."""
+        async with self.Session() as s:
+            async with s.begin():
+                result = await s.execute(
+                    update(BreakoutSignalRow)
+                    .where(BreakoutSignalRow.symbol == symbol.upper())
+                    .where(BreakoutSignalRow.flagged_at.is_not(None))
+                    .values(last_close=close, last_close_at=datetime.now(timezone.utc))
+                )
+        return result.rowcount or 0
+
+    async def prune(self, *, keep_days: int = 730) -> int:
+        """Drop never-flagged watch rows and runs older than ``keep_days``;
+        flagged breakouts are the track record and are kept."""
+        cutoff = datetime.now(timezone.utc) - timedelta(days=max(1, keep_days))
+        async with self.Session() as s:
+            async with s.begin():
+                result = await s.execute(
+                    delete(BreakoutSignalRow).where(
+                        BreakoutSignalRow.flagged_at.is_(None),
+                        BreakoutSignalRow.last_seen_at < cutoff,
+                    )
+                )
+                await s.execute(
+                    delete(BreakoutScreenRunRow).where(
+                        BreakoutScreenRunRow.ran_at < cutoff
                     )
                 )
         return result.rowcount or 0

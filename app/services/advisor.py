@@ -71,6 +71,17 @@ PAPER_STRATEGIES: dict[str, dict] = {
         "in; otherwise held for 7 days.",
         "max_hold_days": 7,
     },
+    "stage2_breakout": {
+        "label": "Stage-2 breakouts",
+        "entry": "Listed under breakouts by the breakout screener: just moved "
+        "above a rising 30-week average out of a base of 6+ weeks, beating the "
+        "market (Mansfield RS above zero and rising) on breakout volume of "
+        "1.5x the base or more, at most 25% above the average. The top two by "
+        "score a check, skipping names this book already holds.",
+        "exit": "Sell on a weekly close below the 30-week average, or once it "
+        "is 15% below the entry price.",
+        "max_hold_days": None,
+    },
 }
 #: What a paper call can be: a position is opened and closed, never sized.
 PAPER_ACTIONS: tuple[str, ...] = ("buy", "sell", "watch")

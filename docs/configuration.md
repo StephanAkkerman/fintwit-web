@@ -107,6 +107,9 @@ The `ibgateway` container also honours `TWS_ACCEPT_INCOMING`, `TWS_SETTINGS_PATH
 | `SEC_USER_AGENT` | `fintwit-web admin@example.com` | Sent to SEC EDGAR. SEC's fair-access policy asks for your name and a contact email (`"Jane Doe jane@example.com"`); www.sec.gov refuses requests without an email. |
 | `OPENFIGI_API_KEY` | — | Optional free OpenFIGI key: maps 100 CUSIPs per request instead of 10, so the first 13F build is faster. Answers are cached in the database either way. |
 | `MARKET_BREADTH_INTERVAL` | `1800` | Seconds between market breadth snapshots (one row per index per NYSE session, for the breadth trend chart on `/stocks`). |
+| `BREAKOUT_SCREEN_INTERVAL` | `21600` | Seconds between stage-2 breakout screens (`/stocks` widget, MCP `breakouts`). A pass reads a few hundred weekly Yahoo charts; `0` turns the screener off. |
+| `BREAKOUT_CANDIDATES` | `240` | How many names the TradingView pre-filter hands to the Yahoo weekly check per screen (min 20). More finds more breakouts at the cost of more Yahoo requests. |
+| `BREAKOUT_MIN_MARKET_CAP` | `1000000000` | Smallest market cap (USD) the breakout screener considers. |
 
 ## Integrations
 

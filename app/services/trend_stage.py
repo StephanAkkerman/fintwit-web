@@ -197,7 +197,9 @@ async def get_trend_stage(symbol: str) -> Optional[dict]:
     """Weinstein stage plus relative strength vs the market and the sector.
 
     :param symbol: Ticker symbol.
-    :return: ``{symbol, as_of, stage, vs_market, sector}``; ``sector`` is
+    :return: ``{symbol, as_of, stage, vs_market, sector, breakout}``;
+        ``breakout`` is the breakout screener's verdict on the same bars
+        (``signal`` true when it is a fresh stage-2 breakout); ``sector`` is
         ``None`` for funds, crypto and anything Yahoo has no sector for.
         ``None`` when the symbol has under 35 weeks of history.
     """
@@ -227,6 +229,10 @@ async def get_trend_stage(symbol: str) -> Optional[dict]:
             "stock_vs_sector": relative_strength(series, etf_series),
         }
 
+    # Imported here: the screener builds on this module's stage logic.
+    from .breakout_screener import evaluate_breakout
+
+    breakout = evaluate_breakout(series, market) if market else None
     return {
         "symbol": normalized,
         "as_of": series[-1]["t"][:10],
@@ -234,4 +240,19 @@ async def get_trend_stage(symbol: str) -> Optional[dict]:
         "vs_market": relative_strength(series, market) if market else None,
         "benchmark": BENCHMARK,
         "sector": sector,
+        "breakout": (
+            None
+            if breakout is None
+            else {
+                key: breakout[key]
+                for key in (
+                    "signal",
+                    "failed",
+                    "breakout_week",
+                    "volume_ratio",
+                    "mansfield_rs",
+                    "score",
+                )
+            }
+        ),
     }

@@ -38,6 +38,11 @@ Call these:
 - `candidates`: buy ideas. Ignore `held_symbols` as new ideas; they are covered
   by holdings_check. `options_flow` ranks the symbols with the most bullish
   (`top_bullish`, `top_call_buying`) and bearish premium over the last day.
+  `breakouts` is the breakout screener: stocks that just entered a weekly
+  stage-2 uptrend (above a rising 30-week average, out of a base) with
+  relative strength and breakout volume behind them, best `score` first;
+  `watch` misses one check (`failed`). These are ideas nobody had to post
+  about, so they are how you find buys beyond the timeline.
 - `unseen_posts`: every post since the last check, one lead per ticker, the
   followed traders' leads first, limited to the feeds the owner picked on
   /advisor (`feed_markets`, stocks and options by default). This is the
@@ -68,6 +73,14 @@ For each holding and candidate, decide whether anything is actionable now:
   valuation and technicals don't argue against it, and it isn't already up a
   lot today or pinned at its 52-week high without a catalyst.
 - **watch**: something is interesting but not actionable yet.
+
+A breakout from `candidates.breakouts` that you don't hold counts as one
+strong signal on its own: give the top one or two by `score` a `ticker` look
+each check, and judge them like any other lead (fundamentals and technicals
+must both pass, the owner's rules still apply). A breakout that is also in the
+timeline, the watchlist or the flow is the strongest kind of buy idea. Call
+`breakouts` when you want the full screen or its track record (how flagged
+names did since); if that record is poor, trust the screen less.
 
 ### Reading the timeline
 
@@ -167,7 +180,7 @@ and a conviction.
 
 ## 4. Paper trades
 
-Next to the advice, you paper-trade four rule-based strategies so the owner can
+Next to the advice, you paper-trade five rule-based strategies so the owner can
 see which ones work before risking money on them. Call `paper_portfolios`: it
 gives each strategy's entry and exit rules (follow them as written there, they
 are the source of truth), its open positions with the price now and days held,
@@ -202,6 +215,10 @@ entry rule holds, citing the numbers in the reasoning:
   call its flow tools per symbol; if the endpoint isn't there yet, make at
   most one `get_curated_flow` call per check. Skip this strategy when Signa
   isn't available.
+- `stage2_breakout`: `candidates.breakouts.breakouts` (or `breakouts` for
+  the full screen). Buy the top two by `score` this book doesn't hold. For
+  the exit, `ticker`'s `trend_stage` gives `price_vs_ma30w_percent`: sell once
+  a week closes below the average (negative), or at 15% below entry.
 
 A strategy holds one position per symbol: a buy of a symbol it already holds,
 or a sell of one it doesn't, is refused, so a refusal just means it was

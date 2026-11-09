@@ -122,6 +122,9 @@ async def test_get_trend_stage_reads_stock_market_and_sector(monkeypatch):
     assert result["sector"]["stage"]["stage"] == 2
     assert result["sector"]["stock_vs_sector"]["mansfield"] > 0
     assert ("XLK", "5Y") in fetched
+    # A long, steady advance: stage 2 but no longer a fresh breakout.
+    assert result["breakout"]["signal"] is False
+    assert "fresh" in result["breakout"]["failed"]
 
     assert await trend_stage.get_trend_stage("NEW") is None
 
