@@ -4,12 +4,20 @@ on:
   pull_request:
     paths:
       - '**/*.py'
-      - 'requirements.txt'
       - 'pyproject.toml'
+      - '.github/workflows/ruff-check.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
       # Pinned: an unpinned linter silently changes what it enforces.

@@ -1,20 +1,29 @@
 name: Check Python Versions
 
+# Only when the dependency manifests change, and only on the PR (it used to run
+# on every branch push too, so a Dependabot PR ran it twice, plus once more on
+# merge). 3.11 is the version pytest.yml and the Docker image already test, so
+# here it only checks that the full requirements.txt still resolves; 3.12 and
+# 3.13 resolve and run the suite. One job per version instead of two.
 on:
   workflow_dispatch:
-  push:
+  pull_request:
     paths:
-      - 'requirements.txt'  # Dependency file
-      - 'pyproject.toml'    # Runtime metadata and the [test] extra
-      - 'setup.py'          # Setup script
-      - '.github/workflows/pyversions.yml' #This file
+      - 'requirements.txt'
+      - 'pyproject.toml'
+      - '.github/workflows/pyversions.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 jobs:
-  # Can the runtime manifest still be resolved on every supported version?
-  resolve:
+  check:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -26,34 +35,21 @@ jobs:
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v7
         with:
-            python-version: ${{ matrix.python-version }}
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
 
+      # Can the runtime manifest still be resolved on this version?
       - name: Resolve everything (dry-run)
         run: |
-            python -m pip install --upgrade pip setuptools wheel
-            pip install --dry-run -r requirements.txt
+          python -m pip install --upgrade pip setuptools wheel
+          pip install --dry-run -r requirements.txt
 
-  # And does the suite actually pass there? The `test` extra is light enough to
-  # install across the matrix, which a dry-run resolve alone never proved.
-  test:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.11", "3.12", "3.13"]
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v7
-        with:
-            python-version: ${{ matrix.python-version }}
-
+      # And does the suite actually pass there?
       - name: Install test dependencies
-        run: |
-            python -m pip install --upgrade pip
-            pip install -e ".[test]"
+        if: matrix.python-version != '3.11'
+        run: pip install -e ".[test]"
 
       - name: Run pytest
+        if: matrix.python-version != '3.11'
         run: python -m pytest --disable-warnings -q

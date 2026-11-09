@@ -3,10 +3,26 @@ name: Publish Docker images
 # Prebuilt multi-arch images so a self-hosted install is `docker compose up -d`
 # instead of compiling the PyTorch stack locally (slow on a Raspberry Pi).
 # docker-compose.yml names these images; `--build` still builds from source.
+#
+# This was the biggest Actions consumer: the arm64 half of the backend image
+# was built under QEMU emulation and took ~25 minutes per push to main. Each
+# platform now builds natively on its own runner (arm64 on ubuntu-24.04-arm),
+# and a small merge job stitches the two digests into one multi-arch tag.
 on:
   push:
     branches: [main]
     tags: ["v*"]
+    # A push that touches neither image doesn't start a runner at all.
+    paths:
+      - "app/**"
+      - "requirements.txt"
+      - "Dockerfile"
+      - ".dockerignore"
+      - "frontend/**"
+      - "!frontend/**/*.test.ts"
+      - "!frontend/**/*.test.tsx"
+      - "!frontend/**/*.md"
+      - ".github/workflows/docker-publish.yml"
   workflow_dispatch:
 
 permissions:
@@ -21,37 +37,129 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  publish:
+  # Decide which images this push needs. Tags and manual runs build both; a
+  # plain push to main rebuilds only the image whose inputs changed.
+  plan:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - image: fintwit-web-backend
-            context: .
-            filter: backend
-          - image: fintwit-web-frontend
-            context: ./frontend
-            filter: frontend
-
+    timeout-minutes: 5
+    outputs:
+      images: ${{ steps.plan.outputs.images }}
+      builds: ${{ steps.plan.outputs.builds }}
+      owner: ${{ steps.plan.outputs.owner }}
     steps:
       - uses: actions/checkout@v7
 
-      # On a plain push to main, skip rebuilding the image whose context
-      # didn't change (the backend image bundles the PyTorch stack, so this
-      # is the expensive one to redo). Tags and manual runs always build both.
       - id: changes
         if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
         uses: dorny/paths-filter@v4
         with:
           filters: |
             backend:
-              - '!frontend/**'
+              - 'app/**'
+              - 'requirements.txt'
+              - 'Dockerfile'
+              - '.dockerignore'
+              - '.github/workflows/docker-publish.yml'
             frontend:
               - 'frontend/**'
+              - '.github/workflows/docker-publish.yml'
 
-      # arm64 is emulated; it is what Raspberry Pi hosts pull.
-      - uses: docker/setup-qemu-action@v4
+      - id: plan
+        env:
+          FILTERED: ${{ steps.changes.outcome != 'skipped' }}
+          BACKEND: ${{ steps.changes.outputs.backend }}
+          FRONTEND: ${{ steps.changes.outputs.frontend }}
+        run: |
+          images='[]'
+          if [ "$FILTERED" != "true" ] || [ "$BACKEND" = "true" ]; then
+            images=$(jq -c '. + [{"image":"fintwit-web-backend","context":"."}]' <<<"$images")
+          fi
+          if [ "$FILTERED" != "true" ] || [ "$FRONTEND" = "true" ]; then
+            images=$(jq -c '. + [{"image":"fintwit-web-frontend","context":"./frontend"}]' <<<"$images")
+          fi
+          builds=$(jq -c '[.[] as $i
+            | ({"platform":"linux/amd64","runner":"ubuntu-latest"},
+               {"platform":"linux/arm64","runner":"ubuntu-24.04-arm"})
+            | . + $i]' <<<"$images")
+          echo "images=$images" >> "$GITHUB_OUTPUT"
+          echo "builds=$builds" >> "$GITHUB_OUTPUT"
+          echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+          echo "Building: $images"
+
+  build:
+    needs: plan
+    if: needs.plan.outputs.images != '[]'
+    runs-on: ${{ matrix.runner }}
+    # The backend took ~25 min under QEMU; natively it should be well under
+    # this. A hung build stops here instead of at GitHub's 6-hour default.
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.plan.outputs.builds) }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: arch
+        run: echo "name=${PLATFORM#linux/}" >> "$GITHUB_OUTPUT"
+        env:
+          PLATFORM: ${{ matrix.platform }}
+
+      # Labels only (e.g. org.opencontainers.image.source, which links the
+      # package to this repo); the merge job sets the tags.
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ needs.plan.outputs.owner }}/${{ matrix.image }}
+
+      # Pushed by digest only; the merge job below gives it its tags.
+      - id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=ghcr.io/${{ needs.plan.outputs.owner }}/${{ matrix.image }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.image }}-${{ steps.arch.outputs.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}-${{ steps.arch.outputs.name }}
+
+      - name: Export digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p /tmp/digests
+          touch "/tmp/digests/${DIGEST#sha256:}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.image }}-${{ steps.arch.outputs.name }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    needs: [plan, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.plan.outputs.images) }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digest-${{ matrix.image }}-*
+          merge-multiple: true
+
       - uses: docker/setup-buildx-action@v4
 
       - uses: docker/login-action@v3
@@ -63,19 +171,23 @@ jobs:
       - id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
+          images: ghcr.io/${{ needs.plan.outputs.owner }}/${{ matrix.image }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=semver,pattern={{version}}
             type=sha
 
-      - uses: docker/build-push-action@v7
-        if: steps.changes.outcome == 'skipped' || steps.changes.outputs[matrix.filter] == 'true'
-        with:
-          context: ${{ matrix.context }}
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.image }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+      - name: Create multi-arch manifest
+        working-directory: /tmp/digests
+        env:
+          IMAGE: ghcr.io/${{ needs.plan.outputs.owner }}/${{ matrix.image }}
+        run: |
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf "$IMAGE@sha256:%s " *)
+
+      - name: Inspect
+        env:
+          IMAGE: ghcr.io/${{ needs.plan.outputs.owner }}/${{ matrix.image }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: docker buildx imagetools inspect "$IMAGE:$VERSION"
