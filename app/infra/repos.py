@@ -752,12 +752,28 @@ class IbkrRepo:
         before_id: int | None = None,
         min_value: float = 100.0,
     ) -> list[dict]:
+        """Trades newest first by execution time.
+
+        Flex imports a year of trades at once, so insertion order (``id``) is
+        not time order. ``before_id`` pages past that trade in this order.
+        """
+        # Undated rows sort last, as if executed at the earliest moment.
+        executed = func.coalesce(IbkrTradeRow.executed_at, datetime.min)
         stmt = select(IbkrTradeRow)
-        if before_id is not None:
-            stmt = stmt.where(IbkrTradeRow.id < before_id)
         stmt = stmt.where(IbkrTradeRow.quantity * IbkrTradeRow.price >= min_value)
-        stmt = stmt.order_by(IbkrTradeRow.id.desc()).limit(limit)
         async with self.Session() as s:
+            if before_id is not None:
+                anchor = await s.get(IbkrTradeRow, before_id)
+                if anchor is None:
+                    return []
+                anchor_at = anchor.executed_at or datetime.min
+                stmt = stmt.where(
+                    or_(
+                        executed < anchor_at,
+                        (executed == anchor_at) & (IbkrTradeRow.id < before_id),
+                    )
+                )
+            stmt = stmt.order_by(executed.desc(), IbkrTradeRow.id.desc()).limit(limit)
             rows = (await s.execute(stmt)).scalars().all()
         return [_ibkr_trade_to_dict(r) for r in rows]
 
