@@ -1,13 +1,38 @@
 name: Run tests
 
+# Path filters: a frontend- or docs-only change doesn't start the backend suite.
+# Branch pushes other than main are left to the pull_request run, so a PR
+# branch isn't tested twice per push.
 on:
     push:
         branches: [main]
+        paths:
+            - "app/**"
+            - "tests/**"
+            - "requirements.txt"
+            - "pyproject.toml"
+            - ".github/workflows/pytest.yml"
     pull_request:
+        paths:
+            - "app/**"
+            - "tests/**"
+            - "requirements.txt"
+            - "pyproject.toml"
+            - ".github/workflows/pytest.yml"
+    workflow_dispatch:
+
+# A new push to the same PR supersedes the run still going for the old one.
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+    contents: read
 
 jobs:
     test:
         runs-on: ubuntu-latest
+        timeout-minutes: 15
 
         steps:
             - name: Checkout repository
@@ -17,6 +42,8 @@ jobs:
               uses: actions/setup-python@v7
               with:
                   python-version: "3.11"
+                  cache: pip
+                  cache-dependency-path: pyproject.toml
 
             # The `test` extra is a deliberate subset of requirements.txt: it
             # leaves out torch/transformers/timm, which app/ml imports lazily and
