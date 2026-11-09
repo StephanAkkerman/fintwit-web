@@ -198,6 +198,35 @@ Notes:
 - Running the backend outside Docker? Set `IBKR_HOST=127.0.0.1`; it then uses 4001/4002.
 - Gateway settings persist in `./ibgateway-settings`.
 
+### IBKR Flex Query (trade history without the Gateway)
+
+IBKR's Flex Web Service hands out an account statement with a long-lived token, so trades, cash
+and daily account value keep syncing while the Gateway waits for its weekly 2FA. It works with
+or without the Gateway add-on.
+
+1. In the IBKR portal, open Performance & Reports, Flex Queries and create an **Activity Flex
+   Query** with these sections (all fields each):
+   - **Open Positions**, Summary level
+   - **Trades**, Execution level (keep **IB Execution ID**: it matches fills the Gateway already
+     stored)
+   - **Cash Report**
+   - **Net Asset Value (NAV) in Base** (optional; daily account value for `/api/ibkr/equity`)
+
+   Set the format to **XML** and the period to **Last 365 Calendar Days**, so the first fetch
+   imports a year of history. Later fetches skip what is already stored.
+2. Under Settings, Account Settings, **Flex Web Service**, enable it and generate a token.
+3. In `.env`, set:
+
+   ```bash
+   IBKR_FLEX_TOKEN=your-flex-token
+   IBKR_FLEX_QUERY_ID=1234567   # the number next to the query in Flex Queries
+   ```
+
+The backend fetches the statement every six hours (`IBKR_FLEX_INTERVAL`) and reports the last
+fetch under `flex` in `/api/ibkr/status`. See
+[docs/configuration.md](docs/configuration.md#ibkr-flex-query) for how it combines with the
+Gateway.
+
 ### Public access via Cloudflare Tunnel
 
 Adds the `cloudflared` container and an Access login gate, so only people on your allowlist can
