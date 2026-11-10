@@ -780,3 +780,32 @@ def test_generic_get_cannot_write_the_journal_or_strategy():
     assert calls is not None and calls.get("method", "GET") == "GET"
     strategy = mcp_server.match_endpoint(endpoints, "/api/advisor/strategy")
     assert strategy.get("method", "GET") == "GET"
+
+
+async def test_backtest_tool_drops_curves_and_trade_log(monkeypatch):
+    seen = []
+
+    async def fake_request(client, path, params, body=None, *, method="GET"):
+        seen.append((path, params))
+        return {
+            "status": "ready",
+            "result": {
+                "variants": [
+                    {
+                        "key": "current",
+                        "return_pct": 1.0,
+                        "curve": [{"t": "2026-09-01", "equity": 1}],
+                        "trade_log": [{"symbol": "X"}],
+                        "accounts": {"a": {}},
+                    }
+                ],
+                "accounts": [{"account": "a"}],
+            },
+        }
+
+    monkeypatch.setattr(mcp_server, "_request", fake_request)
+    result = await mcp_server.mcp.call_tool("backtest", {"refresh": True})
+    text = json.dumps(result, default=str)
+    assert seen == [("/api/advisor/backtest", {"refresh": "true"})]
+    assert "trade_log" not in text and "curve" not in text
+    assert "return_pct" in text and '\\"account\\": \\"a\\"' in text

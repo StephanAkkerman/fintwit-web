@@ -30,6 +30,7 @@ from ..services.advisor import (
     normalize_watchlist,
     price_from_assets,
 )
+from ..services.backtest import RUNNER as BACKTEST_RUNNER
 from ..services.trader_scoring import get_credibility_batch
 from .auth import api_key_dep
 
@@ -349,3 +350,18 @@ async def paper_portfolios():
     for portfolio in portfolios:
         portfolio["scores"] = scores[portfolio["strategy"]]
     return {"strategies": portfolios}
+
+
+@router.get("/backtest")
+async def backtest(refresh: bool = Query(default=False)):
+    """The strategy's rules replayed over every stored call and daily prices.
+
+    A run reads a few hundred price histories, so it runs in the background:
+    the first request (or one after the 6-hour cache, a change to the
+    followed traders, or ``refresh=true``) starts it and answers
+    ``status: running``; poll until ``status: ready``. The last finished
+    result stays in ``result`` while a new run is going.
+    """
+    strategy = await _repo().get_strategy()
+    BACKTEST_RUNNER.ensure(_main().Session, strategy["followed_traders"], force=refresh)
+    return BACKTEST_RUNNER.status()

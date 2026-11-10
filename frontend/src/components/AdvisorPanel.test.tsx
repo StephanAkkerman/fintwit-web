@@ -7,6 +7,9 @@ vi.mock('../hooks/useAdvisor', () => ({
   useAdvisor: vi.fn(),
 }))
 
+// Has its own hook and test; here it would only fire an unmocked fetch.
+vi.mock('./BacktestPanel', () => ({ default: () => null }))
+
 import { useAdvisor } from '../hooks/useAdvisor'
 const mockUseAdvisor = vi.mocked(useAdvisor)
 

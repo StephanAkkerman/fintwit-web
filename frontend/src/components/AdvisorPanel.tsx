@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { useAdvisor } from '../hooks/useAdvisor'
+import BacktestPanel from './BacktestPanel'
 import type {
   AdvisorAction,
   AdvisorCall,
@@ -525,6 +526,7 @@ export default function AdvisorPanel({ onTickerClick }: { onTickerClick?: (ticke
     <>
       <Scorecard scorecard={scorecard} />
       <PaperStrategies portfolios={paper} onTickerClick={onTickerClick} />
+      <BacktestPanel />
       <RecentChecks runs={runs} />
       <Journal calls={calls} onTickerClick={onTickerClick} />
       <StrategyForm strategy={strategy} onSave={saveStrategy} />
