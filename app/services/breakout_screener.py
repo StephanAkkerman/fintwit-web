@@ -38,7 +38,7 @@ from .trend_stage import (
     MA_WEEKS,
     MAX_STAGE_LOOKBACK,
     SLOPE_WEEKS,
-    _stage_at,
+    stage_at,
     relative_strength,
     stage_analysis,
 )
@@ -145,7 +145,7 @@ def _base_weeks(closes: list[float], stage_start: int) -> int:
     """How many weeks before ``stage_start`` were a base (stage 1 or 3)."""
     weeks = 0
     index = stage_start - 1
-    while weeks < MAX_STAGE_LOOKBACK and _stage_at(closes, index) in ENTRY_FROM:
+    while weeks < MAX_STAGE_LOOKBACK and stage_at(closes, index) in ENTRY_FROM:
         weeks += 1
         index -= 1
     return weeks

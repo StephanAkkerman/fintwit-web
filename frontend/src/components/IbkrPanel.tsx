@@ -145,6 +145,11 @@ function AccountSummary({ account }: { account: IbkrAccountSummary }) {
             >
               {fmtCurrency(entry.value, entry.currency)}
             </div>
+            {entry.as_of && (
+              <div className="mt-0.5 text-[10px] text-zinc-500">
+                Flex statement, {entry.as_of}
+              </div>
+            )}
           </div>
         );
       })}

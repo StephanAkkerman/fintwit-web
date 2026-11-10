@@ -1381,6 +1381,9 @@ export type IbkrTrade = {
 export type IbkrAccountValue = {
   value: number;
   currency: string;
+  // Set when the value comes from the last Flex statement, not the Gateway.
+  as_of?: string;
+  source?: 'flex';
 };
 
 export type IbkrAccountSummary = {
@@ -2256,4 +2259,104 @@ export type BreakoutHistory = {
     win_rate_pct: number | null
   }
   signals: Breakout[]
+}
+
+// ---- Advisor backtest (/api/advisor/backtest) ----
+
+export interface BacktestTradeStats {
+  trades: number;
+  win_rate: number | null;
+  avg_return_pct: number | null;
+  median_return_pct: number | null;
+  avg_win_pct: number | null;
+  avg_loss_pct: number | null;
+}
+
+export interface BacktestTrade {
+  symbol: string;
+  accounts: string[];
+  entry_day: string;
+  entry_price: number;
+  exit_day: string | null;
+  exit_reason: string;
+  rules_hit: string[];
+  return_pct: number;
+  days_held: number;
+  cost: number;
+}
+
+export interface BacktestVariant extends BacktestTradeStats {
+  key: string;
+  label: string;
+  group: 'baseline' | 'accounts' | 'entry' | 'exit' | 'sizing';
+  final_equity: number;
+  return_pct: number;
+  max_drawdown_pct: number;
+  avg_invested_pct: number;
+  open_positions: number;
+  skipped: Record<string, number>;
+  exits: Record<string, BacktestTradeStats>;
+  accounts: Record<string, BacktestTradeStats>;
+  curve: { t: string; equity: number }[];
+  trade_log?: BacktestTrade[];
+}
+
+export interface BacktestAccountWindow {
+  signals: number;
+  hit_rate: number;
+  avg_return_pct: number;
+  avg_excess_pct: number;
+  beat_spy_rate: number;
+}
+
+export interface BacktestAccount {
+  account: string;
+  followed: boolean;
+  d5: BacktestAccountWindow | null;
+  d20: BacktestAccountWindow | null;
+}
+
+export interface BacktestExitRow {
+  key: string;
+  label: string;
+  trades: number;
+  avg_return_pct: number;
+  median_return_pct: number;
+  win_rate: number;
+  avg_days_held: number;
+  return_per_year_held_pct: number;
+  worst_pct: number;
+  p10_pct: number;
+  still_open: number;
+  exits: Record<string, number>;
+}
+
+export interface BacktestReport {
+  window: { start: string; end: string } | null;
+  benchmark?: { symbol: string; return_pct: number | null };
+  signals: number;
+  signals_priced?: number;
+  accounts_seen?: number;
+  symbols_priced?: number;
+  symbols_missing?: number;
+  followed?: string[];
+  variants: BacktestVariant[];
+  accounts: BacktestAccount[];
+  exit_study: {
+    entries: number;
+    symbols: number;
+    first_entry: string | null;
+    last_entry: string | null;
+    trend_filter: string;
+    rows: BacktestExitRow[];
+  } | null;
+  assumptions: string[];
+  computed_at?: string;
+  took_seconds?: number;
+}
+
+export interface BacktestStatus {
+  status: 'idle' | 'running' | 'ready' | 'error';
+  error: string | null;
+  result: BacktestReport | null;
 }

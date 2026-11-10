@@ -100,7 +100,7 @@ Route-level sections:
 
 - `/advisor`
   - `AdvisorPanel` (`hooks/useAdvisor.ts`)
-  - Purpose: Claude market check. Shows the scorecard (`/api/advisor/scorecard`), recent scheduled checks (`/api/advisor/runs`), the decision journal (`/api/advisor/calls`, the owner's advice only) and the paper strategies compared by return, win rate and 7/30-day hit rate (`/api/advisor/paper`), and edits the owner's rules, watchlist, followed traders and available cash (`GET`/`PUT /api/advisor/strategy`).
+  - Purpose: Claude market check. Shows the scorecard (`/api/advisor/scorecard`), recent scheduled checks (`/api/advisor/runs`), the decision journal (`/api/advisor/calls`, the owner's advice only) the paper strategies compared by return, win rate and 7/30-day hit rate (`/api/advisor/paper`), the backtest of the rules (`BacktestPanel`, `hooks/useBacktest.ts`, `/api/advisor/backtest`, polled every 5 s while it runs: variant table with an equity chart, the current rules' trades, the 3-year exit study and per-account 5/20-day returns vs SPY), and edits the owner's rules, watchlist, followed traders and available cash (`GET`/`PUT /api/advisor/strategy`).
 
 - `/admin`
   - `AccessAllowlistPanel`

@@ -3849,6 +3849,98 @@ def _paper_position(
     }
 
 
+def _advisor_backtest() -> dict:
+    """A finished backtest, computed by the real engine on made-up prices:
+    a run-up and a sell-off for the momentum names the followed accounts
+    like, a steadier climb for the rest."""
+    import math
+    from datetime import date, timedelta
+
+    from app.services.backtest import BENCHMARK, Series, Signal, build_report
+
+    days: list[date] = []
+    day = date(2023, 11, 1)
+    while day <= date(2026, 11, 6):
+        if day.weekday() < 5:
+            days.append(day)
+        day += timedelta(days=1)
+
+    def path(seed: int, drift: float, swing: float, crash: float) -> list[float]:
+        price, out = 50.0 + seed * 7, []
+        for i in range(len(days)):
+            move = drift + swing * math.sin(i / (17 + seed * 3)) / 100
+            if i > len(days) - 45:
+                move -= crash / 100  # the late selloff
+            price *= 1 + move
+            out.append(round(price, 2))
+        return out
+
+    specs = {
+        BENCHMARK: (0, 0.0005, 0.4, 0.05),
+        "NVDA": (1, 0.0016, 1.4, 0.55),
+        "AMD": (2, 0.0014, 1.6, 0.6),
+        "PLTR": (3, 0.0018, 1.8, 0.35),
+        "CRWD": (4, 0.0009, 0.9, 0.1),
+        "COST": (5, 0.0006, 0.5, -0.05),
+        "LLY": (6, 0.0008, 0.7, 0.0),
+        "HOOD": (7, 0.0017, 2.0, 0.45),
+    }
+    series = {
+        sym: Series(
+            sym,
+            [{"t": d.isoformat(), "close": c} for d, c in zip(days, path(*spec))],
+        )
+        for sym, spec in specs.items()
+    }
+    plan = [
+        ("NVDA", "kpak82", 0),
+        ("AMD", "srxtrades", 2),
+        ("PLTR", "amitisinvesting", 4),
+        ("HOOD", "dekmartrades", 6),
+        ("CRWD", "feroceresearch", 9),
+        ("COST", "pelositracker", 3),
+        ("LLY", "pelositracker", 12),
+        ("COST", "bigcheds", 15),
+        ("NVDA", "unusual_whales", 18),
+        ("AMD", "kpak82", 22),
+        ("LLY", "bigcheds", 25),
+        ("CRWD", "chandlertrading", 28),
+        ("PLTR", "srxtrades", 30),
+        ("HOOD", "amitisinvesting", 33),
+    ]
+    start = len(days) - 46
+    signals = []
+    for n, (sym, account, offset) in enumerate(plan * 3):
+        i = start - 20 + offset + (n // len(plan)) * 9
+        signals.append(
+            Signal(sym, account, days[i], "bullish", series[sym].closes[i], 0.9)
+        )
+        signals.append(
+            Signal(
+                sym,
+                account,
+                days[i] - timedelta(days=40),
+                "bullish",
+                series[sym].closes[i - 28],
+                0.8,
+            )
+        )
+    followed = [
+        "kpak82",
+        "srxtrades",
+        "amitisinvesting",
+        "dekmartrades",
+        "feroceresearch",
+        "chandlertrading",
+        "shardib2",
+    ]
+    report = build_report(signals, series, followed)
+    report.update(
+        computed_at="2026-11-09T17:05:00+00:00", took_seconds=74.2, symbols_missing=3
+    )
+    return {"status": "ready", "error": None, "result": report}
+
+
 def _advisor_paper() -> dict:
     from app.services.advisor import PAPER_STRATEGIES
 
@@ -4853,6 +4945,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             },
             "/api/advisor/scorecard": {"total_calls": 0, "horizons": {}},
             "/api/advisor/paper": {"strategies": []},
+            "/api/advisor/backtest": {"status": "idle", "error": None, "result": None},
             "/api/overview/trend-summary": _empty_trend_summary(),
             # Reached via a `/traders/<handle>` deep link; the panel reads
             # `.recent_calls`/`.tickers` off it.
@@ -5199,6 +5292,7 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         "/api/advisor/runs": _advisor_runs(),
         "/api/advisor/scorecard": _advisor_scorecard(),
         "/api/advisor/paper": _advisor_paper(),
+        "/api/advisor/backtest": _advisor_backtest(),
     }
 
 

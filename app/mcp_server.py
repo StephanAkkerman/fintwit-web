@@ -1170,6 +1170,34 @@ async def paper_portfolios() -> str:
         return truncate(await _request(client, "/api/advisor/paper", None))
 
 
+def compact_backtest(payload: dict) -> dict:
+    """The backtest without its equity curves and trade log, which are for the
+    dashboard's chart and would crowd out the numbers that matter."""
+    result = payload.get("result")
+    if not isinstance(result, dict):
+        return payload
+    variants = [
+        {k: v for k, v in row.items() if k not in ("curve", "trade_log", "accounts")}
+        for row in result.get("variants") or []
+    ]
+    return {**payload, "result": {**result, "variants": variants}}
+
+
+@mcp.tool()
+async def backtest(refresh: bool = False) -> str:
+    """The owner's rules replayed over every stored trader call and daily
+    prices: each variant (who to follow, entry filter, exit rules, sizing)
+    with its return, max drawdown and win rate against SPY; each account's
+    5- and 20-day return after its bullish calls; and a 3-year exit-rule
+    study. Read it before changing a rule. A run takes a minute or two:
+    ``status: running`` means ask again shortly (the last result, if any,
+    is still in ``result``)."""
+    params = {"refresh": "true"} if refresh else None
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        payload = await _request(client, "/api/advisor/backtest", params)
+    return truncate(compact_backtest(payload))
+
+
 @mcp.tool()
 async def log_call(
     symbol: str,

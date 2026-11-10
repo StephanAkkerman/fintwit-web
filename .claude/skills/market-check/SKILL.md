@@ -225,6 +225,16 @@ or a sell of one it doesn't, is refused, so a refusal just means it was
 already logged. At most two new paper entries per strategy per check, so no
 single day dominates a book. Use `buy`, `sell` and `watch` only.
 
+### Changing the rules
+
+Before you add, drop or change a strategy rule (or a followed trader), call
+`backtest` and check what the change would have done: each variant changes one
+thing against the current rules, `accounts` scores every account's bullish
+calls after 5 and 20 days against SPY, and `exit_study` compares the exits over
+3 years. Cite the numbers when you propose the change. Stored calls only go
+back a few months, so treat the portfolio replay as one market regime, not
+proof.
+
 ## 5. Finish
 
 Call `finish_check` with the `cursor` and `posts` from `unseen_posts`, the
