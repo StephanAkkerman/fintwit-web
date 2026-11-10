@@ -44,6 +44,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from .price_history_service import get_price_series
+from .breakout_screener import MIN_WEEKS as BREAKOUT_MIN_WEEKS
+from .breakout_screener import evaluate_breakout
 from .trend_stage import stage_at
 
 logger = logging.getLogger(__name__)
@@ -68,6 +70,9 @@ DEDUPE_DAYS = 10
 FORWARD_DAYS = 20
 #: Exit-study entries: one every this many trading days per symbol.
 EXIT_STUDY_STEP = 21
+#: The pseudo-account breakout-screener entries are filed under, so they run
+#: through the same machinery as an account's calls.
+BREAKOUT_ACCOUNT = "breakout_screener"
 #: Sampled equity-curve points returned per variant.
 CURVE_POINTS = 120
 
@@ -82,7 +87,8 @@ class EntryRules:
     """Which calls the simulated account acts on.
 
     :param accounts: ``"followed"`` (the strategy's followed traders),
-        ``"credible"`` (accounts whose rolling 7-day hit rate is at least
+        ``"breakout"`` (the weekly stage-2 breakout screen, run over the
+        stocks the accounts mention), ``"credible"`` (accounts whose rolling 7-day hit rate is at least
         ``min_hit_rate`` over ``min_graded`` graded calls *as of the call*, so
         no hindsight), or ``"all"``.
     :param min_accounts: Distinct qualifying accounts that must be bullish
@@ -186,6 +192,12 @@ VARIANTS: list[Variant] = [
         entry={"accounts": "credible", "min_accounts": 3},
     ),
     _vary("all", "Every account", "accounts", entry={"accounts": "all"}),
+    _vary(
+        "breakout",
+        "Breakout screener instead of accounts",
+        "accounts",
+        entry={"accounts": "breakout"},
+    ),
     _vary("no_filter", "No trend filter", "entry", entry={"trend_filter": "none"}),
     _vary("stage2", "Weekly stage 2 filter", "entry", entry={"trend_filter": "stage2"}),
     _vary(
@@ -268,6 +280,9 @@ ASSUMPTIONS = [
     "Open positions are valued at the last close. Stored calls cover a short "
     "window, so most positions are still open and returns are mostly "
     "unrealised.",
+    "The breakout screener runs on the stocks the accounts mention (the "
+    "live screen scans the whole market), weekly bars built from the daily "
+    "ones; it shows as the 'breakout_screener' row among the accounts.",
     "The exit study buys monthly in every stock the accounts mention today, "
     "which leans toward stocks that did well enough to be talked about.",
 ]
@@ -296,14 +311,20 @@ class Series:
 
     def __init__(self, symbol: str, points: Iterable[dict]):
         by_day: dict[date, float] = {}
+        volume_by_day: dict[date, float] = {}
         for point in points:
             close = point.get("close")
             if close is None:
                 continue
-            by_day[date.fromisoformat(str(point["t"])[:10])] = float(close)
+            day = date.fromisoformat(str(point["t"])[:10])
+            by_day[day] = float(close)
+            if point.get("volume") is not None:
+                volume_by_day[day] = float(point["volume"])
         self.symbol = symbol
         self.days = sorted(by_day)
         self.closes = [by_day[d] for d in self.days]
+        #: Daily volume where the source had it (the breakout screen needs it).
+        self.volumes = [volume_by_day.get(d) for d in self.days]
         self._sums = [0.0]
         for close in self.closes:
             self._sums.append(self._sums[-1] + close)
@@ -571,6 +592,10 @@ def qualifying_accounts(
     hit_rates: HitRates,
 ):
     def ok(account: str, day: date) -> bool:
+        if rules.accounts == "breakout":
+            return account == BREAKOUT_ACCOUNT
+        if account == BREAKOUT_ACCOUNT:
+            return False  # a screen, not a person: only its own variant buys it
         if rules.accounts == "all":
             return True
         if rules.accounts == "followed":
@@ -948,6 +973,66 @@ def _percentile(values: list[float], pct: float) -> float:
 # --------------------------------------------------------------------------- #
 
 
+def weekly_points(series: Series) -> list[dict]:
+    """Weekly ``{t, close, volume}`` bars from a daily series, dated on each
+    week's last trading day (the breakout screen's input)."""
+    weeks: list[dict] = []
+    for i, day in enumerate(series.days):
+        volume = series.volumes[i] or 0.0
+        key = day.isocalendar()[:2]
+        if weeks and weeks[-1]["_key"] == key:
+            weeks[-1].update(t=day.isoformat(), close=series.closes[i])
+            weeks[-1]["volume"] += volume
+        else:
+            weeks.append(
+                {
+                    "_key": key,
+                    "t": day.isoformat(),
+                    "close": series.closes[i],
+                    "volume": volume,
+                }
+            )
+    for week in weeks:
+        del week["_key"]
+    return weeks
+
+
+def breakout_signals(
+    series: Series, market_weekly: list[dict], start: date, end: date
+) -> list[Signal]:
+    """One bullish signal per fresh stage-2 breakout the screener would have
+    flagged between ``start`` and ``end``, dated on the week's last trading
+    day (so the buy fills at the next week's first close). Like
+    ``breakout_screener.breakout_weeks``, only the first week of each run
+    of passing weeks counts."""
+    if not any(series.volumes):
+        return []
+    weeks = weekly_points(series)
+    out: list[Signal] = []
+    previous = False
+    for i in range(BREAKOUT_MIN_WEEKS - 1, len(weeks)):
+        day = date.fromisoformat(weeks[i]["t"])
+        if day < start - timedelta(days=7):
+            continue
+        if day > end:
+            break
+        result = evaluate_breakout(weeks, market_weekly, end=i)
+        firing = bool(result and result["signal"])
+        if firing and not previous and day >= start:
+            out.append(
+                Signal(
+                    symbol=series.symbol,
+                    account=BREAKOUT_ACCOUNT,
+                    day=day,
+                    direction="bullish",
+                    price=weeks[i]["close"],
+                    sentiment=float(result.get("score") or 0.0),
+                )
+            )
+        previous = firing
+    return out
+
+
 def build_report(
     signals: list[Signal],
     series: dict[str, Series],
@@ -986,7 +1071,15 @@ def build_report(
     start = min(s.day for s in priced)
     end = benchmark.days[-1]
     calendar = [d for d in benchmark.days if start < d <= end]
-    hit_rates = HitRates(deduped, series)
+    mentioned = {s.symbol for s in priced if s.symbol != BENCHMARK}
+    market_weekly = weekly_points(benchmark)
+    breakouts = [
+        sig
+        for symbol in sorted(mentioned)
+        for sig in breakout_signals(series[symbol], market_weekly, start, end)
+    ]
+    priced = sorted(priced + breakouts, key=lambda s: s.day)
+    hit_rates = HitRates(deduped + breakouts, series)
     keep_trades = set(include_trades_for)
 
     results = []
@@ -1008,7 +1101,6 @@ def build_report(
     bench_return = (b1 / spy_start - 1) * 100 if spy_start else None
 
     exits = [v for v in variants if v.group in ("baseline", "exit")]
-    mentioned = {s.symbol for s in priced if s.symbol != BENCHMARK}
 
     return {
         "window": {"start": start.isoformat(), "end": end.isoformat()},
@@ -1017,8 +1109,9 @@ def build_report(
             "return_pct": round(bench_return, 2) if bench_return is not None else None,
         },
         "signals": len(bullish),
-        "signals_priced": len(priced),
-        "accounts_seen": len({s.account for s in priced}),
+        "signals_priced": len(priced) - len(breakouts),
+        "breakout_signals": len(breakouts),
+        "accounts_seen": len({s.account for s in priced} - {BREAKOUT_ACCOUNT}),
         "symbols_priced": len(mentioned),
         "followed": sorted(followed_set),
         "variants": results,
