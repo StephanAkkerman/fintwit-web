@@ -402,8 +402,52 @@ def _trend_stage_summary(view: Any) -> Any:
         "sector_stage": (sector.get("stage") or {}).get("stage"),
         "sector_rs_vs_market": (sector.get("vs_market") or {}).get("mansfield"),
         "rs_vs_sector": (sector.get("stock_vs_sector") or {}).get("mansfield"),
+        "breakout": (view.get("breakout") or {}).get("signal"),
+        "breakout_failed": (view.get("breakout") or {}).get("failed") or None,
     }
     return {k: v for k, v in summary.items() if v is not None}
+
+
+#: Fields of a breakout screener row worth a market check's tokens.
+_BREAKOUT_FIELDS = (
+    "symbol",
+    "name",
+    "sector",
+    "industry",
+    "close",
+    "breakout_week",
+    "weeks_since_breakout",
+    "base_weeks",
+    "price_vs_ma30w_percent",
+    "mansfield_rs",
+    "volume_ratio",
+    "score",
+    "failed",
+    "flagged_at",
+    "flag_price",
+    "return_since_flag_pct",
+)
+
+
+def _breakouts_summary(view: Any, limit: int = 10) -> Any:
+    """The breakout screen from /api/stocks/breakouts, trimmed to the best."""
+    if not isinstance(view, dict) or "error" in view:
+        return view
+
+    def trim(rows: Any) -> list:
+        return [
+            {k: r.get(k) for k in _BREAKOUT_FIELDS if r.get(k) not in (None, [])}
+            for r in (rows or [])[:limit]
+            if isinstance(r, dict)
+        ]
+
+    run = view.get("run") or {}
+    return {
+        "as_of": run.get("as_of"),
+        "ran_at": run.get("ran_at"),
+        "breakouts": trim(view.get("breakouts")),
+        "watch": trim(view.get("watch")),
+    }
 
 
 def _analyst_activity_summary(view: Any) -> Any:
@@ -701,8 +745,9 @@ async def collect_candidates(
 ) -> str:
     """Buy ideas: what fintwit is newly excited about, what is moving, what the
     most credible traders call, where big options money went (Signa flow),
-    and the owner's watchlist with each symbol's trend stage, with held
-    symbols flagged so they aren't mistaken for new ideas."""
+    the breakout screener's fresh stage-2 breakouts, and the owner's
+    watchlist with each symbol's trend stage, with held symbols flagged so
+    they aren't mistaken for new ideas."""
     overview = {"window_hours": window_hours, "asset_kind": asset_kind}
     views = {
         "hidden_gems": ("/api/overview/hidden-gems", overview),
@@ -724,9 +769,11 @@ async def collect_candidates(
         "insider_buying": ("/api/stocks/insider-trades", {"days": 14, "limit": 1}),
         "fund_buying": ("/api/stocks/fund-holdings", None),
         "options_flow": ("/api/signa/options-flow", None),
+        "breakouts": ("/api/stocks/breakouts", None),
     }
     result = await _gather_views(client, views)
     result["options_flow"] = _market_flow_summary(result["options_flow"])
+    result["breakouts"] = _breakouts_summary(result["breakouts"])
     for key in ("gainers", "most_active"):
         result[key] = _head(result[key])
     insiders = result["insider_buying"]
@@ -785,7 +832,35 @@ async def collect_candidates(
     result["watchlist"] = list(
         await asyncio.gather(*(watch(symbol) for symbol in watchlist[:MAX_HOLDINGS]))
     )
+    breakouts = result["breakouts"]
+    if isinstance(breakouts, dict):
+        for row in breakouts.get("breakouts", []) + breakouts.get("watch", []):
+            row["held"] = row.get("symbol") in held
     result["held_symbols"] = held
+    return truncate(result)
+
+
+async def collect_breakouts(client: httpx.AsyncClient, days: int = 90) -> str:
+    """The latest breakout screen in full plus the screen's track record."""
+    views = {
+        "screen": ("/api/stocks/breakouts", None),
+        "history": ("/api/stocks/breakouts/history", {"days": days}),
+    }
+    result = await _gather_views(client, views)
+    screen = result["screen"]
+    if isinstance(screen, dict) and "error" not in screen:
+        result["screen"] = {
+            **_breakouts_summary(screen, limit=40),
+            "criteria": screen.get("criteria"),
+        }
+    history = result["history"]
+    if isinstance(history, dict) and "summary" in history:
+        result["history"] = {
+            "summary": history["summary"],
+            "signals": _breakouts_summary(
+                {"breakouts": history.get("signals")}, limit=40
+            )["breakouts"],
+        }
     return truncate(result)
 
 
@@ -824,7 +899,7 @@ mcp = MCPServer(
         "portfolio (manual positions and IBKR). Start with the bundles: "
         "portfolio for holdings and P&L, holdings_check for what is happening "
         "around each holding (news, chatter, earnings), ticker for one symbol, market_snapshot for the market, candidates for "
-        "buy ideas, followed_traders for what the owner's favourite traders "
+        "buy ideas, breakouts for stocks just entering a weekly uptrend, followed_traders for what the owner's favourite traders "
         "just posted about, unseen_posts for every post since the last check. "
         "A scheduled check ends with finish_check. For a market check read strategy (the owner's rules) and "
         "journal (your earlier calls and how they did), and record each "
@@ -962,6 +1037,20 @@ async def candidates(window_hours: int = 24, asset_kind: str = "equity") -> str:
     owner already holds. ``asset_kind``: ``equity``, ``crypto`` or ``all``."""
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         return await collect_candidates(client, window_hours, asset_kind)
+
+
+@mcp.tool()
+async def breakouts(days: int = 90) -> str:
+    """The stage-2 breakout screener: US stocks that just moved above a rising
+    30-week average out of a base, beating the market (Mansfield RS above
+    zero and rising) on breakout volume of 1.5x the base or more, and not yet
+    stretched far above the average. ``screen.breakouts`` pass every check,
+    best ``score`` first; ``screen.watch`` miss exactly one (``failed``).
+    ``history`` is every breakout flagged in the last ``days`` with the price
+    when flagged and the return since: the screen's own track record. Buy
+    ideas that don't depend on what anyone posted."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        return await collect_breakouts(client, days)
 
 
 @mcp.tool()
@@ -1141,7 +1230,7 @@ async def log_call(
         The strategy rule that triggered it, if any.
     strategy
         A paper strategy's key (``insider_cluster``, ``earnings_drift``,
-        ``extreme_fear``, ``call_flow``), for a paper trade: ``buy``, ``sell``
+        ``extreme_fear``, ``call_flow``, ``stage2_breakout``), for a paper trade: ``buy``, ``sell``
         or ``watch`` only. Leave it out for advice to the owner.
     """
     call = {"symbol": symbol, "action": action, "reasoning": reasoning}

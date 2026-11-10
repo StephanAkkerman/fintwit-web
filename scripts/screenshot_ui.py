@@ -2438,6 +2438,261 @@ def _market_positioning() -> dict:
     }
 
 
+def _breakout_row(
+    symbol: str,
+    name: str,
+    industry: str,
+    close: float,
+    *,
+    week: str,
+    since: int,
+    base: int,
+    rs: float,
+    volume: float,
+    extension: float,
+    score: float | None,
+    failed: tuple[str, ...] = (),
+    flag_price: float | None = None,
+) -> dict:
+    return {
+        "symbol": symbol,
+        "name": name,
+        "sector": "Electronic Technology",
+        "industry": industry,
+        "close": close,
+        "breakout_week": week,
+        "weeks_since_breakout": since,
+        "base_weeks": base,
+        "stage": 2,
+        "price_vs_ma30w_percent": extension,
+        "mansfield_rs": rs,
+        "rs_rising_4w": rs > 0,
+        "volume_ratio": volume,
+        "strong_volume": volume >= 2.0,
+        "score": score,
+        "signal": not failed,
+        "failed": list(failed),
+        "status": "watch" if failed and flag_price is None else "breakout",
+        "flagged_at": "2026-11-03T13:00:00+00:00" if flag_price else None,
+        "flag_price": flag_price,
+        "last_close": close,
+        "return_since_flag_pct": (
+            round((close / flag_price - 1) * 100, 2) if flag_price else None
+        ),
+    }
+
+
+_BREAKOUT_CRITERIA = {
+    "fresh_weeks": 8,
+    "ma_weeks": 30,
+    "min_volume_ratio": 1.5,
+    "strong_volume_ratio": 2.0,
+    "min_mansfield": 0.0,
+    "max_extension_pct": 25.0,
+    "min_base_weeks": 6,
+}
+
+
+def _breakouts() -> dict:
+    """The /stocks breakout screener: a few names through every check, two
+    near misses, one of them on light volume."""
+    rows = [
+        (
+            "CRDO",
+            "Credo Technology",
+            "Semiconductors",
+            149.9,
+            "2026-10-13",
+            5,
+            22,
+            31.4,
+            3.1,
+            14.2,
+            81.3,
+            141.2,
+        ),
+        (
+            "HIMS",
+            "Hims & Hers Health",
+            "Pharmacies",
+            58.4,
+            "2026-10-20",
+            4,
+            31,
+            18.9,
+            2.4,
+            11.8,
+            66.0,
+            55.1,
+        ),
+        (
+            "TOST",
+            "Toast, Inc.",
+            "Packaged Software",
+            44.7,
+            "2026-10-27",
+            3,
+            18,
+            9.6,
+            1.9,
+            7.3,
+            54.9,
+            None,
+        ),
+        (
+            "ALK",
+            "Alaska Air Group",
+            "Airlines",
+            63.2,
+            "2026-10-06",
+            6,
+            40,
+            6.2,
+            1.7,
+            16.5,
+            37.4,
+            None,
+        ),
+    ]
+    breakouts = [
+        _breakout_row(
+            sym,
+            name,
+            ind,
+            close,
+            week=week,
+            since=since,
+            base=base,
+            rs=rs,
+            volume=vol,
+            extension=ext,
+            score=score,
+            flag_price=flag,
+        )
+        for sym, name, ind, close, week, since, base, rs, vol, ext, score, flag in rows
+    ]
+    watch = [
+        _breakout_row(
+            "DOCU",
+            "DocuSign",
+            "Packaged Software",
+            88.1,
+            week="2026-10-27",
+            since=3,
+            base=26,
+            rs=7.8,
+            volume=1.2,
+            extension=9.4,
+            score=None,
+            failed=("volume",),
+        ),
+        _breakout_row(
+            "RIVN",
+            "Rivian Automotive",
+            "Motor Vehicles",
+            17.9,
+            week="2026-10-20",
+            since=4,
+            base=48,
+            rs=-2.3,
+            volume=2.6,
+            extension=12.1,
+            score=None,
+            failed=("relative_strength",),
+        ),
+    ]
+    return {
+        "run": {
+            "id": 12,
+            "ran_at": "2026-11-09T12:00:00+00:00",
+            "as_of": "2026-11-09",
+            "universe": 240,
+            "evaluated": 231,
+            "breakouts": len(breakouts),
+            "watch": len(watch),
+        },
+        "breakouts": breakouts,
+        "watch": watch,
+        "criteria": _BREAKOUT_CRITERIA,
+    }
+
+
+def _breakout_history() -> dict:
+    signals = [
+        _breakout_row(
+            "CRDO",
+            "Credo Technology",
+            "Semiconductors",
+            149.9,
+            week="2026-10-13",
+            since=5,
+            base=22,
+            rs=31.4,
+            volume=3.1,
+            extension=14.2,
+            score=81.3,
+            flag_price=141.2,
+        ),
+        _breakout_row(
+            "HIMS",
+            "Hims & Hers Health",
+            "Pharmacies",
+            58.4,
+            week="2026-10-20",
+            since=4,
+            base=31,
+            rs=18.9,
+            volume=2.4,
+            extension=11.8,
+            score=66.0,
+            flag_price=55.1,
+        ),
+        _breakout_row(
+            "ONON",
+            "On Holding",
+            "Apparel/Footwear",
+            47.3,
+            week="2026-09-22",
+            since=8,
+            base=19,
+            rs=4.1,
+            volume=1.8,
+            extension=3.2,
+            score=None,
+            failed=("fresh",),
+            flag_price=51.6,
+        ),
+    ]
+    returns = [s["return_since_flag_pct"] for s in signals]
+    return {
+        "days": 180,
+        "summary": {
+            "flagged": len(signals),
+            "with_return": len(returns),
+            "avg_return_pct": round(sum(returns) / len(returns), 2),
+            "win_rate_pct": round(100 * sum(r > 0 for r in returns) / len(returns), 1),
+        },
+        "signals": signals,
+    }
+
+
+def _empty_breakouts() -> dict:
+    return {"run": None, "breakouts": [], "watch": [], "criteria": _BREAKOUT_CRITERIA}
+
+
+def _empty_breakout_history() -> dict:
+    return {
+        "days": 180,
+        "summary": {
+            "flagged": 0,
+            "with_return": 0,
+            "avg_return_pct": None,
+            "win_rate_pct": None,
+        },
+        "signals": [],
+    }
+
+
 def _market_breadth() -> dict:
     """Index breadth shaped like `get_market_breadth`: the real session of 2026-10-16."""
     from app.services.market_breadth_service import read_breadth
@@ -3719,6 +3974,10 @@ def _advisor_paper() -> dict:
             [_paper_position(29, "AMD", 236.0, 229.8, "2026-10-17", 6)],
             {"7": bucket(0, 0, None), "30": bucket(0, 0, None)},
         ),
+        "stage2_breakout": (
+            [_paper_position(41, "CRDO", 141.2, 149.9, "2026-11-03", 6)],
+            {"7": bucket(0, 0, None), "30": bucket(0, 0, None)},
+        ),
     }
     strategies = []
     for key, spec in PAPER_STRATEGIES.items():
@@ -4666,6 +4925,9 @@ def fixtures_for(scenario: str) -> dict[str, object]:
             # Longer fragment first, as with gamma exposure above.
             "/api/market/breadth/history": {"universe": "spx", "points": []},
             "/api/market/breadth": _empty_market_breadth(),
+            # Longer fragment first, as with gamma exposure above.
+            "/api/stocks/breakouts/history": _empty_breakout_history(),
+            "/api/stocks/breakouts": _empty_breakouts(),
             "/api/options/put-call": _empty_put_call_ratios(),
             "/api/market/world-indices": _empty_world_indices(),
             "/api/news/company": _empty_company_news(),
@@ -4995,6 +5257,8 @@ def fixtures_for(scenario: str) -> dict[str, object]:
         "/api/market/positioning": _market_positioning(),
         "/api/market/breadth/history": _market_breadth_history(),
         "/api/market/breadth": _market_breadth(),
+        "/api/stocks/breakouts/history": _breakout_history(),
+        "/api/stocks/breakouts": _breakouts(),
         "/api/options/put-call": _put_call_ratios(),
         "/api/market/world-indices": _world_indices(),
         # Company news (stocks route).
