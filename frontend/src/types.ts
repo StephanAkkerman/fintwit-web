@@ -2339,6 +2339,7 @@ export interface BacktestReport {
   accounts_seen?: number;
   symbols_priced?: number;
   symbols_missing?: number;
+  breakout_signals?: number;
   followed?: string[];
   variants: BacktestVariant[];
   accounts: BacktestAccount[];

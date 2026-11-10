@@ -225,3 +225,58 @@ def test_runner_runs_in_the_background_and_keeps_the_result(monkeypatch):
 
     asyncio.run(scenario())
     assert calls == [("a", "b"), ("a",)]
+
+
+def _with_volume(symbol: str, closes: list[float], volumes: list[float]) -> Series:
+    days = business_days(date(2023, 1, 2), len(closes))
+    return Series(
+        symbol,
+        [
+            {"t": d.isoformat(), "close": c, "volume": v}
+            for d, c, v in zip(days, closes, volumes)
+        ],
+    )
+
+
+def test_weekly_points_close_on_the_last_day_and_sum_volume():
+    s = _with_volume("X", [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], [10.0] * 6)
+    weeks = bt.weekly_points(s)
+    # 2023-01-02 is a Monday: five days, then one.
+    assert [w["close"] for w in weeks] == [5.0, 6.0]
+    assert [w["volume"] for w in weeks] == [50.0, 10.0]
+    assert weeks[0]["t"] == s.days[4].isoformat()
+
+
+def test_breakout_signals_fire_once_on_a_volume_breakout_out_of_a_base():
+    import math
+
+    # A long decline, a wide flat base, then a fast climb on heavy volume.
+    base = [100 - i * 0.12 for i in range(250)]
+    base += [70 + 3 * math.sin(i / 6) for i in range(200)]
+    climb = ramp(70, 105, 50)
+    closes = base + climb
+    volumes = [1e6] * len(base) + [4e6] * len(climb)
+    s = _with_volume("X", closes, volumes)
+    market = bt.weekly_points(
+        _with_volume("SPY", [400.0] * len(closes), [1e7] * len(closes))
+    )
+    found = bt.breakout_signals(s, market, s.days[0], s.days[-1])
+    assert len(found) == 1
+    sig = found[0]
+    assert sig.account == bt.BREAKOUT_ACCOUNT and sig.direction == "bullish"
+    assert s.days[len(base)] <= sig.day
+    assert (
+        bt.breakout_signals(make_series("Y", closes), market, s.days[0], s.days[-1])
+        == []
+    )
+
+
+def test_breakout_entries_buy_only_in_their_own_variant():
+    rates = HitRates([], {})
+    day = date(2026, 9, 1)
+    breakout_only = bt.qualifying_accounts(
+        EntryRules(accounts="breakout"), set(), rates
+    )
+    everyone = bt.qualifying_accounts(EntryRules(accounts="all"), set(), rates)
+    assert breakout_only(bt.BREAKOUT_ACCOUNT, day) and not breakout_only("a", day)
+    assert everyone("a", day) and not everyone(bt.BREAKOUT_ACCOUNT, day)
